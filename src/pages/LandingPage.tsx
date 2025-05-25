@@ -1,0 +1,62 @@
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { Gift, Star, QrCode, Wallet } from 'lucide-react';
+
+const LandingPage = () => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="text-center">
+      <h1 className="text-4xl font-bold text-gray-900 mb-8">{t('welcome')}</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <FeatureCard
+          icon={<QrCode className="w-8 h-8 text-blue-500" />}
+          title="Easy QR Code"
+          description="Show your QR code to collect points at your favorite stores"
+        />
+        <FeatureCard
+          icon={<Star className="w-8 h-8 text-yellow-500" />}
+          title="Earn Points"
+          description="Collect points and stamps from participating businesses"
+        />
+        <FeatureCard
+          icon={<Gift className="w-8 h-8 text-purple-500" />}
+          title="Get Rewards"
+          description="Redeem your points for amazing rewards and discounts"
+        />
+        <FeatureCard
+          icon={<Wallet className="w-8 h-8 text-green-500" />}
+          title="Digital Wallet"
+          description="Keep all your loyalty cards in one place"
+        />
+      </div>
+
+      <div className="flex justify-center gap-4">
+        <Link
+          to="/register"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+        >
+          {t('register')}
+        </Link>
+        <Link
+          to="/login"
+          className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold border border-blue-600 hover:bg-blue-50 transition-colors"
+        >
+          {t('login')}
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <div className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex justify-center mb-4">{icon}</div>
+    <h3 className="text-lg font-semibold mb-2">{title}</h3>
+    <p className="text-gray-600">{description}</p>
+  </div>
+);
+
+export default LandingPage;

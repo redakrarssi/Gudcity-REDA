@@ -1,0 +1,792 @@
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { BusinessLayout } from '../../components/business/BusinessLayout';
+import { 
+  Sparkles, Gift, Ticket, QrCode, Calendar, Download, 
+  Plus, Trash2, RefreshCw, ChevronRight, ArrowUp, Users, Rocket, Zap
+} from 'lucide-react';
+import { PromoService } from '../../services/promoService';
+import { CurrencyService } from '../../services/currencyService';
+import type { PromoCode, PromoCodeStats } from '../../types/promo';
+import type { CurrencyCode } from '../../types/currency';
+import { createPromoQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
+
+// Sample promotion ideas for inspiration
+const PROMO_IDEAS = [
+  {
+    title: "Welcome Gift",
+    description: "Give new customers a special discount on their first purchase",
+    icon: <Gift className="h-10 w-10 text-purple-500" />,
+    color: "bg-purple-100 border-purple-200"
+  },
+  {
+    title: "Happy Hour",
+    description: "Double points during specific hours of the day",
+    icon: <Calendar className="h-10 w-10 text-blue-500" />,
+    color: "bg-blue-100 border-blue-200"
+  },
+  {
+    title: "Birthday Surprise",
+    description: "Special gift for customers during their birthday month",
+    icon: <Sparkles className="h-10 w-10 text-pink-500" />,
+    color: "bg-pink-100 border-pink-200"
+  },
+  {
+    title: "Refer-a-Friend",
+    description: "Reward customers who bring in new business",
+    icon: <Users className="h-10 w-10 text-green-500" />,
+    color: "bg-green-100 border-green-200"
+  }
+];
+
+// Animation styles for elements using Tailwind built-in animation
+const animationStyles = {
+  fadeIn: "animate-fadeIn",
+  scaleIn: "transform transition-all duration-300 scale-100",
+  slideIn: "transform transition-all duration-300 translate-y-0"
+};
+
+const PromotionsPage = () => {
+  const { t } = useTranslation();
+  const [codes, setCodes] = useState<PromoCode[]>([]);
+  const [stats, setStats] = useState<PromoCodeStats | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState<string | null>(null);
+  const [showPromoIdeas, setShowPromoIdeas] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [activeTab, setActiveTab] = useState<'active' | 'all'>('active');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Mock business ID
+  const mockBusinessId = "123";
+
+  // Form state
+  const [formData, setFormData] = useState({
+    type: 'POINTS' as PromoCode['type'],
+    value: '',
+    maxUses: '',
+    expiresAt: '',
+    name: '',
+    description: ''
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Initialize some mock promo codes if no data
+      initializeMockData();
+      
+      const { codes } = await PromoService.getBusinessCodes(mockBusinessId);
+      setCodes(codes);
+      
+      const { stats } = await PromoService.getCodeStats(mockBusinessId);
+      setStats(stats);
+    } catch (error) {
+      console.error('Error loading promotions data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const initializeMockData = () => {
+    const now = new Date();
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    
+    const mockCodes: PromoCode[] = [
+      {
+        id: '1',
+        businessId: mockBusinessId,
+        code: 'WELCOME20',
+        type: 'DISCOUNT',
+        value: 20,
+        currency: 'USD',
+        maxUses: 100,
+        usedCount: 45,
+        expiresAt: nextMonth.toISOString(),
+        status: 'ACTIVE',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      },
+      {
+        id: '2',
+        businessId: mockBusinessId,
+        code: 'LOYALTY50',
+        type: 'POINTS',
+        value: 50,
+        maxUses: null,
+        usedCount: 120,
+        expiresAt: null,
+        status: 'ACTIVE',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      },
+      {
+        id: '3',
+        businessId: mockBusinessId,
+        code: 'SUMMER10',
+        type: 'CASHBACK',
+        value: 10,
+        currency: 'USD',
+        maxUses: 200,
+        usedCount: 198,
+        expiresAt: new Date(now.getFullYear(), 8, 30).toISOString(),
+        status: 'DEPLETED',
+        createdAt: new Date(now.getFullYear(), 5, 1).toISOString(),
+        updatedAt: now.toISOString()
+      }
+    ];
+    
+    const mockRedemptions = Array.from({ length: 150 }, (_, i) => ({
+      id: `r${i}`,
+      codeId: mockCodes[Math.floor(Math.random() * mockCodes.length)].id,
+      customerId: `cust${Math.floor(Math.random() * 100)}`,
+      businessId: mockBusinessId,
+      redeemedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+      value: Math.floor(Math.random() * 50) + 10,
+      currency: 'USD' as CurrencyCode
+    }));
+    
+    // Only initialize if empty
+    if (!codes || codes.length === 0) {
+      PromoService.initMockData(mockCodes, mockRedemptions);
+    }
+  };
+
+  const handleCreateCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { code, error } = await PromoService.generateCode(
+        mockBusinessId,
+        formData.type,
+        parseFloat(formData.value),
+        currency,
+        formData.maxUses ? parseInt(formData.maxUses) : null,
+        formData.expiresAt || null
+      );
+
+      if (error) throw new Error(error);
+
+      await loadData();
+      setShowCreateModal(false);
+      setFormData({
+        type: 'POINTS',
+        value: '',
+        maxUses: '',
+        expiresAt: '',
+        name: '',
+        description: ''
+      });
+      
+      // Show success animation
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error creating code:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelCode = async (codeId: string) => {
+    try {
+      await PromoService.updateCodeStatus(codeId, 'CANCELLED');
+      await loadData();
+    } catch (error) {
+      console.error('Error cancelling code:', error);
+    }
+  };
+
+  const downloadQR = (code: string) => {
+    try {
+      downloadQRCode(
+        { type: 'promo_code', code, businessId: mockBusinessId },
+        `promo-${code}.png`,
+        { size: 300 }
+      );
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+    }
+  };
+
+  // Simple QR code component using HTML Canvas
+  const SimpleQRCode = ({ value, id, size = 200 }: { value: string, id: string, size?: number }) => {
+    useEffect(() => {
+      const generateQR = async () => {
+        try {
+          const dataUrl = await createPromoQRCode(value, mockBusinessId);
+          
+          // Draw the QR code to the canvas
+          const canvas = document.getElementById(id) as HTMLCanvasElement;
+          if (!canvas) return;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          
+          const img = new Image();
+          img.onload = () => {
+            ctx.clearRect(0, 0, size, size);
+            ctx.drawImage(img, 0, 0, size, size);
+          };
+          img.src = dataUrl;
+        } catch (error) {
+          console.error('Error generating QR code:', error);
+        }
+      };
+      
+      generateQR();
+    }, [value, id, size]);
+    
+    return <canvas id={id} width={size} height={size} />;
+  };
+
+  const filteredCodes = activeTab === 'active'
+    ? codes.filter(code => code.status === 'ACTIVE')
+    : codes;
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'POINTS': return <Zap className="h-4 w-4" />;
+      case 'DISCOUNT': return <Ticket className="h-4 w-4" />;
+      case 'CASHBACK': return <ArrowUp className="h-4 w-4" />;
+      case 'GIFT': return <Gift className="h-4 w-4" />;
+      default: return <Ticket className="h-4 w-4" />;
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'POINTS': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'DISCOUNT': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'CASHBACK': return 'bg-green-100 text-green-800 border-green-200';
+      case 'GIFT': return 'bg-purple-100 text-purple-800 border-purple-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'bg-green-100 text-green-800 border-green-200';
+      case 'EXPIRED': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'DEPLETED': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'CANCELLED': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  return (
+    <BusinessLayout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center">
+              <Sparkles className="w-6 h-6 text-purple-500 mr-2" />
+              {t('Promotions & Special Offers')}
+            </h1>
+            <p className="text-gray-500 mt-1">
+              {t('Create exciting promotions to attract and reward your customers')}
+            </p>
+          </div>
+          
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowPromoIdeas(!showPromoIdeas)}
+              className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition-colors border border-purple-100"
+            >
+              <Rocket className="w-5 h-5" />
+              {t('Promo Ideas')}
+            </button>
+            
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm"
+            >
+              <Plus className="w-5 h-5" />
+              {t('Create Promotion')}
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        {stats && (
+          <div className={`grid grid-cols-1 md:grid-cols-4 gap-5 ${animationStyles.fadeIn}`}>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{t('Active Promotions')}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.activeCodes}</p>
+                </div>
+                <div className="bg-green-50 p-3 rounded-full">
+                  <Ticket className="w-6 h-6 text-green-500" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center text-sm">
+                <span className={stats.activeCodes > 0 ? "text-green-500" : "text-gray-400"}>
+                  {stats.activeCodes > 0 ? t('Running now') : t('Create your first promo!')}
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{t('Total Redemptions')}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalRedemptions}</p>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-full">
+                  <RefreshCw className="w-6 h-6 text-blue-500" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center text-sm">
+                <ArrowUp className="w-4 h-4 text-green-500 mr-1" />
+                <span className="text-green-500">
+                  {Math.floor(Math.random() * 20) + 5}% {t('from last month')}
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{t('Usage Rate')}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {stats.redemptionRate ? Math.round(stats.redemptionRate * 100) : 0}%
+                  </p>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded-full">
+                  <Users className="w-6 h-6 text-yellow-500" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center text-sm">
+                <span className="text-gray-500">
+                  {t('Percentage of promo codes used')}
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{t('Value Generated')}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {CurrencyService.formatAmount(stats.redemptionValue || 0, currency)}
+                  </p>
+                </div>
+                <div className="bg-purple-50 p-3 rounded-full">
+                  <Gift className="w-6 h-6 text-purple-500" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center text-sm">
+                <span className="text-gray-500">
+                  {t('Total value of all redemptions')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Promotion Ideas Section */}
+        {showPromoIdeas && (
+          <div className={`bg-white rounded-xl shadow-sm border border-purple-100 p-6 ${animationStyles.fadeIn}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-purple-800">
+                <Rocket className="w-5 h-5 inline mr-2" />
+                {t('Promotion Ideas to Boost Your Business')}
+              </h2>
+              <button 
+                onClick={() => setShowPromoIdeas(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {PROMO_IDEAS.map((idea, index) => (
+                <div 
+                  key={index}
+                  className={`${idea.color} border rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow ${animationStyles.slideIn}`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      name: idea.title,
+                      description: idea.description,
+                      type: idea.title.includes("Happy Hour") ? 'POINTS' : 
+                             idea.title.includes("Welcome") ? 'DISCOUNT' :
+                             idea.title.includes("Birthday") ? 'GIFT' : 'CASHBACK'
+                    });
+                    setShowCreateModal(true);
+                    setShowPromoIdeas(false);
+                  }}
+                >
+                  <div className="flex flex-col items-center text-center">
+                    {idea.icon}
+                    <h3 className="font-semibold mt-3">{idea.title}</h3>
+                    <p className="text-sm mt-1">{idea.description}</p>
+                    <button className="mt-3 text-xs font-medium flex items-center">
+                      {t('Use this idea')}
+                      <ChevronRight className="w-3 h-3 ml-1" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Promotions List */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex border-b border-gray-100">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-4 py-3 text-sm font-medium ${
+                activeTab === 'active'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t('Active Promotions')}
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-4 py-3 text-sm font-medium ${
+                activeTab === 'all'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t('All Promotions')}
+            </button>
+          </div>
+          
+          {filteredCodes.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Code')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Type')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Value')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Usage')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Status')}
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Actions')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredCodes.map((code, index) => (
+                    <tr 
+                      key={code.id}
+                      className={`hover:bg-gray-50 ${animationStyles.fadeIn}`}
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{code.code}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getTypeColor(code.type)}`}>
+                          {getTypeIcon(code.type)}
+                          <span className="ml-1">{code.type}</span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {code.type === 'POINTS' 
+                          ? `${code.value} ${t('points')}`
+                          : CurrencyService.formatAmount(code.value, code.currency || currency)
+                        }
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2 max-w-[100px]">
+                            <div 
+                              className="bg-blue-600 h-2.5 rounded-full" 
+                              style={{ 
+                                width: code.maxUses 
+                                  ? `${Math.min(100, (code.usedCount / code.maxUses) * 100)}%` 
+                                  : '0%' 
+                              }}
+                            ></div>
+                          </div>
+                          <span>
+                            {code.usedCount} {code.maxUses ? `/ ${code.maxUses}` : ''}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(code.status)}`}>
+                          {code.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => setShowQRModal(code.code)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title={t('Show QR Code')}
+                          >
+                            <QrCode className="h-5 w-5" />
+                          </button>
+                          {code.status === 'ACTIVE' && (
+                            <button
+                              onClick={() => handleCancelCode(code.id)}
+                              className="text-red-600 hover:text-red-800"
+                              title={t('Cancel Promotion')}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <Gift className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-500">{t('No promotions found')}</h3>
+              <p className="text-gray-400 text-sm mt-2 mb-4">{t('Create your first promotion to start attracting customers')}</p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                {t('Create Your First Promotion')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Success Toast */}
+        {showSuccess && (
+          <div className={`fixed bottom-4 right-4 bg-green-100 border border-green-200 text-green-800 rounded-lg px-4 py-3 shadow-lg flex items-center ${animationStyles.slideIn}`}>
+            <div className="bg-green-200 p-1 rounded-full mr-3">
+              <Sparkles className="h-5 w-5 text-green-700" />
+            </div>
+            <div>
+              <p className="font-medium">{t('Promotion Created!')}</p>
+              <p className="text-sm">{t('Your new promotion is now live')}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Create Promotion Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`bg-white rounded-xl max-w-md w-full p-6 ${animationStyles.scaleIn}`}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                  <Sparkles className="w-5 h-5 text-purple-500 mr-2" />
+                  {t('Create New Promotion')}
+                </h3>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCode} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Promotion Name')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-2"
+                    placeholder={t('e.g. Summer Special')}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Promotion Type')}
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {['POINTS', 'DISCOUNT', 'CASHBACK', 'GIFT'].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: type as any })}
+                        className={`py-2 px-3 rounded-lg border text-center text-sm ${
+                          formData.type === type
+                            ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Value')}
+                  </label>
+                  <div className="mt-1 relative rounded-md shadow-sm">
+                    {formData.type !== 'POINTS' && (
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 sm:text-sm">$</span>
+                      </div>
+                    )}
+                    <input
+                      type="number"
+                      value={formData.value}
+                      onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                      className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                        formData.type !== 'POINTS' ? 'pl-7' : ''
+                      }`}
+                      min="0"
+                      step={formData.type === 'POINTS' ? '1' : '0.01'}
+                      required
+                    />
+                    {formData.type === 'POINTS' && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 sm:text-sm">{t('points')}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Description')} <span className="text-gray-400">{t('(optional)')}</span>
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    rows={2}
+                    placeholder={t('Enter details about this promotion')}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('Maximum Uses')} <span className="text-gray-400">{t('(optional)')}</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.maxUses}
+                      onChange={(e) => setFormData({ ...formData, maxUses: e.target.value })}
+                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      min="0"
+                      placeholder={t('Unlimited')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('Expiration Date')} <span className="text-gray-400">{t('(optional)')}</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.expiresAt}
+                      onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    {t('Cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <RefreshCw className="animate-spin h-4 w-4 mr-2" />
+                        {t('Creating...')}
+                      </span>
+                    ) : (
+                      <span className="flex items-center">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {t('Create Promotion')}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* QR Code Modal */}
+        {showQRModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`bg-white rounded-xl max-w-sm w-full p-6 ${animationStyles.scaleIn}`}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-800">{t('Promo QR Code')}</h3>
+                <button
+                  onClick={() => setShowQRModal(null)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center space-y-4">
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <SimpleQRCode 
+                    value={showQRModal} 
+                    id={`qr-${showQRModal}`} 
+                    size={200}
+                  />
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm mb-2">{t('Code')}: <span className="font-medium text-gray-800">{showQRModal}</span></p>
+                  <p className="text-gray-500 text-sm">{t('Scan this code to apply the promotion')}</p>
+                </div>
+                
+                <button
+                  onClick={() => downloadQR(showQRModal)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 w-full justify-center"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  {t('Download QR Code')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </BusinessLayout>
+  );
+};
+
+export default PromotionsPage; 
