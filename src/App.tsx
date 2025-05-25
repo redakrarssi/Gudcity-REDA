@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext';
 import LandingPage from './pages/LandingPage';
 import Pricing from './pages/Pricing';
+import CommentsPage from './pages/Comments';
 import Unauthorized from './pages/auth/Unauthorized';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerCards from './pages/customer/Cards';
@@ -60,6 +61,7 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/comments" element={<CommentsPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />

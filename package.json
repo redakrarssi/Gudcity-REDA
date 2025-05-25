@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
     "@types/mapbox-gl": "^3.4.1",
     "@types/recharts": "^1.8.29",
+    "dotenv": "^16.5.0",
     "html5-qrcode": "^2.3.8",
     "i18next": "^23.10.1",
     "lucide-react": "^0.344.0",

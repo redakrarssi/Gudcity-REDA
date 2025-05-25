@@ -14,6 +14,7 @@ const Header: React.FC = () => {
     { name: t('About'), path: '/about' },
     { name: t('Businesses'), path: '/businesses' },
     { name: t('Pricing'), path: '/pricing' },
+    { name: t('Comments'), path: '/comments' },
     { name: t('Contact'), path: '/contact' },
   ];
 
