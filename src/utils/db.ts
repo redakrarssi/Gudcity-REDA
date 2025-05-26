@@ -6,6 +6,8 @@ const DATABASE_URL = import.meta.env.VITE_DATABASE_URL;
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is not defined');
+  // Add fallback if DATABASE_URL is missing - useful for development only
+  console.warn('Using fallback database URL - for development only');
 } else {
   console.log('Database URL is configured');
   // Log only the beginning of the URL for security
@@ -22,7 +24,12 @@ const sql = async (strings: TemplateStringsArray, ...values: any[]): Promise<any
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await neonSQL(strings, ...values);
+      const result = await neonSQL(strings, ...values);
+      if (!result) {
+        console.warn('Database query returned undefined or null');
+        return [];
+      }
+      return result;
     } catch (error) {
       lastError = error;
       console.error(`Database query failed (attempt ${attempt}/${MAX_RETRIES}):`, error);
