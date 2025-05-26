@@ -1,15 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  User as DbUser, 
+  UserRole, 
+  UserType,
+  validateUser,
+  createUser as createDbUser,
+  getUserById
+} from '../services/userService';
 
-// Define user roles and permissions
-export type UserRole = 'admin' | 'editor' | 'viewer' | 'customer' | 'business';
-export type UserType = 'customer' | 'business';
-
+// Define Permission interface
 interface Permission {
   id: string;
   name: string;
 }
 
+// Define role-based permissions
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: [
     'users.view', 'users.create', 'users.edit', 'users.delete',
@@ -57,54 +63,11 @@ interface User {
   name: string;
   email: string;
   role: UserRole;
-  avatarUrl?: string;
-  userType?: UserType;
-  businessName?: string;
-  businessPhone?: string;
+  avatar_url?: string;
+  user_type?: UserType;
+  business_name?: string;
+  business_phone?: string;
 }
-
-// Mock user data
-const MOCK_USERS: User[] = [
-  {
-    id: 1,
-    name: 'Admin User',
-    email: 'admin@gudcity.com',
-    role: 'admin',
-    avatarUrl: ''
-  },
-  {
-    id: 2,
-    name: 'Editor User',
-    email: 'editor@gudcity.com',
-    role: 'editor',
-    avatarUrl: ''
-  },
-  {
-    id: 3,
-    name: 'Viewer User',
-    email: 'viewer@gudcity.com',
-    role: 'viewer',
-    avatarUrl: ''
-  },
-  {
-    id: 4,
-    name: 'Customer User',
-    email: 'customer@example.com',
-    role: 'customer',
-    userType: 'customer',
-    avatarUrl: ''
-  },
-  {
-    id: 5,
-    name: 'Business User',
-    email: 'business@example.com',
-    role: 'business',
-    userType: 'business',
-    businessName: 'Example Business',
-    businessPhone: '+1 555-123-4567',
-    avatarUrl: ''
-  }
-];
 
 // Registration data interface
 export interface RegisterData {
@@ -135,19 +98,43 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Convert database user to application user
+function convertDbUserToUser(dbUser: DbUser): User {
+  return {
+    id: dbUser.id as number,
+    name: dbUser.name,
+    email: dbUser.email,
+    role: (dbUser.role as UserRole) || 'customer',
+    avatar_url: dbUser.avatar_url,
+    user_type: (dbUser.user_type as UserType) || 'customer',
+    business_name: dbUser.business_name,
+    business_phone: dbUser.business_phone
+  };
+}
+
 // Auth Provider Component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [registeredUsers, setRegisteredUsers] = useState<User[]>(MOCK_USERS);
   const navigate = useNavigate();
 
   // Check if user is already logged in (from localStorage)
   useEffect(() => {
-    const checkAuth = () => {
-      const storedUser = localStorage.getItem('authUser');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const checkAuth = async () => {
+      const storedUserId = localStorage.getItem('authUserId');
+      if (storedUserId) {
+        try {
+          const userId = parseInt(storedUserId, 10);
+          const dbUser = await getUserById(userId);
+          if (dbUser) {
+            setUser(convertDbUserToUser(dbUser));
+          } else {
+            localStorage.removeItem('authUserId');
+          }
+        } catch (error) {
+          console.error('Error checking auth:', error);
+          localStorage.removeItem('authUserId');
+        }
       }
       setIsLoading(false);
     };
@@ -159,17 +146,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    // In a real app, you would make an API call here
-    // For now, we'll use mock data
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const dbUser = await validateUser(email, password);
       
-      const matchedUser = registeredUsers.find(u => u.email === email);
-      
-      if (matchedUser && password === 'password') { // Simple password check
-        setUser(matchedUser);
-        localStorage.setItem('authUser', JSON.stringify(matchedUser));
+      if (dbUser && dbUser.id) {
+        const appUser = convertDbUserToUser(dbUser);
+        setUser(appUser);
+        localStorage.setItem('authUserId', String(dbUser.id));
         setIsLoading(false);
         return true;
       }
@@ -186,43 +169,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Register function
   const register = async (data: RegisterData): Promise<boolean> => {
     setIsLoading(true);
+    console.log('Registration started with data:', {...data, password: '***'});
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if email already exists
-      if (registeredUsers.some(u => u.email === data.email)) {
-        setIsLoading(false);
-        return false;
-      }
-      
-      // Create new user
-      const newUser: User = {
-        id: registeredUsers.length + 1,
+      // Convert RegisterData to database User format
+      const newUser: Omit<DbUser, 'id' | 'created_at'> = {
         name: data.name,
         email: data.email,
-        role: data.userType, // Set role based on user type
-        userType: data.userType,
-        avatarUrl: '',
-        ...(data.userType === 'business' && {
-          businessName: data.businessName,
-          businessPhone: data.businessPhone
-        })
+        password: data.password,
+        role: data.userType as UserRole, // Set role based on user type
+        user_type: data.userType,
+        business_name: data.businessName,
+        business_phone: data.businessPhone
       };
       
-      // Add user to registered users
-      const updatedUsers = [...registeredUsers, newUser];
-      setRegisteredUsers(updatedUsers);
+      console.log('Calling createDbUser with:', {...newUser, password: '***'});
       
-      // Auto login after registration
-      setUser(newUser);
-      localStorage.setItem('authUser', JSON.stringify(newUser));
+      // For debugging: Test direct database connection
+      try {
+        const directTestResult = await createDbUser({
+          name: `Direct Test ${Date.now()}`,
+          email: `direct_test_${Date.now()}@example.com`,
+          password: 'test123',
+          role: 'customer',
+          user_type: 'customer'
+        });
+        console.log('Direct test user creation result:', directTestResult);
+      } catch (testErr) {
+        console.error('Direct test user creation failed:', testErr);
+      }
       
+      const createdUser = await createDbUser(newUser);
+      console.log('createDbUser returned:', createdUser);
+      
+      if (createdUser && createdUser.id) {
+        console.log('User created successfully:', createdUser);
+        const appUser = convertDbUserToUser(createdUser);
+        setUser(appUser);
+        localStorage.setItem('authUserId', String(createdUser.id));
+        setIsLoading(false);
+        return true;
+      }
+      
+      console.error('Failed to create user - createDbUser returned:', createdUser);
       setIsLoading(false);
-      return true;
+      return false;
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('Registration failed with exception:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       setIsLoading(false);
       return false;
     }
@@ -231,7 +228,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout function
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('authUser');
+    localStorage.removeItem('authUserId');
     navigate('/login');
   };
 
@@ -261,11 +258,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 // Custom hook to use Auth Context
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  
   return context;
 };
 

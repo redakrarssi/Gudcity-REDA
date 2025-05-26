@@ -13,7 +13,42 @@ if (!DATABASE_URL) {
 }
 
 // Create a SQL tagged template function
-const sql = neon(DATABASE_URL || '');
+const neonSQL = neon(DATABASE_URL || '');
+
+// Wrapper function with retry logic and better error reporting
+const sql = async (strings: TemplateStringsArray, ...values: any[]): Promise<any> => {
+  const MAX_RETRIES = 3;
+  let lastError: unknown = null;
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await neonSQL(strings, ...values);
+    } catch (error) {
+      lastError = error;
+      console.error(`Database query failed (attempt ${attempt}/${MAX_RETRIES}):`, error);
+      
+      // Don't retry on certain errors like constraint violations
+      if (error && typeof error === 'object' && 'code' in error) {
+        // PostgreSQL error codes starting with '23' are integrity constraint violations
+        if (typeof error.code === 'string' && error.code.startsWith('23')) {
+          console.log('Not retrying due to constraint violation');
+          throw error;
+        }
+      }
+      
+      // Only wait between retries if we're going to retry
+      if (attempt < MAX_RETRIES) {
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000); // Exponential backoff with max 1s
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // If we got here, all retries failed
+  console.error(`All ${MAX_RETRIES} database query attempts failed`);
+  throw lastError;
+};
 
 // Test the connection when the module loads
 (async function testConnection() {
@@ -22,6 +57,13 @@ const sql = neon(DATABASE_URL || '');
     console.log('Database connection successful:', result);
   } catch (error) {
     console.error('Database connection failed:', error);
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    } else {
+      console.error('Unknown error type:', error);
+    }
   }
 })();
 

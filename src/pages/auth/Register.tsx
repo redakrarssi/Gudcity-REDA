@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, UserPlus, Building2, Phone, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import { useAuth, RegisterData, UserType } from '../../contexts/AuthContext';
+import { useAuth, RegisterData } from '../../contexts/AuthContext';
+import { UserType } from '../../services/userService';
 
 const Register = () => {
   const { t } = useTranslation();
@@ -14,7 +15,7 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
-    userType: 'customer',
+    userType: 'customer', // Default to customer type
     businessName: '',
     businessPhone: ''
   });
@@ -97,19 +98,32 @@ const Register = () => {
     }
     
     setIsLoading(true);
+    console.log('Form validation passed, submitting with data:', {...formData, password: '***'});
     
     try {
+      console.log('Calling register function with form data...');
       const success = await register(formData);
       
+      console.log('Register function returned:', success);
+      
       if (success) {
-        // Redirect to setup wizard after successful registration
-        navigate('/setup');
+        // Redirect based on user type
+        if (formData.userType === 'business') {
+          navigate('/business/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
-        setError(t('Registration failed. Email may already be in use.'));
+        // Check browser console for detailed error messages that were logged
+        setError(t('Registration failed. Please try a different email address or check your credentials.'));
       }
     } catch (err) {
+      console.error('Registration error caught in component:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
       setError(t('An error occurred during registration. Please try again.'));
-      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -258,7 +272,7 @@ const Register = () => {
               </div>
             </>
           )}
-
+          
           {/* Password Fields */}
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -273,25 +287,31 @@ const Register = () => {
                 name="password"
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
                 value={formData.password}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Create a password (min. 8 characters)')}
+                placeholder={t('Choose a secure password')}
               />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <Eye className="h-5 w-5 text-gray-400" />
-                )}
-              </button>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {t('Password must be at least 8 characters')}
+            </p>
           </div>
-
+          
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
               {t('Confirm Password')}
@@ -302,7 +322,6 @@ const Register = () => {
               </div>
               <input
                 id="confirmPassword"
-                name="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
                 required
                 value={confirmPassword}
@@ -310,57 +329,81 @@ const Register = () => {
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder={t('Confirm your password')}
               />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                {showConfirmPassword ? (
-                  <EyeOff className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <Eye className="h-5 w-5 text-gray-400" />
-                )}
-              </button>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-
+          
           {/* Terms and Conditions */}
-          <div className="flex items-center">
-            <input
-              id="terms"
-              name="terms"
-              type="checkbox"
-              checked={termsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
-              {t('I agree to the')}{' '}
-              <Link to="/terms" className="font-medium text-blue-600 hover:text-blue-500">
-                {t('Terms and Conditions')}
-              </Link>
-            </label>
+          <div className="flex items-start">
+            <div className="flex items-center h-5">
+              <input
+                id="terms"
+                name="terms"
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={() => setTermsAccepted(!termsAccepted)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+            </div>
+            <div className="ml-3 text-sm">
+              <label htmlFor="terms" className="font-medium text-gray-700">
+                {t('I agree to the')}
+                <a href="#" className="text-blue-600 hover:text-blue-500 mx-1">
+                  {t('Terms of Service')}
+                </a>
+                {t('and')}
+                <a href="#" className="text-blue-600 hover:text-blue-500 ml-1">
+                  {t('Privacy Policy')}
+                </a>
+              </label>
+            </div>
           </div>
-
+          
           {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            <UserPlus className="h-5 w-5" />
-            {isLoading ? t('Creating Account...') : t('Create Account')}
-          </button>
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {t('Creating Account...')}
+                </>
+              ) : (
+                <>
+                  <UserPlus className="-ml-1 mr-2 h-5 w-5" />
+                  {t('Create Account')}
+                </>
+              )}
+            </button>
+          </div>
+          
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-600">
+              {t('Already have an account?')}
+              <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 ml-1">
+                {t('Sign in here')}
+              </Link>
+            </p>
+          </div>
         </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            {t('Already have an account?')}{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              {t('Sign in')}
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );

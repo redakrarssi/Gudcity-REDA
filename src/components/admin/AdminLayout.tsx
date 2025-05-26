@@ -27,6 +27,7 @@ import {
   Layout
 } from 'lucide-react';
 import { LanguageSelector } from '../LanguageSelector';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -40,6 +41,7 @@ interface BreadcrumbItem {
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const { logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -165,6 +167,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
   }, []);
 
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    logout();
+  };
+
   return (
     <div className={`flex h-screen ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'} transition-colors duration-200`}>
       {/* Sidebar */}
@@ -228,15 +235,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Settings className="w-5 h-5" />
             {!sidebarCollapsed && <span className="ml-3">{t('Settings')}</span>}
           </Link>
-          <Link
-            to="/logout"
-            className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'px-4'} py-3 
+          <button
+            onClick={handleLogout}
+            className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'px-4'} py-3 w-full text-left
                       ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'} 
                       rounded-lg`}
           >
             <LogOut className="w-5 h-5" />
             {!sidebarCollapsed && <span className="ml-3">{t('Logout')}</span>}
-          </Link>
+          </button>
         </div>
       </aside>
 

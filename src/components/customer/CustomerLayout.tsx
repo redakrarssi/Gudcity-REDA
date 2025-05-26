@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -9,8 +9,11 @@ import {
   Settings, 
   LogOut, 
   QrCode,
-  Bell 
+  Bell,
+  X,
+  Menu
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -19,6 +22,8 @@ interface CustomerLayoutProps {
 export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const { logout } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const menuItems = [
     { 
@@ -50,6 +55,15 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    logout();
+  };
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
   };
 
   return (
@@ -86,13 +100,13 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
             <Settings className="w-5 h-5" />
             <span className="ml-3">{t('Settings')}</span>
           </Link>
-          <Link
-            to="/logout"
-            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg"
+          <button
+            onClick={handleLogout}
+            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
           >
             <LogOut className="w-5 h-5" />
             <span className="ml-3">{t('Logout')}</span>
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -105,13 +119,59 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               <button className="p-1 mr-2 text-gray-600">
                 <Bell className="w-6 h-6" />
               </button>
-              <button className="p-1 text-gray-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+              <button 
+                className="p-1 text-gray-600"
+                onClick={toggleMobileMenu}
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
               </button>
             </div>
           </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="bg-white border-b border-gray-200 py-2">
+              <nav className="px-4 space-y-1">
+                {menuItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                      isActive(item.path)
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.icon}
+                    <span className="ml-3">{item.name}</span>
+                  </Link>
+                ))}
+                <Link
+                  to="/settings"
+                  className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Settings className="w-5 h-5" />
+                  <span className="ml-3">{t('Settings')}</span>
+                </Link>
+                <button
+                  onClick={(e) => {
+                    handleLogout(e);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="ml-3">{t('Logout')}</span>
+                </button>
+              </nav>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-auto bg-gray-50 p-4">
