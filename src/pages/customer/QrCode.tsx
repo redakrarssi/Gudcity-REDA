@@ -4,24 +4,19 @@ import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { QRCard } from '../../components/QRCard';
 import { 
   QrCode, Smartphone, Download, Share, RefreshCw, 
-  Info, Shield, CheckCircle2, Copy
+  Info, Shield, CheckCircle2, Copy, AlertCircle
 } from 'lucide-react';
 import { createCustomerQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
-
-// Mock user data - replace with actual user auth in production
-const MOCK_USER = {
-  id: 'cust123',
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  joinDate: '2023-01-15'
-};
+import { useAuth } from '../../contexts/AuthContext';
 
 const CustomerQrCode = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [animateIn, setAnimateIn] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -32,27 +27,50 @@ const CustomerQrCode = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Check if user is available
+  if (!user) {
+    return (
+      <CustomerLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 w-full max-w-lg">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  {t('Please sign in to view your QR code.')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
   const handleDownloadQR = async () => {
     setIsDownloading(true);
     try {
       await downloadQRCode(
         { 
           type: 'customer_card', 
-          customerId: MOCK_USER.id, 
-          name: MOCK_USER.name,
+          customerId: user.id, 
+          name: user.name,
           timestamp: new Date().toISOString() 
         },
-        `qrcode-${MOCK_USER.id}.png`
+        `qrcode-${user.id}.png`
       );
     } catch (error) {
       console.error('Error downloading QR code:', error);
+      setError('Failed to download QR code. Please try again.');
     } finally {
       setIsDownloading(false);
     }
   };
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(MOCK_USER.id).then(() => {
+    navigator.clipboard.writeText(user.id.toString()).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -63,7 +81,7 @@ const CustomerQrCode = () => {
       try {
         await navigator.share({
           title: 'My Loyalty QR Code',
-          text: `Scan my loyalty QR code (ID: ${MOCK_USER.id})`,
+          text: `Scan my loyalty QR code (ID: ${user.id})`,
         });
       } catch (error) {
         console.error('Error sharing:', error);
@@ -90,6 +108,20 @@ const CustomerQrCode = () => {
           </div>
         </div>
 
+        {/* Display errors if any */}
+        {error && (
+          <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main QR Code Card */}
         <div className={`transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 md:p-8 border border-blue-100 shadow-lg text-center relative overflow-hidden">
@@ -99,7 +131,7 @@ const CustomerQrCode = () => {
             
             {/* QR Card */}
             <div className="relative z-10 transform transition-transform duration-500 hover:scale-105">
-              <QRCard userId={MOCK_USER.id} userName={MOCK_USER.name} />
+              <QRCard userId={user.id.toString()} userName={user.name || ''} />
             </div>
             
             {/* Info text */}
@@ -184,7 +216,7 @@ const CustomerQrCode = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <span className="text-sm text-gray-500 mr-2">{t('Your ID')}:</span>
-                    <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-700">{MOCK_USER.id}</code>
+                    <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-700">{user.id}</code>
                   </div>
                   <button
                     onClick={handleCopyId}

@@ -4,59 +4,53 @@ import { ProgramBuilder } from '../../components/business/ProgramBuilder';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { Plus, Award, Calendar, Tag, Clock, ChevronRight, X } from 'lucide-react';
 import type { LoyaltyProgram } from '../../types/loyalty';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Programs = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [selectedProgram, setSelectedProgram] = useState<LoyaltyProgram | null>(null);
   const [showProgramBuilder, setShowProgramBuilder] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulating API call to fetch programs
-    setTimeout(() => {
-      setPrograms([
-        {
-          id: '1',
-          businessId: '123',
-          name: 'Coffee Rewards',
-          description: 'Earn points for every coffee purchase',
-          type: 'POINTS',
-          pointValue: 1,
-          rewardTiers: [
-            { id: '1', programId: '1', pointsRequired: 10, reward: 'Free Coffee' },
-            { id: '2', programId: '1', pointsRequired: 25, reward: 'Free Pastry' },
-            { id: '3', programId: '1', pointsRequired: 50, reward: 'Free Lunch' }
-          ],
-          expirationDays: 365,
-          status: 'ACTIVE',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: '2',
-          businessId: '123',
-          name: 'Lunch Stamps',
-          description: 'Collect stamps for every lunch purchase',
-          type: 'STAMPS',
-          pointValue: 1,
-          rewardTiers: [
-            { id: '4', programId: '2', pointsRequired: 5, reward: 'Free Drink' },
-            { id: '5', programId: '2', pointsRequired: 10, reward: 'Free Meal' }
-          ],
-          expirationDays: null,
-          status: 'ACTIVE',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      ]);
-      setLoading(false);
-    }, 500);
-  }, []);
+    const loadPrograms = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Use the business ID from the logged-in user
+        const businessId = user?.id.toString() || '';
+        const programsData = await LoyaltyProgramService.getBusinessPrograms(businessId);
+        setPrograms(programsData);
+      } catch (err) {
+        console.error('Error loading loyalty programs:', err);
+        setError(t('Failed to load loyalty programs. Please try again.'));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPrograms();
+  }, [user, t]);
 
-  const handleProgramDelete = (programId: string) => {
-    // In a real application, this would call an API to delete the program
-    setPrograms(programs.filter((program) => program.id !== programId));
+  const handleProgramDelete = async (programId: string) => {
+    try {
+      setError(null);
+      const success = await LoyaltyProgramService.deleteProgram(programId);
+      
+      if (success) {
+        setPrograms(programs.filter((program) => program.id !== programId));
+      } else {
+        setError(t('Failed to delete program. Please try again.'));
+      }
+    } catch (err) {
+      console.error('Error deleting program:', err);
+      setError(t('An error occurred while deleting the program.'));
+    }
   };
 
   const handleProgramEdit = (program: LoyaltyProgram) => {
@@ -64,25 +58,46 @@ const Programs = () => {
     setShowProgramBuilder(true);
   };
 
-  const handleProgramSubmit = (program: Partial<LoyaltyProgram>) => {
-    if (selectedProgram) {
-      // Update existing program
-      setPrograms(
-        programs.map((p) => (p.id === selectedProgram.id ? { ...p, ...program } as LoyaltyProgram : p))
-      );
-    } else {
-      // Create new program
-      const newProgram = {
-        ...program,
-        id: Date.now().toString(),
-        businessId: '123', // In a real app, this would come from auth
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as LoyaltyProgram;
-      setPrograms([...programs, newProgram]);
+  const handleProgramSubmit = async (program: Partial<LoyaltyProgram>) => {
+    setError(null);
+    
+    try {
+      if (selectedProgram) {
+        // Update existing program
+        const updatedProgram = await LoyaltyProgramService.updateProgram(
+          selectedProgram.id,
+          program
+        );
+        
+        if (updatedProgram) {
+          setPrograms(programs.map((p) => 
+            p.id === selectedProgram.id ? updatedProgram : p
+          ));
+        } else {
+          setError(t('Failed to update program. Please try again.'));
+        }
+      } else {
+        // Create new program
+        const businessId = user?.id.toString() || '';
+        const newProgram = await LoyaltyProgramService.createProgram({
+          ...program,
+          businessId,
+          status: 'ACTIVE',
+        } as any);
+        
+        if (newProgram) {
+          setPrograms([...programs, newProgram]);
+        } else {
+          setError(t('Failed to create program. Please try again.'));
+        }
+      }
+      
+      setShowProgramBuilder(false);
+      setSelectedProgram(null);
+    } catch (err) {
+      console.error('Error submitting program:', err);
+      setError(t('An error occurred. Please try again.'));
     }
-    setShowProgramBuilder(false);
-    setSelectedProgram(null);
   };
 
   const handleProgramCancel = () => {
@@ -106,6 +121,16 @@ const Programs = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      
         {showProgramBuilder ? (
           <div className="bg-white rounded-xl shadow-md">
             <div className="p-6 pb-0 flex justify-between items-center">
@@ -249,7 +274,7 @@ const Programs = () => {
                       className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto"
                     >
                       <Plus className="w-5 h-5" />
-                      {t('Create Your First Program')}
+                      {t('Create Program')}
                     </button>
                   </div>
                 )}

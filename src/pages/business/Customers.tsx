@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, ArrowUpDown, MessageSquare, Coffee } from 'lucide-react';
+import { CustomerService, Customer } from '../../services/customerService';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Mock customer data
 const mockCustomers = [
@@ -119,23 +121,76 @@ const TierBadge = ({ tier }: { tier: string }) => {
 
 const CustomersPage = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<typeof mockCustomers[0] | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showBirthdayConfetti, setShowBirthdayConfetti] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredCustomers = mockCustomers.filter(customer => 
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    const loadCustomers = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Use the business ID from the logged-in user
+        const businessId = user?.id.toString() || '';
+        const customersData = await CustomerService.getBusinessCustomers(businessId);
+        setCustomers(customersData);
+        setFilteredCustomers(customersData);
+      } catch (err) {
+        console.error('Error loading customers:', err);
+        setError(t('Failed to load customers. Please try again.'));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadCustomers();
+  }, [user, t]);
 
-  const handleSelectCustomer = (customer: typeof mockCustomers[0]) => {
+  // Filter customers when search term changes
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const filtered = customers.filter(customer => 
+      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    setFilteredCustomers(filtered);
+  }, [searchTerm, customers]);
+
+  const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
   };
 
-  const handleSendBirthdayWish = () => {
-    setShowBirthdayConfetti(true);
-    setTimeout(() => setShowBirthdayConfetti(false), 3000);
+  const handleSendBirthdayWish = async () => {
+    if (!selectedCustomer || !user) return;
+
+    try {
+      // Record the birthday wish interaction in the database
+      const success = await CustomerService.recordCustomerInteraction(
+        selectedCustomer.id,
+        user.id.toString(),
+        'BIRTHDAY_WISH',
+        'Birthday wish sent'
+      );
+
+      if (success) {
+        setShowBirthdayConfetti(true);
+        setTimeout(() => setShowBirthdayConfetti(false), 3000);
+      }
+    } catch (err) {
+      console.error('Error sending birthday wish:', err);
+    }
   };
 
   const handleSendGift = () => {
@@ -144,6 +199,46 @@ const CustomersPage = () => {
 
   const handleCloseGiftModal = () => {
     setShowSendGift(false);
+  };
+
+  const handleSendGiftConfirm = async (giftType: string) => {
+    if (!selectedCustomer || !user) return;
+
+    try {
+      // Record the gift interaction in the database
+      const success = await CustomerService.recordCustomerInteraction(
+        selectedCustomer.id,
+        user.id.toString(),
+        'GIFT',
+        `Gift sent: ${giftType}`
+      );
+
+      if (success) {
+        setShowSendGift(false);
+      }
+    } catch (err) {
+      console.error('Error sending gift:', err);
+    }
+  };
+
+  const handleSendMessage = async (message: string) => {
+    if (!selectedCustomer || !user || !message) return;
+
+    try {
+      // Record the message interaction in the database
+      const success = await CustomerService.recordCustomerInteraction(
+        selectedCustomer.id,
+        user.id.toString(),
+        'MESSAGE',
+        message
+      );
+
+      if (success) {
+        console.log('Message sent successfully');
+      }
+    } catch (err) {
+      console.error('Error sending message:', err);
+    }
   };
 
   const getTierColorClass = (tier: string) => {
@@ -159,11 +254,21 @@ const CustomersPage = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t('Customer Friends')} 
             <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              {mockCustomers.length} {t('awesome people')}
+              {filteredCustomers.length} {t('awesome people')}
             </span>
           </h1>
           
@@ -193,33 +298,43 @@ const CustomersPage = () => {
                   {t('Filter')}
                 </button>
               </div>
-              <div className="divide-y max-h-[600px] overflow-y-auto">
-                {filteredCustomers.map(customer => (
-                  <div 
-                    key={customer.id}
-                    onClick={() => handleSelectCustomer(customer)}
-                    className={`p-4 cursor-pointer transition-colors hover:bg-blue-50 ${selectedCustomer?.id === customer.id ? 'bg-blue-50' : ''}`}
-                  >
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${getTierColorClass(customer.tier)} flex items-center justify-center text-white font-medium`}>
-                          {customer.name.split(' ').map(n => n[0]).join('')}
+              {loading ? (
+                <div className="flex justify-center items-center p-10">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                </div>
+              ) : (
+                <div className="divide-y max-h-[600px] overflow-y-auto">
+                  {filteredCustomers.length > 0 ? filteredCustomers.map(customer => (
+                    <div 
+                      key={customer.id}
+                      onClick={() => handleSelectCustomer(customer)}
+                      className={`p-4 cursor-pointer transition-colors hover:bg-blue-50 ${selectedCustomer?.id === customer.id ? 'bg-blue-50' : ''}`}
+                    >
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${getTierColorClass(customer.tier)} flex items-center justify-center text-white font-medium`}>
+                            {customer.name.split(' ').map(n => n[0]).join('')}
+                          </div>
                         </div>
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <div className="flex justify-between">
-                          <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                          <TierBadge tier={customer.tier} />
-                        </div>
-                        <div className="flex justify-between mt-1">
-                          <p className="text-xs text-gray-500">{customer.visits} {t('visits')}</p>
-                          <p className="text-xs text-gray-500">{customer.loyaltyPoints} {t('points')}</p>
+                        <div className="ml-3 flex-1">
+                          <div className="flex justify-between">
+                            <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                            <TierBadge tier={customer.tier} />
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <p className="text-xs text-gray-500">{customer.visits} {t('visits')}</p>
+                            <p className="text-xs text-gray-500">{customer.loyaltyPoints} {t('points')}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  )) : (
+                    <div className="p-6 text-center text-gray-500">
+                      {searchTerm ? t('No customers match your search') : t('No customers found')}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -238,7 +353,9 @@ const CustomersPage = () => {
                     </div>
                     <div className="text-right text-white">
                       <p className="text-sm opacity-90">{t('Customer since')}</p>
-                      <p className="font-semibold">{new Date(selectedCustomer.joinDate).toLocaleDateString()}</p>
+                      <p className="font-semibold">
+                        {selectedCustomer.joinedAt ? new Date(selectedCustomer.joinedAt).toLocaleDateString() : 'N/A'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -269,7 +386,9 @@ const CustomersPage = () => {
                       <div>
                         <p className="text-sm text-purple-600 font-medium">{t('Visit Count')}</p>
                         <p className="text-2xl font-bold text-purple-700">{selectedCustomer.visits}</p>
-                        <p className="text-xs text-purple-600">{t('Last visit')}: {new Date(selectedCustomer.lastVisit).toLocaleDateString()}</p>
+                        <p className="text-xs text-purple-600">
+                          {t('Last visit')}: {selectedCustomer.lastVisit ? new Date(selectedCustomer.lastVisit).toLocaleDateString() : 'N/A'}
+                        </p>
                       </div>
                       <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
                         <Users className="h-6 w-6" />
@@ -281,30 +400,40 @@ const CustomersPage = () => {
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       <h3 className="font-medium text-gray-700 mb-2">{t('Favorite Items')}</h3>
                       <div className="flex flex-wrap gap-2">
-                        {selectedCustomer.favoriteItems.map((item, idx) => (
-                          <span key={idx} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200 inline-flex items-center">
-                            <Heart className="w-3 h-3 text-red-500 mr-1" />
-                            {item}
-                          </span>
-                        ))}
+                        {selectedCustomer.favoriteItems.length > 0 ? 
+                          selectedCustomer.favoriteItems.map((item, idx) => (
+                            <span key={idx} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200 inline-flex items-center">
+                              <Heart className="w-3 h-3 text-red-500 mr-1" />
+                              {item}
+                            </span>
+                          )) : (
+                            <p className="text-sm text-gray-500">{t('No favorite items yet')}</p>
+                          )
+                        }
                       </div>
                     </div>
 
                     <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
                       <h3 className="font-medium text-yellow-700 mb-2">{t('Birthday')}</h3>
-                      <p className="text-yellow-800">{new Date(selectedCustomer.birthday).toLocaleDateString()}</p>
-                      <button 
-                        onClick={handleSendBirthdayWish}
-                        className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
-                      >
-                        <Gift className="w-4 h-4 mr-1" />
-                        {t('Send birthday wish')}
-                      </button>
+                      <p className="text-yellow-800">
+                        {selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString() : t('Not available')}
+                      </p>
+                      {selectedCustomer.birthday && (
+                        <button 
+                          onClick={handleSendBirthdayWish}
+                          className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
+                        >
+                          <Gift className="w-4 h-4 mr-1" />
+                          {t('Send birthday wish')}
+                        </button>
+                      )}
                     </div>
 
                     <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
                       <h3 className="font-medium text-indigo-700 mb-2">{t('Notes')}</h3>
-                      <p className="text-indigo-800 text-sm">{selectedCustomer.notes}</p>
+                      <p className="text-indigo-800 text-sm">
+                        {selectedCustomer.notes || t('No notes available')}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -317,7 +446,13 @@ const CustomersPage = () => {
                     <Gift className="w-4 h-4" />
                     {t('Send Surprise Gift')}
                   </button>
-                  <button className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full hover:bg-blue-200 transition-colors">
+                  <button 
+                    className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full hover:bg-blue-200 transition-colors"
+                    onClick={() => {
+                      const message = prompt(t('Enter your message to the customer:'));
+                      if (message) handleSendMessage(message);
+                    }}
+                  >
                     <MessageSquare className="w-4 h-4" />
                     {t('Send Message')}
                   </button>
@@ -364,32 +499,44 @@ const CustomersPage = () => {
       )}
 
       {/* Gift Modal */}
-      {showSendGift && (
+      {showSendGift && selectedCustomer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full animate-in fade-in duration-300">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">{t('Send a Surprise Gift')}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">{t('Send a Surprise Gift to {{name}}', { name: selectedCustomer.name })}</h3>
             
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors">
+                <div 
+                  className="border border-blue-200 bg-blue-50 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => handleSendGiftConfirm('Free Coffee')}
+                >
                   <div className="flex justify-center mb-2">
                     ☕️
                   </div>
                   <p className="text-center text-sm font-medium text-blue-700">Free Coffee</p>
                 </div>
-                <div className="border border-green-200 bg-green-50 rounded-lg p-3 cursor-pointer hover:bg-green-100 transition-colors">
+                <div 
+                  className="border border-green-200 bg-green-50 rounded-lg p-3 cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => handleSendGiftConfirm('Free Pastry')}
+                >
                   <div className="flex justify-center mb-2">
                     🥐
                   </div>
                   <p className="text-center text-sm font-medium text-green-700">Free Pastry</p>
                 </div>
-                <div className="border border-purple-200 bg-purple-50 rounded-lg p-3 cursor-pointer hover:bg-purple-100 transition-colors">
+                <div 
+                  className="border border-purple-200 bg-purple-50 rounded-lg p-3 cursor-pointer hover:bg-purple-100 transition-colors"
+                  onClick={() => handleSendGiftConfirm('Gift Card')}
+                >
                   <div className="flex justify-center mb-2">
                     🎁
                   </div>
                   <p className="text-center text-sm font-medium text-purple-700">Gift Card</p>
                 </div>
-                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 cursor-pointer hover:bg-amber-100 transition-colors">
+                <div 
+                  className="border border-amber-200 bg-amber-50 rounded-lg p-3 cursor-pointer hover:bg-amber-100 transition-colors"
+                  onClick={() => handleSendGiftConfirm('Bonus Points')}
+                >
                   <div className="flex justify-center mb-2">
                     ⭐️
                   </div>
@@ -401,6 +548,7 @@ const CustomersPage = () => {
                 placeholder={t('Add a personal message...')}
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={3}
+                id="giftMessage"
               ></textarea>
               
               <div className="flex justify-end space-x-3 mt-6">
@@ -411,7 +559,10 @@ const CustomersPage = () => {
                   {t('Cancel')}
                 </button>
                 <button 
-                  onClick={handleCloseGiftModal}
+                  onClick={() => {
+                    const messageElement = document.getElementById('giftMessage') as HTMLTextAreaElement;
+                    handleSendGiftConfirm(messageElement?.value || 'Custom Gift');
+                  }}
                   className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-colors"
                 >
                   {t('Send Gift')}

@@ -56,9 +56,10 @@ const Register = () => {
       return false;
     }
     
-    // Check password length
-    if (formData.password.length < 8) {
-      setError(t('Password must be at least 8 characters long'));
+    // Check password strength
+    const passwordStrength = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordStrength.test(formData.password)) {
+      setError(t('Password must be at least 8 characters and include uppercase, lowercase, number and special character'));
       return false;
     }
     
@@ -98,13 +99,9 @@ const Register = () => {
     }
     
     setIsLoading(true);
-    console.log('Form validation passed, submitting with data:', {...formData, password: '***'});
     
     try {
-      console.log('Calling register function with form data...');
       const success = await register(formData);
-      
-      console.log('Register function returned:', success);
       
       if (success) {
         // Redirect based on user type
@@ -114,19 +111,24 @@ const Register = () => {
           navigate('/dashboard');
         }
       } else {
-        // Check browser console for detailed error messages that were logged
         setError(t('Registration failed. Please try a different email address or check your credentials.'));
       }
     } catch (err) {
-      console.error('Registration error caught in component:', err);
-      if (err instanceof Error) {
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-      }
+      console.error('Registration error:', err);
       setError(t('An error occurred during registration. Please try again.'));
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  // Helper to toggle password visibility
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  // Helper to toggle confirm password visibility
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
   
   return (
@@ -226,6 +228,77 @@ const Register = () => {
             </div>
           </div>
           
+          {/* Password fields with strong requirements */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Password')}
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={t('Create a strong password')}
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {t('Password must be at least 8 characters and include uppercase, lowercase, number and special character')}
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Confirm Password')}
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="confirm-password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={t('Confirm your password')}
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <button
+                  type="button"
+                  onClick={toggleConfirmPasswordVisibility}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          
           {/* Business Information - Only show if Business type is selected */}
           {formData.userType === 'business' && (
             <>
@@ -273,110 +346,40 @@ const Register = () => {
             </>
           )}
           
-          {/* Password Fields */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Password')}
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                minLength={8}
-                value={formData.password}
-                onChange={handleChange}
-                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Choose a secure password')}
-              />
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              {t('Password must be at least 8 characters')}
-            </p>
-          </div>
-          
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Confirm Password')}
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Confirm your password')}
-              />
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Terms and Conditions */}
+          {/* Terms & Conditions checkbox */}
           <div className="flex items-start">
             <div className="flex items-center h-5">
               <input
                 id="terms"
-                name="terms"
                 type="checkbox"
                 checked={termsAccepted}
-                onChange={() => setTermsAccepted(!termsAccepted)}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
             </div>
             <div className="ml-3 text-sm">
               <label htmlFor="terms" className="font-medium text-gray-700">
-                {t('I agree to the')}
-                <a href="#" className="text-blue-600 hover:text-blue-500 mx-1">
+                {t('I accept the')}
+                {' '}
+                <Link to="/terms-of-service" className="text-blue-600 hover:text-blue-500">
                   {t('Terms of Service')}
-                </a>
+                </Link>
+                {' '}
                 {t('and')}
-                <a href="#" className="text-blue-600 hover:text-blue-500 ml-1">
+                {' '}
+                <Link to="/privacy-policy" className="text-blue-600 hover:text-blue-500">
                   {t('Privacy Policy')}
-                </a>
+                </Link>
               </label>
             </div>
           </div>
           
-          {/* Submit Button */}
+          {/* Submit button */}
           <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {isLoading ? (
                 <>
@@ -384,26 +387,27 @@ const Register = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  {t('Creating Account...')}
+                  {t('Creating account...')}
                 </>
               ) : (
                 <>
-                  <UserPlus className="-ml-1 mr-2 h-5 w-5" />
-                  {t('Create Account')}
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {t('Create account')}
                 </>
               )}
             </button>
           </div>
-          
-          <div className="text-center mt-4">
-            <p className="text-sm text-gray-600">
-              {t('Already have an account?')}
-              <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 ml-1">
-                {t('Sign in here')}
-              </Link>
-            </p>
-          </div>
         </form>
+        
+        {/* Sign in link */}
+        <div className="text-center mt-4">
+          <p className="text-sm text-gray-600">
+            {t('Already have an account?')}{' '}
+            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+              {t('Sign in')}
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

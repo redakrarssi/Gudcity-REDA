@@ -27,22 +27,6 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'system.logs', 'system.backup',
     'content.view', 'content.create', 'content.edit', 'content.delete'
   ],
-  editor: [
-    'users.view',
-    'businesses.view',
-    'pages.view', 'pages.create', 'pages.edit',
-    'pricing.view', 'pricing.edit',
-    'content.view', 'content.create', 'content.edit',
-    'analytics.view'
-  ],
-  viewer: [
-    'users.view',
-    'businesses.view',
-    'pages.view',
-    'pricing.view',
-    'content.view',
-    'analytics.view'
-  ],
   customer: [
     'profile.view', 'profile.edit',
     'cards.view', 'cards.use',
@@ -169,7 +153,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Register function
   const register = async (data: RegisterData): Promise<boolean> => {
     setIsLoading(true);
-    console.log('Registration started with data:', {...data, password: '***'});
     
     try {
       // Convert RegisterData to database User format
@@ -177,33 +160,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.userType as UserRole, // Set role based on user type
+        // Set default role based on user type
+        role: data.userType === 'business' ? 'business' : 'customer',
         user_type: data.userType,
         business_name: data.businessName,
         business_phone: data.businessPhone
       };
       
-      console.log('Calling createDbUser with:', {...newUser, password: '***'});
-      
-      // For debugging: Test direct database connection
-      try {
-        const directTestResult = await createDbUser({
-          name: `Direct Test ${Date.now()}`,
-          email: `direct_test_${Date.now()}@example.com`,
-          password: 'test123',
-          role: 'customer',
-          user_type: 'customer'
-        });
-        console.log('Direct test user creation result:', directTestResult);
-      } catch (testErr) {
-        console.error('Direct test user creation failed:', testErr);
-      }
-      
+      // Create the user in the database
       const createdUser = await createDbUser(newUser);
-      console.log('createDbUser returned:', createdUser);
       
       if (createdUser && createdUser.id) {
-        console.log('User created successfully:', createdUser);
+        // Log the user in automatically
         const appUser = convertDbUserToUser(createdUser);
         setUser(appUser);
         localStorage.setItem('authUserId', String(createdUser.id));
@@ -211,14 +179,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
       
-      console.error('Failed to create user - createDbUser returned:', createdUser);
       setIsLoading(false);
       return false;
     } catch (error) {
       console.error('Registration failed with exception:', error);
       if (error instanceof Error) {
         console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
       }
       setIsLoading(false);
       return false;
@@ -264,39 +230,40 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// Protected Route component to restrict access based on permissions
+// Props interface for ProtectedRoute component
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredPermission?: string;
 }
 
+// Protected Route Component
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requiredPermission 
 }) => {
-  const { isAuthenticated, hasPermission, loading } = useAuth();
+  const { isAuthenticated, loading, hasPermission } = useAuth();
   const navigate = useNavigate();
-
+  
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      navigate('/login');
+      navigate('/login', { state: { from: location } });
     } else if (!loading && requiredPermission && !hasPermission(requiredPermission)) {
       navigate('/unauthorized');
     }
-  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission]);
-
+  }, [loading, isAuthenticated, requiredPermission, hasPermission, navigate]);
+  
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="loading">Loading...</div>;
   }
-
+  
   if (!isAuthenticated) {
     return null;
   }
-
+  
   if (requiredPermission && !hasPermission(requiredPermission)) {
     return null;
   }
-
+  
   return <>{children}</>;
 };
 

@@ -7,10 +7,13 @@ interface QRCardProps {
 }
 
 export const QRCard: React.FC<QRCardProps> = ({ userId, userName }) => {
+  // Create a QR code with more information for better scanning
   const qrData = JSON.stringify({
     type: 'customer_card',
     customerId: userId,
-    timestamp: new Date().toISOString()
+    name: userName,
+    timestamp: new Date().toISOString(),
+    app: 'GudCity Loyalty'
   });
 
   return (
@@ -27,11 +30,14 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName }) => {
           level="H"
           includeMargin={true}
           className="mx-auto"
+          bgColor={"#ffffff"}
+          fgColor={"#000000"}
         />
       </div>
       
       <div className="mt-4 text-center">
         <p className="text-xs text-gray-400">ID: {userId}</p>
+        <p className="text-xs text-gray-400 mt-1">Updated: {new Date().toLocaleString()}</p>
       </div>
     </div>
   );

@@ -21,8 +21,13 @@ import {
   DollarSign,
   Percent,
   Users,
-  Send
+  Send,
+  Link,
+  RefreshCw,
+  Loader
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { BusinessSettingsService, type BusinessSettings } from '../../services/businessSettingsService';
 
 // Define types for nested objects
 interface BusinessHours {
@@ -59,11 +64,15 @@ interface Integrations {
 interface BusinessData {
   id: string;
   name: string;
+  businessName: string;
   email: string;
   phone: string;
   address: string;
-  language: string;
+  description: string;
+  website: string;
+  logo: string;
   country: string;
+  language: string;
   currency: string;
   timezone: string;
   joinDate: string;
@@ -80,56 +89,6 @@ interface BusinessData {
   integrations: Integrations;
 }
 
-// Mock business data - replace with actual business auth in production
-const MOCK_BUSINESS: BusinessData = {
-  id: 'biz123',
-  name: 'Coffee Haven',
-  email: 'info@coffeehaven.com',
-  phone: '+1 555-987-6543',
-  address: '123 Main St, Downtown',
-  language: 'en',
-  country: 'United States',
-  currency: 'USD',
-  timezone: 'America/New_York',
-  joinDate: '2023-01-10',
-  taxId: 'TAX12345678',
-  businessHours: {
-    monday: { open: '08:00', close: '20:00', isClosed: false },
-    tuesday: { open: '08:00', close: '20:00', isClosed: false },
-    wednesday: { open: '08:00', close: '20:00', isClosed: false },
-    thursday: { open: '08:00', close: '20:00', isClosed: false },
-    friday: { open: '08:00', close: '22:00', isClosed: false },
-    saturday: { open: '09:00', close: '22:00', isClosed: false },
-    sunday: { open: '10:00', close: '18:00', isClosed: false }
-  },
-  paymentSettings: {
-    acceptsCard: true,
-    acceptsCash: true,
-    acceptsOnline: true,
-    serviceFeePercent: 2.5
-  },
-  loyaltySettings: {
-    pointsPerDollar: 10,
-    pointsExpiryDays: 365,
-    minimumPointsRedemption: 100,
-    welcomeBonus: 50
-  },
-  notificationSettings: {
-    email: true,
-    push: true,
-    sms: false,
-    customerActivity: true,
-    promotionStats: true,
-    systemUpdates: true
-  },
-  integrations: {
-    pos: true,
-    accounting: false,
-    marketing: true,
-    crm: false
-  }
-};
-
 // Available languages
 const LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -138,16 +97,90 @@ const LANGUAGES = [
   { code: 'ar', name: 'العربية' }
 ];
 
-// Available currencies
+// MENA and European Countries
+const COUNTRIES = [
+  // MENA Countries
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'BH', name: 'Bahrain' },
+  { code: 'DZ', name: 'Algeria' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'IQ', name: 'Iraq' },
+  { code: 'JO', name: 'Jordan' },
+  { code: 'KW', name: 'Kuwait' },
+  { code: 'LB', name: 'Lebanon' },
+  { code: 'LY', name: 'Libya' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'OM', name: 'Oman' },
+  { code: 'QA', name: 'Qatar' },
+  { code: 'SA', name: 'Saudi Arabia' },
+  { code: 'SY', name: 'Syria' },
+  { code: 'TN', name: 'Tunisia' },
+  { code: 'YE', name: 'Yemen' },
+  // European Countries
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'BG', name: 'Bulgaria' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'CY', name: 'Cyprus' },
+  { code: 'CZ', name: 'Czech Republic' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'EE', name: 'Estonia' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'FR', name: 'France' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'HR', name: 'Croatia' },
+  { code: 'HU', name: 'Hungary' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'LT', name: 'Lithuania' },
+  { code: 'LU', name: 'Luxembourg' },
+  { code: 'LV', name: 'Latvia' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'SI', name: 'Slovenia' },
+  { code: 'SK', name: 'Slovakia' }
+];
+
+// Available currencies for MENA and Europe
 const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar' },
-  { code: 'EUR', name: 'Euro' },
+  // MENA Currencies
   { code: 'AED', name: 'UAE Dirham' },
-  { code: 'SAR', name: 'Saudi Riyal' },
+  { code: 'BHD', name: 'Bahraini Dinar' },
+  { code: 'DZD', name: 'Algerian Dinar' },
   { code: 'EGP', name: 'Egyptian Pound' },
+  { code: 'IQD', name: 'Iraqi Dinar' },
+  { code: 'JOD', name: 'Jordanian Dinar' },
+  { code: 'KWD', name: 'Kuwaiti Dinar' },
+  { code: 'LBP', name: 'Lebanese Pound' },
+  { code: 'LYD', name: 'Libyan Dinar' },
   { code: 'MAD', name: 'Moroccan Dirham' },
+  { code: 'OMR', name: 'Omani Rial' },
+  { code: 'QAR', name: 'Qatari Riyal' },
+  { code: 'SAR', name: 'Saudi Riyal' },
+  { code: 'SYP', name: 'Syrian Pound' },
   { code: 'TND', name: 'Tunisian Dinar' },
-  { code: 'JOD', name: 'Jordanian Dinar' }
+  { code: 'YER', name: 'Yemeni Rial' },
+  // European Currencies
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British Pound' },
+  { code: 'CHF', name: 'Swiss Franc' },
+  { code: 'CZK', name: 'Czech Koruna' },
+  { code: 'DKK', name: 'Danish Krone' },
+  { code: 'HUF', name: 'Hungarian Forint' },
+  { code: 'NOK', name: 'Norwegian Krone' },
+  { code: 'PLN', name: 'Polish Zloty' },
+  { code: 'RON', name: 'Romanian Leu' },
+  { code: 'SEK', name: 'Swedish Krona' },
+  { code: 'TRY', name: 'Turkish Lira' },
+  // Common international currency
+  { code: 'USD', name: 'US Dollar' }
 ];
 
 // Timezones (abbreviated list)
@@ -172,15 +205,45 @@ const DAYS_OF_WEEK = [
   'sunday'
 ];
 
+// Convert BusinessSettings from service to BusinessData for the component
+const convertBusinessSettingsToData = (settings: BusinessSettings, userEmail: string): BusinessData => {
+  return {
+    id: settings.businessId.toString(),
+    name: settings.name,
+    businessName: settings.businessName,
+    email: settings.email || userEmail,
+    phone: settings.phone,
+    address: settings.address,
+    description: settings.description,
+    website: settings.website,
+    logo: settings.logo,
+    language: settings.language,
+    country: settings.country,
+    currency: settings.currency,
+    timezone: settings.timezone,
+    joinDate: settings.createdAt,
+    taxId: settings.taxId,
+    businessHours: settings.businessHours,
+    paymentSettings: settings.paymentSettings,
+    loyaltySettings: settings.loyaltySettings,
+    notificationSettings: settings.notificationSettings,
+    integrations: settings.integrations
+  };
+};
+
 const BusinessSettings = () => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('business');
   const [animateIn, setAnimateIn] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [businessData, setBusinessData] = useState<BusinessData>(MOCK_BUSINESS);
-  const [formData, setFormData] = useState<BusinessData>(MOCK_BUSINESS);
+  const [businessData, setBusinessData] = useState<BusinessData | null>(null);
+  const [formData, setFormData] = useState<BusinessData | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('There was an error updating your settings. Please try again.');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -191,7 +254,46 @@ const BusinessSettings = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // Load business settings from database
+  const loadBusinessSettings = async () => {
+    if (!user) {
+      setLoading(false);
+      setError('No user found. Please log in.');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const settings = await BusinessSettingsService.getBusinessSettings(user.id);
+      
+      if (settings) {
+        console.log('Loaded settings:', settings);
+        const businessDataConverted = convertBusinessSettingsToData(settings, user.email);
+        setBusinessData(businessDataConverted);
+        setFormData(businessDataConverted);
+        setError(null);
+      } else {
+        setError('Failed to load settings. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      setError('Error loading settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBusinessSettings();
+  }, [user]);
+
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    if (!formData) return;
+    
     const { name, value, type } = e.target as HTMLInputElement;
     
     if (type === 'checkbox') {
@@ -201,6 +303,8 @@ const BusinessSettings = () => {
       if (name.includes('.')) {
         const [parent, child] = name.split('.');
         setFormData(prev => {
+          if (!prev) return prev;
+          
           const updatedParent = {
             ...prev[parent as keyof BusinessData] as Record<string, any>,
             [child]: checked
@@ -212,16 +316,21 @@ const BusinessSettings = () => {
           };
         });
       } else {
-        setFormData(prev => ({
-          ...prev,
-          [name]: checked
-        }));
+        setFormData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            [name]: checked
+          };
+        });
       }
     } else {
       // Handle nested objects
       if (name.includes('.')) {
         const [parent, child] = name.split('.');
         setFormData(prev => {
+          if (!prev) return prev;
+          
           const updatedParent = {
             ...prev[parent as keyof BusinessData] as Record<string, any>,
             [child]: value
@@ -233,16 +342,23 @@ const BusinessSettings = () => {
           };
         });
       } else {
-        setFormData(prev => ({
-          ...prev,
-          [name]: value
-        }));
+        setFormData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            [name]: value
+          };
+        });
       }
     }
   };
 
   const handleBusinessHoursChange = (day: string, field: string, value: string) => {
+    if (!formData) return;
+    
     setFormData(prev => {
+      if (!prev) return prev;
+      
       const businessHours = { ...prev.businessHours };
       const dayData = { ...businessHours[day] };
       
@@ -261,16 +377,55 @@ const BusinessSettings = () => {
     });
   };
 
-  const handleSaveSettings = () => {
-    // Simulate API call
-    setTimeout(() => {
-      try {
+  const handleSaveSettings = async () => {
+    if (!formData || !user) return;
+    
+    setLoading(true);
+    setSaveSuccess(false);
+    setSaveError(false);
+    setErrorMessage('There was an error updating your settings. Please try again.');
+    
+    try {
+      // Convert form data to BusinessSettings format
+      const businessSettings: Partial<BusinessSettings> = {
+        businessId: parseInt(formData.id),
+        name: formData.name,
+        businessName: formData.businessName,
+        phone: formData.phone,
+        email: formData.email,
+        address: formData.address,
+        description: formData.description,
+        website: formData.website,
+        logo: formData.logo,
+        language: formData.language,
+        country: formData.country,
+        currency: formData.currency,
+        timezone: formData.timezone,
+        taxId: formData.taxId,
+        businessHours: formData.businessHours,
+        paymentSettings: formData.paymentSettings,
+        loyaltySettings: formData.loyaltySettings,
+        notificationSettings: formData.notificationSettings,
+        integrations: formData.integrations
+      };
+      
+      // Call service to update settings
+      const updatedSettings = await BusinessSettingsService.updateBusinessSettings(
+        user.id,
+        businessSettings
+      );
+      
+      if (updatedSettings) {
+        // Update the displayed data with the response from the server
+        const businessDataConverted = convertBusinessSettingsToData(updatedSettings, user.email);
+        setBusinessData(businessDataConverted);
+        setFormData(businessDataConverted);
+        
         // Update language if changed
-        if (formData.language !== businessData.language) {
-          i18n.changeLanguage(formData.language);
+        if (businessDataConverted.language !== i18n.language) {
+          i18n.changeLanguage(businessDataConverted.language);
         }
         
-        setBusinessData(formData);
         setSaveSuccess(true);
         setEditMode(false);
         
@@ -278,247 +433,367 @@ const BusinessSettings = () => {
         setTimeout(() => {
           setSaveSuccess(false);
         }, 3000);
-      } catch (error) {
+      } else {
+        setErrorMessage('Failed to save settings. Please try again.');
         setSaveError(true);
-        setTimeout(() => {
-          setSaveError(false);
-        }, 3000);
       }
-    }, 800);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      
+      // Set a more detailed error message
+      if (error instanceof Error) {
+        const errorMsg = error.message;
+        
+        // Check for specific error patterns and provide more helpful messages
+        if (errorMsg.includes('column') && errorMsg.includes('does not exist')) {
+          setErrorMessage(`Database schema error: ${errorMsg}. Please contact support with error code DB-SCHEMA-001.`);
+        } else if (errorMsg.includes('business_name')) {
+          setErrorMessage(`Business name update failed: ${errorMsg}. Please try with a different name or contact support.`);
+        } else if (errorMsg.includes('JSON')) {
+          setErrorMessage(`Invalid data format: ${errorMsg}. Please check your input and try again.`);
+        } else if (errorMsg.includes('business_profile')) {
+          setErrorMessage(`Business profile error: ${errorMsg}. Please contact support with error code BIZ-PROF-001.`);
+        } else if (errorMsg.includes('loyalty settings')) {
+          setErrorMessage(`Loyalty settings error: ${errorMsg}. Please contact support with error code LOYALTY-001.`);
+        } else {
+          // Default error message with the specific error
+          setErrorMessage(`Error updating settings: ${errorMsg}`);
+        }
+      } else {
+        setErrorMessage('Failed to save settings. Please try again or contact support.');
+      }
+      setSaveError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelEdit = () => {
-    setFormData(businessData);
+    if (businessData) {
+      setFormData(businessData);
+    }
     setEditMode(false);
   };
+  
+  // Show loading state when initially loading
+  if (loading && !businessData) {
+    return (
+      <BusinessLayout>
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="flex items-center justify-center mb-4">
+            <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+          </div>
+          <span className="text-lg text-gray-600">{t('Loading business settings...')}</span>
+        </div>
+      </BusinessLayout>
+    );
+  }
 
-  const renderBusinessSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <Building2 className="w-5 h-5 text-blue-500 mr-2" />
-            {t('Business Information')}
-          </h2>
-          {!editMode ? (
-            <button
-              onClick={() => setEditMode(true)}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+  // Show error state if there was an error loading the data
+  if (error && !businessData) {
+    return (
+      <BusinessLayout>
+        <div className="max-w-5xl mx-auto mt-10">
+          <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <h2 className="text-lg font-semibold flex items-center mb-2">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              {t('Error Loading Settings')}
+            </h2>
+            <p>{t(error)}</p>
+            <button 
+              onClick={() => loadBusinessSettings()} 
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Edit3 className="w-4 h-4 mr-1.5" />
-              {t('Edit')}
+              {t('Try Again')}
             </button>
-          ) : (
-            <div className="flex gap-2">
+          </div>
+        </div>
+      </BusinessLayout>
+    );
+  }
+  
+  // If no data to render, don't continue
+  if (!businessData || !formData) {
+    return (
+      <BusinessLayout>
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">No business settings found</p>
+            </div>
+          </div>
+        </div>
+      </BusinessLayout>
+    );
+  }
+
+  const renderBusinessSettings = () => {
+    if (!formData || !businessData) return null;
+    
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+              <Building2 className="w-5 h-5 text-blue-500 mr-2" />
+              {t('Business Information')}
+            </h2>
+            {!editMode ? (
               <button
-                onClick={handleCancelEdit}
-                className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
+                onClick={() => setEditMode(true)}
+                className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
-                <X className="w-4 h-4 mr-1.5" />
-                {t('Cancel')}
+                <Edit3 className="w-4 h-4 mr-1.5" />
+                {t('Edit')}
               </button>
-              <button
-                onClick={handleSaveSettings}
-                className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
-              >
-                <Save className="w-4 h-4 mr-1.5" />
-                {t('Save')}
-              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
+                >
+                  <X className="w-4 h-4 mr-1.5" />
+                  {t('Cancel')}
+                </button>
+                <button
+                  onClick={handleSaveSettings}
+                  className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="inline-block w-4 h-4 mr-1.5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <Save className="w-4 h-4 mr-1.5" />
+                  )}
+                  {t('Save')}
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {saveSuccess && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
+              <Check className="w-5 h-5 mr-2" />
+              {t('Your business settings have been successfully updated')}
             </div>
           )}
-        </div>
-        
-        {saveSuccess && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
-            <Check className="w-5 h-5 mr-2" />
-            {t('Your business settings have been successfully updated')}
-          </div>
-        )}
-        
-        {saveError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            {t('There was an error updating your settings. Please try again.')}
-          </div>
-        )}
-        
-        <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Business Name')}
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
-              <p className="text-gray-800">{businessData.name}</p>
-            )}
-          </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Business Email')}
-            </label>
-            {editMode ? (
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
+          {saveError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="flex items-center mb-1">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                <span className="font-medium">{t('Error Updating Settings')}</span>
+              </div>
+              <p className="ml-7">{t(errorMessage)}</p>
+              <div className="ml-7 mt-2">
+                <button
+                  onClick={() => setSaveError(false)}
+                  className="text-xs text-red-700 underline hover:text-red-900 mr-4"
+                >
+                  {t('Dismiss')}
+                </button>
+                <button
+                  onClick={handleSaveSettings}
+                  className="text-xs text-blue-600 underline hover:text-blue-800"
+                >
+                  {t('Try Again')}
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Name')}
+              </label>
+              {editMode ? (
+                <input
+                  type="text"
+                  name="businessName"
+                  value={formData.businessName}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-gray-800">{businessData.businessName}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Email')}
+              </label>
               <p className="text-gray-800">{businessData.email}</p>
-            )}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Phone Number')}
-            </label>
-            {editMode ? (
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
-              <p className="text-gray-800">{businessData.phone}</p>
-            )}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Tax ID / Business Registration')}
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                name="taxId"
-                value={formData.taxId}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
-              <p className="text-gray-800">{businessData.taxId}</p>
-            )}
-          </div>
-          
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Business Address')}
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
-              <p className="text-gray-800">{businessData.address}</p>
-            )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Phone Number')}
+              </label>
+              {editMode ? (
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-gray-800">{businessData.phone}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Website')}
+              </label>
+              {editMode ? (
+                <input
+                  type="url"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleInputChange}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-gray-800">
+                  {businessData.website ? (
+                    <a href={businessData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                      {businessData.website} <Link className="w-3 h-3 ml-1" />
+                    </a>
+                  ) : (
+                    'Not specified'
+                  )}
+                </p>
+              )}
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Description')}
+              </label>
+              {editMode ? (
+                <textarea
+                  name="description"
+                  value={formData.description || ''}
+                  onChange={handleInputChange as React.ChangeEventHandler<HTMLTextAreaElement>}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-gray-800">{businessData.description || 'No description provided'}</p>
+              )}
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Address')}
+              </label>
+              {editMode ? (
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-gray-800 whitespace-pre-line">{businessData.address || 'No address provided'}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Country')}
+              </label>
+              {editMode ? (
+                <select
+                  name="country"
+                  value={formData.country || ''}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">{t('Select a country')}</option>
+                  <optgroup label={t('MENA Region')}>
+                    {COUNTRIES.slice(0, 16).map(country => (
+                      <option key={country.code} value={country.name}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t('Europe')}>
+                    {COUNTRIES.slice(16).map(country => (
+                      <option key={country.code} value={country.name}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              ) : (
+                <p className="text-gray-800">{businessData.country || 'Not specified'}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Currency')}
+              </label>
+              {editMode ? (
+                <select
+                  name="currency"
+                  value={formData.currency || 'USD'}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <optgroup label={t('MENA Currencies')}>
+                    {CURRENCIES.slice(0, 16).map(currency => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.code} - {currency.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t('European Currencies')}>
+                    {CURRENCIES.slice(16, 27).map(currency => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.code} - {currency.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t('International')}>
+                    {CURRENCIES.slice(27).map(currency => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.code} - {currency.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              ) : (
+                <p className="text-gray-800">
+                  {businessData.currency ? (
+                    `${businessData.currency} - ${CURRENCIES.find(c => c.code === businessData.currency)?.name || ''}`
+                  ) : (
+                    'USD - US Dollar'
+                  )}
+                </p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Member Since')}
+              </label>
+              <p className="text-gray-800">{new Date(businessData.joinDate).toLocaleDateString()}</p>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
-          <Globe className="w-5 h-5 text-blue-500 mr-2" />
-          {t('Regional Settings')}
-        </h2>
-        
-        <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Language')}
-            </label>
-            {editMode ? (
-              <select
-                name="language"
-                value={formData.language}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {LANGUAGES.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-gray-800">
-                {LANGUAGES.find(lang => lang.code === businessData.language)?.name || businessData.language}
-              </p>
-            )}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Currency')}
-            </label>
-            {editMode ? (
-              <select
-                name="currency"
-                value={formData.currency}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {CURRENCIES.map(currency => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.code} - {currency.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-gray-800">
-                {CURRENCIES.find(c => c.code === businessData.currency)?.name || businessData.currency}
-              </p>
-            )}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Timezone')}
-            </label>
-            {editMode ? (
-              <select
-                name="timezone"
-                value={formData.timezone}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {TIMEZONES.map(tz => (
-                  <option key={tz.code} value={tz.code}>
-                    {tz.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-gray-800">
-                {TIMEZONES.find(tz => tz.code === businessData.timezone)?.name || businessData.timezone}
-              </p>
-            )}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Member Since')}
-            </label>
-            <p className="text-gray-800">{new Date(businessData.joinDate).toLocaleDateString()}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderBusinessHours = () => (
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
@@ -563,9 +838,26 @@ const BusinessSettings = () => {
       )}
       
       {saveError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center">
-          <AlertCircle className="w-5 h-5 mr-2" />
-          {t('There was an error updating your business hours. Please try again.')}
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="flex items-center mb-1">
+            <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+            <span className="font-medium">{t('Error Updating Settings')}</span>
+          </div>
+          <p className="ml-7">{t(errorMessage)}</p>
+          <div className="ml-7 mt-2">
+            <button
+              onClick={() => setSaveError(false)}
+              className="text-xs text-red-700 underline hover:text-red-900 mr-4"
+            >
+              {t('Dismiss')}
+            </button>
+            <button
+              onClick={handleSaveSettings}
+              className="text-xs text-blue-600 underline hover:text-blue-800"
+            >
+              {t('Try Again')}
+            </button>
+          </div>
         </div>
       )}
       
@@ -654,145 +946,250 @@ const BusinessSettings = () => {
   );
 
   const renderLoyaltySettings = () => (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+    <div className={`bg-white rounded-xl p-6 border border-gray-200 shadow-sm ${activeTab === 'loyalty' ? '' : 'hidden'}`}>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-          <CreditCard className="w-5 h-5 text-blue-500 mr-2" />
+          <DollarSign className="w-5 h-5 text-blue-500 mr-2" />
           {t('Loyalty Program Settings')}
         </h2>
         {!editMode ? (
           <button
             onClick={() => setEditMode(true)}
-            className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+            className="text-blue-600 hover:text-blue-800 flex items-center text-sm font-medium"
           >
-            <Edit3 className="w-4 h-4 mr-1.5" />
+            <Edit3 className="w-4 h-4 mr-1" />
             {t('Edit')}
           </button>
         ) : (
-          <div className="flex gap-2">
-            <button
-              onClick={handleCancelEdit}
-              className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
-            >
-              <X className="w-4 h-4 mr-1.5" />
-              {t('Cancel')}
-            </button>
+          <div className="flex space-x-2">
             <button
               onClick={handleSaveSettings}
-              className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded flex items-center text-sm"
+              disabled={loading}
             >
-              <Save className="w-4 h-4 mr-1.5" />
+              {loading ? (
+                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-1" />
+              )}
               {t('Save')}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              className="text-gray-500 hover:text-gray-700 px-3 py-1 rounded border border-gray-300 flex items-center text-sm"
+            >
+              <X className="w-4 h-4 mr-1" />
+              {t('Cancel')}
             </button>
           </div>
         )}
       </div>
       
       {saveSuccess && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
-          <Check className="w-5 h-5 mr-2" />
-          {t('Your loyalty program settings have been successfully updated')}
+        <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4 animated fadeIn">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Check className="h-5 w-5 text-green-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-green-700">
+                {t('Your loyalty program settings have been updated successfully.')}
+              </p>
+            </div>
+          </div>
         </div>
       )}
       
       {saveError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center">
-          <AlertCircle className="w-5 h-5 mr-2" />
-          {t('There was an error updating your loyalty settings. Please try again.')}
+        <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 animated fadeIn">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{errorMessage}</p>
+            </div>
+          </div>
         </div>
       )}
       
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('Points Per Dollar')}
+            {t('Points per Dollar Spent')}
           </label>
-          {editMode ? (
-            <div className="flex items-center">
-              <input
-                type="number"
-                name="loyaltySettings.pointsPerDollar"
-                value={formData.loyaltySettings.pointsPerDollar}
-                onChange={handleInputChange}
-                min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <span className="ml-2 text-gray-500">{t('points')}</span>
+          <div className="relative">
+            <input
+              type="number"
+              className={`block w-full px-4 py-2 border ${
+                editMode ? 'border-gray-300' : 'border-gray-100 bg-gray-50'
+              } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+              value={formData?.loyaltySettings.pointsPerDollar || 0}
+              onChange={(e) => {
+                if (!formData) return;
+                const value = parseFloat(e.target.value);
+                if (isNaN(value) || value < 0) return;
+                
+                setFormData({
+                  ...formData,
+                  loyaltySettings: {
+                    ...formData.loyaltySettings,
+                    pointsPerDollar: value
+                  }
+                });
+              }}
+              disabled={!editMode}
+              min="0"
+              step="0.1"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <span className="text-gray-500">{t('points')}</span>
             </div>
-          ) : (
-            <p className="text-gray-800">
-              {businessData.loyaltySettings.pointsPerDollar} {t('points per dollar')}
-            </p>
-          )}
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {t('How many points customers earn for each dollar spent at your business')}
+          </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('Welcome Bonus')}
+            {t('Points Expiration')}
           </label>
-          {editMode ? (
-            <div className="flex items-center">
-              <input
-                type="number"
-                name="loyaltySettings.welcomeBonus"
-                value={formData.loyaltySettings.welcomeBonus}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <span className="ml-2 text-gray-500">{t('points')}</span>
+          <div className="relative">
+            <input
+              type="number"
+              className={`block w-full px-4 py-2 border ${
+                editMode ? 'border-gray-300' : 'border-gray-100 bg-gray-50'
+              } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+              value={formData?.loyaltySettings.pointsExpiryDays || 0}
+              onChange={(e) => {
+                if (!formData) return;
+                const value = parseInt(e.target.value);
+                if (isNaN(value) || value < 0) return;
+                
+                setFormData({
+                  ...formData,
+                  loyaltySettings: {
+                    ...formData.loyaltySettings,
+                    pointsExpiryDays: value
+                  }
+                });
+              }}
+              disabled={!editMode}
+              min="0"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <span className="text-gray-500">{t('days')}</span>
             </div>
-          ) : (
-            <p className="text-gray-800">
-              {businessData.loyaltySettings.welcomeBonus} {t('points')}
-            </p>
-          )}
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('Points Expiry')}
-          </label>
-          {editMode ? (
-            <div className="flex items-center">
-              <input
-                type="number"
-                name="loyaltySettings.pointsExpiryDays"
-                value={formData.loyaltySettings.pointsExpiryDays}
-                onChange={handleInputChange}
-                min="30"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <span className="ml-2 text-gray-500">{t('days')}</span>
-            </div>
-          ) : (
-            <p className="text-gray-800">
-              {businessData.loyaltySettings.pointsExpiryDays} {t('days')}
-            </p>
-          )}
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {t('Number of days until points expire (0 = never expire)')}
+          </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             {t('Minimum Points for Redemption')}
           </label>
-          {editMode ? (
-            <div className="flex items-center">
-              <input
-                type="number"
-                name="loyaltySettings.minimumPointsRedemption"
-                value={formData.loyaltySettings.minimumPointsRedemption}
-                onChange={handleInputChange}
-                min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <span className="ml-2 text-gray-500">{t('points')}</span>
+          <div className="relative">
+            <input
+              type="number"
+              className={`block w-full px-4 py-2 border ${
+                editMode ? 'border-gray-300' : 'border-gray-100 bg-gray-50'
+              } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+              value={formData?.loyaltySettings.minimumPointsRedemption || 0}
+              onChange={(e) => {
+                if (!formData) return;
+                const value = parseInt(e.target.value);
+                if (isNaN(value) || value < 0) return;
+                
+                setFormData({
+                  ...formData,
+                  loyaltySettings: {
+                    ...formData.loyaltySettings,
+                    minimumPointsRedemption: value
+                  }
+                });
+              }}
+              disabled={!editMode}
+              min="0"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <span className="text-gray-500">{t('points')}</span>
             </div>
-          ) : (
-            <p className="text-gray-800">
-              {businessData.loyaltySettings.minimumPointsRedemption} {t('points')}
-            </p>
-          )}
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {t('Minimum number of points required for customers to redeem rewards')}
+          </p>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t('Welcome Bonus')}
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              className={`block w-full px-4 py-2 border ${
+                editMode ? 'border-gray-300' : 'border-gray-100 bg-gray-50'
+              } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
+              value={formData?.loyaltySettings.welcomeBonus || 0}
+              onChange={(e) => {
+                if (!formData) return;
+                const value = parseInt(e.target.value);
+                if (isNaN(value) || value < 0) return;
+                
+                setFormData({
+                  ...formData,
+                  loyaltySettings: {
+                    ...formData.loyaltySettings,
+                    welcomeBonus: value
+                  }
+                });
+              }}
+              disabled={!editMode}
+              min="0"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <span className="text-gray-500">{t('points')}</span>
+            </div>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {t('Bonus points awarded to new customers when they join your loyalty program')}
+          </p>
+        </div>
+        
+        <div className="pt-4 border-t border-gray-200">
+          <h3 className="font-medium text-gray-800 mb-2">{t('Points Value Calculator')}</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">{t('Customer spends')}</p>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    className="block w-full pl-8 pr-12 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    value="10"
+                    disabled
+                  />
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">{t('Customer earns')}</p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-blue-50 text-blue-700 font-medium"
+                    value={`${(10 * (formData?.loyaltySettings.pointsPerDollar || 0)).toFixed(0)} ${t('points')}`}
+                    disabled
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

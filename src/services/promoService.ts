@@ -1,41 +1,53 @@
 import type { PromoCode, PromoCodeRedemption, PromoCodeStats } from '../types/promo';
 import { CurrencyService } from './currencyService';
 import type { CurrencyCode } from '../types/currency';
+import sql from '../utils/db';
 
 export class PromoService {
-  // Mock data stores
-  private static promoCodes: PromoCode[] = [];
-  private static redemptions: PromoCodeRedemption[] = [];
-  
   static async generateCode(
     businessId: string,
     type: PromoCode['type'],
     value: number,
     currency: CurrencyCode,
     maxUses: number | null = null,
-    expiresAt: string | null = null
+    expiresAt: string | null = null,
+    name: string = '',
+    description: string = ''
   ): Promise<{ code: PromoCode; error?: string }> {
     try {
-      const code = this.generateUniqueCode();
+      const code = await this.generateUniqueCode();
       
-      const newPromoCode: PromoCode = {
-        id: Date.now().toString(),
-        businessId,
-        code,
-        type,
-        value,
-        currency,
-        maxUses,
-        usedCount: 0,
-        expiresAt,
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      // Insert the new promo code into the database
+      const result = await sql`
+        INSERT INTO promo_codes (
+          business_id,
+          code,
+          type,
+          value,
+          currency,
+          max_uses,
+          expires_at,
+          name,
+          description
+        ) VALUES (
+          ${parseInt(businessId)},
+          ${code},
+          ${type},
+          ${value},
+          ${currency || null},
+          ${maxUses},
+          ${expiresAt ? new Date(expiresAt) : null},
+          ${name},
+          ${description}
+        )
+        RETURNING *
+      `;
       
-      this.promoCodes.push(newPromoCode);
+      // Format the result to match our PromoCode interface
+      const newPromoCode = this.dbPromoCodeToPromoCode(result[0]);
       return { code: newPromoCode };
     } catch (error) {
+      console.error('Error generating code:', error);
       return { 
         code: null as unknown as PromoCode,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -48,10 +60,17 @@ export class PromoService {
     customerId: string
   ): Promise<{ valid: boolean; code?: PromoCode; error?: string }> {
     try {
-      // Get code details
-      const promoCode = this.promoCodes.find(pc => pc.code === code);
+      // Get code details from the database
+      const promoCodeResult = await sql`
+        SELECT * FROM promo_codes
+        WHERE code = ${code}
+      `;
       
-      if (!promoCode) return { valid: false, error: 'Code not found' };
+      if (promoCodeResult.length === 0) {
+        return { valid: false, error: 'Code not found' };
+      }
+      
+      const promoCode = this.dbPromoCodeToPromoCode(promoCodeResult[0]);
 
       // Check if code is active
       if (promoCode.status !== 'ACTIVE') {
@@ -71,16 +90,19 @@ export class PromoService {
       }
 
       // Check if customer has already used this code
-      const existingRedemption = this.redemptions.find(
-        r => r.codeId === promoCode.id && r.customerId === customerId
-      );
+      const existingRedemptionResult = await sql`
+        SELECT * FROM promo_redemptions
+        WHERE code_id = ${parseInt(promoCode.id)}
+        AND customer_id = ${parseInt(customerId)}
+      `;
 
-      if (existingRedemption) {
+      if (existingRedemptionResult.length > 0) {
         return { valid: false, error: 'Code already used by this customer' };
       }
 
       return { valid: true, code: promoCode };
     } catch (error) {
+      console.error('Error validating code:', error);
       return { 
         valid: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -100,32 +122,39 @@ export class PromoService {
         throw new Error(validationError || 'Invalid code');
       }
 
-      // Create redemption record
-      const redemption: PromoCodeRedemption = {
-        id: Date.now().toString(),
-        codeId: promoCode.id,
-        customerId,
-        businessId: promoCode.businessId,
-        redeemedAt: new Date().toISOString(),
-        value: promoCode.value,
-        currency: promoCode.currency,
-        transactionId
-      };
-      
-      this.redemptions.push(redemption);
+      // Create redemption record in the database
+      const redemptionResult = await sql`
+        INSERT INTO promo_redemptions (
+          code_id,
+          customer_id,
+          business_id,
+          value,
+          currency,
+          transaction_id
+        ) VALUES (
+          ${parseInt(promoCode.id)},
+          ${parseInt(customerId)},
+          ${parseInt(promoCode.businessId)},
+          ${promoCode.value},
+          ${promoCode.currency || null},
+          ${transactionId || null}
+        )
+        RETURNING *
+      `;
 
       // Update code usage count
-      const index = this.promoCodes.findIndex(pc => pc.id === promoCode.id);
-      if (index !== -1) {
-        this.promoCodes[index] = {
-          ...this.promoCodes[index],
-          usedCount: this.promoCodes[index].usedCount + 1,
-          updatedAt: new Date().toISOString()
-        };
-      }
+      await sql`
+        UPDATE promo_codes
+        SET used_count = used_count + 1,
+            updated_at = NOW()
+        WHERE id = ${parseInt(promoCode.id)}
+      `;
 
+      // Format the result to match our PromoCodeRedemption interface
+      const redemption = this.dbRedemptionToRedemption(redemptionResult[0]);
       return { success: true, redemption };
     } catch (error) {
+      console.error('Error redeeming code:', error);
       return { 
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -137,10 +166,17 @@ export class PromoService {
     businessId: string
   ): Promise<{ codes: PromoCode[]; error?: string }> {
     try {
-      const businessCodes = this.promoCodes.filter(code => code.businessId === businessId);
+      const businessIdInt = parseInt(businessId);
+      const codesResult = await sql`
+        SELECT * FROM promo_codes
+        WHERE business_id = ${businessIdInt}
+        ORDER BY created_at DESC
+      `;
       
-      return { codes: businessCodes };
+      const codes = codesResult.map(this.dbPromoCodeToPromoCode);
+      return { codes };
     } catch (error) {
+      console.error('Error getting business codes:', error);
       return {
         codes: [],
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -152,32 +188,60 @@ export class PromoService {
     businessId: string
   ): Promise<{ stats: PromoCodeStats; error?: string }> {
     try {
-      const businessCodes = this.promoCodes.filter(code => code.businessId === businessId);
-      const businessRedemptions = this.redemptions.filter(redemption => redemption.businessId === businessId);
+      const businessIdInt = parseInt(businessId);
       
-      const totalCodes = businessCodes.length;
-      const activeCodes = businessCodes.filter(code => code.status === 'ACTIVE').length;
-      const totalRedemptions = businessRedemptions.length;
+      // Get total and active codes
+      const codesResult = await sql`
+        SELECT
+          COUNT(*) as total_codes,
+          SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_codes
+        FROM promo_codes
+        WHERE business_id = ${businessIdInt}
+      `;
+      
+      // Get redemption stats
+      const redemptionsResult = await sql`
+        SELECT COUNT(*) as total_redemptions
+        FROM promo_redemptions
+        WHERE business_id = ${businessIdInt}
+      `;
       
       // Calculate redemption value
-      const redemptionValue = businessRedemptions.reduce((sum, redemption) => {
-        // Convert all values to a common currency (e.g., USD)
+      const valueResult = await sql`
+        SELECT SUM(value) as total_value, currency
+        FROM promo_redemptions
+        WHERE business_id = ${businessIdInt}
+        GROUP BY currency
+      `;
+      
+      // Get counts by type
+      const typeResult = await sql`
+        SELECT type, COUNT(*) as count
+        FROM promo_codes
+        WHERE business_id = ${businessIdInt}
+        GROUP BY type
+      `;
+      
+      const totalCodes = parseInt(codesResult[0]?.total_codes || '0');
+      const activeCodes = parseInt(codesResult[0]?.active_codes || '0');
+      const totalRedemptions = parseInt(redemptionsResult[0]?.total_redemptions || '0');
+      
+      // Calculate total value in USD
+      let redemptionValue = 0;
+      for (const row of valueResult) {
         const valueInUSD = CurrencyService.convert(
-          redemption.value,
-          redemption.currency || 'USD', // Provide a default if currency is undefined
+          parseFloat(row.total_value || '0'),
+          row.currency || 'USD',
           'USD'
         );
-        return sum + valueInUSD;
-      }, 0);
+        redemptionValue += valueInUSD;
+      }
       
-      // Group by code type
-      const byType = businessCodes.reduce(
-        (acc, code) => {
-          acc[code.type] = (acc[code.type] || 0) + 1;
-          return acc;
-        },
-        {} as Record<PromoCode['type'], number>
-      );
+      // Format by type counts
+      const byType: Record<PromoCode['type'], number> = {} as any;
+      for (const row of typeResult) {
+        byType[row.type as PromoCode['type']] = parseInt(row.count);
+      }
       
       return {
         stats: {
@@ -190,6 +254,7 @@ export class PromoService {
         }
       };
     } catch (error) {
+      console.error('Error getting code stats:', error);
       return {
         stats: {
           totalCodes: 0,
@@ -208,37 +273,103 @@ export class PromoService {
     codeId: string,
     status: PromoCode['status']
   ): Promise<boolean> {
-    const index = this.promoCodes.findIndex(code => code.id === codeId);
-    if (index !== -1) {
-      this.promoCodes[index] = {
-        ...this.promoCodes[index],
-        status,
-        updatedAt: new Date().toISOString()
-      };
+    try {
+      const codeIdInt = parseInt(codeId);
+      await sql`
+        UPDATE promo_codes
+        SET status = ${status},
+            updated_at = NOW()
+        WHERE id = ${codeIdInt}
+      `;
       return true;
+    } catch (error) {
+      console.error('Error updating code status:', error);
+      return false;
     }
-    return false;
   }
 
-  private static generateUniqueCode(): string {
+  private static async generateUniqueCode(): Promise<string> {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
     for (let i = 0; i < 8; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     
-    // Check if code already exists
-    const exists = this.promoCodes.some(code => code.code === result);
-    if (exists) {
+    // Check if code already exists in the database
+    const existingCodeResult = await sql`
+      SELECT id FROM promo_codes WHERE code = ${result}
+    `;
+    
+    if (existingCodeResult.length > 0) {
       return this.generateUniqueCode(); // Recursively try again
     }
     
     return result;
   }
   
-  // Method to initialize mock data for testing
-  static initMockData(promoCodes: PromoCode[] = [], redemptions: PromoCodeRedemption[] = []) {
-    this.promoCodes = [...promoCodes];
-    this.redemptions = [...redemptions];
+  // Helper method to convert database promo code to our interface
+  private static dbPromoCodeToPromoCode(dbCode: any): PromoCode {
+    return {
+      id: dbCode.id.toString(),
+      businessId: dbCode.business_id.toString(),
+      code: dbCode.code,
+      type: dbCode.type,
+      value: parseFloat(dbCode.value),
+      currency: dbCode.currency,
+      maxUses: dbCode.max_uses !== null ? parseInt(dbCode.max_uses) : null,
+      usedCount: parseInt(dbCode.used_count),
+      expiresAt: dbCode.expires_at,
+      status: dbCode.status,
+      name: dbCode.name || '',
+      description: dbCode.description || '',
+      createdAt: dbCode.created_at,
+      updatedAt: dbCode.updated_at
+    };
+  }
+  
+  // Helper method to convert database redemption to our interface
+  private static dbRedemptionToRedemption(dbRedemption: any): PromoCodeRedemption {
+    return {
+      id: dbRedemption.id.toString(),
+      codeId: dbRedemption.code_id.toString(),
+      customerId: dbRedemption.customer_id.toString(),
+      businessId: dbRedemption.business_id.toString(),
+      value: parseFloat(dbRedemption.value),
+      currency: dbRedemption.currency,
+      transactionId: dbRedemption.transaction_id,
+      redeemedAt: dbRedemption.redeemed_at
+    };
+  }
+
+  static async getAvailablePromotions(): Promise<{ promotions: PromoCode[]; error?: string }> {
+    try {
+      // Get all active promo codes
+      const promoCodesResult = await sql`
+        SELECT pc.*, u.business_name
+        FROM promo_codes pc
+        JOIN users u ON pc.business_id = u.id
+        WHERE pc.status = 'ACTIVE'
+        AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+        AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
+        ORDER BY pc.created_at DESC
+      `;
+      
+      const promotions = promoCodesResult.map((row: any) => {
+        const promo = this.dbPromoCodeToPromoCode(row);
+        // Add business_name to the promo object
+        return {
+          ...promo,
+          businessName: row.business_name || 'Unknown Business'
+        };
+      });
+      
+      return { promotions };
+    } catch (error) {
+      console.error('Error getting available promotions:', error);
+      return {
+        promotions: [],
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 } 

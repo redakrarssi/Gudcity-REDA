@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { QRScanner } from '../../components/QRScanner';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
@@ -9,414 +10,246 @@ import {
 } from 'lucide-react';
 
 interface ScanResult {
-  type: 'customer_card' | 'promo_code' | 'loyalty_card' | 'unknown';
+  type: string; 
   data: any;
   timestamp: string;
+  raw: string;
 }
 
 const QrScannerPage = () => {
   const { t } = useTranslation();
-  const [scannerMessage, setScannerMessage] = useState<string>('');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'scanner' | 'manual'>('scanner');
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [selectedResult, setSelectedResult] = useState<ScanResult | null>(null);
-  const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualEntryType, setManualEntryType] = useState<'customer' | 'promo' | 'loyalty'>('customer');
-  const [manualEntryValue, setManualEntryValue] = useState('');
+  const [manualInput, setManualInput] = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
 
-  // Reset state when navigating away
+  // Load previous scan results from localStorage
   useEffect(() => {
-    return () => {
-      setScanResults([]);
-      setScannerMessage('');
-    };
-  }, []);
-
-  const handleScan = (data: string) => {
-    setIsScanning(true);
     try {
-      // Try to parse as JSON
-      let qrData;
-      try {
-        qrData = JSON.parse(data);
-      } catch (parseError) {
-        // Check if the data might be a URL containing JSON (common in some QR formats)
-        if (data.includes('{"') && data.includes('"}')) {
-          const jsonMatch = data.match(/(\{.*\})/);
-          if (jsonMatch && jsonMatch[0]) {
-            try {
-              qrData = JSON.parse(jsonMatch[0]);
-            } catch (nestedParseError) {
-              throw new Error('Invalid JSON format');
-            }
-          } else {
-            throw new Error('Invalid JSON format');
-          }
-        } else {
-          throw new Error('Not a JSON QR code');
+      const savedResults = localStorage.getItem('qr_scan_results');
+      if (savedResults) {
+        const parsed = JSON.parse(savedResults);
+        if (Array.isArray(parsed)) {
+          setScanResults(parsed);
         }
       }
-      
-      // Determine the type of QR code
-      let type: ScanResult['type'] = 'unknown';
-      if (qrData.type === 'customer_card') {
-        type = 'customer_card';
-        setScannerMessage(`${t('Customer')} ID: ${qrData.customerId} ${t('scanned successfully')}`);
-        setMessageType('success');
-        
-        // Example of mocked customer lookup
-        mockLookupCustomer(qrData.customerId);
-      } else if (qrData.type === 'promo_code') {
-        type = 'promo_code';
-        setScannerMessage(`${t('Promotion code')}: ${qrData.code} ${t('recognized')}`);
-        setMessageType('success');
-        
-        // Example of mocked promo code validation
-        mockValidatePromoCode(qrData.code);
-      } else if (qrData.type === 'loyalty_card') {
-        type = 'loyalty_card';
-        setScannerMessage(`${t('Loyalty card')} ID: ${qrData.cardId} ${t('processed')}`);
-        setMessageType('success');
-        
-        // Example of mocked loyalty card processing
-        mockProcessLoyaltyCard(qrData.cardId, qrData.programId);
-      } else {
-        setScannerMessage(t('Recognized QR code but unknown type'));
-        setMessageType('info');
-      }
-      
-      // Add to scan history
-      const newResult: ScanResult = {
-        type,
-        data: qrData,
-        timestamp: new Date().toISOString()
-      };
-      
-      setScanResults(prev => [newResult, ...prev]);
-      setSelectedResult(newResult);
     } catch (error) {
-      // Handle non-JSON QR codes
-      
-      // Check if it's potentially a promo code (alphanumeric code)
-      const promoCodeRegex = /^[A-Z0-9]{4,12}$/;
-      if (promoCodeRegex.test(data)) {
-        setScannerMessage(`${t('Possible promo code detected')}: ${data}`);
-        setMessageType('info');
-        
-        const newResult: ScanResult = {
-          type: 'promo_code',
-          data: { type: 'promo_code', code: data, inferred: true },
-          timestamp: new Date().toISOString()
-        };
-        
-        setScanResults(prev => [newResult, ...prev]);
-        setSelectedResult(newResult);
-        
-        // Try to validate the possible promo code
-        mockValidatePromoCode(data);
-      }
-      // Check if it might be a customer ID (usually numeric)
-      else if (/^(cust|customer)?[0-9]{4,8}$/i.test(data)) {
-        // Extract just the numeric part if prefixed with "cust" or "customer"
-        const customerId = data.replace(/^(cust|customer)/i, '');
-        
-        setScannerMessage(`${t('Possible customer ID detected')}: ${customerId}`);
-        setMessageType('info');
-        
-        const newResult: ScanResult = {
-          type: 'customer_card',
-          data: { type: 'customer_card', customerId, inferred: true },
-          timestamp: new Date().toISOString()
-        };
-        
-        setScanResults(prev => [newResult, ...prev]);
-        setSelectedResult(newResult);
-        
-        // Try to look up the possible customer
-        mockLookupCustomer(customerId);
-      }
-      // URL handling
-      else if (data.startsWith('http')) {
-        setScannerMessage(`${t('URL detected')}: ${data.substring(0, 30)}...`);
-        setMessageType('info');
-        
-        const newResult: ScanResult = {
-          type: 'unknown',
-          data: { text: data, type: 'url' },
-          timestamp: new Date().toISOString()
-        };
-        
-        setScanResults(prev => [newResult, ...prev]);
-        setSelectedResult(newResult);
-      } 
-      // Plain text
-      else {
-        setScannerMessage(`${t('Plain text')}: ${data.substring(0, 30)}${data.length > 30 ? '...' : ''}`);
-        setMessageType('info');
-        
-        const newResult: ScanResult = {
-          type: 'unknown',
-          data: { text: data },
-          timestamp: new Date().toISOString()
-        };
-        
-        setScanResults(prev => [newResult, ...prev]);
-        setSelectedResult(newResult);
+      console.error('Error loading scan results from localStorage:', error);
+    }
+  }, []);
+
+  // Save scan results to localStorage whenever they change
+  useEffect(() => {
+    if (scanResults.length > 0) {
+      try {
+        localStorage.setItem('qr_scan_results', JSON.stringify(scanResults.slice(0, 10)));
+      } catch (error) {
+        console.error('Error saving scan results to localStorage:', error);
       }
     }
+  }, [scanResults]);
+
+  const handleScan = (result: ScanResult) => {
+    if (!result) return;
     
-    // Automatically reset scanning state after a delay
-    setTimeout(() => {
-      setIsScanning(false);
-    }, 1500);
+    // Add the new scan to the results
+    const updatedResults = [result, ...scanResults.slice(0, 9)];
+    setScanResults(updatedResults);
+    setSelectedResult(result);
+    
+    // Play success sound
+    playSuccessSound();
   };
 
-  const handleError = (error: Error) => {
-    setScannerMessage(`${t('Error')}: ${error.message}`);
-    setMessageType('error');
-    setIsScanning(false);
-  };
-  
-  const clearHistory = () => {
-    setScanResults([]);
-    setSelectedResult(null);
-    setScannerMessage(t('Scan history cleared'));
-    setMessageType('info');
-  };
-  
-  // Mock functions to simulate business logic
-  const mockLookupCustomer = (customerId: string) => {
-    // In a real app, this would call an API
-    console.log(`Looking up customer: ${customerId}`);
-  };
-  
-  const mockValidatePromoCode = (code: string) => {
-    // In a real app, this would validate against your promo service
-    console.log(`Validating promo code: ${code}`);
-  };
-  
-  const mockProcessLoyaltyCard = (cardId: string, programId: string) => {
-    // In a real app, this would process loyalty points
-    console.log(`Processing loyalty card: ${cardId} for program: ${programId}`);
-  };
-  
-  // Helper to format the timestamp
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  // Helper to get icon for result type
-  const getIconForType = (type: ScanResult['type']) => {
-    switch (type) {
-      case 'customer_card':
-        return <User className="w-5 h-5 text-blue-500" />;
-      case 'promo_code':
-        return <Badge className="w-5 h-5 text-purple-500" />;
-      case 'loyalty_card':
-        return <Coffee className="w-5 h-5 text-green-500" />;
-      default:
-        return <Info className="w-5 h-5 text-gray-500" />;
+  const playSuccessSound = () => {
+    try {
+      const audio = new Audio('/assets/sounds/beep-success.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(console.error); // Catch and log errors but don't stop execution
+    } catch (error) {
+      console.error('Error playing sound:', error);
     }
   };
 
   const handleManualEntry = () => {
-    if (!manualEntryValue.trim()) return;
+    setInputError(null);
     
-    let result: ScanResult;
-    
-    if (manualEntryType === 'customer') {
-      result = {
-        type: 'customer_card',
-        data: { 
-          type: 'customer_card', 
-          customerId: manualEntryValue, 
-          manual: true 
-        },
-        timestamp: new Date().toISOString()
-      };
-      
-      setScannerMessage(`${t('Customer ID')}: ${manualEntryValue} ${t('entered manually')}`);
-      mockLookupCustomer(manualEntryValue);
-    } else if (manualEntryType === 'promo') {
-      result = {
-        type: 'promo_code',
-        data: { 
-          type: 'promo_code', 
-          code: manualEntryValue,
-          manual: true 
-        },
-        timestamp: new Date().toISOString()
-      };
-      
-      setScannerMessage(`${t('Promotion code')}: ${manualEntryValue} ${t('entered manually')}`);
-      mockValidatePromoCode(manualEntryValue);
-    } else { // loyalty
-      result = {
-        type: 'loyalty_card',
-        data: { 
-          type: 'loyalty_card', 
-          cardId: manualEntryValue,
-          programId: 'manual-entry',
-          manual: true 
-        },
-        timestamp: new Date().toISOString()
-      };
-      
-      setScannerMessage(`${t('Loyalty card ID')}: ${manualEntryValue} ${t('entered manually')}`);
-      mockProcessLoyaltyCard(manualEntryValue, 'manual-entry');
+    if (!manualInput.trim()) {
+      setInputError('Please enter a customer ID or code');
+      return;
     }
     
-    setScanResults(prev => [result, ...prev]);
-    setSelectedResult(result);
-    setMessageType('success');
-    setManualEntryValue('');
-    setShowManualEntry(false);
+    try {
+      // Try to parse as JSON first
+      let parsedData;
+      try {
+        parsedData = JSON.parse(manualInput);
+      } catch (e) {
+        // If not JSON, just use the raw text
+        parsedData = { text: manualInput };
+      }
+      
+      const now = new Date().toISOString();
+      
+      // Create result object
+      const result: ScanResult = {
+        type: manualInput.length === 9 && !isNaN(Number(manualInput)) ? 'customer_card' : 'unknown',
+        data: parsedData,
+        timestamp: now,
+        raw: manualInput
+      };
+      
+      // Add to scan results
+      handleScan(result);
+      
+      // Clear input
+      setManualInput('');
+    } catch (error) {
+      console.error('Error processing manual input:', error);
+      setInputError('Invalid input format');
+    }
+  };
+
+  const clearResults = () => {
+    setScanResults([]);
+    setSelectedResult(null);
+    localStorage.removeItem('qr_scan_results');
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString() + ', ' + date.toLocaleDateString();
+    } catch (e) {
+      return timestamp;
+    }
+  };
+
+  // Function to get the icon based on the QR code type
+  const getIconForType = (type: string) => {
+    switch (type) {
+      case 'customer_card':
+        return <User className="w-5 h-5 text-blue-500" />;
+      case 'promo_code':
+        return <Badge className="w-5 h-5 text-amber-500" />;
+      case 'loyalty_card':
+        return <Coffee className="w-5 h-5 text-green-500" />;
+      default:
+        return <QrCode className="w-5 h-5 text-gray-500" />;
+    }
   };
 
   return (
     <BusinessLayout>
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
-            <QrCode className="w-6 h-6 text-blue-600 mr-2" />
-            {t('QR Scanner')}
-          </h1>
-          <button
-            onClick={() => setShowManualEntry(!showManualEntry)}
-            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-lg px-3 py-1.5 transition-colors"
-          >
-            <Keyboard className="h-4 w-4" />
-            {showManualEntry ? t('Hide Manual Entry') : t('Manual Entry')}
-          </button>
-        </div>
-
-        {/* Main Scanner Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="font-semibold text-gray-800 mb-4 flex items-center">
-              <QrCode className="w-5 h-5 text-blue-600 mr-2" />
-              {t('Scan QR Code')}
-            </h2>
+      <div className="space-y-6 pb-10">
+        <h1 className="text-2xl font-semibold text-gray-800 flex items-center mb-6">
+          <QrCode className="w-6 h-6 text-blue-500 mr-2" />
+          {t('QR Code Scanner')}
+        </h1>
+        
+        {/* Tab navigation */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="flex space-x-8">
+            <button
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'scanner'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('scanner')}
+            >
+              <QrCode className="w-4 h-4" />
+              <span>{t('Scanner')}</span>
+            </button>
             
-            {showManualEntry ? (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  {t('Manually enter a customer ID, promotion code, or loyalty card ID if scanning is not working.')}
-                </p>
+            <button
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'manual'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('manual')}
+            >
+              <Keyboard className="w-4 h-4" />
+              <span>{t('Manual Entry')}</span>
+            </button>
+          </nav>
+        </div>
+        
+        {/* Main content area */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Scanner tab */}
+            {activeTab === 'scanner' && (
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <QRScanner onScan={handleScan} businessId={user?.id} />
+              </div>
+            )}
+            
+            {/* Manual Entry tab */}
+            {activeTab === 'manual' && (
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <h2 className="font-medium text-gray-800 mb-4">{t('Manual Customer ID Entry')}</h2>
                 
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setManualEntryType('customer')}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm ${
-                      manualEntryType === 'customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <User className="h-3.5 w-3.5" />
-                    {t('Customer')}
-                  </button>
-                  <button
-                    onClick={() => setManualEntryType('promo')}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm ${
-                      manualEntryType === 'promo' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <Badge className="h-3.5 w-3.5" />
-                    {t('Promo')}
-                  </button>
-                  <button
-                    onClick={() => setManualEntryType('loyalty')}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm ${
-                      manualEntryType === 'loyalty' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <Coffee className="h-3.5 w-3.5" />
-                    {t('Loyalty')}
-                  </button>
-                </div>
-                
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={manualEntryValue}
-                      onChange={(e) => setManualEntryValue(e.target.value)}
-                      placeholder={
-                        manualEntryType === 'customer' ? t('Enter customer ID') :
-                        manualEntryType === 'promo' ? t('Enter promo code') :
-                        t('Enter loyalty card ID')
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleManualEntry();
-                        }
-                      }}
-                    />
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="manualInput" className="block text-sm font-medium text-gray-700 mb-1">
+                      {t('Customer ID or Code')}
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="manualInput"
+                        type="text"
+                        value={manualInput}
+                        onChange={(e) => setManualInput(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2"
+                        placeholder="Enter Customer ID or Promo Code"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleManualEntry();
+                          }
+                        }}
+                      />
+                      <button
+                        className="absolute inset-y-0 right-0 px-3 flex items-center bg-blue-500 text-white rounded-r-md"
+                        onClick={handleManualEntry}
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {inputError && (
+                      <p className="mt-1 text-sm text-red-600">{inputError}</p>
+                    )}
                   </div>
-                  <button
-                    onClick={handleManualEntry}
-                    disabled={!manualEntryValue.trim()}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500"
-                  >
-                    <ArrowRight className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                <div className="pt-2">
-                  <button
-                    onClick={() => setShowManualEntry(false)}
-                    className="flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-gray-900 w-full py-2 border border-gray-200 rounded-md"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    {t('Switch to Scanner')}
-                  </button>
+                  
+                  <div className="bg-blue-50 rounded-lg p-4 text-sm text-blue-700">
+                    <div className="flex items-start">
+                      <Info className="w-5 h-5 mt-0.5 mr-2 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium mb-1">{t('How to use manual entry')}:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                          <li>{t('Enter a customer ID to award points')}</li>
+                          <li>{t('Enter a promotion code to apply discount')}</li>
+                          <li>{t('Press Enter or click the arrow button to submit')}</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <QRScanner onScan={handleScan} onError={handleError} />
-                </div>
-                
-                {scannerMessage && (
-                  <div className={`mt-4 p-4 rounded-lg text-sm flex items-start ${
-                    messageType === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 
-                    messageType === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 
-                    'bg-blue-50 text-blue-700 border border-blue-100'
-                  }`}>
-                    {messageType === 'success' ? (
-                      <Check className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                    ) : messageType === 'error' ? (
-                      <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <Info className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                    )}
-                    <span>{scannerMessage}</span>
-                  </div>
-                )}
-                
-                {isScanning && (
-                  <div className="mt-4 flex justify-center">
-                    <div className="animate-pulse bg-blue-500 h-2 w-32 rounded-full"></div>
-                  </div>
-                )}
-              </>
             )}
           </div>
           
-          {/* Scan Details */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-gray-800 flex items-center">
-                <ClipboardList className="w-5 h-5 text-blue-600 mr-2" />
-                {t('Scan Details')}
-              </h2>
+          {/* Scan Details Panel */}
+          <div className="bg-white rounded-xl shadow-md p-6 lg:row-start-1 lg:row-span-2 lg:col-start-3">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-medium text-gray-800">{t('Scan Details')}</h2>
               {scanResults.length > 0 && (
-                <button 
-                  onClick={clearHistory}
-                  className="text-sm text-gray-500 flex items-center hover:text-gray-700"
+                <button
+                  className="text-sm text-red-600 hover:text-red-800 flex items-center"
+                  onClick={clearResults}
                 >
                   <RotateCcw className="w-4 h-4 mr-1" />
                   {t('Clear')}
@@ -426,86 +259,75 @@ const QrScannerPage = () => {
             
             {selectedResult ? (
               <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center">
-                      {getIconForType(selectedResult.type)}
-                      <span className="ml-2 font-medium capitalize">
-                        {selectedResult.type.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {formatTimestamp(selectedResult.timestamp)}
-                    </p>
+                <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg">
+                  {getIconForType(selectedResult.type)}
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">{t('Scan Type')}:</h3>
+                  <p className="text-base font-semibold capitalize">
+                    {selectedResult.type.replace('_', ' ')}
+                  </p>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">{t('Timestamp')}:</h3>
+                  <p className="text-base">{formatTimestamp(selectedResult.timestamp)}</p>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">{t('Data')}:</h3>
+                  <div className="mt-1 bg-gray-50 p-3 rounded-md text-sm text-gray-800 font-mono overflow-x-auto">
+                    {selectedResult.type === 'customer_card' && (
+                      <div>
+                        <p><span className="text-gray-500">customerId:</span> {selectedResult.data.customerId}</p>
+                        {selectedResult.data.name && (
+                          <p><span className="text-gray-500">name:</span> {selectedResult.data.name}</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {selectedResult.type === 'promo_code' && (
+                      <p><span className="text-gray-500">code:</span> {selectedResult.data.code}</p>
+                    )}
+                    
+                    {selectedResult.type === 'unknown' && (
+                      <p>{typeof selectedResult.data === 'object' 
+                        ? JSON.stringify(selectedResult.data, null, 2) 
+                        : selectedResult.data}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">{t('Data')}</h3>
-                  <pre className="text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(selectedResult.data, null, 2)}
-                  </pre>
+                <div className="pt-2 border-t border-gray-100">
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">{t('Actions')}:</h3>
+                  
+                  {selectedResult.type === 'customer_card' && (
+                    <button className="w-full mt-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-md text-sm flex items-center justify-center">
+                      <Check className="w-4 h-4 mr-2" />
+                      {t('Award Points')}
+                    </button>
+                  )}
+                  
+                  {selectedResult.type === 'promo_code' && (
+                    <button className="w-full mt-1 bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-md text-sm flex items-center justify-center">
+                      <Badge className="w-4 h-4 mr-2" />
+                      {t('Apply Promotion')}
+                    </button>
+                  )}
                 </div>
-                
-                {selectedResult.type === 'customer_card' && (
-                  <div className="p-4 border border-blue-100 rounded-lg bg-blue-50">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium text-blue-700">{t('Customer')}</h3>
-                      <button className="text-blue-700 text-sm hover:underline">
-                        {t('View Profile')}
-                      </button>
-                    </div>
-                    <p className="text-sm text-blue-600 mt-2">
-                      ID: {selectedResult.data.customerId}
-                    </p>
-                  </div>
-                )}
-                
-                {selectedResult.type === 'promo_code' && (
-                  <div className="p-4 border border-purple-100 rounded-lg bg-purple-50">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium text-purple-700">{t('Promotion')}</h3>
-                      <button className="text-purple-700 text-sm hover:underline">
-                        {t('Apply')}
-                      </button>
-                    </div>
-                    <p className="text-sm text-purple-600 mt-2">
-                      {t('Code')}: {selectedResult.data.code}
-                    </p>
-                  </div>
-                )}
-                
-                {selectedResult.type === 'loyalty_card' && (
-                  <div className="p-4 border border-green-100 rounded-lg bg-green-50">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium text-green-700">{t('Loyalty Card')}</h3>
-                      <button className="text-green-700 text-sm hover:underline">
-                        {t('Add Points')}
-                      </button>
-                    </div>
-                    <p className="text-sm text-green-600 mt-2">
-                      {t('Card ID')}: {selectedResult.data.cardId}
-                    </p>
-                    <p className="text-sm text-green-600">
-                      {t('Program')}: {selectedResult.data.programId}
-                    </p>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <Layers className="w-16 h-16 text-gray-300 mb-4" />
-                <p className="text-gray-500">
-                  {scanResults.length > 0 
-                    ? t('Select a scan from history to view details')
-                    : t('No scans yet. Scan a QR code to see details.')}
-                </p>
+              <div className="py-12 text-center">
+                <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">{t('Scan a code to see details')}</p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Scan History */}
+        
+        {/* Recent Scans */}
         {scanResults.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-800 mb-4">{t('Recent Scans')}</h2>
@@ -545,24 +367,36 @@ const QrScannerPage = () => {
         
         {/* Guide Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">{t('How to Use')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <h3 className="font-medium text-blue-700 mb-2">{t('Scan Customer Card')}</h3>
-              <p className="text-sm text-blue-600">
-                {t('Use the scanner to quickly identify customers and access their profiles, points balance, and purchase history.')}
+          <h2 className="font-semibold text-gray-800 mb-4">{t('Scanner Guide')}</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="mb-3 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <QrCode className="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 className="font-medium text-gray-800 mb-2">{t('Scan Customer QR')}</h3>
+              <p className="text-sm text-gray-600">
+                {t('Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.')}
               </p>
             </div>
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-              <h3 className="font-medium text-purple-700 mb-2">{t('Validate Promotions')}</h3>
-              <p className="text-sm text-purple-600">
-                {t('Scan promotion QR codes to validate and apply discounts, special offers, or loyalty rewards.')}
+            
+            <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="mb-3 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Badge className="w-5 h-5 text-amber-600" />
+              </div>
+              <h3 className="font-medium text-gray-800 mb-2">{t('Scan Promotion Codes')}</h3>
+              <p className="text-sm text-gray-600">
+                {t('Scan promotion codes to apply discounts or special offers at checkout.')}
               </p>
             </div>
-            <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-              <h3 className="font-medium text-green-700 mb-2">{t('Process Loyalty Cards')}</h3>
-              <p className="text-sm text-green-600">
-                {t('Quickly add loyalty points, redeem rewards, or check customer status by scanning their loyalty card.')}
+            
+            <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="mb-3 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <KeyRound className="w-5 h-5 text-green-600" />
+              </div>
+              <h3 className="font-medium text-gray-800 mb-2">{t('Manual Entry')}</h3>
+              <p className="text-sm text-gray-600">
+                {t('Enter customer IDs or promotion codes manually when scanning is not possible.')}
               </p>
             </div>
           </div>

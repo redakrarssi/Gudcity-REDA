@@ -31,6 +31,7 @@ export interface NearbyProgram {
   businessId: string;
   businessName: string;
   programName: string;
+  category?: string;
   distance: number; // in kilometers
   location: BusinessLocation;
 }

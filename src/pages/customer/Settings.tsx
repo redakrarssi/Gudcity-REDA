@@ -15,28 +15,11 @@ import {
   Check,
   Edit3,
   X,
-  AlertCircle
+  AlertCircle,
+  Loader
 } from 'lucide-react';
-
-// Mock user data - replace with actual user auth in production
-const MOCK_USER = {
-  id: 'cust123',
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  phone: '+1 555-123-4567',
-  language: 'en',
-  country: 'United States',
-  currency: 'USD',
-  joinDate: '2023-01-15',
-  notificationPreferences: {
-    email: true,
-    push: true,
-    sms: false,
-    promotions: true,
-    rewards: true,
-    system: true
-  }
-};
+import { useAuth } from '../../contexts/AuthContext';
+import { CustomerSettingsService, type CustomerSettings } from '../../services/customerSettingsService';
 
 // Available languages
 const LANGUAGES = [
@@ -60,11 +43,13 @@ const CURRENCIES = [
 
 const CustomerSettings = () => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('personal');
   const [animateIn, setAnimateIn] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [userData, setUserData] = useState(MOCK_USER);
-  const [formData, setFormData] = useState(MOCK_USER);
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<CustomerSettings | null>(null);
+  const [formData, setFormData] = useState<CustomerSettings | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -77,36 +62,95 @@ const CustomerSettings = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Fetch customer settings when component mounts
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const settings = await CustomerSettingsService.getCustomerSettings(user.id);
+        if (settings) {
+          setUserData(settings);
+          setFormData(settings);
+        }
+      } catch (error) {
+        console.error('Error fetching customer settings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchUserData();
+  }, [user]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (!formData) return;
+    
     const { name, value, type } = e.target as HTMLInputElement;
     
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({
-        ...prev,
-        notificationPreferences: {
-          ...prev.notificationPreferences,
-          [name]: checked
-        }
-      }));
+    if (name.includes('.')) {
+      // Handle nested properties (e.g., "notificationPreferences.email")
+      const [parentKey, childKey] = name.split('.');
+      setFormData(prev => {
+        if (!prev) return prev;
+        
+        return {
+          ...prev,
+          [parentKey]: {
+            ...(prev as any)[parentKey],
+            [childKey]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+          }
+        };
+      });
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      if (type === 'checkbox') {
+        const checked = (e.target as HTMLInputElement).checked;
+        setFormData(prev => ({
+          ...prev!,
+          [name]: checked
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev!,
+          [name]: value
+        }));
+      }
     }
   };
 
-  const handleSaveSettings = () => {
-    // Simulate API call
-    setTimeout(() => {
-      try {
+  const handleSaveSettings = async () => {
+    if (!formData || !user) return;
+    
+    setLoading(true);
+    setSaveSuccess(false);
+    setSaveError(false);
+    
+    try {
+      const updatedSettings = await CustomerSettingsService.updateCustomerSettings(
+        formData.id,
+        {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          birthday: formData.birthday,
+          notificationPreferences: formData.notificationPreferences,
+          regionalSettings: formData.regionalSettings
+        }
+      );
+      
+      if (updatedSettings) {
+        setUserData(updatedSettings);
+        setFormData(updatedSettings);
+        
         // Update language if changed
-        if (formData.language !== userData.language) {
-          i18n.changeLanguage(formData.language);
+        if (updatedSettings.regionalSettings.language !== userData?.regionalSettings.language) {
+          i18n.changeLanguage(updatedSettings.regionalSettings.language);
         }
         
-        setUserData(formData);
         setSaveSuccess(true);
         setEditMode(false);
         
@@ -114,13 +158,21 @@ const CustomerSettings = () => {
         setTimeout(() => {
           setSaveSuccess(false);
         }, 3000);
-      } catch (error) {
+      } else {
         setSaveError(true);
         setTimeout(() => {
           setSaveError(false);
         }, 3000);
       }
-    }, 800);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setSaveError(true);
+      setTimeout(() => {
+        setSaveError(false);
+      }, 3000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -129,12 +181,50 @@ const CustomerSettings = () => {
   };
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!formData) return;
+    
     const newLang = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      language: newLang
-    }));
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      return {
+        ...prev,
+        regionalSettings: {
+          ...prev.regionalSettings,
+          language: newLang
+        }
+      };
+    });
   };
+
+  // Show loading state
+  if (loading && !userData) {
+    return (
+      <CustomerLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+          <span className="ml-2 text-lg text-gray-600">{t('Loading settings...')}</span>
+        </div>
+      </CustomerLayout>
+    );
+  }
+
+  // Show error state if no user data could be loaded
+  if (!userData && !loading) {
+    return (
+      <CustomerLayout>
+        <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700 max-w-xl mx-auto mt-10">
+          <h2 className="text-lg font-semibold flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
+            {t('Error Loading Settings')}
+          </h2>
+          <p className="mt-2">
+            {t('We couldn\'t load your settings. Please try refreshing the page or contact support if the problem persists.')}
+          </p>
+        </div>
+      </CustomerLayout>
+    );
+  }
 
   const renderPersonalSettings = () => (
     <div className="space-y-6">
@@ -164,8 +254,13 @@ const CustomerSettings = () => {
               <button
                 onClick={handleSaveSettings}
                 className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
+                disabled={loading}
               >
-                <Save className="w-4 h-4 mr-1.5" />
+                {loading ? (
+                  <Loader className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
                 {t('Save')}
               </button>
             </div>
@@ -195,12 +290,12 @@ const CustomerSettings = () => {
               <input
                 type="text"
                 name="name"
-                value={formData.name}
+                value={formData?.name || ''}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             ) : (
-              <p className="text-gray-800">{userData.name}</p>
+              <p className="text-gray-800">{userData?.name}</p>
             )}
           </div>
           
@@ -212,12 +307,12 @@ const CustomerSettings = () => {
               <input
                 type="email"
                 name="email"
-                value={formData.email}
+                value={formData?.email || ''}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             ) : (
-              <p className="text-gray-800">{userData.email}</p>
+              <p className="text-gray-800">{userData?.email}</p>
             )}
           </div>
           
@@ -229,12 +324,12 @@ const CustomerSettings = () => {
               <input
                 type="tel"
                 name="phone"
-                value={formData.phone}
+                value={formData?.phone || ''}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             ) : (
-              <p className="text-gray-800">{userData.phone}</p>
+              <p className="text-gray-800">{userData?.phone || t('Not specified')}</p>
             )}
           </div>
           
@@ -242,7 +337,7 @@ const CustomerSettings = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('Member Since')}
             </label>
-            <p className="text-gray-800">{new Date(userData.joinDate).toLocaleDateString()}</p>
+            <p className="text-gray-800">{new Date(userData?.joinedAt || '').toLocaleDateString()}</p>
           </div>
         </div>
       </div>
@@ -260,8 +355,8 @@ const CustomerSettings = () => {
             </label>
             {editMode ? (
               <select
-                name="language"
-                value={formData.language}
+                name="regionalSettings.language"
+                value={formData?.regionalSettings.language || 'en'}
                 onChange={handleLanguageChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
@@ -273,7 +368,7 @@ const CustomerSettings = () => {
               </select>
             ) : (
               <p className="text-gray-800">
-                {LANGUAGES.find(lang => lang.code === userData.language)?.name || userData.language}
+                {LANGUAGES.find(lang => lang.code === userData?.regionalSettings.language)?.name || userData?.regionalSettings.language}
               </p>
             )}
           </div>
@@ -284,8 +379,8 @@ const CustomerSettings = () => {
             </label>
             {editMode ? (
               <select
-                name="currency"
-                value={formData.currency}
+                name="regionalSettings.currency"
+                value={formData?.regionalSettings.currency || 'USD'}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
@@ -297,7 +392,9 @@ const CustomerSettings = () => {
               </select>
             ) : (
               <p className="text-gray-800">
-                {CURRENCIES.find(c => c.code === userData.currency)?.name || userData.currency}
+                {CURRENCIES.find(c => c.code === userData?.regionalSettings.currency)?.name 
+                  ? `${userData?.regionalSettings.currency} - ${CURRENCIES.find(c => c.code === userData?.regionalSettings.currency)?.name}`
+                  : userData?.regionalSettings.currency}
               </p>
             )}
           </div>
@@ -307,119 +404,170 @@ const CustomerSettings = () => {
   );
 
   const renderNotificationSettings = () => (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-      <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
-        <Bell className="w-5 h-5 text-blue-500 mr-2" />
-        {t('Notification Preferences')}
-      </h2>
-      
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-md font-medium text-gray-700 mb-3">
-            {t('Notification Channels')}
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="email-notifications"
-                name="email"
-                checked={formData.notificationPreferences.email}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="email-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('Email Notifications')}
-              </label>
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+            <Bell className="w-5 h-5 text-blue-500 mr-2" />
+            {t('Notification Settings')}
+          </h2>
+          {!editMode ? (
+            <button
+              onClick={() => setEditMode(true)}
+              className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              <Edit3 className="w-4 h-4 mr-1.5" />
+              {t('Edit')}
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={handleCancelEdit}
+                className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
+              >
+                <X className="w-4 h-4 mr-1.5" />
+                {t('Cancel')}
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
+                {t('Save')}
+              </button>
             </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="push-notifications"
-                name="push"
-                checked={formData.notificationPreferences.push}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="push-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('Push Notifications')}
-              </label>
-            </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="sms-notifications"
-                name="sms"
-                checked={formData.notificationPreferences.sms}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="sms-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('SMS Notifications')}
-              </label>
-            </div>
-          </div>
+          )}
         </div>
         
-        <div>
-          <h3 className="text-md font-medium text-gray-700 mb-3">
-            {t('Notification Types')}
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="promotion-notifications"
-                name="promotions"
-                checked={formData.notificationPreferences.promotions}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="promotion-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('Promotions and Offers')}
-              </label>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div>
+            <h3 className="text-md font-medium text-gray-700 mb-3">
+              {t('Communication Channels')}
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="email-notifications"
+                  name="notificationPreferences.email"
+                  checked={formData?.notificationPreferences.email || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="email-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('Email Notifications')}
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="push-notifications"
+                  name="notificationPreferences.push"
+                  checked={formData?.notificationPreferences.push || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="push-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('Push Notifications')}
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="sms-notifications"
+                  name="notificationPreferences.sms"
+                  checked={formData?.notificationPreferences.sms || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="sms-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('SMS Notifications')}
+                </label>
+              </div>
             </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="reward-notifications"
-                name="rewards"
-                checked={formData.notificationPreferences.rewards}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="reward-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('Rewards and Points Updates')}
-              </label>
-            </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="system-notifications"
-                name="system"
-                checked={formData.notificationPreferences.system}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="system-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('System Notifications')}
-              </label>
+          </div>
+        
+          <div>
+            <h3 className="text-md font-medium text-gray-700 mb-3">
+              {t('Notification Types')}
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="promotion-notifications"
+                  name="notificationPreferences.promotions"
+                  checked={formData?.notificationPreferences.promotions || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="promotion-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('Promotions and Offers')}
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="reward-notifications"
+                  name="notificationPreferences.rewards"
+                  checked={formData?.notificationPreferences.rewards || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="reward-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('Rewards and Points Updates')}
+                </label>
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="system-notifications"
+                  name="notificationPreferences.system"
+                  checked={formData?.notificationPreferences.system || false}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="system-notifications" className="ml-2 block text-sm text-gray-700">
+                  {t('System Notifications')}
+                </label>
+              </div>
             </div>
           </div>
         </div>
       </div>
       
       <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
-        <button
-          onClick={handleSaveSettings}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          {t('Save Preferences')}
-        </button>
+        {editMode && (
+          <button
+            onClick={handleSaveSettings}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center">
+                <Loader className="w-4 h-4 mr-2 animate-spin" />
+                {t('Saving...')}
+              </span>
+            ) : (
+              t('Save Preferences')
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

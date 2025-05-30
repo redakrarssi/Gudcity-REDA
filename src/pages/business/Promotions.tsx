@@ -3,13 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { 
   Sparkles, Gift, Ticket, QrCode, Calendar, Download, 
-  Plus, Trash2, RefreshCw, ChevronRight, ArrowUp, Users, Rocket, Zap
+  Plus, Trash2, RefreshCw, ChevronRight, ArrowUp, Users, Rocket, Zap, Search, Award, Star, Filter, ArrowUpDown, X
 } from 'lucide-react';
+import QRCode from 'qrcode.react';
 import { PromoService } from '../../services/promoService';
 import { CurrencyService } from '../../services/currencyService';
 import type { PromoCode, PromoCodeStats } from '../../types/promo';
 import type { CurrencyCode } from '../../types/currency';
 import { createPromoQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Sample promotion ideas for inspiration
 const PROMO_IDEAS = [
@@ -48,6 +50,7 @@ const animationStyles = {
 
 const PromotionsPage = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [codes, setCodes] = useState<PromoCode[]>([]);
   const [stats, setStats] = useState<PromoCodeStats | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -57,9 +60,7 @@ const PromotionsPage = () => {
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [activeTab, setActiveTab] = useState<'active' | 'all'>('active');
   const [showSuccess, setShowSuccess] = useState(false);
-
-  // Mock business ID
-  const mockBusinessId = "123";
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -72,110 +73,74 @@ const PromotionsPage = () => {
   });
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const loadData = async () => {
+    if (!user) return;
+
     setLoading(true);
+    setError(null);
+    
     try {
-      // Initialize some mock promo codes if no data
-      initializeMockData();
+      const businessId = user.id.toString();
       
-      const { codes } = await PromoService.getBusinessCodes(mockBusinessId);
+      const { codes, error: codesError } = await PromoService.getBusinessCodes(businessId);
+      if (codesError) {
+        setError(codesError);
+        return;
+      }
+      
       setCodes(codes);
       
-      const { stats } = await PromoService.getCodeStats(mockBusinessId);
+      const { stats, error: statsError } = await PromoService.getCodeStats(businessId);
+      if (statsError) {
+        setError(statsError);
+        return;
+      }
+      
       setStats(stats);
     } catch (error) {
       console.error('Error loading promotions data:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  const initializeMockData = () => {
-    const now = new Date();
-    const nextMonth = new Date(now);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    
-    const mockCodes: PromoCode[] = [
-      {
-        id: '1',
-        businessId: mockBusinessId,
-        code: 'WELCOME20',
-        type: 'DISCOUNT',
-        value: 20,
-        currency: 'USD',
-        maxUses: 100,
-        usedCount: 45,
-        expiresAt: nextMonth.toISOString(),
-        status: 'ACTIVE',
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
-      },
-      {
-        id: '2',
-        businessId: mockBusinessId,
-        code: 'LOYALTY50',
-        type: 'POINTS',
-        value: 50,
-        maxUses: null,
-        usedCount: 120,
-        expiresAt: null,
-        status: 'ACTIVE',
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
-      },
-      {
-        id: '3',
-        businessId: mockBusinessId,
-        code: 'SUMMER10',
-        type: 'CASHBACK',
-        value: 10,
-        currency: 'USD',
-        maxUses: 200,
-        usedCount: 198,
-        expiresAt: new Date(now.getFullYear(), 8, 30).toISOString(),
-        status: 'DEPLETED',
-        createdAt: new Date(now.getFullYear(), 5, 1).toISOString(),
-        updatedAt: now.toISOString()
-      }
-    ];
-    
-    const mockRedemptions = Array.from({ length: 150 }, (_, i) => ({
-      id: `r${i}`,
-      codeId: mockCodes[Math.floor(Math.random() * mockCodes.length)].id,
-      customerId: `cust${Math.floor(Math.random() * 100)}`,
-      businessId: mockBusinessId,
-      redeemedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-      value: Math.floor(Math.random() * 50) + 10,
-      currency: 'USD' as CurrencyCode
-    }));
-    
-    // Only initialize if empty
-    if (!codes || codes.length === 0) {
-      PromoService.initMockData(mockCodes, mockRedemptions);
-    }
-  };
-
   const handleCreateCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!user) return;
 
     try {
+      setLoading(true);
+      setError(null);
+      
+      // Calculate expiry date if set
+      let expiresAt: string | null = null;
+      if (formData.expiresAt) {
+        expiresAt = new Date(formData.expiresAt).toISOString();
+      }
+      
       const { code, error } = await PromoService.generateCode(
-        mockBusinessId,
+        user.id.toString(),
         formData.type,
         parseFloat(formData.value),
         currency,
         formData.maxUses ? parseInt(formData.maxUses) : null,
-        formData.expiresAt || null
+        expiresAt,
+        formData.name,
+        formData.description
       );
-
-      if (error) throw new Error(error);
-
-      await loadData();
-      setShowCreateModal(false);
+      
+      if (error) {
+        setError(error);
+        return;
+      }
+      
+      // Reset form & close modal
       setFormData({
         type: 'POINTS',
         value: '',
@@ -185,11 +150,17 @@ const PromotionsPage = () => {
         description: ''
       });
       
-      // Show success animation
+      setShowCreateModal(false);
+      
+      // Show success message
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      
+      // Reload data
+      loadData();
     } catch (error) {
-      console.error('Error creating code:', error);
+      console.error('Error creating promotion:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -204,16 +175,46 @@ const PromotionsPage = () => {
     }
   };
 
-  const downloadQR = (code: string) => {
+  const handleShowQRCode = (code: string) => {
+    setShowQRModal(code);
+  };
+
+  const handleDownloadQRCode = (code: string) => {
+    if (!user || !code) return;
+    
     try {
+      const businessId = user.id.toString();
       downloadQRCode(
-        { type: 'promo_code', code, businessId: mockBusinessId },
+        { type: 'promo_code', code, businessId },
         `promo-${code}.png`,
         { size: 300 }
       );
     } catch (error) {
       console.error('Error downloading QR code:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error downloading QR code');
     }
+  };
+
+  // QR Code rendering function for the modal
+  const renderQRCode = () => {
+    if (!showQRModal || !user) return null;
+    
+    return (
+      <QRCode
+        value={JSON.stringify({
+          type: 'promo_code',
+          code: showQRModal,
+          businessId: user.id.toString()
+        })}
+        size={200}
+        bgColor="#ffffff"
+        fgColor="#000000"
+        level="H"
+        includeMargin
+        renderAs="canvas"
+        id="qr-code"
+      />
+    );
   };
 
   // Simple QR code component using HTML Canvas
@@ -221,7 +222,7 @@ const PromotionsPage = () => {
     useEffect(() => {
       const generateQR = async () => {
         try {
-          const dataUrl = await createPromoQRCode(value, mockBusinessId);
+          const dataUrl = await createPromoQRCode(value, user.id.toString());
           
           // Draw the QR code to the canvas
           const canvas = document.getElementById(id) as HTMLCanvasElement;
@@ -284,6 +285,15 @@ const PromotionsPage = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-2">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 flex items-center">
@@ -539,7 +549,7 @@ const PromotionsPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                         <div className="flex justify-end space-x-2">
                           <button
-                            onClick={() => setShowQRModal(code.code)}
+                            onClick={() => handleShowQRCode(code.code)}
                             className="text-blue-600 hover:text-blue-800"
                             title={t('Show QR Code')}
                           >
@@ -761,11 +771,7 @@ const PromotionsPage = () => {
 
               <div className="flex flex-col items-center space-y-4">
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <SimpleQRCode 
-                    value={showQRModal} 
-                    id={`qr-${showQRModal}`} 
-                    size={200}
-                  />
+                  {renderQRCode()}
                 </div>
                 
                 <div className="text-center">
@@ -774,7 +780,7 @@ const PromotionsPage = () => {
                 </div>
                 
                 <button
-                  onClick={() => downloadQR(showQRModal)}
+                  onClick={() => handleDownloadQRCode(showQRModal)}
                   className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 w-full justify-center"
                 >
                   <Download className="h-5 w-5 mr-2" />

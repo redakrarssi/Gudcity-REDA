@@ -15,133 +15,38 @@ import {
   Star, 
   Info, 
   ChevronRight,
-  X 
+  X,
+  Loader
 } from 'lucide-react';
-
-// Mock business data - replace with API call in production
-const MOCK_BUSINESSES = [
-  {
-    id: 'biz1',
-    name: 'Coffee Haven',
-    category: 'cafe',
-    distance: 0.3,
-    rating: 4.8,
-    address: '123 Main St, Downtown',
-    rewards: [
-      { id: 'rew1', name: 'Free Coffee', points: 100, description: 'Get a free medium coffee' },
-      { id: 'rew2', name: '50% Off Pastry', points: 50, description: 'Half price on any pastry' }
-    ],
-    promos: ['COFFEE20', 'BREAKFAST5'],
-    coordinates: { lat: 34.052235, lng: -118.243683 },
-    logo: '☕',
-    isFavorite: true
-  },
-  {
-    id: 'biz2',
-    name: 'Burger Bistro',
-    category: 'restaurant',
-    distance: 0.5,
-    rating: 4.5,
-    address: '456 Oak St, Downtown',
-    rewards: [
-      { id: 'rew3', name: 'Free Fries', points: 75, description: 'Get a free side of fries' },
-      { id: 'rew4', name: 'Free Burger', points: 200, description: 'Get a free burger of your choice' }
-    ],
-    promos: ['BURGER10'],
-    coordinates: { lat: 34.053235, lng: -118.245683 },
-    logo: '🍔',
-    isFavorite: false
-  },
-  {
-    id: 'biz3',
-    name: 'Fashion Forward',
-    category: 'retail',
-    distance: 0.7,
-    rating: 4.3,
-    address: '789 Elm St, Downtown',
-    rewards: [
-      { id: 'rew5', name: '15% Off', points: 150, description: '15% off your purchase' },
-      { id: 'rew6', name: 'VIP Access', points: 500, description: 'Early access to new collections' }
-    ],
-    promos: ['STYLE25'],
-    coordinates: { lat: 34.054235, lng: -118.247683 },
-    logo: '👚',
-    isFavorite: true
-  },
-  {
-    id: 'biz4',
-    name: 'Sweet Tooth Bakery',
-    category: 'cafe',
-    distance: 1.2,
-    rating: 4.9,
-    address: '321 Pine St, Midtown',
-    rewards: [
-      { id: 'rew7', name: 'Free Cupcake', points: 50, description: 'One free cupcake of your choice' },
-      { id: 'rew8', name: 'Custom Cake Discount', points: 300, description: '20% off custom cake orders' }
-    ],
-    promos: ['SWEET10'],
-    coordinates: { lat: 34.058235, lng: -118.249683 },
-    logo: '🧁',
-    isFavorite: false
-  },
-  {
-    id: 'biz5',
-    name: 'Tech Galaxy',
-    category: 'electronics',
-    distance: 1.5,
-    rating: 4.2,
-    address: '555 Circuit Ave, Uptown',
-    rewards: [
-      { id: 'rew9', name: 'Free Phone Case', points: 200, description: 'Free phone case with any phone purchase' },
-      { id: 'rew10', name: 'Extended Warranty', points: 500, description: 'Additional 1-year warranty' }
-    ],
-    promos: ['TECH15'],
-    coordinates: { lat: 34.060235, lng: -118.251683 },
-    logo: '📱',
-    isFavorite: false
-  },
-  {
-    id: 'biz6',
-    name: 'Fitness Plus',
-    category: 'fitness',
-    distance: 1.8,
-    rating: 4.7,
-    address: '777 Health Blvd, Westside',
-    rewards: [
-      { id: 'rew11', name: 'Free Session', points: 150, description: 'One free training session' },
-      { id: 'rew12', name: 'Month Pass', points: 800, description: 'Free month of membership' }
-    ],
-    promos: ['FIT2023'],
-    coordinates: { lat: 34.062235, lng: -118.253683 },
-    logo: '💪',
-    isFavorite: true
-  }
-];
+import { LocationService } from '../../services/locationService';
+import { NearbyProgram, Location } from '../../types/location';
+import { NearbyPrograms } from '../../components/location/NearbyPrograms';
 
 // Category icons and colors
 const CATEGORIES = {
   all: { icon: <Store className="w-5 h-5" />, color: 'bg-blue-100 text-blue-600' },
   cafe: { icon: <Coffee className="w-5 h-5" />, color: 'bg-amber-100 text-amber-600' },
-  restaurant: { icon: <Utensils className="w-5 h-5" />, color: 'bg-red-100 text-red-600' },
+  restaurant: { icon: <Utensils className="w-5 h-5" />, color: 'bg-green-100 text-green-600' },
   retail: { icon: <ShoppingBag className="w-5 h-5" />, color: 'bg-purple-100 text-purple-600' },
+  fitness: { icon: <Award className="w-5 h-5" />, color: 'bg-red-100 text-red-600' },
   electronics: { icon: <Tag className="w-5 h-5" />, color: 'bg-indigo-100 text-indigo-600' },
-  fitness: { icon: <Award className="w-5 h-5" />, color: 'bg-green-100 text-green-600' }
 };
 
 const CustomerNearby = () => {
   const { t } = useTranslation();
   const [animateIn, setAnimateIn] = useState(false);
-  const [businesses, setBusinesses] = useState(MOCK_BUSINESSES);
+  const [programs, setPrograms] = useState<NearbyProgram[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('distance');
-  const [selectedBusiness, setSelectedBusiness] = useState<typeof MOCK_BUSINESSES[0] | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<NearbyProgram | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
-  const [favorites, setFavorites] = useState<string[]>(
-    MOCK_BUSINESSES.filter(b => b.isFavorite).map(b => b.id)
-  );
+  const [userLocation, setUserLocation] = useState<Location | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [radius, setRadius] = useState(10); // Default radius 10km
+  const [favorites, setFavorites] = useState<string[]>([]);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -151,6 +56,79 @@ const CustomerNearby = () => {
     
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    // Load favorites from localStorage
+    try {
+      const savedFavorites = localStorage.getItem('favorite_programs');
+      if (savedFavorites) {
+        setFavorites(JSON.parse(savedFavorites));
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+    }
+
+    // Get user location on component mount
+    handleGetLocation();
+  }, []);
+
+  // When user location changes or category changes, search for programs
+  useEffect(() => {
+    if (userLocation) {
+      searchNearbyPrograms();
+    }
+  }, [userLocation, selectedCategory, radius]);
+
+  // Save favorites to localStorage
+  useEffect(() => {
+    if (favorites.length > 0) {
+      localStorage.setItem('favorite_programs', JSON.stringify(favorites));
+    }
+  }, [favorites]);
+
+  const searchNearbyPrograms = async () => {
+    if (!userLocation) return;
+
+    setLoading(true);
+    setLocationError('');
+    
+    try {
+      const categories = selectedCategory !== 'all' ? [selectedCategory] : [];
+
+      const { programs: nearbyPrograms, error } = await LocationService.searchNearbyPrograms({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        radius,
+        categories
+      });
+
+      if (error) {
+        throw new Error(error);
+      }
+
+      if (nearbyPrograms.length === 0) {
+        console.log('No nearby programs found within', radius, 'km');
+      } else {
+        console.log(`Found ${nearbyPrograms.length} nearby programs`);
+      }
+
+      // Sort programs
+      const sorted = [...nearbyPrograms].sort((a, b) => {
+        if (sortBy === 'distance') {
+          return a.distance - b.distance;
+        }
+        // You can add more sorting options here
+        return 0;
+      });
+
+      setPrograms(sorted);
+    } catch (err) {
+      console.error('Error fetching nearby programs:', err);
+      setLocationError(err instanceof Error ? err.message : 'An error occurred while searching');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -162,22 +140,32 @@ const CustomerNearby = () => {
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortBy(e.target.value);
+    
+    const sorted = [...programs].sort((a, b) => {
+      if (e.target.value === 'distance') {
+        return a.distance - b.distance;
+      }
+      // You can add more sorting options here
+      return 0;
+    });
+    
+    setPrograms(sorted);
   };
 
-  const handleToggleFavorite = (businessId: string) => {
-    if (favorites.includes(businessId)) {
-      setFavorites(favorites.filter(id => id !== businessId));
+  const handleToggleFavorite = (programId: string) => {
+    if (favorites.includes(programId)) {
+      setFavorites(favorites.filter(id => id !== programId));
     } else {
-      setFavorites([...favorites, businessId]);
+      setFavorites([...favorites, programId]);
     }
   };
 
-  const handleSelectBusiness = (business: typeof MOCK_BUSINESSES[0]) => {
-    setSelectedBusiness(business);
+  const handleSelectProgram = (program: NearbyProgram) => {
+    setSelectedProgram(program);
   };
 
   const handleCloseDetails = () => {
-    setSelectedBusiness(null);
+    setSelectedProgram(null);
   };
 
   const handleGetLocation = () => {
@@ -187,281 +175,209 @@ const CustomerNearby = () => {
       
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          // Simulate API call to get nearby businesses based on location
-          // In a real app, you would make an API call with these coordinates
           console.log('Location obtained:', position.coords.latitude, position.coords.longitude);
           
-          // For demo purposes, just reshuffle the businesses and adjust distances
-          const shuffled = [...MOCK_BUSINESSES].sort(() => Math.random() - 0.5)
-            .map(business => ({
-              ...business,
-              distance: parseFloat((Math.random() * 2).toFixed(1))
-            }))
-            .sort((a, b) => a.distance - b.distance);
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
           
-          setBusinesses(shuffled);
           setIsLocating(false);
         },
         (error) => {
+          console.error('Error getting location:', error);
+          setLocationError(
+            error.code === 1
+              ? t('Location access denied. Please enable location services.')
+              : t('Could not get your location. Please try again.')
+          );
           setIsLocating(false);
-          switch(error.code) {
-            case error.PERMISSION_DENIED:
-              setLocationError(t('Location permission denied. Please enable location services.'));
-              break;
-            case error.POSITION_UNAVAILABLE:
-              setLocationError(t('Location information is unavailable.'));
-              break;
-            case error.TIMEOUT:
-              setLocationError(t('The request to get location timed out.'));
-              break;
-            default:
-              setLocationError(t('An unknown error occurred getting your location.'));
-              break;
-          }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
       setLocationError(t('Geolocation is not supported by this browser.'));
     }
   };
 
-  // Filter and sort businesses
-  const getFilteredBusinesses = () => {
-    let filtered = [...businesses];
+  const getFilteredPrograms = () => {
+    if (!programs) return [];
     
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(business => 
-        business.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        business.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        business.rewards.some(reward => reward.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-    
-    // Apply category filter
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(business => business.category === selectedCategory);
-    }
-    
-    // Apply sort
-    switch (sortBy) {
-      case 'distance':
-        filtered.sort((a, b) => a.distance - b.distance);
-        break;
-      case 'rating':
-        filtered.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'rewards':
-        filtered.sort((a, b) => b.rewards.length - a.rewards.length);
-        break;
-    }
-    
-    return filtered;
+    return programs.filter(program => {
+      // Filter by search term
+      const matchesSearch = 
+        program.businessName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        program.programName.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filter by category
+      const matchesCategory = 
+        selectedCategory === 'all' || 
+        (program.category && program.category.toLowerCase() === selectedCategory.toLowerCase());
+      
+      return matchesSearch && matchesCategory;
+    });
   };
 
-  const filteredBusinesses = getFilteredBusinesses();
-
   const getCategoryIcon = (category: string) => {
-    return CATEGORIES[category as keyof typeof CATEGORIES]?.icon || CATEGORIES.all.icon;
+    return CATEGORIES[category as keyof typeof CATEGORIES]?.icon || <Store className="w-5 h-5" />;
   };
 
   const getCategoryColor = (category: string) => {
-    return CATEGORIES[category as keyof typeof CATEGORIES]?.color || CATEGORIES.all.color;
+    return CATEGORIES[category as keyof typeof CATEGORIES]?.color || 'bg-gray-100 text-gray-600';
   };
 
   const getDistanceText = (distance: number) => {
-    return distance < 1 ? 
-      `${Math.round(distance * 1000)} ${t('m away')}` : 
-      `${distance.toFixed(1)} ${t('km away')}`;
+    if (distance < 1) {
+      return `${(distance * 1000).toFixed(0)}m`;
+    }
+    return `${distance.toFixed(1)}km`;
   };
 
   const renderCategoryFilters = () => (
-    <div className="flex overflow-x-auto py-2 pb-3 -mx-4 px-4 space-x-2">
-      <button
-        onClick={() => handleCategoryChange('all')}
-        className={`flex items-center px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
-          selectedCategory === 'all' 
-            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
-        }`}
-      >
-        <Store className="w-4 h-4 mr-1.5" />
-        {t('All')}
-      </button>
-      
-      {Object.keys(CATEGORIES).filter(cat => cat !== 'all').map(category => (
+    <div className="flex space-x-2 overflow-x-auto pb-2 hide-scrollbar">
+      {Object.keys(CATEGORIES).map(category => (
         <button
           key={category}
           onClick={() => handleCategoryChange(category)}
-          className={`flex items-center px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
-            selectedCategory === category 
-              ? `${getCategoryColor(category)} border border-current border-opacity-20` 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+          className={`flex items-center px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+            selectedCategory === category
+              ? `${CATEGORIES[category as keyof typeof CATEGORIES].color} font-medium`
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          {getCategoryIcon(category)}
-          <span className="ml-1.5 capitalize">{t(category)}</span>
+          <span className="mr-1.5">{CATEGORIES[category as keyof typeof CATEGORIES].icon}</span>
+          <span className="capitalize">{t(category)}</span>
         </button>
       ))}
     </div>
   );
 
-  const renderBusinessCard = (business: typeof MOCK_BUSINESSES[0]) => (
-    <div 
-      key={business.id}
-      className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => handleSelectBusiness(business)}
-    >
-      <div className="p-4">
-        <div className="flex justify-between">
-          <div className="flex items-center">
-            <div className={`w-10 h-10 ${getCategoryColor(business.category)} rounded-lg flex items-center justify-center text-2xl`}>
-              {business.logo}
-            </div>
-            <div className="ml-3">
-              <h3 className="font-medium text-gray-800">{business.name}</h3>
-              <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                <Star className="w-3 h-3 text-amber-400 mr-1" fill="currentColor" />
-                <span className="mr-2">{business.rating}</span>
-                <span>•</span>
-                <span className="mx-2">{getDistanceText(business.distance)}</span>
-              </div>
-            </div>
+  const renderProgramCard = (program: NearbyProgram) => {
+    const isFavorite = favorites.includes(program.programId);
+    
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow">
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="font-medium text-gray-900">{program.programName}</h3>
+            <p className="text-sm text-gray-600">{program.businessName}</p>
           </div>
-          <button
+          <button 
+            className="text-gray-400 hover:text-amber-500 focus:outline-none"
             onClick={(e) => {
               e.stopPropagation();
-              handleToggleFavorite(business.id);
+              handleToggleFavorite(program.programId);
             }}
-            className="text-gray-400 hover:text-red-500"
           >
-            <Heart 
-              className="w-5 h-5" 
-              fill={favorites.includes(business.id) ? 'currentColor' : 'none'} 
-              stroke="currentColor"
-              color={favorites.includes(business.id) ? '#ef4444' : 'currentColor'}
-            />
+            {isFavorite ? (
+              <Heart className="w-5 h-5 fill-amber-500 text-amber-500" />
+            ) : (
+              <Heart className="w-5 h-5" />
+            )}
           </button>
         </div>
         
-        <div className="mt-3 text-xs text-gray-500">
-          <p>{business.address}</p>
-        </div>
-        
-        <div className="mt-3 flex flex-wrap gap-1">
-          {business.rewards.slice(0, 2).map((reward, index) => (
-            <div 
-              key={reward.id}
-              className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs flex items-center"
-            >
-              <Award className="w-3 h-3 mr-1" />
-              {reward.name}
-            </div>
-          ))}
-          {business.rewards.length > 2 && (
-            <div className="bg-gray-50 text-gray-600 px-2 py-1 rounded text-xs flex items-center">
-              +{business.rewards.length - 2} more
-            </div>
+        <div className="mt-3 flex items-center text-sm">
+          <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+            {getDistanceText(program.distance)}
+          </span>
+          <span className="mx-2 text-gray-300">•</span>
+          <div className="flex items-center text-amber-500">
+            <Star className="w-4 h-4 fill-current" />
+            <span className="ml-1 font-medium">4.5</span>
+          </div>
+          {program.category && (
+            <>
+              <span className="mx-2 text-gray-300">•</span>
+              <span className="text-gray-600 capitalize">{program.category}</span>
+            </>
           )}
         </div>
+        
+        <p className="mt-2 text-sm text-gray-600 line-clamp-2">
+          {program.location.address || program.location.city}
+        </p>
+        
+        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+          <span className="text-xs text-gray-500">{t('Program Benefits')}</span>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const renderBusinessDetails = () => {
-    if (!selectedBusiness) return null;
+  const renderProgramDetails = () => {
+    if (!selectedProgram) return null;
+    
+    const isFavorite = favorites.includes(selectedProgram.programId);
     
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleCloseDetails}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={handleCloseDetails}>
         <div 
-          className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-auto transform transition-all scale-in-center"
-          onClick={e => e.stopPropagation()}
+          className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto" 
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="relative">
-            <div className={`h-24 ${getCategoryColor(selectedBusiness.category)} flex items-center justify-center`}>
-              <span className="text-5xl">{selectedBusiness.logo}</span>
+            <div className="h-40 bg-blue-500">
+              <div className="absolute top-4 right-4 flex space-x-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFavorite(selectedProgram.programId);
+                  }}
+                  className={`p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/40`}
+                >
+                  <Heart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  onClick={handleCloseDetails}
+                  className="p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/40"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <button 
-              onClick={handleCloseDetails}
-              className="absolute top-2 right-2 bg-white/80 p-1 rounded-full hover:bg-white transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-700" />
-            </button>
             
-            <div className="absolute bottom-0 left-0 right-0 transform translate-y-1/2 flex justify-center">
-              <div className="bg-white rounded-lg shadow-md p-2 border border-gray-100">
-                <div className="flex items-center">
-                  <Star className="w-4 h-4 text-amber-400 mr-1" fill="currentColor" />
-                  <span className="font-medium">{selectedBusiness.rating}</span>
-                </div>
+            <div className="absolute top-24 left-6">
+              <div className="w-20 h-20 rounded-xl bg-white shadow-lg flex items-center justify-center">
+                {selectedProgram.businessName.toLowerCase().includes('coffee') ? (
+                  <Coffee className="w-10 h-10 text-blue-600" />
+                ) : selectedProgram.businessName.toLowerCase().includes('fitness') ? (
+                  <Award className="w-10 h-10 text-blue-600" />
+                ) : selectedProgram.businessName.toLowerCase().includes('tech') ? (
+                  <Tag className="w-10 h-10 text-blue-600" />
+                ) : (
+                  <Store className="w-10 h-10 text-blue-600" />
+                )}
               </div>
             </div>
           </div>
           
-          <div className="p-6 pt-12">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800">{selectedBusiness.name}</h2>
-                <p className="text-gray-500 text-sm mt-1 flex items-center">
-                  {getCategoryIcon(selectedBusiness.category)}
-                  <span className="ml-1 capitalize">{t(selectedBusiness.category)}</span>
-                  <span className="mx-2">•</span>
-                  <span>{getDistanceText(selectedBusiness.distance)}</span>
-                </p>
+          <div className="p-6 pt-10">
+            <h2 className="text-xl font-bold text-gray-800">{selectedProgram.businessName}</h2>
+            <p className="text-blue-600 font-medium">{selectedProgram.programName}</p>
+            
+            <div className="mt-3 flex items-center">
+              <div className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-sm font-medium">
+                {getDistanceText(selectedProgram.distance)}
               </div>
-              <button
-                onClick={() => handleToggleFavorite(selectedBusiness.id)}
-                className={`p-2 rounded-full ${
-                  favorites.includes(selectedBusiness.id)
-                    ? 'text-red-500 bg-red-50'
-                    : 'text-gray-400 bg-gray-50 hover:bg-gray-100'
-                }`}
-              >
-                <Heart 
-                  className="w-5 h-5" 
-                  fill={favorites.includes(selectedBusiness.id) ? 'currentColor' : 'none'} 
-                />
-              </button>
-            </div>
-            
-            <p className="text-gray-600 text-sm mt-4">{selectedBusiness.address}</p>
-            
-            <div className="mt-6">
-              <h3 className="font-medium text-gray-800 mb-3 flex items-center">
-                <Award className="w-5 h-5 text-blue-500 mr-2" />
-                {t('Available Rewards')}
-              </h3>
-              <div className="space-y-3">
-                {selectedBusiness.rewards.map(reward => (
-                  <div key={reward.id} className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-medium text-blue-800">{reward.name}</h4>
-                      <div className="bg-blue-100 px-2 py-0.5 rounded text-blue-800 text-xs font-medium">
-                        {reward.points} {t('points')}
-                      </div>
-                    </div>
-                    <p className="text-sm text-blue-700 mt-1">{reward.description}</p>
-                  </div>
-                ))}
+              <span className="mx-2 text-gray-300">•</span>
+              <div className="flex items-center text-amber-500">
+                <Star className="w-4 h-4 fill-current" />
+                <span className="ml-1 text-sm font-medium">4.5</span>
               </div>
             </div>
             
-            {selectedBusiness.promos.length > 0 && (
-              <div className="mt-6">
-                <h3 className="font-medium text-gray-800 mb-3 flex items-center">
-                  <Tag className="w-5 h-5 text-purple-500 mr-2" />
-                  {t('Active Promotions')}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedBusiness.promos.map(promo => (
-                    <div key={promo} className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm">
-                      {promo}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <p className="mt-4 text-gray-600">
+              {selectedProgram.location.address}, {selectedProgram.location.city}
+            </p>
+            
+            <div className="mt-6 bg-blue-50 rounded-lg p-4">
+              <h3 className="font-medium text-gray-800">{t('Program Details')}</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                {t('Join this loyalty program to earn points and get rewards at')} {selectedProgram.businessName}.
+              </p>
+            </div>
             
             <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between">
               <button className="text-blue-600 font-medium text-sm flex items-center">
@@ -478,12 +394,26 @@ const CustomerNearby = () => {
     );
   };
 
+  const renderMapView = () => {
+    if (!userLocation) return renderMapPlaceholder();
+    
+    return (
+      <div className="h-[600px]">
+        <NearbyPrograms 
+          userLocation={userLocation} 
+          radius={radius} 
+          categories={selectedCategory !== 'all' ? [selectedCategory] : undefined}
+        />
+      </div>
+    );
+  };
+
   const renderMapPlaceholder = () => (
     <div className="bg-blue-50 border border-blue-100 rounded-xl p-8 text-center">
       <Map className="w-16 h-16 text-blue-300 mx-auto mb-4" />
       <h3 className="text-lg font-medium text-blue-700 mb-2">{t('Map View')}</h3>
       <p className="text-blue-600 mb-6 max-w-md mx-auto">
-        {t('Interactive map view would be implemented here with markers for each business location.')}
+        {t('Interactive map view requires your location. Please enable location services.')}
       </p>
       <div className="flex justify-center gap-4">
         <button 
@@ -503,6 +433,8 @@ const CustomerNearby = () => {
       </div>
     </div>
   );
+
+  const filteredPrograms = getFilteredPrograms();
 
   return (
     <CustomerLayout>
@@ -534,7 +466,11 @@ const CustomerNearby = () => {
                 disabled={isLocating}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
               >
-                <Navigation className="w-4 h-4 mr-1.5" />
+                {isLocating ? (
+                  <Loader className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4 mr-1.5" />
+                )}
                 {isLocating ? t('Locating...') : t('Update Location')}
               </button>
             </div>
@@ -584,84 +520,72 @@ const CustomerNearby = () => {
               </select>
             </div>
           </div>
+          
+          <div className="flex items-center">
+            <label className="text-sm text-gray-600 mr-2">
+              {t('Radius:')}
+            </label>
+            <select
+              value={radius}
+              onChange={(e) => setRadius(parseInt(e.target.value))}
+              className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2"
+            >
+              <option value="1">{t('1km')}</option>
+              <option value="5">{t('5km')}</option>
+              <option value="10">{t('10km')}</option>
+              <option value="20">{t('20km')}</option>
+              <option value="50">{t('50km')}</option>
+            </select>
+          </div>
         </div>
 
         {/* Map or List View */}
         <div className={`transition-all duration-500 ease-out transform delay-200 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           {showMap ? (
-            renderMapPlaceholder()
+            renderMapView()
           ) : (
-            <div className="space-y-3">
-              <div className="text-sm text-gray-500 flex justify-between items-center">
-                <span>
-                  {filteredBusinesses.length} {t('businesses found')}
-                </span>
-                
-                {filteredBusinesses.length > 0 && selectedCategory === 'all' && (
-                  <span>
-                    {t('Showing nearest locations')}
-                  </span>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredBusinesses.map(business => renderBusinessCard(business))}
-              </div>
-              
-              {filteredBusinesses.length === 0 && (
-                <div className="text-center py-12">
-                  <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-700 mb-1">
-                    {t('No businesses found')}
+            <div>
+              {loading ? (
+                <div className="flex justify-center items-center p-12">
+                  <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+                  <span className="ml-3 text-gray-500">{t('Loading nearby programs...')}</span>
+                </div>
+              ) : filteredPrograms.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredPrograms.map(program => renderProgramCard(program))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-8 text-center">
+                  <Map className="w-16 h-16 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">
+                    {searchTerm ? t('No matching programs found') : t('No nearby programs')}
                   </h3>
-                  <p className="text-gray-500">
-                    {searchTerm ? t('Try a different search term or filter') : t('Try adjusting your filters')}
+                  <p className="text-gray-500 max-w-md mx-auto">
+                    {searchTerm ? 
+                      t('Try adjusting your search or filters to find more results.') : 
+                      t('Try changing your location or increasing the search radius.')}
                   </p>
                 </div>
               )}
             </div>
           )}
         </div>
-        
-        {/* Business details modal */}
-        {selectedBusiness && renderBusinessDetails()}
-        
-        {/* Location tip */}
-        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2">
-            <Info className="w-5 h-5 text-indigo-500 mr-2" />
-            {t('Location Tip')}
-          </h2>
-          <p className="text-gray-600 text-sm mb-4">
-            {t('Enable location services to see the most accurate nearby rewards. We only use your location to show you relevant businesses.')}
-          </p>
-          <button
-            onClick={handleGetLocation}
-            disabled={isLocating}
-            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            <Navigation className="w-4 h-4 mr-1.5" />
-            {isLocating ? t('Locating...') : t('Update My Location')}
-          </button>
-        </div>
       </div>
       
-      <style>{`
-        .scale-in-center {
-          animation: scale-in-center 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-        }
-        
-        @keyframes scale-in-center {
-          0% {
-            transform: scale(0.8);
-            opacity: 0;
+      {/* Program Details Modal */}
+      {selectedProgram && renderProgramDetails()}
+      
+      <style>
+        {`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
           }
-          100% {
-            transform: scale(1);
-            opacity: 1;
+          .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
           }
-        }
-      `}</style>
+        `}
+      </style>
     </CustomerLayout>
   );
 };

@@ -17,36 +17,59 @@ export interface User {
 }
 
 export type UserType = 'customer' | 'business';
-export type UserRole = 'admin' | 'editor' | 'viewer' | 'customer' | 'business';
+export type UserRole = 'admin' | 'customer' | 'business';
 
-// Hash password using browser-compatible approach (SHA-256)
+// Hash password using bcrypt for better security
 async function hashPassword(password: string): Promise<string> {
   try {
-    // Use Web Crypto API which is available in browsers
-    const msgBuffer = new TextEncoder().encode(password);
-    const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
+    // Import bcrypt dynamically to avoid SSR issues
+    const bcrypt = await import('bcryptjs');
+    // Generate a salt with cost factor 12
+    const salt = await bcrypt.genSalt(12);
+    // Hash the password with the salt
+    const hash = await bcrypt.hash(password, salt);
+    return hash;
   } catch (error) {
     console.error('Error hashing password:', error);
-    // Fallback for test environments without window.crypto
-    return password; // In production, this fallback would be dangerous
+    throw new Error('Password hashing failed');
   }
 }
 
-// Verify password
-async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password);
-  return passwordHash === hashedPassword;
+// Verify password using bcrypt or fallback to SHA-256
+async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  try {
+    // First try bcrypt (secure)
+    try {
+      // Import bcrypt dynamically
+      const bcrypt = await import('bcryptjs');
+      // Check if it's a bcrypt hash (starts with $2a$, $2b$, etc.)
+      if (hashedPassword.startsWith('$2')) {
+        return await bcrypt.compare(plainPassword, hashedPassword);
+      }
+    } catch (bcryptError) {
+      console.log('bcryptjs not available, falling back to SHA-256');
+    }
+    
+    // Fallback to SHA-256 hash for legacy passwords
+    const crypto = await import('crypto');
+    const sha256Hash = crypto.createHash('sha256').update(plainPassword).digest('hex');
+    return sha256Hash === hashedPassword;
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return false;
+  }
 }
 
 export async function getAllUsers(): Promise<User[]> {
   try {
-    const users = await sql`SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login FROM users ORDER BY id DESC`;
+    const users = await sql`
+      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login 
+      FROM users
+      ORDER BY created_at DESC
+    `;
     return users as User[];
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('Error fetching all users:', error);
     return [];
   }
 }
@@ -112,7 +135,7 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
       return null;
     }
 
-    // Hash password if provided
+    // Hash password if provided using the secure bcrypt method
     console.log('Hashing password...');
     const hashedPassword = user.password ? await hashPassword(user.password) : undefined;
 
