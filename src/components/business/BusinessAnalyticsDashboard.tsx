@@ -24,26 +24,53 @@ import type { CurrencyCode } from '../../types/currency';
 import { Users, TrendingUp, DollarSign, ArrowLeft, ArrowRight, ChevronUp, ChevronDown, Repeat, Calendar } from 'lucide-react';
 
 interface BusinessAnalyticsDashboardProps {
-  businessId: string;
+  businessId?: string;
+  analytics?: BusinessAnalytics;
+  currency?: CurrencyCode;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export const BusinessAnalyticsDashboard: React.FC<BusinessAnalyticsDashboardProps> = ({
-  businessId
+  businessId,
+  analytics: propAnalytics,
+  currency: propCurrency
 }) => {
   const { t } = useTranslation();
-  const [analytics, setAnalytics] = useState<BusinessAnalytics | null>(null);
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [analytics, setAnalytics] = useState<BusinessAnalytics | null>(propAnalytics || null);
+  const [currency, setCurrency] = useState<CurrencyCode>(propCurrency || 'USD');
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
 
   useEffect(() => {
-    loadAnalytics();
-  }, [businessId, currency, period]);
+    if (propAnalytics) {
+      setAnalytics(propAnalytics);
+    } else if (businessId) {
+      loadAnalytics();
+    }
+  }, [businessId, currency, period, propAnalytics]);
+
+  useEffect(() => {
+    if (propCurrency) {
+      setCurrency(propCurrency);
+    }
+  }, [propCurrency]);
 
   const loadAnalytics = async () => {
-    const data = await AnalyticsService.getBusinessAnalytics(businessId, currency, period);
-    setAnalytics(data);
+    if (!businessId) return;
+    
+    try {
+      console.log(`Loading analytics for business ID: ${businessId}, currency: ${currency}, period: ${period}`);
+      const data = await AnalyticsService.getBusinessAnalytics(businessId, currency, period);
+      if (!data) {
+        console.error('No analytics data returned from service');
+        return;
+      }
+      console.log('Successfully loaded analytics data:', data);
+      setAnalytics(data);
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+      // You might want to show an error message to the user here
+    }
   };
 
   if (!analytics) {
@@ -52,6 +79,26 @@ export const BusinessAnalyticsDashboard: React.FC<BusinessAnalyticsDashboardProp
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
           <p className="mt-4 text-gray-600">{t('Loading analytics data...')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Ensure all required data is available
+  if (!analytics.retention || !analytics.programPerformance || !analytics.customerSegments || !analytics.revenue) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-white rounded-xl shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <svg className="w-12 h-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="mt-4 text-gray-600">{t('Some analytics data is missing or incomplete.')}</p>
+          <button 
+            onClick={loadAnalytics}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            {t('Reload Data')}
+          </button>
         </div>
       </div>
     );
@@ -130,7 +177,7 @@ export const BusinessAnalyticsDashboard: React.FC<BusinessAnalyticsDashboardProp
           </div>
           <div className="flex items-center mt-4">
             <span className="text-sm text-gray-600">
-              {t('Avg')}: {analytics.retention.averageVisitFrequency.toFixed(1)} {t('visits')}
+              {t('Avg')}: {Number(analytics.retention.averageVisitFrequency).toFixed(1)} {t('visits')}
             </span>
           </div>
         </div>
