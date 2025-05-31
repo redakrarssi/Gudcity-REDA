@@ -51,7 +51,7 @@ const Header: React.FC = () => {
                 <div className="absolute right-0 w-48 mt-2 bg-white border border-gray-200 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
                   {user?.role === 'admin' && (
                     <Link
-                      to="/admin/dashboard"
+                      to="/admin"
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
                     >
                       {t('Admin Dashboard')}
@@ -121,7 +121,7 @@ const Header: React.FC = () => {
               <>
                 {user?.role === 'admin' && (
                   <Link
-                    to="/admin/dashboard"
+                    to="/admin"
                     className="text-gray-600 hover:text-blue-600 py-2"
                     onClick={() => setMobileMenuOpen(false)}
                   >

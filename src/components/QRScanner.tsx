@@ -15,9 +15,16 @@ interface ScanResult {
 interface QRScannerProps {
   onScan?: (result: ScanResult) => void;
   businessId?: number | string;
+  programId?: number | string;
+  pointsToAward?: number;
 }
 
-export const QRScanner: React.FC<QRScannerProps> = ({ onScan, businessId }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ 
+  onScan, 
+  businessId,
+  programId, 
+  pointsToAward = 10 // Default to 10 points if not specified
+}) => {
   const { t } = useTranslation();
   const [scanner, setScanner] = useState<Html5Qrcode | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -92,7 +99,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, businessId }) => {
           false, // Initially set to false, will update if processing succeeds
           {
             customerId: type === 'customer_card' ? parsedData.customerId : undefined,
-            programId: type === 'loyalty_card' ? parsedData.programId : undefined,
+            programId: programId || (type === 'loyalty_card' ? parsedData.programId : undefined),
             promoCodeId: type === 'promo_code' ? parsedData.code : undefined
           }
         );
@@ -130,11 +137,20 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, businessId }) => {
         
         // Find card for this business
         const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
-        const card = cards.find(c => c.business_id === businessIdNum);
+        
+        // If programId is provided, find the card for that specific program
+        let card;
+        if (programId) {
+          const programIdNum = typeof programId === 'string' ? parseInt(programId) : programId;
+          card = cards.find(c => c.business_id === businessIdNum && c.program_id === programIdNum);
+        } else {
+          // Otherwise, just find any card for this business
+          card = cards.find(c => c.business_id === businessIdNum);
+        }
         
         if (card) {
-          // Default points for scan
-          const pointsAwarded = 10;
+          // Points to award - use the passed in value or default
+          const pointsAwarded = pointsToAward || 10;
           
           // Card exists, add activity
           const success = await LoyaltyCardService.addCardActivity(
@@ -155,6 +171,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, businessId }) => {
               {
                 customerId,
                 pointsAwarded,
+                programId: card.program_id
               }
             );
             
@@ -181,7 +198,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, businessId }) => {
             );
           }
         } else {
-          const errorMsg = 'No loyalty card found for this customer with your business';
+          const errorMsg = programId 
+            ? 'No loyalty card found for this customer with the selected program' 
+            : 'No loyalty card found for this customer with your business';
           setError(errorMsg);
           
           // Log the error

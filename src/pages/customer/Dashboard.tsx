@@ -6,16 +6,18 @@ import { EnrolledPrograms } from '../../components/customer/EnrolledPrograms';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('enrolled');
   const [animateIn, setAnimateIn] = useState(false);
   
-  // TODO: Replace with actual user data from authentication
-  const mockUser = {
-    id: '123456789',
-    name: 'John Doe'
+  // Use authenticated user data
+  const userData = {
+    id: user?.id.toString() || '',
+    name: user?.name || 'User'
   };
 
   useEffect(() => {
@@ -59,7 +61,7 @@ const CustomerDashboard = () => {
             
             <div className="relative flex flex-col md:flex-row justify-between items-center">
               <div className="text-white mb-6 md:mb-0">
-                <h2 className="text-2xl font-bold">Welcome back, {mockUser.name}!</h2>
+                <h2 className="text-2xl font-bold">Welcome back, {userData.name}!</h2>
                 <p className="opacity-80 mt-2 text-blue-100">Scan your QR code to earn rewards</p>
                 
                 <div className="flex items-center mt-4 text-sm space-x-4">
@@ -74,7 +76,7 @@ const CustomerDashboard = () => {
                 </div>
               </div>
               <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20">
-                <QRCard userId={mockUser.id} userName={mockUser.name} />
+                <QRCard userId={userData.id} userName={userData.name} />
                 <div className="mt-2 text-center text-xs text-white/80">Tap to enlarge</div>
               </div>
             </div>

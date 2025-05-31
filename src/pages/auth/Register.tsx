@@ -56,10 +56,9 @@ const Register = () => {
       return false;
     }
     
-    // Check password strength
-    const passwordStrength = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordStrength.test(formData.password)) {
-      setError(t('Password must be at least 8 characters and include uppercase, lowercase, number and special character'));
+    // Check password strength - simplified to just check length > 6
+    if (formData.password.length <= 6) {
+      setError(t('Password must be more than 6 characters'));
       return false;
     }
     
@@ -245,7 +244,7 @@ const Register = () => {
                 value={formData.password}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Create a strong password')}
+                placeholder={t('Create a password')}
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                 <button
@@ -262,7 +261,7 @@ const Register = () => {
               </div>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              {t('Password must be at least 8 characters and include uppercase, lowercase, number and special character')}
+              {t('Password must be more than 6 characters')}
             </p>
           </div>
 

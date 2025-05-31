@@ -6,8 +6,11 @@ import {
   UserType,
   validateUser,
   createUser as createDbUser,
-  getUserById
+  getUserById,
+  ensureDemoUsers,
+  ensureUserTableExists
 } from '../services/userService';
+import { recordBusinessLogin } from '../services/businessService';
 
 // Define Permission interface
 interface Permission {
@@ -51,6 +54,7 @@ interface User {
   user_type?: UserType;
   business_name?: string;
   business_phone?: string;
+  status?: 'active' | 'banned' | 'restricted';
 }
 
 // Registration data interface
@@ -84,15 +88,23 @@ interface AuthProviderProps {
 
 // Convert database user to application user
 function convertDbUserToUser(dbUser: DbUser): User {
+  console.log('Converting DB user to app user:', dbUser);
+  
+  // Handle possible null values
+  if (!dbUser.id) {
+    console.error('Database user has no ID:', dbUser);
+  }
+  
   return {
     id: dbUser.id as number,
-    name: dbUser.name,
-    email: dbUser.email,
+    name: dbUser.name || 'Unknown User',
+    email: dbUser.email || 'unknown@example.com',
     role: (dbUser.role as UserRole) || 'customer',
     avatar_url: dbUser.avatar_url,
     user_type: (dbUser.user_type as UserType) || 'customer',
     business_name: dbUser.business_name,
-    business_phone: dbUser.business_phone
+    business_phone: dbUser.business_phone,
+    status: dbUser.status as 'active' | 'banned' | 'restricted' || 'active'
   };
 }
 
@@ -105,22 +117,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if user is already logged in (from localStorage)
   useEffect(() => {
     const checkAuth = async () => {
-      const storedUserId = localStorage.getItem('authUserId');
-      if (storedUserId) {
-        try {
-          const userId = parseInt(storedUserId, 10);
-          const dbUser = await getUserById(userId);
-          if (dbUser) {
-            setUser(convertDbUserToUser(dbUser));
-          } else {
+      try {
+        console.log('Initializing authentication...');
+        // First ensure the database is set up properly
+        await ensureUserTableExists();
+        
+        // Then ensure demo users exist
+        await ensureDemoUsers();
+        console.log('Database initialization complete');
+        
+        const storedUserId = localStorage.getItem('authUserId');
+        if (storedUserId) {
+          try {
+            const userId = parseInt(storedUserId, 10);
+            const dbUser = await getUserById(userId);
+            if (dbUser) {
+              setUser(convertDbUserToUser(dbUser));
+              console.log('User authenticated from stored ID:', userId);
+            } else {
+              localStorage.removeItem('authUserId');
+              console.log('Stored user ID not found in database:', userId);
+            }
+          } catch (error) {
+            console.error('Error checking auth:', error);
             localStorage.removeItem('authUserId');
           }
-        } catch (error) {
-          console.error('Error checking auth:', error);
-          localStorage.removeItem('authUserId');
+        } else {
+          console.log('No stored user ID found');
         }
+      } catch (error) {
+        console.error('Error during authentication initialization:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuth();
@@ -134,9 +163,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const dbUser = await validateUser(email, password);
       
       if (dbUser && dbUser.id) {
+        // Check if the user is banned
+        if (dbUser.status === 'banned') {
+          console.error('Login attempt by banned user:', email);
+          setIsLoading(false);
+          return false;
+        }
+        
         const appUser = convertDbUserToUser(dbUser);
         setUser(appUser);
         localStorage.setItem('authUserId', String(dbUser.id));
+        
+        // If this is a business user, record the login for analytics
+        if (dbUser.user_type === 'business' && dbUser.id) {
+          try {
+            // Get the user's IP address and device info (in a real app)
+            const ipAddress = '127.0.0.1'; // Mock IP for demo
+            const device = navigator.userAgent;
+            
+            // Record the login
+            await recordBusinessLogin(dbUser.id, dbUser.id, ipAddress, device);
+          } catch (loginTrackingError) {
+            console.error('Error recording business login:', loginTrackingError);
+            // Don't fail the login if tracking fails
+          }
+        }
+        
         setIsLoading(false);
         return true;
       }
@@ -261,6 +313,37 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
   
   if (requiredPermission && !hasPermission(requiredPermission)) {
+    return null;
+  }
+  
+  return <>{children}</>;
+};
+
+// Props interface for AdminProtectedRoute component
+interface AdminProtectedRouteProps {
+  children: ReactNode;
+}
+
+// Admin Protected Route Component - Only accessible by users with admin role
+export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({ 
+  children
+}) => {
+  const { user, isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate('/admin-access', { state: { from: location } });
+    } else if (!loading && isAuthenticated && user?.role !== 'admin') {
+      navigate('/unauthorized');
+    }
+  }, [loading, isAuthenticated, user, navigate]);
+  
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+  
+  if (!isAuthenticated || user?.role !== 'admin') {
     return null;
   }
   

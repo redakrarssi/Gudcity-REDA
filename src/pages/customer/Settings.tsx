@@ -71,20 +71,86 @@ const CustomerSettings = () => {
       }
       
       try {
+        setLoading(true);
         const settings = await CustomerSettingsService.getCustomerSettings(user.id);
         if (settings) {
           setUserData(settings);
           setFormData(settings);
+        } else {
+          // If no settings found, initialize with default values
+          const defaultSettings: CustomerSettings = {
+            id: user.id,
+            userId: user.id,
+            name: user.name || '',
+            email: user.email || '',
+            phone: '',
+            address: '',
+            tier: 'Bronze',
+            loyaltyPoints: 0,
+            birthday: '',
+            joinedAt: new Date().toISOString(),
+            notificationPreferences: {
+              email: true,
+              push: true,
+              sms: false,
+              promotions: true,
+              rewards: true,
+              system: true
+            },
+            regionalSettings: {
+              language: i18n.language || 'en',
+              country: 'United States',
+              currency: 'USD',
+              timezone: 'UTC'
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          setUserData(defaultSettings);
+          setFormData(defaultSettings);
         }
       } catch (error) {
         console.error('Error fetching customer settings:', error);
+        // Initialize with default values on error
+        if (user) {
+          const defaultSettings: CustomerSettings = {
+            id: user.id,
+            userId: user.id,
+            name: user.name || '',
+            email: user.email || '',
+            phone: '',
+            address: '',
+            tier: 'Bronze',
+            loyaltyPoints: 0,
+            birthday: '',
+            joinedAt: new Date().toISOString(),
+            notificationPreferences: {
+              email: true,
+              push: true,
+              sms: false,
+              promotions: true,
+              rewards: true,
+              system: true
+            },
+            regionalSettings: {
+              language: i18n.language || 'en',
+              country: 'United States',
+              currency: 'USD',
+              timezone: 'UTC'
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          setUserData(defaultSettings);
+          setFormData(defaultSettings);
+        }
       } finally {
         setLoading(false);
       }
     };
     
     fetchUserData();
-  }, [user]);
+  }, [user, i18n.language]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (!formData) return;

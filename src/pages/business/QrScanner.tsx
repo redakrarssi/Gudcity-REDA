@@ -6,8 +6,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
-  Keyboard, KeyRound, ArrowRight
+  Keyboard, KeyRound, ArrowRight, Settings
 } from 'lucide-react';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { LoyaltyProgram } from '../../types/loyalty';
 
 interface ScanResult {
   type: string; 
@@ -24,6 +26,10 @@ const QrScannerPage = () => {
   const [selectedResult, setSelectedResult] = useState<ScanResult | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+  const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [pointsToAward, setPointsToAward] = useState<number>(10);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load previous scan results from localStorage
   useEffect(() => {
@@ -39,6 +45,31 @@ const QrScannerPage = () => {
       console.error('Error loading scan results from localStorage:', error);
     }
   }, []);
+
+  // Load business programs
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      if (user?.id) {
+        setIsLoading(true);
+        try {
+          const businessId = String(user.id); // Convert to string
+          const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
+          setPrograms(businessPrograms);
+          
+          // Set the first program as default if available
+          if (businessPrograms.length > 0) {
+            setSelectedProgramId(businessPrograms[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching business programs:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    fetchPrograms();
+  }, [user]);
 
   // Save scan results to localStorage whenever they change
   useEffect(() => {
@@ -178,13 +209,69 @@ const QrScannerPage = () => {
           </nav>
         </div>
         
+        {/* Program Selection */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <div className="flex items-center mb-4">
+            <Settings className="w-5 h-5 text-blue-500 mr-2" />
+            <h2 className="font-medium text-gray-800">{t('Scan Settings')}</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="program" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Select Program')}
+              </label>
+              {isLoading ? (
+                <div className="animate-pulse h-10 bg-gray-200 rounded"></div>
+              ) : programs.length > 0 ? (
+                <select
+                  id="program"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={selectedProgramId || ''}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                >
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  {t('No programs found. Please create a loyalty program first.')}
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <label htmlFor="points" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Points to Award')}
+              </label>
+              <input
+                id="points"
+                type="number"
+                min="1"
+                max="1000"
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={pointsToAward}
+                onChange={(e) => setPointsToAward(Number(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+        
         {/* Main content area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             {/* Scanner tab */}
             {activeTab === 'scanner' && (
               <div className="bg-white rounded-xl shadow-md p-6">
-                <QRScanner onScan={handleScan} businessId={user?.id} />
+                <QRScanner 
+                  onScan={handleScan} 
+                  businessId={user?.id}
+                  programId={selectedProgramId || undefined}
+                  pointsToAward={pointsToAward}
+                />
               </div>
             )}
             

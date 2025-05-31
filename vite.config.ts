@@ -7,5 +7,17 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['html5-qrcode']
+  },
+  build: {
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['lucide-react']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
   }
 });

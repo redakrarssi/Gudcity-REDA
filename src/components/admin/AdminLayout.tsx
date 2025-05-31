@@ -57,7 +57,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { 
       name: t('Dashboard'), 
       icon: <Home className="w-5 h-5" />, 
-      path: '/admin/dashboard' 
+      path: '/admin' 
     },
     { 
       name: t('Users'), 

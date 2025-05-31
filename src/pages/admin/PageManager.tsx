@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import {
@@ -14,11 +14,49 @@ import {
   Copy,
   Layout,
   Layers,
-  Home
+  Home,
+  RefreshCcw,
+  AlertCircle
 } from 'lucide-react';
+import { 
+  Page, 
+  getAllPages, 
+  getPageById, 
+  createPage, 
+  updatePage, 
+  deletePage 
+} from '../../services/pageService';
+import { logSystemActivity } from '../../services/dashboardService';
 
-// Types for pages
-interface Page {
+// Helper function to format DB Page model to component model
+const formatPageForComponent = (dbPage: Page): PageModel => {
+  return {
+    id: dbPage.id,
+    title: dbPage.title,
+    slug: dbPage.slug,
+    content: dbPage.content,
+    template: dbPage.template as PageModel['template'],
+    status: dbPage.status as PageModel['status'],
+    isSystem: dbPage.is_system,
+    createdAt: dbPage.created_at,
+    updatedAt: dbPage.updated_at
+  };
+};
+
+// Helper function to format component model to DB model for saving
+const formatPageForDb = (page: PageModel): Omit<Page, 'id' | 'created_at' | 'updated_at'> => {
+  return {
+    title: page.title,
+    slug: page.slug,
+    content: page.content,
+    template: page.template,
+    status: page.status,
+    is_system: page.isSystem
+  };
+};
+
+// Types for component pages
+interface PageModel {
   id: number;
   title: string;
   slug: string;
@@ -30,96 +68,51 @@ interface Page {
   updatedAt: string;
 }
 
-// Mock data for pages
-const MOCK_PAGES: Page[] = [
-  {
-    id: 1,
-    title: 'Home',
-    slug: '/',
-    content: '<h1>Welcome to GudCity</h1><p>Your loyalty platform for local businesses.</p>',
-    template: 'landing',
-    status: 'published',
-    isSystem: true,
-    createdAt: '2023-06-15T10:00:00Z',
-    updatedAt: '2023-08-20T14:30:00Z'
-  },
-  {
-    id: 2,
-    title: 'About Us',
-    slug: '/about',
-    content: '<h1>About GudCity</h1><p>Learn more about our mission and team.</p>',
-    template: 'default',
-    status: 'published',
-    isSystem: false,
-    createdAt: '2023-06-16T11:20:00Z',
-    updatedAt: '2023-07-05T09:15:00Z'
-  },
-  {
-    id: 3,
-    title: 'Contact',
-    slug: '/contact',
-    content: '<h1>Contact Us</h1><p>Get in touch with our support team.</p>',
-    template: 'sidebar',
-    status: 'published',
-    isSystem: false,
-    createdAt: '2023-06-18T13:45:00Z',
-    updatedAt: '2023-08-01T16:20:00Z'
-  },
-  {
-    id: 4,
-    title: 'Privacy Policy',
-    slug: '/privacy',
-    content: '<h1>Privacy Policy</h1><p>Our commitment to your privacy.</p>',
-    template: 'full-width',
-    status: 'published',
-    isSystem: true,
-    createdAt: '2023-06-20T09:30:00Z',
-    updatedAt: '2023-07-12T11:40:00Z'
-  },
-  {
-    id: 5,
-    title: 'Terms of Service',
-    slug: '/terms',
-    content: '<h1>Terms of Service</h1><p>Please read our terms carefully.</p>',
-    template: 'full-width',
-    status: 'published',
-    isSystem: true,
-    createdAt: '2023-06-20T10:15:00Z',
-    updatedAt: '2023-07-12T11:45:00Z'
-  },
-  {
-    id: 6,
-    title: 'Coming Soon',
-    slug: '/new-features',
-    content: '<h1>New Features Coming Soon</h1><p>We are working on exciting new features.</p>',
-    template: 'default',
-    status: 'draft',
-    isSystem: false,
-    createdAt: '2023-08-05T15:20:00Z',
-    updatedAt: '2023-08-05T15:20:00Z'
-  }
-];
-
 const PageManager = () => {
   const { t } = useTranslation();
   
   // State
-  const [pages, setPages] = useState<Page[]>(MOCK_PAGES);
-  const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const [pages, setPages] = useState<PageModel[]>([]);
+  const [selectedPage, setSelectedPage] = useState<PageModel | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Page form state
-  const [pageForm, setPageForm] = useState<Partial<Page>>({
+  const [pageForm, setPageForm] = useState<Partial<PageModel>>({
     title: '',
     slug: '',
     content: '',
     template: 'default',
     status: 'draft'
   });
+  
+  // Load pages from database on component mount
+  useEffect(() => {
+    fetchPages();
+  }, []);
+  
+  // Fetch pages from database
+  const fetchPages = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const dbPages = await getAllPages();
+      const formattedPages = dbPages.map(formatPageForComponent);
+      
+      setPages(formattedPages);
+    } catch (err) {
+      console.error('Error fetching pages:', err);
+      setError('Failed to load pages. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Filter pages based on search and filters
   const filteredPages = pages.filter(page => {
@@ -139,7 +132,7 @@ const PageManager = () => {
   };
   
   // Handle page selection for editing
-  const handleEditPage = (page: Page) => {
+  const handleEditPage = (page: PageModel) => {
     setSelectedPage(page);
     setPageForm({
       ...page
@@ -155,64 +148,116 @@ const PageManager = () => {
       slug: '',
       content: '',
       template: 'default',
-      status: 'draft'
+      status: 'draft',
+      isSystem: false
     });
     setIsEditModalOpen(true);
   };
   
   // Handle page save
-  const handleSavePage = () => {
+  const handleSavePage = async () => {
     if (!pageForm.title || !pageForm.slug || !pageForm.content) return;
     
-    const now = new Date().toISOString();
-    
-    if (selectedPage) {
-      // Update existing page
-      setPages(prevPages => 
-        prevPages.map(page => 
-          page.id === selectedPage.id
-            ? { 
-                ...page, 
-                title: pageForm.title!,
-                slug: pageForm.slug!,
-                content: pageForm.content!,
-                template: pageForm.template as Page['template'],
-                status: pageForm.status as Page['status'],
-                updatedAt: now
-              }
-            : page
-        )
-      );
-    } else {
-      // Create new page
-      const newPage: Page = {
-        id: Math.max(...pages.map(p => p.id)) + 1,
-        title: pageForm.title!,
-        slug: pageForm.slug!,
-        content: pageForm.content!,
-        template: pageForm.template as Page['template'],
-        status: pageForm.status as Page['status'],
-        isSystem: false,
-        createdAt: now,
-        updatedAt: now
-      };
-      setPages([...pages, newPage]);
+    try {
+      setError(null);
+      
+      if (selectedPage) {
+        // Update existing page
+        const updatedPage = await updatePage(
+          selectedPage.id, 
+          formatPageForDb({
+            ...selectedPage,
+            title: pageForm.title!,
+            slug: pageForm.slug!,
+            content: pageForm.content!,
+            template: pageForm.template as PageModel['template'],
+            status: pageForm.status as PageModel['status'],
+            isSystem: pageForm.isSystem !== undefined ? pageForm.isSystem : selectedPage.isSystem
+          })
+        );
+        
+        if (updatedPage) {
+          // Log the activity
+          await logSystemActivity(
+            'page_update',
+            `Page "${pageForm.title}" was updated`,
+            1, // Assuming admin ID is 1
+            'admin'
+          );
+          
+          // Refresh pages
+          await fetchPages();
+        }
+      } else {
+        // Create new page
+        const newPage = await createPage(
+          formatPageForDb({
+            id: 0, // This will be ignored by the API
+            title: pageForm.title!,
+            slug: pageForm.slug!,
+            content: pageForm.content!,
+            template: pageForm.template as PageModel['template'],
+            status: pageForm.status as PageModel['status'],
+            isSystem: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+        );
+        
+        if (newPage) {
+          // Log the activity
+          await logSystemActivity(
+            'page_create',
+            `Page "${pageForm.title}" was created`,
+            1, // Assuming admin ID is 1
+            'admin'
+          );
+          
+          // Refresh pages
+          await fetchPages();
+        }
+      }
+      
+      setIsEditModalOpen(false);
+    } catch (err: any) {
+      console.error('Error saving page:', err);
+      setError(err.message || 'Failed to save page. Please try again.');
     }
-    
-    setIsEditModalOpen(false);
   };
   
   // Handle page deletion
-  const handleDeletePage = () => {
+  const handleDeletePage = async () => {
     if (!selectedPage) return;
     
-    setPages(prevPages => prevPages.filter(page => page.id !== selectedPage.id));
-    setIsDeleteModalOpen(false);
-    setSelectedPage(null);
+    try {
+      setError(null);
+      
+      const success = await deletePage(selectedPage.id);
+      
+      if (success) {
+        // Log the activity
+        await logSystemActivity(
+          'page_delete',
+          `Page "${selectedPage.title}" was deleted`,
+          1, // Assuming admin ID is 1
+          'admin'
+        );
+        
+        // Refresh pages
+        await fetchPages();
+      }
+      
+      setIsDeleteModalOpen(false);
+      setSelectedPage(null);
+    } catch (err: any) {
+      console.error('Error deleting page:', err);
+      setError(err.message || 'Failed to delete page. Please try again.');
+      setIsDeleteModalOpen(false);
+    }
   };
   
   // Handle page preview
-  const handlePreviewPage = (page: Page) => {
+  const handlePreviewPage = (page: PageModel) => {
     setSelectedPage(page);
     setIsPreviewModalOpen(true);
   };
@@ -252,6 +297,13 @@ const PageManager = () => {
           </div>
           
           <div className="flex-1 overflow-auto p-6">
+            {error && (
+              <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
+                <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2 space-y-6">
                 <div>
@@ -321,7 +373,7 @@ const PageManager = () => {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={pageForm.template}
-                    onChange={e => setPageForm({...pageForm, template: e.target.value as Page['template']})}
+                    onChange={e => setPageForm({...pageForm, template: e.target.value as PageModel['template']})}
                     disabled={selectedPage?.isSystem}
                   >
                     <option value="default">{t('Default')}</option>
@@ -338,7 +390,7 @@ const PageManager = () => {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={pageForm.status}
-                    onChange={e => setPageForm({...pageForm, status: e.target.value as Page['status']})}
+                    onChange={e => setPageForm({...pageForm, status: e.target.value as PageModel['status']})}
                   >
                     <option value="published">{t('Published')}</option>
                     <option value="draft">{t('Draft')}</option>
@@ -499,6 +551,12 @@ const PageManager = () => {
                     </div>
                   )}
                 </p>
+                
+                {error && (
+                  <div className="mt-3 text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -537,14 +595,34 @@ const PageManager = () => {
             </p>
           </div>
           
-          <button
-            onClick={handleCreatePage}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t('Create Page')}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchPages}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              {t('Refresh')}
+            </button>
+            
+            <button
+              onClick={handleCreatePage}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t('Create Page')}
+            </button>
+          </div>
         </div>
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">{t('Error')}</p>
+              <p>{error}</p>
+            </div>
+          </div>
+        )}
         
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200">
@@ -575,117 +653,126 @@ const PageManager = () => {
           </div>
           
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('Page Title')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('URL')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('Template')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('Status')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('Last Updated')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('Type')}
-                  </th>
-                  <th scope="col" className="relative px-6 py-3">
-                    <span className="sr-only">{t('Actions')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPages.length === 0 ? (
+            {loading ? (
+              <div className="flex justify-center items-center p-12">
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                  <p className="mt-4 text-gray-600">{t('Loading pages...')}</p>
+                </div>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                      {t('No pages found')}
-                    </td>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Page Title')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('URL')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Template')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Status')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Last Updated')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('Type')}
+                    </th>
+                    <th scope="col" className="relative px-6 py-3">
+                      <span className="sr-only">{t('Actions')}</span>
+                    </th>
                   </tr>
-                ) : (
-                  filteredPages.map((page) => (
-                    <tr key={page.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {page.slug === '/' ? (
-                            <Home className="h-4 w-4 text-gray-400 mr-2" />
-                          ) : (
-                            <FileText className="h-4 w-4 text-gray-400 mr-2" />
-                          )}
-                          <div className="text-sm font-medium text-gray-900">{page.title}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-blue-600">{page.slug}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <Layout className="h-4 w-4 text-gray-400 mr-2" />
-                          <div className="text-sm text-gray-900">{t(page.template)}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          page.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {page.status === 'published' ? t('Published') : t('Draft')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(page.updatedAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {page.isSystem ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {t('System')}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {t('Custom')}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
-                          <button
-                            onClick={() => handlePreviewPage(page)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title={t('Preview')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEditPage(page)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title={t('Edit')}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          {!page.isSystem && (
-                            <button
-                              onClick={() => {
-                                setSelectedPage(page);
-                                setIsDeleteModalOpen(true);
-                              }}
-                              className="text-red-600 hover:text-red-900"
-                              title={t('Delete')}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredPages.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                        {t('No pages found')}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredPages.map((page) => (
+                      <tr key={page.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            {page.slug === '/' ? (
+                              <Home className="h-4 w-4 text-gray-400 mr-2" />
+                            ) : (
+                              <FileText className="h-4 w-4 text-gray-400 mr-2" />
+                            )}
+                            <div className="text-sm font-medium text-gray-900">{page.title}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-blue-600">{page.slug}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <Layout className="h-4 w-4 text-gray-400 mr-2" />
+                            <div className="text-sm text-gray-900">{t(page.template)}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            page.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {page.status === 'published' ? t('Published') : t('Draft')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(page.updatedAt)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {page.isSystem ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {t('System')}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              {t('Custom')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => handlePreviewPage(page)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title={t('Preview')}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEditPage(page)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title={t('Edit')}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            {!page.isSystem && (
+                              <button
+                                onClick={() => {
+                                  setSelectedPage(page);
+                                  setIsDeleteModalOpen(true);
+                                }}
+                                className="text-red-600 hover:text-red-900"
+                                title={t('Delete')}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { AuthProvider, ProtectedRoute, useAuth } from './contexts/AuthContext';
+import { AuthProvider, ProtectedRoute, AdminProtectedRoute, useAuth } from './contexts/AuthContext';
 import LandingPage from './pages/LandingPage';
 import Pricing from './pages/Pricing';
 import CommentsPage from './pages/Comments';
@@ -34,6 +34,7 @@ import AdminPageManager from './pages/admin/PageManager';
 import AdminPricingPlans from './pages/admin/PricingPlans';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
 
 // Custom route component to redirect based on user type
@@ -44,7 +45,7 @@ const UserTypeRedirect = () => {
     return <Navigate to="/login" />;
   }
   
-  if (user.userType === 'business' || user.role === 'business') {
+  if (user.user_type === 'business' || user.role === 'business') {
     return <Navigate to="/business/dashboard" />;
   }
   
@@ -65,6 +66,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/admin-access" element={<AdminLogin />} />
             
             {/* Setup Wizard Routes */}
             <Route path="/setup" element={
@@ -151,65 +153,80 @@ function App() {
             } />
             
             {/* Admin Routes */}
-            <Route path="/admin/dashboard" element={
-              <ProtectedRoute requiredPermission="system.logs">
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/users" element={
-              <ProtectedRoute requiredPermission="users.view">
-                <AdminUsers />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/businesses" element={
-              <ProtectedRoute requiredPermission="businesses.view">
-                <AdminBusinesses />
-              </ProtectedRoute>
-            } />
+            <Route 
+              path="/admin" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminDashboard />
+                </AdminProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/dashboard" 
+              element={
+                <Navigate to="/admin" replace />
+              } 
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminUsers />
+                </AdminProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/businesses" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminBusinesses />
+                </AdminProtectedRoute>
+              } 
+            />
             <Route path="/admin/analytics" element={
-              <ProtectedRoute requiredPermission="analytics.view">
+              <AdminProtectedRoute>
                 <AdminAnalytics />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/approvals" element={
-              <ProtectedRoute requiredPermission="businesses.approve">
+              <AdminProtectedRoute>
                 <AdminApprovals />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/global-settings" element={
-              <ProtectedRoute requiredPermission="settings.view">
+              <AdminProtectedRoute>
                 <AdminGlobalSettings />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/settings" element={
-              <ProtectedRoute requiredPermission="settings.view">
+              <AdminProtectedRoute>
                 <AdminSettings />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/system-logs" element={
-              <ProtectedRoute requiredPermission="system.logs">
+              <AdminProtectedRoute>
                 <AdminSystemLogs />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/permissions" element={
-              <ProtectedRoute requiredPermission="system.logs">
+              <AdminProtectedRoute>
                 <AdminPermissions />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/email-templates" element={
-              <ProtectedRoute requiredPermission="content.edit">
+              <AdminProtectedRoute>
                 <AdminEmailTemplates />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/page-manager" element={
-              <ProtectedRoute requiredPermission="pages.view">
+              <AdminProtectedRoute>
                 <AdminPageManager />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
             <Route path="/admin/pricing-plans" element={
-              <ProtectedRoute requiredPermission="pricing.view">
+              <AdminProtectedRoute>
                 <AdminPricingPlans />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } />
           </Routes>
         </div>

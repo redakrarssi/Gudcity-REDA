@@ -14,6 +14,7 @@ export interface User {
   reset_token_expires?: Date;
   last_login?: Date;
   created_at?: Date;
+  status?: 'active' | 'banned' | 'restricted';
 }
 
 export type UserType = 'customer' | 'business';
@@ -63,7 +64,7 @@ async function verifyPassword(plainPassword: string, hashedPassword: string): Pr
 export async function getAllUsers(): Promise<User[]> {
   try {
     const users = await sql`
-      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login 
+      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
       FROM users
       ORDER BY created_at DESC
     `;
@@ -76,14 +77,39 @@ export async function getAllUsers(): Promise<User[]> {
 
 export async function getUserById(id: number): Promise<User | null> {
   try {
+    console.log(`Fetching user with id: ${id}`);
+    
+    if (!id || isNaN(id)) {
+      console.error(`Invalid user ID: ${id}`);
+      return null;
+    }
+    
     const result = await sql`
-      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login 
+      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
       FROM users WHERE id = ${id}
     `;
+    
+    if (!result || result.length === 0) {
+      console.log(`No user found with ID: ${id}`);
+      return null;
+    }
+    
     const user = result[0];
-    return user as User || null;
+    console.log(`User found with ID ${id}:`, { 
+      id: user.id, 
+      name: user.name, 
+      email: user.email,
+      role: user.role,
+      user_type: user.user_type
+    });
+    
+    return user as User;
   } catch (error) {
     console.error(`Error fetching user with id ${id}:`, error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return null;
   }
 }
@@ -267,5 +293,215 @@ export async function deleteUser(id: number): Promise<boolean> {
   } catch (error) {
     console.error(`Error deleting user with id ${id}:`, error);
     return false;
+  }
+}
+
+// Ensure demo users exist in the system
+export async function ensureDemoUsers(): Promise<void> {
+  try {
+    console.log('Ensuring demo users exist...');
+    
+    // First, ensure the users table exists with all required columns
+    await ensureUserTableExists();
+    
+    // Check if admin user exists
+    const adminEmail = 'admin@gudcity.com';
+    const existingAdmin = await getUserByEmail(adminEmail);
+    
+    if (!existingAdmin) {
+      console.log('Creating demo admin user...');
+      await createUser({
+        name: 'Admin User',
+        email: adminEmail,
+        password: 'password',
+        role: 'admin',
+        user_type: 'customer',
+      });
+    } else {
+      console.log('Admin user already exists');
+    }
+    
+    // Check if customer demo user exists
+    const customerEmail = 'customer@example.com';
+    const existingCustomer = await getUserByEmail(customerEmail);
+    
+    if (!existingCustomer) {
+      console.log('Creating demo customer user...');
+      await createUser({
+        name: 'Demo Customer',
+        email: customerEmail,
+        password: 'password',
+        role: 'customer',
+        user_type: 'customer',
+      });
+    } else {
+      console.log('Customer demo user already exists');
+    }
+    
+    // Check if business demo user exists
+    const businessEmail = 'business@example.com';
+    const existingBusiness = await getUserByEmail(businessEmail);
+    
+    if (!existingBusiness) {
+      console.log('Creating demo business user...');
+      await createUser({
+        name: 'Demo Business',
+        email: businessEmail,
+        password: 'password',
+        role: 'business',
+        user_type: 'business',
+        business_name: 'Demo Business LLC',
+        business_phone: '+1234567890',
+      });
+    } else {
+      console.log('Business demo user already exists');
+    }
+    
+    console.log('Demo users check completed');
+  } catch (error) {
+    console.error('Error ensuring demo users exist:', error);
+  }
+}
+
+// Ban or restrict a user
+export async function updateUserStatus(id: number, status: 'active' | 'banned' | 'restricted'): Promise<boolean> {
+  try {
+    // First check if the status column exists
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'
+      `;
+    } catch (alterError) {
+      console.error('Error ensuring status column exists:', alterError);
+    }
+
+    // Update the user's status
+    await sql`
+      UPDATE users
+      SET status = ${status}
+      WHERE id = ${id}
+    `;
+    
+    console.log(`Updated user ${id} status to ${status}`);
+    return true;
+  } catch (error) {
+    console.error(`Error updating user ${id} status to ${status}:`, error);
+    return false;
+  }
+}
+
+// Ban a user
+export async function banUser(id: number): Promise<boolean> {
+  return updateUserStatus(id, 'banned');
+}
+
+// Restrict a user's access
+export async function restrictUser(id: number): Promise<boolean> {
+  return updateUserStatus(id, 'restricted');
+}
+
+// Activate a user (remove ban/restriction)
+export async function activateUser(id: number): Promise<boolean> {
+  return updateUserStatus(id, 'active');
+}
+
+// Get users by type (for filtering in admin tables)
+export async function getUsersByType(userType: UserType | 'all' | 'staff'): Promise<User[]> {
+  try {
+    console.log(`Fetching users of type: ${userType}`);
+    let query;
+    
+    // Ensure the status column exists first
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'
+      `;
+      console.log('Ensured status column exists');
+    } catch (alterError) {
+      console.error('Error ensuring status column exists:', alterError);
+    }
+    
+    if (userType === 'all') {
+      query = sql`
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        FROM users
+        ORDER BY created_at DESC
+      `;
+    } else if (userType === 'staff') {
+      query = sql`
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        FROM users
+        WHERE role = 'admin'
+        ORDER BY created_at DESC
+      `;
+    } else {
+      query = sql`
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        FROM users
+        WHERE user_type = ${userType}
+        ORDER BY created_at DESC
+      `;
+    }
+    
+    const users = await query;
+    console.log(`Retrieved ${users.length} users of type ${userType}:`, users);
+    
+    // If no users and this is during initialization, create some demo users
+    if (users.length === 0) {
+      await ensureDemoUsers();
+      // Try again after creating demo users
+      return getUsersByType(userType);
+    }
+    
+    return users as User[];
+  } catch (error) {
+    console.error(`Error fetching users by type ${userType}:`, error);
+    return [];
+  }
+}
+
+// Ensure the users table exists with all required columns
+export async function ensureUserTableExists(): Promise<void> {
+  try {
+    console.log('Ensuring users table exists...');
+    
+    // Create users table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255),
+        role VARCHAR(50) DEFAULT 'customer',
+        user_type VARCHAR(50) DEFAULT 'customer',
+        business_name VARCHAR(255),
+        business_phone VARCHAR(100),
+        avatar_url VARCHAR(500),
+        reset_token VARCHAR(255),
+        reset_token_expires TIMESTAMP,
+        last_login TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'active'
+      )
+    `;
+    
+    console.log('Users table exists or was created successfully');
+    
+    // Ensure all columns exist by adding them if they don't
+    // This is a safer approach than dropping and recreating the table
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'
+      `;
+      console.log('Ensured status column exists');
+    } catch (alterError) {
+      console.error('Error ensuring status column exists:', alterError);
+    }
+    
+  } catch (error) {
+    console.error('Error ensuring users table exists:', error);
   }
 } 
