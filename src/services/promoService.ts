@@ -3,6 +3,17 @@ import { CurrencyService } from './currencyService';
 import type { CurrencyCode } from '../types/currency';
 import sql from '../utils/db';
 
+interface RedemptionResponse {
+  success: boolean;
+  error?: string;
+  redemption?: {
+    id: string;
+    value: number;
+    currency: string;
+    promotionName: string;
+  };
+}
+
 export class PromoService {
   static async generateCode(
     businessId: string,
@@ -112,50 +123,96 @@ export class PromoService {
 
   static async redeemCode(
     code: string,
-    customerId: string,
-    transactionId?: string
-  ): Promise<{ success: boolean; redemption?: PromoCodeRedemption; error?: string }> {
+    customerId: string
+  ): Promise<RedemptionResponse> {
     try {
-      const { valid, code: promoCode, error: validationError } = await this.validateCode(code, customerId);
-      
-      if (!valid || !promoCode) {
-        throw new Error(validationError || 'Invalid code');
+      if (!code || !customerId) {
+        return {
+          success: false,
+          error: 'Invalid code or customer ID'
+        };
       }
 
-      // Create redemption record in the database
+      const customerIdInt = parseInt(customerId);
+
+      // Check if the promotion code exists and is active
+      const promotionResult = await sql`
+        SELECT * FROM promotions
+        WHERE code = ${code.trim()}
+        AND status = 'ACTIVE'
+        AND expiry_date > NOW()
+      `;
+
+      if (promotionResult.length === 0) {
+        return {
+          success: false,
+          error: 'Invalid or expired promotion code'
+        };
+      }
+
+      const promotion = promotionResult[0];
+
+      // Check if this code has reached its usage limit
+      if (promotion.usage_limit) {
+        const usageCount = await sql`
+          SELECT COUNT(*) as count FROM redemptions
+          WHERE promotion_id = ${promotion.id}
+        `;
+
+        if (usageCount[0].count >= promotion.usage_limit) {
+          return {
+            success: false,
+            error: 'This promotion code has reached its usage limit'
+          };
+        }
+      }
+
+      // Check if customer has already redeemed this code
+      if (!promotion.allow_multiple_use) {
+        const customerRedemptions = await sql`
+          SELECT * FROM redemptions
+          WHERE promotion_id = ${promotion.id}
+          AND customer_id = ${customerIdInt}
+        `;
+
+        if (customerRedemptions.length > 0) {
+          return {
+            success: false,
+            error: 'You have already redeemed this promotion code'
+          };
+        }
+      }
+
+      // Record the redemption
       const redemptionResult = await sql`
-        INSERT INTO promo_redemptions (
-          code_id,
+        INSERT INTO redemptions (
+          promotion_id,
           customer_id,
-          business_id,
+          redeemed_at,
           value,
-          currency,
-          transaction_id
+          currency
         ) VALUES (
-          ${parseInt(promoCode.id)},
-          ${parseInt(customerId)},
-          ${parseInt(promoCode.businessId)},
-          ${promoCode.value},
-          ${promoCode.currency || null},
-          ${transactionId || null}
+          ${promotion.id},
+          ${customerIdInt},
+          NOW(),
+          ${promotion.value},
+          ${promotion.currency || 'USD'}
         )
-        RETURNING *
+        RETURNING id
       `;
 
-      // Update code usage count
-      await sql`
-        UPDATE promo_codes
-        SET used_count = used_count + 1,
-            updated_at = NOW()
-        WHERE id = ${parseInt(promoCode.id)}
-      `;
-
-      // Format the result to match our PromoCodeRedemption interface
-      const redemption = this.dbRedemptionToRedemption(redemptionResult[0]);
-      return { success: true, redemption };
+      return {
+        success: true,
+        redemption: {
+          id: redemptionResult[0].id.toString(),
+          value: parseFloat(promotion.value),
+          currency: promotion.currency || 'USD',
+          promotionName: promotion.name
+        }
+      };
     } catch (error) {
       console.error('Error redeeming code:', error);
-      return { 
+      return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
@@ -370,6 +427,37 @@ export class PromoService {
         promotions: [],
         error: error instanceof Error ? error.message : 'Unknown error'
       };
+    }
+  }
+
+  static async getBusinessPromotions(businessId: string) {
+    try {
+      const businessIdInt = parseInt(businessId);
+
+      const promotions = await sql`
+        SELECT * FROM promotions
+        WHERE business_id = ${businessIdInt}
+        ORDER BY created_at DESC
+      `;
+
+      return promotions.map((promo: any) => ({
+        id: promo.id.toString(),
+        businessId: promo.business_id.toString(),
+        code: promo.code,
+        name: promo.name,
+        description: promo.description,
+        value: parseFloat(promo.value),
+        currency: promo.currency,
+        type: promo.type,
+        expiryDate: promo.expiry_date,
+        usageLimit: promo.usage_limit,
+        allowMultipleUse: !!promo.allow_multiple_use,
+        status: promo.status,
+        createdAt: promo.created_at
+      }));
+    } catch (error) {
+      console.error('Error fetching business promotions:', error);
+      return [];
     }
   }
 } 

@@ -1,4 +1,5 @@
 import type { Transaction, CustomerProgram, LoyaltyProgram } from '../types/loyalty';
+import sql from '../utils/db';
 
 export class TransactionService {
   // Mock data stores
@@ -6,59 +7,98 @@ export class TransactionService {
   private static customerPrograms: CustomerProgram[] = [];
   private static loyaltyPrograms: LoyaltyProgram[] = [];
 
+  /**
+   * Award loyalty points to a customer
+   * @param customerId ID of the customer receiving points
+   * @param businessId ID of the business awarding points
+   * @param programId ID of the loyalty program
+   * @param points Number of points to award
+   */
   static async awardPoints(
     customerId: string,
     businessId: string,
     programId: string,
-    amount: number
+    points: number
   ): Promise<{ success: boolean; error?: string; points?: number }> {
     try {
-      // Find the program
-      const program = this.loyaltyPrograms.find(p => p.id === programId);
-      if (!program) {
-        return { success: false, error: 'Program not found' };
+      // Validate inputs
+      if (!customerId || !businessId || !programId || points <= 0) {
+        return {
+          success: false,
+          error: 'Invalid input parameters'
+        };
       }
 
-      const pointsToAward = Math.floor(amount * (program.pointValue || 1));
+      // Convert IDs to integers for database
+      const customerIdInt = parseInt(customerId);
+      const businessIdInt = parseInt(businessId);
+      const programIdInt = parseInt(programId);
 
-      // Get or create customer program enrollment
-      let enrollment = this.customerPrograms.find(
-        cp => cp.customerId === customerId && cp.programId === programId
-      );
+      // Check if customer is enrolled in program
+      const enrollment = await sql`
+        SELECT * FROM customer_programs
+        WHERE customer_id = ${customerIdInt}
+        AND program_id = ${programIdInt}
+      `;
 
-      if (!enrollment) {
-        // Create new enrollment
-        enrollment = {
-          id: Date.now().toString(),
-          customerId,
-          programId,
-          currentPoints: pointsToAward,
-          lastActivity: new Date().toISOString(),
-          enrolledAt: new Date().toISOString()
-        };
-        this.customerPrograms.push(enrollment);
+      // If not enrolled, enroll them
+      if (enrollment.length === 0) {
+        await sql`
+          INSERT INTO customer_programs (
+            customer_id, 
+            program_id, 
+            current_points,
+            enrolled_at
+          )
+          VALUES (
+            ${customerIdInt}, 
+            ${programIdInt}, 
+            ${points},
+            NOW()
+          )
+        `;
       } else {
-        // Update existing enrollment
-        enrollment.currentPoints += pointsToAward;
-        enrollment.lastActivity = new Date().toISOString();
+        // Update existing points
+        await sql`
+          UPDATE customer_programs
+          SET current_points = current_points + ${points},
+              updated_at = NOW()
+          WHERE customer_id = ${customerIdInt}
+          AND program_id = ${programIdInt}
+        `;
       }
 
       // Record the transaction
-      const transaction: Transaction = {
-        id: Date.now().toString(),
-        customerId,
-        businessId,
-        programId,
-        type: 'EARN',
-        points: pointsToAward,
-        amount,
-        createdAt: new Date().toISOString()
-      };
-      this.transactions.push(transaction);
+      const transaction = await sql`
+        INSERT INTO point_transactions (
+          customer_id,
+          business_id,
+          program_id,
+          points,
+          transaction_type,
+          created_at
+        )
+        VALUES (
+          ${customerIdInt},
+          ${businessIdInt},
+          ${programIdInt},
+          ${points},
+          'AWARD',
+          NOW()
+        )
+        RETURNING id
+      `;
 
-      return { success: true, points: pointsToAward };
+      return {
+        success: true,
+        points: points
+      };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error('Error awarding points:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

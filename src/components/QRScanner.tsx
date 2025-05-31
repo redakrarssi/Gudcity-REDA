@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { AlertCircle, Camera, Check, Award, Users, KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -26,98 +26,215 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   pointsToAward = 10 // Default to 10 points if not specified
 }) => {
   const { t } = useTranslation();
-  const [scanner, setScanner] = useState<Html5Qrcode | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const [successScan, setSuccessScan] = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerDivId = 'qr-scanner';
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
   const [processingCard, setProcessingCard] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showProgramsModal, setShowProgramsModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
 
-  // Initialize scanner
   useEffect(() => {
-    const html5QrCode = new Html5Qrcode('qr-reader');
-    setScanner(html5QrCode);
-
+    let scannerInstance: Html5Qrcode | null = null;
+    
+    const initScanner = async () => {
+      try {
+        scannerInstance = new Html5Qrcode(scannerDivId);
+        scannerRef.current = scannerInstance;
+      } catch (error) {
+        console.error("Failed to initialize scanner:", error);
+        setError('Failed to initialize scanner');
+      }
+    };
+    
+    initScanner();
+    
     return () => {
-      if (scanning && html5QrCode) {
-        try {
-          html5QrCode.stop();
-        } catch (err) {
-          console.error('Error stopping scanner:', err);
+      if (scannerInstance) {
+        if (isScanning) {
+          scannerInstance.stop().catch(console.error);
         }
+        scannerRef.current = null;
       }
     };
   }, []);
-
-  const onScanSuccess = async (decodedText: string, result: any) => {
-    if (!scanner || !businessId) return;
+  
+  const startScanning = async () => {
+    setIsScanning(false);
+    setError(null);
+    
+    if (!scannerRef.current) {
+      setError('Scanner not initialized');
+      return;
+    }
     
     try {
-      setError(null);
+      const cameraId = await getCameraId();
       
-      let parsedData: any;
+      const config = { 
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1,
+      };
       
+      await scannerRef.current.start(
+        cameraId, 
+        config, 
+        handleQrCodeScan, 
+        handleError
+      );
+      
+      setIsScanning(true);
+      setPermissionGranted(true);
+    } catch (err) {
+      console.error('Error starting camera:', err);
+      setError('Unable to access camera: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      setPermissionGranted(false);
+    }
+  };
+  
+  const stopScanning = async () => {
+    if (scannerRef.current && isScanning) {
       try {
-        // Try to parse the QR code data as JSON
+        await scannerRef.current.stop();
+        setIsScanning(false);
+      } catch (err) {
+        console.error('Error stopping camera:', err);
+      }
+    }
+  };
+  
+  const getCameraId = async (): Promise<string> => {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length) {
+        // Try to find a back camera first for better scanning
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear')
+        );
+        
+        // If back camera found, use it, otherwise use the first camera
+        return backCamera ? backCamera.id : devices[0].id;
+      } else {
+        throw new Error('No cameras found');
+      }
+    } catch (err) {
+      console.error('Error getting cameras:', err);
+      throw new Error('Unable to access camera: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+  
+  const handleQrCodeScan = async (decodedText: string, decodedResult: any) => {
+    try {
+      // Try to parse the QR code data
+      let parsedData;
+      try {
         parsedData = JSON.parse(decodedText);
       } catch (e) {
-        // If it's not JSON, treat as plain text
+        // If not valid JSON, create a simple object with the text
         parsedData = { text: decodedText };
       }
       
-      // Determine the type of QR code
-      let type = 'unknown';
-      let scanType: 'CUSTOMER_CARD' | 'PROMO_CODE' | 'LOYALTY_CARD' | null = null;
+      // Determine the QR code type based on the data structure
+      const qrType = determineQrType(parsedData);
       
-      if (parsedData.type === 'customer_card') {
-        type = 'customer_card';
-        scanType = 'CUSTOMER_CARD';
-      } else if (parsedData.type === 'promo_code') {
-        type = 'promo_code';
-        scanType = 'PROMO_CODE';
-      } else if (parsedData.cardId) {
-        type = 'loyalty_card';
-        scanType = 'LOYALTY_CARD';
-      }
+      // Format customer data to not expose sensitive info
+      const sanitizedData = sanitizeQrData(parsedData, qrType);
       
-      const scanResult: ScanResult = {
-        type,
-        data: parsedData,
-        timestamp: new Date().toISOString(),
+      const timestamp = new Date().toISOString();
+      
+      const result: ScanResult = {
+        type: qrType,
+        data: sanitizedData,
+        timestamp: timestamp,
         raw: decodedText
       };
       
       // Set last result
-      setLastResult(scanResult);
+      setLastResult(result);
       
       // Show success notification
-      setSuccessMessage(`Successfully scanned ${parsedData.name || 'customer'}'s QR code!`);
+      if (qrType === 'customer_card') {
+        setSuccessScan(`Successfully scanned ${sanitizedData.name || 'customer'}`);
+        
+        // Hide the notification after 3 seconds
+        setTimeout(() => {
+          setSuccessScan(null);
+        }, 3000);
+      }
       
       // Log the scan to the database (regardless of whether processing succeeds)
-      if (scanType) {
+      if (qrType) {
         QrCodeService.logScan(
-          scanType,
+          qrType,
           businessId,
-          parsedData,
+          sanitizedData,
           false, // Initially set to false, will update if processing succeeds
           {
-            customerId: type === 'customer_card' ? parsedData.customerId : undefined,
-            programId: programId || (type === 'loyalty_card' ? parsedData.programId : undefined),
-            promoCodeId: type === 'promo_code' ? parsedData.code : undefined
+            customerId: qrType === 'customer_card' ? sanitizedData.customerId : undefined,
+            programId: programId || (qrType === 'loyalty_card' ? sanitizedData.programId : undefined),
+            promoCodeId: qrType === 'promo_code' ? sanitizedData.code : undefined
           }
         );
       }
       
-      // Call onScan callback if provided
+      // Notify parent component about the scan
       if (onScan) {
-        onScan(scanResult);
+        onScan(result);
       }
-    } catch (err) {
-      console.error('Error processing scan:', err);
-      setError('Failed to process QR code. Please try again.');
+      
+      // Briefly pause scanning to prevent multiple scans of the same code
+      stopScanning();
+      setTimeout(() => {
+        startScanning();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error processing scan result:', error);
+      setError('Failed to process scan result');
+    }
+  };
+  
+  const determineQrType = (data: any): string => {
+    // Determine the type based on data structure
+    if (data.type === 'customer_card' || data.customerId) {
+      return 'customer_card';
+    } else if (data.type === 'promo_code' || data.code) {
+      return 'promo_code';
+    } else if (data.type === 'loyalty_card' || data.cardId) {
+      return 'loyalty_card';
+    }
+    return 'unknown';
+  };
+  
+  // Function to sanitize QR code data to hide sensitive information
+  const sanitizeQrData = (data: any, type: string): any => {
+    if (type === 'customer_card') {
+      return {
+        name: data.name || 'Customer',
+        // Store the ID for internal use but don't display it in UI
+        customerId: data.customerId || data.id || '',
+        type: 'customer_card'
+      };
+    }
+    return data;
+  };
+  
+  const handleError = (err: any) => {
+    console.error(`QR Error: ${err}`);
+  };
+  
+  // Toggle the scanner
+  const toggleScanner = () => {
+    if (isScanning) {
+      stopScanning();
+    } else {
+      startScanning();
     }
   };
 
@@ -126,11 +243,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     
     // Show the rewards modal
     setShowRewardsModal(true);
-    setSuccessMessage('Showing available rewards...');
+    setSuccessScan('Showing available rewards...');
     
     // Clear success message after 3 seconds
     setTimeout(() => {
-      setSuccessMessage(null);
+      setSuccessScan(null);
     }, 3000);
   };
   
@@ -139,11 +256,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     
     // Show the programs modal
     setShowProgramsModal(true);
-    setSuccessMessage('Showing available programs...');
+    setSuccessScan('Showing available programs...');
     
     // Clear success message after 3 seconds
     setTimeout(() => {
-      setSuccessMessage(null);
+      setSuccessScan(null);
     }, 3000);
   };
   
@@ -152,100 +269,68 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     
     // Show the redeem code modal
     setShowRedeemModal(true);
-    setSuccessMessage('Ready to redeem a promotion code...');
+    setSuccessScan('Ready to redeem a promotion code...');
     
     // Clear success message after 3 seconds
     setTimeout(() => {
-      setSuccessMessage(null);
+      setSuccessScan(null);
     }, 3000);
   };
 
-  const startScanning = () => {
-    if (!scanner) return;
-    
-    setError(null);
-    setSuccessMessage(null);
-    setLastResult(null);
-    
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    
-    scanner
-      .start(
-        { facingMode: 'environment' } as unknown as string, 
-        config,
-        onScanSuccess
-      )
-      .then(() => {
-        setScanning(true);
-      })
-      .catch((err) => {
-        console.error('Error starting scanner:', err);
-        setError('Failed to start camera. Please ensure camera permissions are granted.');
-      });
-  };
-
-  const stopScanning = () => {
-    if (!scanner) return;
-    
-    scanner
-      .stop()
-      .then(() => {
-        setScanning(false);
-      })
-      .catch((err) => {
-        console.error('Error stopping scanner:', err);
-      });
-  };
-
   return (
-    <div className="qr-scanner-container">
-      {/* Scanner container */}
-      <div 
-        id="qr-reader" 
-        className="relative w-full max-w-md mx-auto rounded-lg overflow-hidden shadow-md"
-        style={{ minHeight: '300px' }}
-      ></div>
+    <div className="relative">
+      {successScan && (
+        <div className="absolute top-0 left-0 right-0 z-10 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md shadow-md flex items-center">
+          <Check className="h-5 w-5 mr-2 text-green-600" />
+          <span>{successScan}</span>
+        </div>
+      )}
       
-      {/* Controls */}
-      <div className="mt-4 flex justify-center space-x-4">
-        {!scanning ? (
-          <button 
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
-            onClick={startScanning}
-          >
-            <Camera className="w-5 h-5 mr-2" />
-            {t('Start Scanning')}
-          </button>
-        ) : (
-          <button 
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center"
-            onClick={stopScanning}
-          >
-            <AlertCircle className="w-5 h-5 mr-2" />
-            {t('Stop Scanning')}
-          </button>
-        )}
-      </div>
-      
-      {/* Error message */}
       {error && (
-        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            <span>{error}</span>
-          </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2 text-red-600" />
+          <span>{error}</span>
         </div>
       )}
       
-      {/* Success message */}
-      {successMessage && (
-        <div className="mt-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg animate-fadeIn">
-          <div className="flex items-center">
-            <Check className="w-5 h-5 mr-2" />
-            <span>{successMessage}</span>
-          </div>
+      <div className="flex flex-col items-center">
+        <div 
+          id={scannerDivId} 
+          className="w-full max-w-md h-72 bg-gray-100 rounded-lg overflow-hidden relative"
+        >
+          {!isScanning && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 bg-opacity-80 text-white">
+              <Camera className="h-12 w-12 mb-3" />
+              <p className="text-center max-w-xs mb-4">{t('Camera access is needed to scan QR codes')}</p>
+              <button
+                onClick={startScanning}
+                className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded-full text-sm font-medium transition-colors"
+              >
+                {permissionGranted ? t('Resume Scanner') : t('Start Scanner')}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+        
+        <div className="mt-4 w-full">
+          <button
+            onClick={toggleScanner}
+            className={`w-full py-2 px-6 rounded-md text-white text-sm font-medium ${
+              isScanning 
+                ? 'bg-red-500 hover:bg-red-600' 
+                : 'bg-blue-500 hover:bg-blue-600'
+            } transition-colors`}
+          >
+            {isScanning ? t('Stop Scanner') : t('Start Scanner')}
+          </button>
+          
+          <p className="text-sm text-gray-500 text-center mt-2">
+            {isScanning 
+              ? t('Position the QR code in the scanner window') 
+              : t('Click start to activate the QR scanner')}
+          </p>
+        </div>
+      </div>
       
       {/* Last scan result */}
       {lastResult && !error && (

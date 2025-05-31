@@ -10,37 +10,25 @@ export class LoyaltyProgramService {
    */
   static async getBusinessPrograms(businessId: string): Promise<LoyaltyProgram[]> {
     try {
-      const programs = await sql`
+      const result = await sql`
         SELECT * FROM loyalty_programs
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${parseInt(businessId)}
         ORDER BY created_at DESC
       `;
       
-      if (!programs.length) {
-        return [];
-      }
-      
-      // For each program, fetch its reward tiers
-      const programsWithRewardTiers = await Promise.all(
-        programs.map(async (program: any) => {
-          const rewardTiers = await this.getProgramRewardTiers(program.id);
-          return {
-            id: program.id,
-            businessId: program.business_id,
-            name: program.name,
-            description: program.description,
-            type: program.type as ProgramType,
-            pointValue: program.point_value,
-            expirationDays: program.expiration_days,
-            status: program.status,
-            createdAt: program.created_at,
-            updatedAt: program.updated_at,
-            rewardTiers
-          } as LoyaltyProgram;
-        })
-      );
-      
-      return programsWithRewardTiers;
+      return result.map((program: any) => ({
+        id: program.id.toString(),
+        businessId: program.business_id.toString(),
+        name: program.name,
+        description: program.description || '',
+        type: program.type,
+        pointValue: parseFloat(program.point_value || 0),
+        rewardTiers: program.reward_tiers || [],
+        expirationDays: program.expiration_days,
+        status: program.status,
+        createdAt: program.created_at,
+        updatedAt: program.updated_at
+      }));
     } catch (error) {
       console.error('Error fetching business programs:', error);
       return [];
@@ -290,6 +278,63 @@ export class LoyaltyProgramService {
     } catch (error) {
       console.error(`Error deleting program ${programId}:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Enroll a customer in a loyalty program
+   * @param customerId ID of the customer to enroll
+   * @param programId ID of the program to enroll in
+   */
+  static async enrollCustomer(
+    customerId: string,
+    programId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Check if customer is already enrolled
+      const existingEnrollmentResult = await sql`
+        SELECT * FROM customer_programs
+        WHERE customer_id = ${parseInt(customerId)}
+        AND program_id = ${parseInt(programId)}
+      `;
+
+      if (existingEnrollmentResult.length > 0) {
+        return { success: false, error: 'Customer is already enrolled in this program' };
+      }
+
+      // Verify program exists
+      const programResult = await sql`
+        SELECT * FROM loyalty_programs
+        WHERE id = ${parseInt(programId)}
+        AND status = 'ACTIVE'
+      `;
+
+      if (programResult.length === 0) {
+        return { success: false, error: 'Program does not exist or is not active' };
+      }
+
+      // Insert new enrollment
+      await sql`
+        INSERT INTO customer_programs (
+          customer_id,
+          program_id,
+          current_points,
+          enrolled_at
+        ) VALUES (
+          ${parseInt(customerId)},
+          ${parseInt(programId)},
+          0,
+          NOW()
+        )
+      `;
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error enrolling customer:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 } 

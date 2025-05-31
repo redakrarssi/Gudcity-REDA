@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyProgram } from '../../types/loyalty';
+import { RedemptionModal } from '../../components/business/RedemptionModal';
+import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollmentModal';
+import { RewardModal } from '../../components/business/RewardModal';
 
 interface ScanResult {
   type: string; 
@@ -30,7 +33,11 @@ const QrScannerPage = () => {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [pointsToAward, setPointsToAward] = useState<number>(10);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Modal states
   const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [showProgramModal, setShowProgramModal] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
 
   // Load previous scan results from localStorage
   useEffect(() => {
@@ -391,30 +398,21 @@ const QrScannerPage = () => {
                   {selectedResult.type === 'customer_card' && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <button 
-                        onClick={() => {
-                          // Show rewards from /business/promotions
-                          window.location.href = '/business/promotions';
-                        }}
+                        onClick={() => setShowRewardModal(true)}
                         className="bg-green-500 hover:bg-green-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
                       >
                         <Award className="w-4 h-4 mr-2" />
                         {t('Give Reward')}
                       </button>
                       <button
-                        onClick={() => {
-                          // Show programs from /business/programs
-                          window.location.href = '/business/programs';
-                        }}
+                        onClick={() => setShowProgramModal(true)}
                         className="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
                       >
                         <Users className="w-4 h-4 mr-2" />
                         {t('Join Program')}
                       </button>
                       <button
-                        onClick={() => {
-                          // Show redeem code interface
-                          setShowRedeemModal(true);
-                        }}
+                        onClick={() => setShowRedeemModal(true)}
                         className="bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
                       >
                         <KeyRound className="w-4 h-4 mr-2" />
@@ -515,6 +513,38 @@ const QrScannerPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Components */}
+      {selectedResult && selectedResult.type === 'customer_card' && (
+        <>
+          {/* Redemption Modal */}
+          <RedemptionModal
+            isOpen={showRedeemModal}
+            onClose={() => setShowRedeemModal(false)}
+            customerId={String(selectedResult.data.customerId || '')}
+            businessId={user?.id ? String(user.id) : ''}
+            customerName={selectedResult.data.name || 'Customer'}
+          />
+
+          {/* Program Enrollment Modal */}
+          <ProgramEnrollmentModal
+            isOpen={showProgramModal}
+            onClose={() => setShowProgramModal(false)}
+            customerId={String(selectedResult.data.customerId || '')}
+            businessId={user?.id ? String(user.id) : ''}
+            customerName={selectedResult.data.name || 'Customer'}
+          />
+
+          {/* Reward Modal */}
+          <RewardModal
+            isOpen={showRewardModal}
+            onClose={() => setShowRewardModal(false)}
+            customerId={String(selectedResult.data.customerId || '')}
+            businessId={user?.id ? String(user.id) : ''}
+            customerName={selectedResult.data.name || 'Customer'}
+          />
+        </>
+      )}
     </BusinessLayout>
   );
 };
