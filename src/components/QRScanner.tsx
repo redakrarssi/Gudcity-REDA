@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { AlertCircle, Camera, Check } from 'lucide-react';
+import { AlertCircle, Camera, Check, Award, Users, KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LoyaltyCardService from '../services/loyaltyCardService';
 import QrCodeService from '../services/qrCodeService';
@@ -32,6 +32,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
   const [processingCard, setProcessingCard] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showRewardsModal, setShowRewardsModal] = useState(false);
+  const [showProgramsModal, setShowProgramsModal] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
 
   // Initialize scanner
   useEffect(() => {
@@ -90,6 +93,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Set last result
       setLastResult(scanResult);
       
+      // Show success notification
+      setSuccessMessage(`Successfully scanned ${parsedData.name || 'customer'}'s QR code!`);
+      
       // Log the scan to the database (regardless of whether processing succeeds)
       if (scanType) {
         QrCodeService.logScan(
@@ -105,11 +111,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         );
       }
       
-      // If this is a customer card and we have a business ID, try to process it
-      if (type === 'customer_card' && parsedData.customerId) {
-        await processCustomerCard(parsedData);
-      }
-      
       // Call onScan callback if provided
       if (onScan) {
         onScan(scanResult);
@@ -120,134 +121,43 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  const processCustomerCard = async (cardData: any) => {
-    if (!businessId || !cardData.customerId) {
-      return;
-    }
+  const handleGiveReward = () => {
+    if (!lastResult) return;
     
-    try {
-      setProcessingCard(true);
-      
-      // Get customer ID from user ID
-      const customerId = await LoyaltyCardService.getCustomerIdByUserId(cardData.customerId);
-      
-      if (customerId) {
-        // Get customer's cards
-        const cards = await LoyaltyCardService.getCustomerCards(customerId);
-        
-        // Find card for this business
-        const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
-        
-        // If programId is provided, find the card for that specific program
-        let card;
-        if (programId) {
-          const programIdNum = typeof programId === 'string' ? parseInt(programId) : programId;
-          card = cards.find(c => c.business_id === businessIdNum && c.program_id === programIdNum);
-        } else {
-          // Otherwise, just find any card for this business
-          card = cards.find(c => c.business_id === businessIdNum);
-        }
-        
-        if (card) {
-          // Points to award - use the passed in value or default
-          const pointsAwarded = pointsToAward || 10;
-          
-          // Card exists, add activity
-          const success = await LoyaltyCardService.addCardActivity(
-            card.id,
-            'EARN_POINTS',
-            pointsAwarded,
-            'Points from QR scan',
-            `QR-SCAN-${Date.now()}`
-          );
-          
-          if (success) {
-            // Update the scan log to mark as successful
-            await QrCodeService.logScan(
-              'CUSTOMER_CARD',
-              businessId,
-              cardData,
-              true,
-              {
-                customerId,
-                pointsAwarded,
-                programId: card.program_id
-              }
-            );
-            
-            setSuccessMessage(`Successfully added ${pointsAwarded} points to ${cardData.name || 'customer'}'s card!`);
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => {
-              setSuccessMessage(null);
-            }, 3000);
-          } else {
-            const errorMsg = 'Failed to add points to the card';
-            setError(errorMsg);
-            
-            // Log the error
-            await QrCodeService.logScan(
-              'CUSTOMER_CARD',
-              businessId,
-              cardData,
-              false,
-              {
-                customerId,
-                errorMessage: errorMsg
-              }
-            );
-          }
-        } else {
-          const errorMsg = programId 
-            ? 'No loyalty card found for this customer with the selected program' 
-            : 'No loyalty card found for this customer with your business';
-          setError(errorMsg);
-          
-          // Log the error
-          await QrCodeService.logScan(
-            'CUSTOMER_CARD',
-            businessId,
-            cardData,
-            false,
-            {
-              customerId,
-              errorMessage: errorMsg
-            }
-          );
-        }
-      } else {
-        const errorMsg = 'No customer found for this QR code';
-        setError(errorMsg);
-        
-        // Log the error
-        await QrCodeService.logScan(
-          'CUSTOMER_CARD',
-          businessId,
-          cardData,
-          false,
-          {
-            errorMessage: errorMsg
-          }
-        );
-      }
-    } catch (err) {
-      console.error('Error processing customer card:', err);
-      const errorMsg = 'Failed to process customer card';
-      setError(errorMsg);
-      
-      // Log the error
-      await QrCodeService.logScan(
-        'CUSTOMER_CARD',
-        businessId,
-        cardData,
-        false,
-        {
-          errorMessage: errorMsg
-        }
-      );
-    } finally {
-      setProcessingCard(false);
-    }
+    // Show the rewards modal
+    setShowRewardsModal(true);
+    setSuccessMessage('Showing available rewards...');
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage(null);
+    }, 3000);
+  };
+  
+  const handleJoinProgram = () => {
+    if (!lastResult) return;
+    
+    // Show the programs modal
+    setShowProgramsModal(true);
+    setSuccessMessage('Showing available programs...');
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage(null);
+    }, 3000);
+  };
+  
+  const handleRedeemCode = () => {
+    if (!lastResult) return;
+    
+    // Show the redeem code modal
+    setShowRedeemModal(true);
+    setSuccessMessage('Ready to redeem a promotion code...');
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage(null);
+    }, 3000);
   };
 
   const startScanning = () => {
@@ -338,18 +248,48 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       )}
       
       {/* Last scan result */}
-      {lastResult && !error && !successMessage && (
+      {lastResult && !error && (
         <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg animate-fadeIn">
           <p className="font-medium">QR Code Scanned:</p>
           <p className="text-sm mt-1">
             {lastResult.type === 'customer_card' 
-              ? `Customer ID: ${lastResult.data.customerId}` 
+              ? `Customer: ${lastResult.data.name || 'Customer'}` 
               : lastResult.type === 'promo_code' 
                 ? `Promo code: ${lastResult.data.code}` 
                 : `Data: ${JSON.stringify(lastResult.data).substring(0, 50)}...`}
           </p>
           {processingCard && (
             <p className="text-sm mt-1">Processing card...</p>
+          )}
+          
+          {/* Action buttons */}
+          {lastResult.type === 'customer_card' && (
+            <div className="mt-3 space-y-2">
+              <h3 className="text-sm font-medium text-blue-700 mb-2">{t('Actions')}:</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  onClick={handleGiveReward}
+                  className="bg-green-500 hover:bg-green-600 text-white py-2 px-3 rounded-md text-sm flex items-center justify-center"
+                >
+                  <Award className="w-4 h-4 mr-2" />
+                  {t('Give Reward')}
+                </button>
+                <button
+                  onClick={handleJoinProgram}
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-md text-sm flex items-center justify-center"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  {t('Join Program')}
+                </button>
+                <button
+                  onClick={handleRedeemCode}
+                  className="bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-md text-sm flex items-center justify-center"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  {t('Redeem Code')}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

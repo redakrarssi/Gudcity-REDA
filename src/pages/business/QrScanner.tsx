@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
-  Keyboard, KeyRound, ArrowRight, Settings
+  Keyboard, KeyRound, ArrowRight, Settings, Award, Users
 } from 'lucide-react';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyProgram } from '../../types/loyalty';
@@ -30,6 +30,7 @@ const QrScannerPage = () => {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [pointsToAward, setPointsToAward] = useState<number>(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
 
   // Load previous scan results from localStorage
   useEffect(() => {
@@ -367,10 +368,7 @@ const QrScannerPage = () => {
                   <div className="mt-1 bg-gray-50 p-3 rounded-md text-sm text-gray-800 font-mono overflow-x-auto">
                     {selectedResult.type === 'customer_card' && (
                       <div>
-                        <p><span className="text-gray-500">customerId:</span> {selectedResult.data.customerId}</p>
-                        {selectedResult.data.name && (
-                          <p><span className="text-gray-500">name:</span> {selectedResult.data.name}</p>
-                        )}
+                        <p><span className="text-gray-500">name:</span> {selectedResult.data.name || 'Customer'}</p>
                       </div>
                     )}
                     
@@ -391,10 +389,38 @@ const QrScannerPage = () => {
                   <h3 className="text-sm font-medium text-gray-500 mb-2">{t('Actions')}:</h3>
                   
                   {selectedResult.type === 'customer_card' && (
-                    <button className="w-full mt-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-md text-sm flex items-center justify-center">
-                      <Check className="w-4 h-4 mr-2" />
-                      {t('Award Points')}
-                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button 
+                        onClick={() => {
+                          // Show rewards from /business/promotions
+                          window.location.href = '/business/promotions';
+                        }}
+                        className="bg-green-500 hover:bg-green-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
+                      >
+                        <Award className="w-4 h-4 mr-2" />
+                        {t('Give Reward')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Show programs from /business/programs
+                          window.location.href = '/business/programs';
+                        }}
+                        className="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        {t('Join Program')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Show redeem code interface
+                          setShowRedeemModal(true);
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-md text-sm flex items-center justify-center"
+                      >
+                        <KeyRound className="w-4 h-4 mr-2" />
+                        {t('Redeem Code')}
+                      </button>
+                    </div>
                   )}
                   
                   {selectedResult.type === 'promo_code' && (
@@ -441,7 +467,7 @@ const QrScannerPage = () => {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-2 truncate">
-                    {result.type === 'customer_card' ? `ID: ${result.data.customerId}` :
+                    {result.type === 'customer_card' ? `Customer: ${result.data.name || 'Customer'}` :
                      result.type === 'promo_code' ? `Code: ${result.data.code}` :
                      result.type === 'loyalty_card' ? `Card: ${result.data.cardId}` :
                      `Text: ${typeof result.data.text === 'string' ? result.data.text.substring(0, 20) + (result.data.text.length > 20 ? '...' : '') : 'Unknown'}`}
