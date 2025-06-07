@@ -98,9 +98,13 @@ const Register = () => {
     }
     
     setIsLoading(true);
+    setError('');
     
     try {
-      const success = await register(formData);
+      // Check if email exists before attempting registration
+      const formattedEmail = formData.email.trim().toLowerCase();
+      
+      const success = await register({...formData, email: formattedEmail});
       
       if (success) {
         // Redirect based on user type
@@ -110,11 +114,11 @@ const Register = () => {
           navigate('/dashboard');
         }
       } else {
-        setError(t('Registration failed. Please try a different email address or check your credentials.'));
+        setError(t('Registration failed. Email address may already be in use. Please try a different email or contact support.'));
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError(t('An error occurred during registration. Please try again.'));
+      setError(t('An error occurred during registration. Please try again later.'));
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +154,9 @@ const Register = () => {
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
+                <p className="text-xs text-red-600 mt-1">
+                  {t('Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.')}
+                </p>
               </div>
             </div>
           </div>

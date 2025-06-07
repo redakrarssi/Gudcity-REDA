@@ -5,10 +5,6 @@ import {
   Users, 
   DollarSign, 
   ShoppingBag, 
-  BarChart2, 
-  TrendingUp, 
-  TrendingDown, 
-  Calendar,
   Clock,
   RefreshCw
 } from 'lucide-react';
@@ -35,10 +31,46 @@ interface BusinessAnalyticsProps {
 // Custom colors for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
+// Define interfaces for analytics data
+interface BusinessActivityOverview {
+  allTime: {
+    total_logins: number;
+    unique_users: number;
+    avg_session_duration: number;
+    total_transactions: number;
+    total_revenue: number;
+    total_customers: number;
+  };
+  last30Days: {
+    recent_logins: number;
+    recent_users: number;
+    recent_avg_session: number;
+    recent_transactions: number;
+    recent_revenue: number;
+    recent_customers: number;
+  };
+}
+
+interface LoginHistoryItem {
+  date: string;
+  login_count: number;
+  avg_session_duration: number;
+}
+
+interface AnalyticsItem {
+  date: string;
+  activeCustomers: number;
+  newCustomers: number;
+  totalTransactions: number;
+  revenue: number;
+  customerRetentionRate: number;
+  growthRate: number;
+}
+
 export const BusinessAnalytics: React.FC<BusinessAnalyticsProps> = ({ business }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [overview, setOverview] = useState<any>({
+  const [overview, setOverview] = useState<BusinessActivityOverview>({
     allTime: {
       total_logins: 0,
       unique_users: 0,
@@ -56,8 +88,8 @@ export const BusinessAnalytics: React.FC<BusinessAnalyticsProps> = ({ business }
       recent_customers: 0
     }
   });
-  const [loginHistory, setLoginHistory] = useState<any[]>([]);
-  const [analytics, setAnalytics] = useState<any[]>([]);
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsItem[]>([]);
   const [timeRange, setTimeRange] = useState<'7' | '30' | '90'>('30');
 
   useEffect(() => {
@@ -98,17 +130,6 @@ export const BusinessAnalytics: React.FC<BusinessAnalyticsProps> = ({ business }
 
   const handleTimeRangeChange = (range: '7' | '30' | '90') => {
     setTimeRange(range);
-  };
-  
-  // Helper function to format large numbers
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
-    }
-    return num.toString();
   };
   
   // Helper function to format seconds into readable time

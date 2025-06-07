@@ -18,6 +18,9 @@ const CustomerQrCode = () => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Debug logging to identify user name issue
+  console.log('Current user data in QR code page:', user);
+
   useEffect(() => {
     // Trigger animation after a short delay
     const timer = setTimeout(() => {
@@ -49,6 +52,9 @@ const CustomerQrCode = () => {
     );
   }
 
+  // Ensure we have a valid user name
+  const userName = user.name || t('customer.defaultName', 'Customer');
+
   const handleDownloadQR = async () => {
     setIsDownloading(true);
     try {
@@ -56,7 +62,7 @@ const CustomerQrCode = () => {
         { 
           type: 'customer_card', 
           customerId: user.id, 
-          name: user.name,
+          name: userName,
           timestamp: new Date().toISOString() 
         },
         `qrcode-${user.id}.png`
@@ -131,7 +137,7 @@ const CustomerQrCode = () => {
             
             {/* QR Card */}
             <div className="relative z-10 transform transition-transform duration-500 hover:scale-105">
-              <QRCard userId={user.id.toString()} userName={user.name || ''} />
+              <QRCard userId={user.id.toString()} userName={userName} />
             </div>
             
             {/* Info text */}

@@ -36,15 +36,17 @@ export class CustomerService {
    */
   static async getBusinessCustomers(businessId: string): Promise<Customer[]> {
     try {
-      // Get customers that have interacted with this business via transactions or enrollments
+      // Get customers that have interacted with this business via transactions, enrollments or loyalty cards
       const customers = await sql`
         SELECT DISTINCT c.* 
         FROM customers c
         LEFT JOIN program_enrollments pe ON pe.customer_id = c.id::text
         LEFT JOIN loyalty_programs lp ON lp.id = pe.program_id
         LEFT JOIN loyalty_transactions lt ON lt.customer_id = c.id::text
+        LEFT JOIN loyalty_cards lc ON lc.customer_id = c.id AND lc.business_id = ${businessId}
         WHERE lp.business_id = ${businessId} 
         OR lt.business_id = ${businessId}
+        OR lc.business_id = ${businessId}
         ORDER BY c.name ASC
       `;
       
@@ -52,10 +54,23 @@ export class CustomerService {
         return [];
       }
       
-      // For each customer, fetch their favorite items
-      const customersWithFavorites = await Promise.all(
+      // For each customer, fetch their favorite items and program information
+      const customersWithDetails = await Promise.all(
         customers.map(async (customer: any) => {
           const favoriteItems = await this.getCustomerFavoriteItems(customer.id);
+          
+          // Get customer's loyalty points for this specific business
+          const pointsResult = await sql`
+            SELECT SUM(current_points) as total_points
+            FROM program_enrollments pe
+            JOIN loyalty_programs lp ON pe.program_id = lp.id
+            WHERE pe.customer_id = ${customer.id.toString()}
+            AND lp.business_id = ${businessId}
+          `;
+          
+          const businessPoints = pointsResult.length > 0 ? 
+            parseInt(pointsResult[0].total_points) || 0 : 
+            customer.loyalty_points;
           
           return {
             id: customer.id,
@@ -63,7 +78,7 @@ export class CustomerService {
             name: customer.name,
             email: customer.email,
             tier: customer.tier,
-            loyaltyPoints: customer.loyalty_points,
+            loyaltyPoints: businessPoints,
             totalSpent: parseFloat(customer.total_spent) || 0,
             visits: customer.visits,
             birthday: customer.birthday,
@@ -77,7 +92,7 @@ export class CustomerService {
         })
       );
       
-      return customersWithFavorites;
+      return customersWithDetails;
     } catch (error) {
       console.error('Error fetching business customers:', error);
       return [];
@@ -154,7 +169,8 @@ export class CustomerService {
         LEFT JOIN program_enrollments pe ON pe.customer_id = c.id::text
         LEFT JOIN loyalty_programs lp ON lp.id = pe.program_id
         LEFT JOIN loyalty_transactions lt ON lt.customer_id = c.id::text
-        WHERE (lp.business_id = ${businessId} OR lt.business_id = ${businessId})
+        LEFT JOIN loyalty_cards lc ON lc.customer_id = c.id AND lc.business_id = ${businessId}
+        WHERE (lp.business_id = ${businessId} OR lt.business_id = ${businessId} OR lc.business_id = ${businessId})
         AND (
           c.name ILIKE ${'%' + searchTerm + '%'}
           OR c.email ILIKE ${'%' + searchTerm + '%'}
@@ -166,10 +182,23 @@ export class CustomerService {
         return [];
       }
       
-      // For each customer, fetch their favorite items
-      const customersWithFavorites = await Promise.all(
+      // For each customer, fetch their favorite items and program information
+      const customersWithDetails = await Promise.all(
         customers.map(async (customer: any) => {
           const favoriteItems = await this.getCustomerFavoriteItems(customer.id);
+          
+          // Get customer's loyalty points for this specific business
+          const pointsResult = await sql`
+            SELECT SUM(current_points) as total_points
+            FROM program_enrollments pe
+            JOIN loyalty_programs lp ON pe.program_id = lp.id
+            WHERE pe.customer_id = ${customer.id.toString()}
+            AND lp.business_id = ${businessId}
+          `;
+          
+          const businessPoints = pointsResult.length > 0 ? 
+            parseInt(pointsResult[0].total_points) || 0 : 
+            customer.loyalty_points;
           
           return {
             id: customer.id,
@@ -177,7 +206,7 @@ export class CustomerService {
             name: customer.name,
             email: customer.email,
             tier: customer.tier,
-            loyaltyPoints: customer.loyalty_points,
+            loyaltyPoints: businessPoints,
             totalSpent: parseFloat(customer.total_spent) || 0,
             visits: customer.visits,
             birthday: customer.birthday,
@@ -191,7 +220,7 @@ export class CustomerService {
         })
       );
       
-      return customersWithFavorites;
+      return customersWithDetails;
     } catch (error) {
       console.error('Error searching customers:', error);
       return [];
@@ -260,6 +289,80 @@ export class CustomerService {
     } catch (error) {
       console.error(`Error fetching interactions for customer ${customerId}:`, error);
       return [];
+    }
+  }
+
+  /**
+   * Associate a customer with a business
+   */
+  static async associateCustomerWithBusiness(
+    customerId: string,
+    businessId: string,
+    programId: string
+  ): Promise<boolean> {
+    try {
+      // Check if already associated through program_enrollments
+      const enrollmentCheck = await sql`
+        SELECT id FROM program_enrollments pe
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
+        WHERE pe.customer_id = ${customerId}
+        AND lp.business_id = ${businessId}
+      `;
+      
+      // If no enrollment exists, create one
+      if (enrollmentCheck.length === 0) {
+        await sql`
+          INSERT INTO program_enrollments (
+            program_id,
+            customer_id,
+            current_points,
+            last_activity,
+            enrolled_at
+          ) VALUES (
+            ${programId},
+            ${customerId},
+            0,
+            NOW(),
+            NOW()
+          )
+        `;
+      }
+      
+      // Check if there's any transaction history
+      const transactionCheck = await sql`
+        SELECT COUNT(*) as count 
+        FROM loyalty_transactions
+        WHERE customer_id = ${customerId}
+        AND business_id = ${businessId}
+      `;
+      
+      // If no transaction exists, create an initial one
+      if (transactionCheck.length === 0 || parseInt(transactionCheck[0].count) === 0) {
+        await sql`
+          INSERT INTO loyalty_transactions (
+            program_id,
+            customer_id,
+            business_id,
+            type,
+            points,
+            amount,
+            created_at
+          ) VALUES (
+            ${programId},
+            ${customerId},
+            ${businessId},
+            'ENROLL',
+            0,
+            0,
+            NOW()
+          )
+        `;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error associating customer with business:', error);
+      return false;
     }
   }
 } 

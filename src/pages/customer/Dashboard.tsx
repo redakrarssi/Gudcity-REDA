@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { QRCard } from '../../components/QRCard';
 import { ProgramBrowser } from '../../components/customer/ProgramBrowser';
 import { EnrolledPrograms } from '../../components/customer/EnrolledPrograms';
+import { TransactionHistory } from '../../components/customer/TransactionHistory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee } from 'lucide-react';
+import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee, Receipt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const CustomerDashboard = () => {
@@ -14,11 +15,15 @@ const CustomerDashboard = () => {
   const [activeTab, setActiveTab] = useState('enrolled');
   const [animateIn, setAnimateIn] = useState(false);
   
-  // Use authenticated user data
+  // Use authenticated user data - ensure we're using the full name from the database
   const userData = {
-    id: user?.id.toString() || '',
-    name: user?.name || 'User'
+    id: user?.id?.toString() || '',
+    name: user?.name || t('customerDashboard.defaultName', 'Customer')
   };
+
+  // Debug user data
+  console.log('User data from auth context:', user);
+  console.log('Using name for display:', userData.name);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -102,6 +107,13 @@ const CustomerDashboard = () => {
                     <Search className="w-4 h-4 mr-2" />
                     {t('browsePrograms')}
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="transactions"
+                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
+                  >
+                    <Receipt className="w-4 h-4 mr-2" />
+                    {t('transactions')}
+                  </TabsTrigger>
                 </TabsList>
               </div>
             </div>
@@ -113,6 +125,10 @@ const CustomerDashboard = () => {
 
               <TabsContent value="browse">
                 <ProgramBrowser onEnroll={handleEnroll} />
+              </TabsContent>
+
+              <TabsContent value="transactions">
+                <TransactionHistory customerId={userData.id} />
               </TabsContent>
             </div>
           </Tabs>

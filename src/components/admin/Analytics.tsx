@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  BarChart as BarChartIcon, 
-  TrendingUp, 
   Users, 
   Building,
   CreditCard,
@@ -42,7 +40,7 @@ interface AnalyticsData {
 export const Analytics = () => {
   const { t } = useTranslation();
   const [timeframe, setTimeframe] = useState<'day' | 'week' | 'month' | 'year'>('month');
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [currency] = useState<CurrencyCode>('USD');
   const [data, setData] = useState<AnalyticsData>({
     totalUsers: 0,
     totalBusinesses: 0,

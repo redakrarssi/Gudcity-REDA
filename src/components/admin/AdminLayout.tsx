@@ -165,7 +165,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
     }
-  }, []);
+  }, [darkMode]);
 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();

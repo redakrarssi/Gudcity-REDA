@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -11,14 +9,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
   AreaChart,
   Area
 } from 'recharts';
 import { AnalyticsService } from '../../services/analyticsService';
-import type { AdminAnalytics, RegionalPerformance } from '../../types/analytics';
+import type { AdminAnalytics } from '../../types/analytics';
 import { CurrencySelector } from '../CurrencySelector';
 import type { CurrencyCode } from '../../types/currency';
 import { Users, TrendingUp, DollarSign, Globe, ChevronUp, ChevronDown } from 'lucide-react';

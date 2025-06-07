@@ -33,16 +33,18 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const success = await login(email, password);
+      // Normalize the email to avoid case-sensitivity issues
+      const formattedEmail = email.trim().toLowerCase();
+      const success = await login(formattedEmail, password);
       
       if (success) {
         navigate(from, { replace: true });
       } else {
-        setError(t('Invalid email or password'));
+        setError(t('Invalid email or password. Please check your credentials and try again.'));
       }
     } catch (err) {
-      setError(t('An error occurred during login. Please try again.'));
-      console.error(err);
+      console.error('Login error:', err);
+      setError(t('An error occurred during login. Please try again later.'));
     } finally {
       setIsLoading(false);
     }
@@ -84,6 +86,9 @@ const Login = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    {t('If you continue to experience issues, try using one of the demo accounts above.')}
+                  </p>
                 </div>
               </div>
             </div>

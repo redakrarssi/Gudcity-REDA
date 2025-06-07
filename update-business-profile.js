@@ -1,1 +1,64 @@
-const { Pool } = require('@neondatabase/serverless');\n\n// Database connection\nconst pool = new Pool({\n  connectionString: \"postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require\",\n  ssl: true\n});\n\nasync function main() {\n  try {\n    // Get a test business ID\n    const businessResult = await pool.query(\"SELECT id FROM users WHERE user_type = 'business' LIMIT 1\");\n    if (businessResult.rows.length === 0) {\n      console.log('No business users found');\n      return;\n    }\n    \n    const businessId = businessResult.rows[0].id;\n    console.log(`Found business ID: ${businessId}`);\n    \n    // Get current profile data\n    const profileBefore = await pool.query(\n      \"SELECT * FROM business_profile WHERE business_id = $1\", \n      [businessId]\n    );\n    \n    if (profileBefore.rows.length === 0) {\n      console.log('No profile found for this business');\n      return;\n    }\n    \n    console.log('Current profile data:');\n    console.log(JSON.stringify(profileBefore.rows[0], null, 2));\n    \n    // Update the name directly\n    const newName = 'Updated Test Business ' + new Date().toISOString();\n    console.log(`Updating name to: ${newName}`);\n    \n    const updateResult = await pool.query(\n      \"UPDATE business_profile SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE business_id = $2 RETURNING id, business_id, name\", \n      [newName, businessId]\n    );\n    \n    console.log('Update result:');\n    console.log(JSON.stringify(updateResult.rows[0], null, 2));\n    \n    // Get updated profile data\n    const profileAfter = await pool.query(\n      \"SELECT * FROM business_profile WHERE business_id = $1\", \n      [businessId]\n    );\n    \n    console.log('Updated profile data:');\n    console.log(JSON.stringify(profileAfter.rows[0], null, 2));\n    \n    console.log('\\nUpdate complete!');\n  } catch (error) {\n    console.error('Error updating business profile:', error);\n  } finally {\n    await pool.end();\n  }\n}\n\nmain(); 
+const { Pool } = require('@neondatabase/serverless');
+
+// Database connection
+const pool = new Pool({
+  connectionString: "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require",
+  ssl: true
+});
+
+async function main() {
+  try {
+    // Get a test business ID
+    const businessResult = await pool.query("SELECT id FROM users WHERE user_type = 'business' LIMIT 1");
+    if (businessResult.rows.length === 0) {
+      console.log('No business users found');
+      return;
+    }
+    
+    const businessId = businessResult.rows[0].id;
+    console.log(`Found business ID: ${businessId}`);
+    
+    // Get current profile data
+    const profileBefore = await pool.query(
+      "SELECT * FROM business_profile WHERE business_id = $1", 
+      [businessId]
+    );
+    
+    if (profileBefore.rows.length === 0) {
+      console.log('No profile found for this business');
+      return;
+    }
+    
+    console.log('Current profile data:');
+    console.log(JSON.stringify(profileBefore.rows[0], null, 2));
+    
+    // Update the name directly
+    const newName = 'Updated Test Business ' + new Date().toISOString();
+    console.log(`Updating name to: ${newName}`);
+    
+    const updateResult = await pool.query(
+      "UPDATE business_profile SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE business_id = $2 RETURNING id, business_id, name", 
+      [newName, businessId]
+    );
+    
+    console.log('Update result:');
+    console.log(JSON.stringify(updateResult.rows[0], null, 2));
+    
+    // Get updated profile data
+    const profileAfter = await pool.query(
+      "SELECT * FROM business_profile WHERE business_id = $1", 
+      [businessId]
+    );
+    
+    console.log('Updated profile data:');
+    console.log(JSON.stringify(profileAfter.rows[0], null, 2));
+    
+    console.log('\nUpdate complete!');
+  } catch (error) {
+    console.error('Error updating business profile:', error);
+  } finally {
+    await pool.end();
+  }
+}
+
+main(); 

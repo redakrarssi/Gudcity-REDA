@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
-import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, ArrowUpDown, MessageSquare, Coffee } from 'lucide-react';
+import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, ArrowUpDown, MessageSquare, Coffee, Link, UserPlus } from 'lucide-react';
 import { CustomerService, Customer } from '../../services/customerService';
 import { useAuth } from '../../contexts/AuthContext';
+import { CustomerBusinessLinker } from '../../components/business/CustomerBusinessLinker';
 
 // Mock customer data
 const mockCustomers = [
@@ -128,6 +129,7 @@ const CustomersPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showBirthdayConfetti, setShowBirthdayConfetti] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
+  const [showLinkCustomers, setShowLinkCustomers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -251,8 +253,38 @@ const CustomersPage = () => {
     }
   };
 
+  const handleRefreshCustomers = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Use the business ID from the logged-in user
+      const businessId = user?.id.toString() || '';
+      const customersData = await CustomerService.getBusinessCustomers(businessId);
+      setCustomers(customersData);
+      setFilteredCustomers(customersData);
+    } catch (err) {
+      console.error('Error loading customers:', err);
+      setError(t('Failed to load customers. Please try again.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <BusinessLayout>
+      <div className="px-4 py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">{t('Customers')}</h1>
+          <button
+            onClick={() => setShowLinkCustomers(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
+          >
+            <UserPlus className="w-5 h-5 mr-2" />
+            {t('Link Customers')}
+          </button>
+        </div>
+
       <div className="space-y-6">
         {error && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
@@ -572,6 +604,34 @@ const CustomersPage = () => {
           </div>
         </div>
       )}
+
+        {/* Customer Business Linker Modal */}
+        {showLinkCustomers && (
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-3xl sm:w-full">
+              <div className="absolute top-0 right-0 pt-4 pr-4">
+                <button
+                  onClick={() => setShowLinkCustomers(false)}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                >
+                  <span className="sr-only">{t('Close')}</span>
+                  <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-4">
+                <CustomerBusinessLinker 
+                  onSuccess={() => {
+                    setShowLinkCustomers(false);
+                    handleRefreshCustomers();
+                  }} 
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </BusinessLayout>
   );
 };

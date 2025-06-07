@@ -1,1 +1,80 @@
-import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);\nimport { Pool } from '@neondatabase/serverless';\n\n// Directly set the database URL\nconst DATABASE_URL = \"postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require\";\n\n// Create a database connection\nconst pool = new Pool({\n  connectionString: DATABASE_URL,\n  ssl: true\n});\n\nasync function main() {\n  try {\n    console.log('Starting business settings fix...');\n    \n    // Check the business_profile table structure\n    const profileColumns = await pool.query(`\n      SELECT column_name, data_type\n      FROM information_schema.columns\n      WHERE table_name = 'business_profile'\n      ORDER BY ordinal_position\n    `);\n    \n    console.log('Business profile table columns:');\n    profileColumns.rows.forEach(col => {\n      console.log(`${col.column_name} (${col.data_type})`);\n    });\n    \n    // Check if there are any syntax issues in the businessSettingsService.ts\n    console.log('\\nChecking for any business settings update issues...');\n    \n    // Get the business profiles\n    const profiles = await pool.query(`\n      SELECT bp.*, u.business_name, u.name as user_name\n      FROM business_profile bp\n      JOIN users u ON bp.business_id = u.id\n      LIMIT 5\n    `);\n    \n    console.log('\\nSample business profiles:');\n    console.log(JSON.stringify(profiles.rows, null, 2));\n    \n    // Fix any issues with the business_profile table\n    console.log('\\nFixing business settings...');\n    \n    // Update the business_profile table to ensure name field is set correctly\n    const updateResult = await pool.query(`\n      UPDATE business_profile bp\n      SET name = u.business_name\n      FROM users u\n      WHERE bp.business_id = u.id AND u.business_name IS NOT NULL AND bp.name IS NULL\n      RETURNING bp.business_id, bp.name\n    `);\n    \n    console.log(`Updated ${updateResult.rowCount} business profiles with missing names`);\n    \n    if (updateResult.rowCount > 0) {\n      console.log('Updated profiles:');\n      console.log(JSON.stringify(updateResult.rows, null, 2));\n    }\n    \n    // Check for any syntax issues in the code\n    console.log('\\nChecking for issues in the businessSettingsService.ts file...');\n    console.log('The issue might be related to the SQL template literals or escape characters.');\n    console.log('\\nRecommendations:');\n    console.log('1. Remove any escape characters (\\\\) in the SQL template literals');\n    console.log('2. Ensure the column names match exactly with the database schema');\n    console.log('3. Check for proper closing of template literals and parentheses');\n    \n    console.log('\\nFix complete!');\n  } catch (error) {\n    console.error('Error fixing business settings:', error);\n  } finally {\n    await pool.end();\n  }\n}\n\nmain(); 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+import { Pool } from '@neondatabase/serverless';
+
+// Directly set the database URL
+const DATABASE_URL = "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+
+// Create a database connection
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: true
+});
+
+async function main() {
+  try {
+    console.log('Starting business settings fix...');
+    
+    // Check the business_profile table structure
+    const profileColumns = await pool.query(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'business_profile'
+      ORDER BY ordinal_position
+    `);
+    
+    console.log('Business profile table columns:');
+    profileColumns.rows.forEach(col => {
+      console.log(`${col.column_name} (${col.data_type})`);
+    });
+    
+    // Check if there are any syntax issues in the businessSettingsService.ts
+    console.log('\nChecking for any business settings update issues...');
+    
+    // Get the business profiles
+    const profiles = await pool.query(`
+      SELECT bp.*, u.business_name, u.name as user_name
+      FROM business_profile bp
+      JOIN users u ON bp.business_id = u.id
+      LIMIT 5
+    `);
+    
+    console.log('\nSample business profiles:');
+    console.log(JSON.stringify(profiles.rows, null, 2));
+    
+    // Fix any issues with the business_profile table
+    console.log('\nFixing business settings...');
+    
+    // Update the business_profile table to ensure name field is set correctly
+    const updateResult = await pool.query(`
+      UPDATE business_profile bp
+      SET name = u.business_name
+      FROM users u
+      WHERE bp.business_id = u.id AND u.business_name IS NOT NULL AND bp.name IS NULL
+      RETURNING bp.business_id, bp.name
+    `);
+    
+    console.log(`Updated ${updateResult.rowCount} business profiles with missing names`);
+    
+    if (updateResult.rowCount > 0) {
+      console.log('Updated profiles:');
+      console.log(JSON.stringify(updateResult.rows, null, 2));
+    }
+    
+    // Check for any syntax issues in the code
+    console.log('\nChecking for issues in the businessSettingsService.ts file...');
+    console.log('The issue might be related to the SQL template literals or escape characters.');
+    console.log('\nRecommendations:');
+    console.log('1. Remove any escape characters (\\) in the SQL template literals');
+    console.log('2. Ensure the column names match exactly with the database schema');
+    console.log('3. Check for proper closing of template literals and parentheses');
+    
+    console.log('\nFix complete!');
+  } catch (error) {
+    console.error('Error fixing business settings:', error);
+  } finally {
+    await pool.end();
+  }
+}
+
+main(); 

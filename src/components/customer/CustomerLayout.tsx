@@ -14,6 +14,7 @@ import {
   Menu
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -70,9 +71,12 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
-        <div className="p-6">
-          <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
-          <p className="text-sm text-gray-500 mt-1">{t('Rewards')}</p>
+        <div className="p-6 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
+            <p className="text-sm text-gray-500 mt-1">{t('Rewards')}</p>
+          </div>
+          <ThemeToggle variant="icon" />
         </div>
 
         <nav className="flex-1 px-4 pb-4 space-y-1">
@@ -116,6 +120,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
           <div className="flex items-center justify-between p-4">
             <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
             <div className="flex items-center">
+              <ThemeToggle variant="icon" className="mr-2" />
               <button className="p-1 mr-2 text-gray-600">
                 <Bell className="w-6 h-6" />
               </button>

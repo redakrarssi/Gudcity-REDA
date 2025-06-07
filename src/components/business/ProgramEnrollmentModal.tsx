@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Check, X, AlertCircle, Search } from 'lucide-react';
+import { Users, Check, X, AlertCircle, Search, Award } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyProgram } from '../../types/loyalty';
+import { Confetti } from '../ui/Confetti';
 
 interface ProgramEnrollmentModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,16 +68,38 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
       );
 
       if (result && result.success) {
-        setSuccess(`Successfully enrolled ${customerName} in the program!`);
+        // Get the selected program details for the success message
+        const program = programs.find(p => p.id === selectedProgramId);
+        const programName = program ? program.name : 'the program';
+        
+        setSuccess(`Successfully enrolled ${customerName} in ${programName}!`);
         setSelectedProgramId(null);
+        setShowConfetti(true);
+        
+        // Hide confetti after a few seconds
+        setTimeout(() => {
+          setShowConfetti(false);
+        }, 3000);
       } else {
         setError(result?.error || 'Failed to enroll customer');
+        playErrorSound();
       }
     } catch (err) {
       setError('An unexpected error occurred');
       console.error('Error enrolling customer:', err);
+      playErrorSound();
     } finally {
       setIsProcessing(false);
+    }
+  };
+  
+  const playErrorSound = () => {
+    try {
+      const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3');
+      audio.volume = 0.5;
+      audio.play();
+    } catch (error) {
+      console.error('Error playing error sound:', error);
     }
   };
 
@@ -87,16 +111,19 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6 relative overflow-hidden">
+        {/* Confetti animation */}
+        <Confetti active={showConfetti} count={50} duration={3000} />
+        
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-semibold flex items-center">
-            <Users className="w-5 h-5 text-blue-500 mr-2" />
+            <Users className={`w-5 h-5 text-blue-500 mr-2 ${showConfetti ? 'animate-pulse' : ''}`} />
             {t('Enroll in Loyalty Program')}
           </h3>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -108,14 +135,14 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
         </div>
 
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg flex items-center">
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg flex items-center animate-shake">
             <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg flex items-center">
+          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg flex items-center animate-fadeIn">
             <Check className="w-5 h-5 mr-2 flex-shrink-0" />
             <span>{success}</span>
           </div>
@@ -129,7 +156,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
               placeholder={t('Search programs...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full py-2 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="pl-10 w-full py-2 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-shadow"
             />
           </div>
         </div>
@@ -144,7 +171,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
             <p className="text-sm text-gray-500 mt-2">{t('Create a loyalty program first')}</p>
           </div>
         ) : (
-          <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 rounded-lg">
+          <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 rounded-lg shadow-sm">
             {filteredPrograms.length === 0 ? (
               <div className="p-4 text-center">
                 <p className="text-gray-500">{t('No matching programs found')}</p>
@@ -162,10 +189,16 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
                     <div>
                       <h4 className="font-medium text-gray-900">{program.name}</h4>
                       <p className="text-sm text-gray-600 mt-0.5">{program.description}</p>
-                      <div className="flex items-center mt-1">
+                      <div className="flex items-center mt-1 space-x-2">
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
                           {t(program.type)}
                         </span>
+                        {program.rewardTiers && program.rewardTiers.length > 0 && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center">
+                            <Award className="w-3 h-3 mr-1" />
+                            {program.rewardTiers.length} {program.rewardTiers.length === 1 ? t('Reward') : t('Rewards')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {selectedProgramId === program.id && (
@@ -181,7 +214,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
         <div className="flex justify-end space-x-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors shadow-sm"
             disabled={isProcessing}
           >
             {t('Cancel')}
@@ -189,7 +222,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
           <button
             onClick={handleEnrollCustomer}
             disabled={!selectedProgramId || isProcessing}
-            className={`px-4 py-2 bg-blue-500 text-white rounded-lg transition-colors flex items-center ${
+            className={`px-4 py-2 bg-blue-500 text-white rounded-lg transition-colors flex items-center shadow-sm hover:shadow-md ${
               !selectedProgramId || isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'
             }`}
           >

@@ -10,7 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Allow .env.local while ignoring other .local files
 *.local
+!.env.local
 
 # Editor directories and files
 .vscode/*

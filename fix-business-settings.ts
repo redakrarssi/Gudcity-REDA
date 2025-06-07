@@ -1,2 +1,486 @@
-import sql from '../src/utils/db';\n\n// Types for business settings\nexport interface BusinessHours {\n  [key: string]: {\n    open: string;\n    close: string;\n    isClosed: boolean;\n  };\n}\n\nexport interface PaymentSettings {\n  acceptsCard: boolean;\n  acceptsCash: boolean;\n  acceptsOnline: boolean;\n  serviceFeePercent: number;\n}\n\nexport interface LoyaltySettings {\n  pointsPerDollar: number;\n  pointsExpiryDays: number;\n  minimumPointsRedemption: number;\n  welcomeBonus: number;\n}\n\nexport interface NotificationSettings {\n  email: boolean;\n  push: boolean;\n  sms: boolean;\n  customerActivity: boolean;\n  promotionStats: boolean;\n  systemUpdates: boolean;\n}\n\nexport interface Integrations {\n  pos: boolean;\n  accounting: boolean;\n  marketing: boolean;\n  crm: boolean;\n}\n\nexport interface BusinessSettings {\n  id: number;\n  businessId: number;\n  name: string;\n  phone: string;\n  email: string; \n  address: string;\n  businessName: string;\n  description: string;\n  website: string;\n  logo: string;\n  language: string;\n  country: string;\n  currency: string;\n  timezone: string;\n  taxId: string;\n  businessHours: BusinessHours;\n  paymentSettings: PaymentSettings;\n  loyaltySettings: LoyaltySettings;\n  notificationSettings: NotificationSettings;\n  integrations: Integrations;\n  createdAt: string;\n  updatedAt: string;\n}\n\n// Map our internal field names to the actual database column names\nconst DB_FIELD_MAP = {\n  name: 'business_name',\n  businessName: 'business_name',\n  phone: 'phone',\n  email: 'email',\n  address: 'address_line1',\n  description: 'description',\n  website: 'website_url',\n  logo: 'logo_url',\n  country: 'country',\n  currency: 'currency',\n  city: 'city',\n  state: 'state',\n  zip: 'zip'\n};\n\nexport class BusinessSettingsService {\n  /**\n   * Get settings for a specific business\n   */\n  static async getBusinessSettings(businessId: string | number): Promise<BusinessSettings | null> {\n    try {\n      const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;\n      \n      // First get business profile data\n      const profileResult = await sql`\n        SELECT * FROM business_profile \n        WHERE business_id = ${businessIdNum}\n      `;\n      \n      // If no profile found, check if user exists first\n      if (profileResult.length === 0) {\n        const userResult = await sql`\n          SELECT id, name, email, business_name, business_phone FROM users\n          WHERE id = ${businessIdNum}\n        `;\n        \n        if (userResult.length === 0) {\n          console.error(`No user found with ID: ${businessId}`);\n          return null;\n        }\n        \n        const user = userResult[0];\n        \n        // Create basic profile if user exists\n        await sql`\n          INSERT INTO business_profile (\n            business_id,\n            name,\n            email,\n            phone\n          ) VALUES (\n            ${businessIdNum},\n            ${user.name},\n            ${user.email},\n            ${user.business_phone || ''}\n          )\n        `;\n        \n        // Fetch the newly created profile\n        const newResult = await sql`\n          SELECT * FROM business_profile \n          WHERE business_id = ${businessIdNum}\n        `;\n        \n        if (newResult.length > 0) {\n          profileResult[0] = newResult[0];\n        }\n      }\n      \n      // Now get business settings from business_settings table\n      let businessSettings = null;\n      \n      try {\n        // Check if business_settings table exists\n        const tableExists = await sql`\n          SELECT EXISTS (\n            SELECT FROM information_schema.tables \n            WHERE table_schema = 'public' \n            AND table_name = 'business_settings'\n          ) as exists\n        `;\n        \n        if (tableExists[0]?.exists) {\n          // Get settings\n          const settingsResult = await sql`\n            SELECT * FROM business_settings\n            WHERE business_id = ${businessIdNum}\n          `;\n          \n          if (settingsResult.length > 0) {\n            businessSettings = settingsResult[0];\n          } else {\n            // Create default settings\n            await sql`\n              INSERT INTO business_settings (\n                business_id,\n                points_per_dollar,\n                points_expiry_days,\n                minimum_points_redemption,\n                welcome_bonus\n              ) VALUES (\n                ${businessIdNum},\n                10,\n                365,\n                100,\n                50\n              )\n              ON CONFLICT (business_id) DO NOTHING\n            `;\n            \n            // Fetch newly created settings\n            const newSettingsResult = await sql`\n              SELECT * FROM business_settings\n              WHERE business_id = ${businessIdNum}\n            `;\n            \n            if (newSettingsResult.length > 0) {\n              businessSettings = newSettingsResult[0];\n            }\n          }\n        }\n      } catch (e) {\n        console.error('Error fetching business_settings:', e);\n      }\n      \n      // Get user data as fallback for missing fields\n      const userResult = await sql`\n        SELECT * FROM users\n        WHERE id = ${businessIdNum}\n      `;\n      \n      const user = userResult.length > 0 ? userResult[0] : null;\n      \n      // Combine all data into a single settings object\n      const profile = profileResult.length > 0 ? profileResult[0] : null;\n      \n      return this.combineSettingsData(profile, businessSettings, user);\n    } catch (error) {\n      console.error('Error getting business settings:', error);\n      return null;\n    }\n  }\n\n  /**\n   * Update business settings\n   */\n  static async updateBusinessSettings(\n    businessId: string | number, \n    settings: Partial<BusinessSettings>\n  ): Promise<BusinessSettings | null> {\n    try {\n      const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;\n      \n      console.log('Updating business settings for ID:', businessIdNum);\n      console.log('Settings to update:', JSON.stringify(settings, null, 2));\n      \n      // First, make sure we have a business_profile entry\n      const profileResult = await sql`\n        SELECT id, name FROM business_profile\n        WHERE business_id = ${businessIdNum}\n      `;\n      \n      console.log('Current profile data:', JSON.stringify(profileResult, null, 2));\n      \n      if (profileResult.length === 0) {\n        // Create profile if it doesn't exist\n        const userResult = await sql`\n          SELECT id, name, email, business_name, business_phone FROM users\n          WHERE id = ${businessIdNum}\n        `;\n        \n        if (userResult.length === 0) {\n          console.error(`No user found with ID: ${businessId}`);\n          return null;\n        }\n        \n        const user = userResult[0];\n        \n        await sql`\n          INSERT INTO business_profile (\n            business_id,\n            name,\n            email,\n            phone\n          ) VALUES (\n            ${businessIdNum},\n            ${user.name},\n            ${user.email},\n            ${user.business_phone || ''}\n          )\n        `;\n      }\n      \n      // Update business_profile table\n      if (settings.name || settings.businessName || settings.phone || settings.email || \n          settings.address || settings.description || settings.website || settings.logo ||\n          settings.language || settings.country || settings.currency || settings.timezone || \n          settings.taxId) {\n        \n        // Get the name value to update\n        const nameValue = settings.name || settings.businessName;\n        \n        // Update business profile fields\n        await sql`\n          UPDATE business_profile SET\n            name = COALESCE(${nameValue}, name),\n            phone = COALESCE(${settings.phone}, phone),\n            address = COALESCE(${settings.address}, address),\n            language = COALESCE(${settings.language}, language),\n            country = COALESCE(${settings.country}, country),\n            currency = COALESCE(${settings.currency}, currency),\n            timezone = COALESCE(${settings.timezone}, timezone),\n            tax_id = COALESCE(${settings.taxId}, tax_id),\n            updated_at = CURRENT_TIMESTAMP\n          WHERE business_id = ${businessIdNum}\n        `;\n      }\n      \n      // Update business hours if provided\n      if (settings.businessHours) {\n        await sql`\n          UPDATE business_profile SET\n            business_hours = ${JSON.stringify(settings.businessHours)},\n            updated_at = CURRENT_TIMESTAMP\n          WHERE business_id = ${businessIdNum}\n        `;\n      }\n      \n      // Update payment settings if provided\n      if (settings.paymentSettings) {\n        await sql`\n          UPDATE business_profile SET\n            payment_settings = ${JSON.stringify(settings.paymentSettings)},\n            updated_at = CURRENT_TIMESTAMP\n          WHERE business_id = ${businessIdNum}\n        `;\n      }\n      \n      // Update notification settings if provided\n      if (settings.notificationSettings) {\n        await sql`\n          UPDATE business_profile SET\n            notification_settings = ${JSON.stringify(settings.notificationSettings)},\n            updated_at = CURRENT_TIMESTAMP\n          WHERE business_id = ${businessIdNum}\n        `;\n      }\n      \n      // Update integrations if provided\n      if (settings.integrations) {\n        await sql`\n          UPDATE business_profile SET\n            integrations = ${JSON.stringify(settings.integrations)},\n            updated_at = CURRENT_TIMESTAMP\n          WHERE business_id = ${businessIdNum}\n        `;\n      }\n      \n      // Check if business_settings table exists and update loyalty settings\n      if (settings.loyaltySettings) {\n        try {\n          const tableExists = await sql`\n            SELECT EXISTS (\n              SELECT FROM information_schema.tables \n              WHERE table_schema = 'public' \n              AND table_name = 'business_settings'\n            ) as exists\n          `;\n          \n          if (tableExists[0]?.exists) {\n            // Check if entry exists\n            const settingsExists = await sql`\n              SELECT id FROM business_settings\n              WHERE business_id = ${businessIdNum}\n            `;\n            \n            if (settingsExists.length > 0) {\n              // Update existing settings\n              await sql`\n                UPDATE business_settings SET\n                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},\n                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},\n                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},\n                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},\n                  updated_at = CURRENT_TIMESTAMP\n                WHERE business_id = ${businessIdNum}\n              `;\n            } else {\n              // Insert new settings\n              await sql`\n                INSERT INTO business_settings (\n                  business_id,\n                  points_per_dollar,\n                  points_expiry_days,\n                  minimum_points_redemption,\n                  welcome_bonus\n                ) VALUES (\n                  ${businessIdNum},\n                  ${settings.loyaltySettings.pointsPerDollar},\n                  ${settings.loyaltySettings.pointsExpiryDays},\n                  ${settings.loyaltySettings.minimumPointsRedemption},\n                  ${settings.loyaltySettings.welcomeBonus}\n                )\n                ON CONFLICT (business_id) DO UPDATE SET\n                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},\n                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},\n                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},\n                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},\n                  updated_at = CURRENT_TIMESTAMP\n              `;\n            }\n          }\n        } catch (e) {\n          console.error('Error updating loyalty settings:', e);\n        }\n      }\n      \n      // Get the updated settings\n      return await this.getBusinessSettings(businessId);\n    } catch (error) {\n      console.error('Error updating business settings:', error);\n      return null;\n    }\n  }\n  \n  /**\n   * Combine data from different sources into a single settings object\n   */\n  private static combineSettingsData(\n    profile: any, \n    businessSettings: any, \n    user: any\n  ): BusinessSettings {\n    // Default values\n    const defaultBusinessHours: BusinessHours = {\n      monday: { open: \"09:00\", close: \"17:00\", isClosed: false },\n      tuesday: { open: \"09:00\", close: \"17:00\", isClosed: false },\n      wednesday: { open: \"09:00\", close: \"17:00\", isClosed: false },\n      thursday: { open: \"09:00\", close: \"17:00\", isClosed: false },\n      friday: { open: \"09:00\", close: \"17:00\", isClosed: false },\n      saturday: { open: \"10:00\", close: \"14:00\", isClosed: false },\n      sunday: { open: \"00:00\", close: \"00:00\", isClosed: true }\n    };\n    \n    const defaultPaymentSettings: PaymentSettings = {\n      acceptsCard: true,\n      acceptsCash: true,\n      acceptsOnline: false,\n      serviceFeePercent: 0\n    };\n    \n    const defaultLoyaltySettings: LoyaltySettings = {\n      pointsPerDollar: 10,\n      pointsExpiryDays: 365,\n      minimumPointsRedemption: 100,\n      welcomeBonus: 50\n    };\n    \n    const defaultNotificationSettings: NotificationSettings = {\n      email: true,\n      push: true,\n      sms: false,\n      customerActivity: true,\n      promotionStats: true,\n      systemUpdates: true\n    };\n    \n    const defaultIntegrations: Integrations = {\n      pos: false,\n      accounting: false,\n      marketing: false,\n      crm: false\n    };\n    \n    // Extract loyalty settings from business_settings if available\n    let loyaltySettings = { ...defaultLoyaltySettings };\n    if (businessSettings) {\n      loyaltySettings = {\n        pointsPerDollar: parseFloat(businessSettings.points_per_dollar) || defaultLoyaltySettings.pointsPerDollar,\n        pointsExpiryDays: businessSettings.points_expiry_days || defaultLoyaltySettings.pointsExpiryDays,\n        minimumPointsRedemption: businessSettings.minimum_points_redemption || defaultLoyaltySettings.minimumPointsRedemption,\n        welcomeBonus: businessSettings.welcome_bonus || defaultLoyaltySettings.welcomeBonus\n      };\n    }\n    \n    // Extract from profile or use defaults\n    const businessHours = profile?.business_hours || defaultBusinessHours;\n    const paymentSettings = profile?.payment_settings || defaultPaymentSettings;\n    const notificationSettings = profile?.notification_settings || defaultNotificationSettings;\
-    const integrations = profile?.integrations || defaultIntegrations;\n    \n    // Return combined data\n    return {\n      id: profile?.id || 0,\n      businessId: user?.id || (profile?.business_id || 0),\n      name: user?.name || profile?.name || '',\n      businessName: user?.business_name || profile?.name || '',\n      phone: profile?.phone || user?.business_phone || '',\n      email: profile?.email || user?.email || '',\n      address: profile?.address || '',\n      description: profile?.description || '',\n      website: profile?.website || '',\n      logo: profile?.logo || '',\n      language: profile?.language || 'en',\n      country: profile?.country || '',\n      currency: profile?.currency || 'USD',\n      timezone: profile?.timezone || 'UTC',\n      taxId: profile?.tax_id || '',\n      businessHours,\n      paymentSettings,\n      loyaltySettings,\n      notificationSettings,\n      integrations,\n      createdAt: profile?.created_at || new Date().toISOString(),\n      updatedAt: profile?.updated_at || new Date().toISOString()\n    };\n  }\n} 
+import sql from '../src/utils/db';
+
+// Types for business settings
+export interface BusinessHours {
+  [key: string]: {
+    open: string;
+    close: string;
+    isClosed: boolean;
+  };
+}
+
+export interface PaymentSettings {
+  acceptsCard: boolean;
+  acceptsCash: boolean;
+  acceptsOnline: boolean;
+  serviceFeePercent: number;
+}
+
+export interface LoyaltySettings {
+  pointsPerDollar: number;
+  pointsExpiryDays: number;
+  minimumPointsRedemption: number;
+  welcomeBonus: number;
+}
+
+export interface NotificationSettings {
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+  customerActivity: boolean;
+  promotionStats: boolean;
+  systemUpdates: boolean;
+}
+
+export interface Integrations {
+  pos: boolean;
+  accounting: boolean;
+  marketing: boolean;
+  crm: boolean;
+}
+
+export interface BusinessSettings {
+  id: number;
+  businessId: number;
+  name: string;
+  phone: string;
+  email: string; 
+  address: string;
+  businessName: string;
+  description: string;
+  website: string;
+  logo: string;
+  language: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  taxId: string;
+  businessHours: BusinessHours;
+  paymentSettings: PaymentSettings;
+  loyaltySettings: LoyaltySettings;
+  notificationSettings: NotificationSettings;
+  integrations: Integrations;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Map our internal field names to the actual database column names
+const DB_FIELD_MAP = {
+  name: 'business_name',
+  businessName: 'business_name',
+  phone: 'phone',
+  email: 'email',
+  address: 'address_line1',
+  description: 'description',
+  website: 'website_url',
+  logo: 'logo_url',
+  country: 'country',
+  currency: 'currency',
+  city: 'city',
+  state: 'state',
+  zip: 'zip'
+};
+
+export class BusinessSettingsService {
+  /**
+   * Get settings for a specific business
+   */
+  static async getBusinessSettings(businessId: string | number): Promise<BusinessSettings | null> {
+    try {
+      const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
+      
+      // First get business profile data
+      const profileResult = await sql`
+        SELECT * FROM business_profile 
+        WHERE business_id = ${businessIdNum}
+      `;
+      
+      // If no profile found, check if user exists first
+      if (profileResult.length === 0) {
+        const userResult = await sql`
+          SELECT id, name, email, business_name, business_phone FROM users
+          WHERE id = ${businessIdNum}
+        `;
+        
+        if (userResult.length === 0) {
+          console.error(`No user found with ID: ${businessId}`);
+          return null;
+        }
+        
+        const user = userResult[0];
+        
+        // Create basic profile if user exists
+        await sql`
+          INSERT INTO business_profile (
+            business_id,
+            name,
+            email,
+            phone
+          ) VALUES (
+            ${businessIdNum},
+            ${user.name},
+            ${user.email},
+            ${user.business_phone || ''}
+          )
+        `;
+        
+        // Fetch the newly created profile
+        const newResult = await sql`
+          SELECT * FROM business_profile 
+          WHERE business_id = ${businessIdNum}
+        `;
+        
+        if (newResult.length > 0) {
+          profileResult[0] = newResult[0];
+        }
+      }
+      
+      // Now get business settings from business_settings table
+      let businessSettings = null;
+      
+      try {
+        // Check if business_settings table exists
+        const tableExists = await sql`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'business_settings'
+          ) as exists
+        `;
+        
+        if (tableExists[0]?.exists) {
+          // Get settings
+          const settingsResult = await sql`
+            SELECT * FROM business_settings
+            WHERE business_id = ${businessIdNum}
+          `;
+          
+          if (settingsResult.length > 0) {
+            businessSettings = settingsResult[0];
+          } else {
+            // Create default settings
+            await sql`
+              INSERT INTO business_settings (
+                business_id,
+                points_per_dollar,
+                points_expiry_days,
+                minimum_points_redemption,
+                welcome_bonus
+              ) VALUES (
+                ${businessIdNum},
+                10,
+                365,
+                100,
+                50
+              )
+              ON CONFLICT (business_id) DO NOTHING
+            `;
+            
+            // Fetch newly created settings
+            const newSettingsResult = await sql`
+              SELECT * FROM business_settings
+              WHERE business_id = ${businessIdNum}
+            `;
+            
+            if (newSettingsResult.length > 0) {
+              businessSettings = newSettingsResult[0];
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching business_settings:', e);
+      }
+      
+      // Get user data as fallback for missing fields
+      const userResult = await sql`
+        SELECT * FROM users
+        WHERE id = ${businessIdNum}
+      `;
+      
+      const user = userResult.length > 0 ? userResult[0] : null;
+      
+      // Combine all data into a single settings object
+      const profile = profileResult.length > 0 ? profileResult[0] : null;
+      
+      return this.combineSettingsData(profile, businessSettings, user);
+    } catch (error) {
+      console.error('Error getting business settings:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update business settings
+   */
+  static async updateBusinessSettings(
+    businessId: string | number, 
+    settings: Partial<BusinessSettings>
+  ): Promise<BusinessSettings | null> {
+    try {
+      const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
+      
+      console.log('Updating business settings for ID:', businessIdNum);
+      console.log('Settings to update:', JSON.stringify(settings, null, 2));
+      
+      // First, make sure we have a business_profile entry
+      const profileResult = await sql`
+        SELECT id, name FROM business_profile
+        WHERE business_id = ${businessIdNum}
+      `;
+      
+      console.log('Current profile data:', JSON.stringify(profileResult, null, 2));
+      
+      if (profileResult.length === 0) {
+        // Create profile if it doesn't exist
+        const userResult = await sql`
+          SELECT id, name, email, business_name, business_phone FROM users
+          WHERE id = ${businessIdNum}
+        `;
+        
+        if (userResult.length === 0) {
+          console.error(`No user found with ID: ${businessId}`);
+          return null;
+        }
+        
+        const user = userResult[0];
+        
+        await sql`
+          INSERT INTO business_profile (
+            business_id,
+            name,
+            email,
+            phone
+          ) VALUES (
+            ${businessIdNum},
+            ${user.name},
+            ${user.email},
+            ${user.business_phone || ''}
+          )
+        `;
+      }
+      
+      // Update business_profile table
+      if (settings.name || settings.businessName || settings.phone || settings.email || 
+          settings.address || settings.description || settings.website || settings.logo ||
+          settings.language || settings.country || settings.currency || settings.timezone || 
+          settings.taxId) {
+        
+        // Get the name value to update
+        const nameValue = settings.name || settings.businessName;
+        
+        // Update business profile fields
+        await sql`
+          UPDATE business_profile SET
+            name = COALESCE(${nameValue}, name),
+            phone = COALESCE(${settings.phone}, phone),
+            address = COALESCE(${settings.address}, address),
+            language = COALESCE(${settings.language}, language),
+            country = COALESCE(${settings.country}, country),
+            currency = COALESCE(${settings.currency}, currency),
+            timezone = COALESCE(${settings.timezone}, timezone),
+            tax_id = COALESCE(${settings.taxId}, tax_id),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${businessIdNum}
+        `;
+      }
+      
+      // Update business hours if provided
+      if (settings.businessHours) {
+        await sql`
+          UPDATE business_profile SET
+            business_hours = ${JSON.stringify(settings.businessHours)},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${businessIdNum}
+        `;
+      }
+      
+      // Update payment settings if provided
+      if (settings.paymentSettings) {
+        await sql`
+          UPDATE business_profile SET
+            payment_settings = ${JSON.stringify(settings.paymentSettings)},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${businessIdNum}
+        `;
+      }
+      
+      // Update notification settings if provided
+      if (settings.notificationSettings) {
+        await sql`
+          UPDATE business_profile SET
+            notification_settings = ${JSON.stringify(settings.notificationSettings)},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${businessIdNum}
+        `;
+      }
+      
+      // Update integrations if provided
+      if (settings.integrations) {
+        await sql`
+          UPDATE business_profile SET
+            integrations = ${JSON.stringify(settings.integrations)},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${businessIdNum}
+        `;
+      }
+      
+      // Check if business_settings table exists and update loyalty settings
+      if (settings.loyaltySettings) {
+        try {
+          const tableExists = await sql`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' 
+              AND table_name = 'business_settings'
+            ) as exists
+          `;
+          
+          if (tableExists[0]?.exists) {
+            // Check if entry exists
+            const settingsExists = await sql`
+              SELECT id FROM business_settings
+              WHERE business_id = ${businessIdNum}
+            `;
+            
+            if (settingsExists.length > 0) {
+              // Update existing settings
+              await sql`
+                UPDATE business_settings SET
+                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},
+                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},
+                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},
+                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE business_id = ${businessIdNum}
+              `;
+            } else {
+              // Insert new settings
+              await sql`
+                INSERT INTO business_settings (
+                  business_id,
+                  points_per_dollar,
+                  points_expiry_days,
+                  minimum_points_redemption,
+                  welcome_bonus
+                ) VALUES (
+                  ${businessIdNum},
+                  ${settings.loyaltySettings.pointsPerDollar},
+                  ${settings.loyaltySettings.pointsExpiryDays},
+                  ${settings.loyaltySettings.minimumPointsRedemption},
+                  ${settings.loyaltySettings.welcomeBonus}
+                )
+                ON CONFLICT (business_id) DO UPDATE SET
+                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},
+                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},
+                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},
+                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},
+                  updated_at = CURRENT_TIMESTAMP
+              `;
+            }
+          }
+        } catch (e) {
+          console.error('Error updating loyalty settings:', e);
+        }
+      }
+      
+      // Get the updated settings
+      return await this.getBusinessSettings(businessId);
+    } catch (error) {
+      console.error('Error updating business settings:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Combine data from different sources into a single settings object
+   */
+  private static combineSettingsData(
+    profile: Record<string, unknown>, 
+    businessSettings: Record<string, unknown>, 
+    user: Record<string, unknown>
+  ): BusinessSettings {
+    // Default values
+    const defaultBusinessHours: BusinessHours = {
+      monday: { open: "09:00", close: "17:00", isClosed: false },
+      tuesday: { open: "09:00", close: "17:00", isClosed: false },
+      wednesday: { open: "09:00", close: "17:00", isClosed: false },
+      thursday: { open: "09:00", close: "17:00", isClosed: false },
+      friday: { open: "09:00", close: "17:00", isClosed: false },
+      saturday: { open: "10:00", close: "14:00", isClosed: false },
+      sunday: { open: "00:00", close: "00:00", isClosed: true }
+    };
+    
+    const defaultPaymentSettings: PaymentSettings = {
+      acceptsCard: true,
+      acceptsCash: true,
+      acceptsOnline: false,
+      serviceFeePercent: 0
+    };
+    
+    const defaultLoyaltySettings: LoyaltySettings = {
+      pointsPerDollar: 10,
+      pointsExpiryDays: 365,
+      minimumPointsRedemption: 100,
+      welcomeBonus: 50
+    };
+    
+    const defaultNotificationSettings: NotificationSettings = {
+      email: true,
+      push: true,
+      sms: false,
+      customerActivity: true,
+      promotionStats: true,
+      systemUpdates: true
+    };
+    
+    const defaultIntegrations: Integrations = {
+      pos: false,
+      accounting: false,
+      marketing: false,
+      crm: false
+    };
+    
+    // Extract loyalty settings from business_settings if available
+    let loyaltySettings = { ...defaultLoyaltySettings };
+    if (businessSettings) {
+      loyaltySettings = {
+        pointsPerDollar: parseFloat(businessSettings.points_per_dollar as string) || defaultLoyaltySettings.pointsPerDollar,
+        pointsExpiryDays: (businessSettings.points_expiry_days as number) || defaultLoyaltySettings.pointsExpiryDays,
+        minimumPointsRedemption: (businessSettings.minimum_points_redemption as number) || defaultLoyaltySettings.minimumPointsRedemption,
+        welcomeBonus: (businessSettings.welcome_bonus as number) || defaultLoyaltySettings.welcomeBonus
+      };
+    }
+    
+    // Extract from profile or use defaults
+    const businessHours = (profile?.business_hours as BusinessHours) || defaultBusinessHours;
+    const paymentSettings = (profile?.payment_settings as PaymentSettings) || defaultPaymentSettings;
+    const notificationSettings = (profile?.notification_settings as NotificationSettings) || defaultNotificationSettings;
+    const integrations = (profile?.integrations as Integrations) || defaultIntegrations;
+    
+    // Return combined data
+    return {
+      id: (profile?.id as number) || 0,
+      businessId: (user?.id as number) || ((profile?.business_id as number) || 0),
+      name: (user?.name as string) || (profile?.name as string) || '',
+      businessName: (user?.business_name as string) || (profile?.name as string) || '',
+      phone: (profile?.phone as string) || (user?.business_phone as string) || '',
+      email: (profile?.email as string) || (user?.email as string) || '',
+      address: (profile?.address as string) || '',
+      description: (profile?.description as string) || '',
+      website: (profile?.website as string) || '',
+      logo: (profile?.logo as string) || '',
+      language: (profile?.language as string) || 'en',
+      country: (profile?.country as string) || '',
+      currency: (profile?.currency as string) || 'USD',
+      timezone: (profile?.timezone as string) || 'UTC',
+      taxId: (profile?.tax_id as string) || '',
+      businessHours,
+      paymentSettings,
+      loyaltySettings,
+      notificationSettings,
+      integrations,
+      createdAt: (profile?.created_at as string) || new Date().toISOString(),
+      updatedAt: (profile?.updated_at as string) || new Date().toISOString()
+    };
+  }
+} 

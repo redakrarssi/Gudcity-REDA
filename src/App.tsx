@@ -36,6 +36,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
+import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 
 // Custom route component to redirect based on user type
 const UserTypeRedirect = () => {
@@ -59,6 +60,9 @@ function App() {
     <Router>
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+          {/* Show database connection alert */}
+          <DatabaseConnectionAlert />
+
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/pricing" element={<Pricing />} />

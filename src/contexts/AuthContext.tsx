@@ -8,7 +8,8 @@ import {
   createUser as createDbUser,
   getUserById,
   ensureDemoUsers,
-  ensureUserTableExists
+  ensureUserTableExists,
+  getUserByEmail
 } from '../services/userService';
 import { recordBusinessLogin } from '../services/businessService';
 
@@ -160,12 +161,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      const dbUser = await validateUser(email, password);
+      // Normalize email to avoid case sensitivity issues
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log(`Attempting login for: ${normalizedEmail}`);
+      
+      const dbUser = await validateUser(normalizedEmail, password);
       
       if (dbUser && dbUser.id) {
         // Check if the user is banned
         if (dbUser.status === 'banned') {
-          console.error('Login attempt by banned user:', email);
+          console.error('Login attempt by banned user:', normalizedEmail);
           setIsLoading(false);
           return false;
         }
@@ -193,10 +198,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
       
+      console.log('Login failed: Invalid credentials');
       setIsLoading(false);
       return false;
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login failed with exception:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+      }
       setIsLoading(false);
       return false;
     }
@@ -207,10 +216,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
+      // First check if the email already exists
+      const existingUser = await getUserByEmail(data.email);
+      if (existingUser) {
+        console.error('Registration failed: Email already exists', data.email);
+        setIsLoading(false);
+        return false;
+      }
+      
       // Convert RegisterData to database User format
       const newUser: Omit<DbUser, 'id' | 'created_at'> = {
         name: data.name,
-        email: data.email,
+        email: data.email.trim(), // Ensure email is trimmed
         password: data.password,
         // Set default role based on user type
         role: data.userType === 'business' ? 'business' : 'customer',
@@ -231,6 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
       
+      console.error('Registration failed: User creation returned null');
       setIsLoading(false);
       return false;
     } catch (error) {
