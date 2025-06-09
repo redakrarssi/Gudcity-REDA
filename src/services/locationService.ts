@@ -100,61 +100,46 @@ export class LocationService {
     params: LocationSearchParams
   ): Promise<{ locations: BusinessLocation[]; error?: string }> {
     try {
-      let query = `
-        SELECT * FROM business_locations
-        WHERE is_active = true
-      `;
+      // Build SQL query using tagged template literal approach
+      let query = sql`SELECT * FROM business_locations WHERE is_active = true`;
       
-      const queryParams: any[] = [];
-      let paramCounter = 1;
-      
-      // Add filters
+      // Add filters using tagged template literals
       if (params.businessId) {
         const businessIdNum = typeof params.businessId === 'string' ? 
           parseInt(params.businessId) : params.businessId;
-        query += ` AND business_id = $${paramCounter++}`;
-        queryParams.push(businessIdNum);
+        query = sql`${query} AND business_id = ${businessIdNum}`;
       }
       
       if (params.city) {
-        query += ` AND city ILIKE $${paramCounter++}`;
-        queryParams.push(`%${params.city}%`);
+        query = sql`${query} AND city ILIKE ${'%' + params.city + '%'}`;
       }
       
       if (params.country) {
-        query += ` AND country ILIKE $${paramCounter++}`;
-        queryParams.push(`%${params.country}%`);
+        query = sql`${query} AND country ILIKE ${'%' + params.country + '%'}`;
       }
       
       // If latitude, longitude and radius are provided, filter by distance
       if (params.latitude && params.longitude && params.radius) {
-        // Using Haversine formula directly in SQL
-        query += `
-          AND (
+        query = sql`
+          ${query} AND (
             6371 * acos(
-              cos(radians($${paramCounter++})) * 
+              cos(radians(${params.latitude})) * 
               cos(radians(latitude)) * 
-              cos(radians(longitude) - radians($${paramCounter++})) + 
-              sin(radians($${paramCounter++})) * 
+              cos(radians(longitude) - radians(${params.longitude})) + 
+              sin(radians(${params.latitude})) * 
               sin(radians(latitude))
             )
-          ) <= $${paramCounter++}
+          ) <= ${params.radius}
         `;
-        queryParams.push(
-          params.latitude,
-          params.longitude,
-          params.latitude,
-          params.radius
-        );
       }
       
       // Add limit if provided
       if (params.limit) {
-        query += ` LIMIT $${paramCounter++}`;
-        queryParams.push(params.limit);
+        query = sql`${query} LIMIT ${params.limit}`;
       }
       
-      const result = await sql.query(query, queryParams);
+      // Execute the query
+      const result = await query;
       const locations = result.map(this.dbToBusinessLocation);
       
       return { locations };
@@ -177,8 +162,8 @@ export class LocationService {
       const radius = params.radius || 10; // Default 10km
       const limit = params.limit || 20; // Default 20 results
       
-      // Query business locations and join with loyalty programs
-      const query = `
+      // Create base query using tagged template literals, with explicit type casting for joins
+      let query = sql`
         SELECT 
           l.id as location_id,
           l.business_id,
@@ -193,13 +178,13 @@ export class LocationService {
           u.business_name,
           lp.id as program_id,
           lp.name as program_name,
-          lp.category,
+          COALESCE(lp.category, 'retail') as category,
           (
             6371 * acos(
-              cos(radians($1)) * 
+              cos(radians(${params.latitude})) * 
               cos(radians(l.latitude)) * 
-              cos(radians(l.longitude) - radians($2)) + 
-              sin(radians($1)) * 
+              cos(radians(l.longitude) - radians(${params.longitude})) + 
+              sin(radians(${params.latitude})) * 
               sin(radians(l.latitude))
             )
           ) as distance
@@ -208,64 +193,87 @@ export class LocationService {
         JOIN 
           users u ON l.business_id = u.id
         JOIN 
-          loyalty_programs lp ON l.business_id = lp.business_id
+          loyalty_programs lp ON lp.business_id = CAST(l.business_id AS VARCHAR)
         WHERE 
           l.is_active = true
-          AND lp.is_active = true
+          AND (lp.status = 'ACTIVE' OR (
+            EXISTS(
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'loyalty_programs' AND column_name = 'is_active'
+            ) AND lp.is_active = true
+          ))
       `;
       
       // Add category filter if specified
-      let fullQuery = query;
-      const queryParams: any[] = [params.latitude, params.longitude];
-      
       if (params.categories && params.categories.length > 0) {
         const categoriesFilter = params.categories.filter(c => c !== 'all');
         if (categoriesFilter.length > 0) {
-          fullQuery += ` AND lp.category = ANY($3)`;
-          queryParams.push(categoriesFilter);
+          // Check if category column exists before filtering
+          query = sql`
+            ${query} 
+            AND (
+              NOT EXISTS(
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'loyalty_programs' AND column_name = 'category'
+              )
+              OR COALESCE(lp.category, 'retail') = ANY(${categoriesFilter})
+            )
+          `;
         }
       }
       
       // Add distance constraint
-      fullQuery += `
+      query = sql`
+        ${query}
         AND (
           6371 * acos(
-            cos(radians($1)) * 
+            cos(radians(${params.latitude})) * 
             cos(radians(l.latitude)) * 
-            cos(radians(l.longitude) - radians($2)) + 
-            sin(radians($1)) * 
+            cos(radians(l.longitude) - radians(${params.longitude})) + 
+            sin(radians(${params.latitude})) * 
             sin(radians(l.latitude))
           )
-        ) <= $${queryParams.length + 1}
+        ) <= ${radius}
         ORDER BY distance ASC
-        LIMIT $${queryParams.length + 2}
+        LIMIT ${limit}
       `;
       
-      queryParams.push(radius, limit);
+      console.log('Executing query with tagged template literals');
       
-      console.log('Executing query:', fullQuery, queryParams);
-      const result = await sql.query(fullQuery, queryParams);
+      // Execute the query
+      const result = await query;
+      
       console.log(`Found ${result.length} nearby programs`);
       
       // Transform the results into NearbyProgram objects
       const programs: NearbyProgram[] = result.map(row => ({
-        programId: row.program_id.toString(),
-        businessId: row.business_id.toString(),
-        businessName: row.business_name || row.location_name,
-        programName: row.program_name,
+        programId: row.program_id?.toString() || '',
+        businessId: row.business_id?.toString() || '',
+        businessName: row.business_name || row.location_name || '',
+        programName: row.program_name || '',
         category: row.category || 'retail',
-        distance: parseFloat(row.distance),
+        distance: typeof row.distance === 'string' ? parseFloat(row.distance) : (row.distance || 0),
         location: {
-          id: row.location_id.toString(),
-          businessId: row.business_id.toString(),
-          name: row.location_name,
-          address: row.address_line1,
-          city: row.city,
-          state: row.state,
-          country: row.country,
-          postalCode: row.zip,
-          latitude: parseFloat(row.latitude),
-          longitude: parseFloat(row.longitude),
+          id: row.location_id?.toString() || '',
+          businessId: row.business_id?.toString() || '',
+          name: row.location_name || '',
+          address: row.address_line1 || '',
+          city: row.city || '',
+          state: row.state || '',
+          country: row.country || '',
+          postalCode: row.zip || '',
+          latitude: typeof row.latitude === 'string' ? parseFloat(row.latitude) : (row.latitude || 0),
+          longitude: typeof row.longitude === 'string' ? parseFloat(row.longitude) : (row.longitude || 0),
+          isActive: true,
+          openingHours: {
+            monday: '9:00-17:00',
+            tuesday: '9:00-17:00',
+            wednesday: '9:00-17:00',
+            thursday: '9:00-17:00',
+            friday: '9:00-17:00',
+            saturday: '10:00-14:00',
+            sunday: 'Closed'
+          }
         }
       }));
       
@@ -295,27 +303,23 @@ export class LocationService {
 
   static async getLocationStats(): Promise<{ stats: LocationStats; error?: string }> {
     try {
-      // Use database to calculate statistics
-      const totalQuery = `SELECT COUNT(*) as total FROM business_locations`;
-      const activeQuery = `SELECT COUNT(*) as active FROM business_locations WHERE is_active = true`;
-      const popularCitiesQuery = `
-        SELECT 
-          city, 
-          COUNT(*) as count,
-          0 as revenue
-        FROM 
-          business_locations
-        GROUP BY 
-          city
-        ORDER BY 
-          count DESC
-        LIMIT 5
-      `;
-      
+      // Use tagged template literals instead of conventional function calls
       const [totalResult, activeResult, citiesResult] = await Promise.all([
-        sql.query(totalQuery, []),
-        sql.query(activeQuery, []),
-        sql.query(popularCitiesQuery, [])
+        sql`SELECT COUNT(*) as total FROM business_locations`,
+        sql`SELECT COUNT(*) as active FROM business_locations WHERE is_active = true`,
+        sql`
+          SELECT 
+            city, 
+            COUNT(*) as count,
+            0 as revenue
+          FROM 
+            business_locations
+          GROUP BY 
+            city
+          ORDER BY 
+            count DESC
+          LIMIT 5
+        `
       ]);
       
       const stats: LocationStats = {

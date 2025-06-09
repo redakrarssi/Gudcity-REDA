@@ -7,9 +7,11 @@ CREATE TABLE IF NOT EXISTS loyalty_programs (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   type VARCHAR(50) NOT NULL, -- POINTS, STAMPS, CASHBACK
+  category VARCHAR(50) DEFAULT 'retail', -- retail, cafe, restaurant, etc.
   point_value NUMERIC(10, 2) DEFAULT 1.0,
   expiration_days INTEGER,
   status VARCHAR(50) DEFAULT 'ACTIVE',
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
