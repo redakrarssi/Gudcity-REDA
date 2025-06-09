@@ -21,6 +21,13 @@ export enum ConnectionState {
 class DbConnectionManager {
   private connectionState: ConnectionState = ConnectionState.DISCONNECTED;
   private neonInstance: any = null;
+  private connectionMetrics = {
+    totalQueries: 0,
+    failedQueries: 0,
+    lastQueryTime: 0,
+    connectedSince: 0,
+    healthCheckLatency: 0
+  };
 
   constructor() {
     if (hasDbUrl) {
@@ -37,6 +44,7 @@ class DbConnectionManager {
       console.info('Initializing database connection...');
       this.neonInstance = neon(DATABASE_URL);
       this.connectionState = ConnectionState.CONNECTED;
+      this.connectionMetrics.connectedSince = Date.now();
     } catch (error) {
       console.error('Failed to initialize database connection:', error);
       this.connectionState = ConnectionState.DISCONNECTED;
@@ -47,7 +55,12 @@ class DbConnectionManager {
     if (!this.neonInstance) return false;
     
     try {
+      const startTime = performance.now();
       const result = await this.neonInstance`SELECT 1 as connected`;
+      const duration = performance.now() - startTime;
+      
+      this.connectionMetrics.healthCheckLatency = duration;
+      
       return result && result.length > 0 && result[0].connected === 1;
     } catch (error) {
       console.error('Connection test failed:', error);
@@ -68,7 +81,13 @@ class DbConnectionManager {
   }
   
   public trackQuery(success: boolean, duration: number): void {
-    // Simplified tracking functionality
+    this.connectionMetrics.totalQueries++;
+    if (!success) this.connectionMetrics.failedQueries++;
+    this.connectionMetrics.lastQueryTime = duration;
+  }
+  
+  public getMetrics(): typeof this.connectionMetrics {
+    return {...this.connectionMetrics};
   }
 }
 
@@ -82,22 +101,49 @@ function sql<T extends SqlRow[] = SqlRow[]>(
   strings: TemplateStringsArray | string,
   ...values: any[]
 ): Promise<T> {
-  // Normalize the calling method for string-based queries
-  if (typeof strings === 'string') {
-    return connectionManager.getInstance()(strings, ...values);
+  const startTime = performance.now();
+  
+  try {
+    // Normalize the calling method for string-based queries
+    let promise;
+    if (typeof strings === 'string') {
+      promise = connectionManager.getInstance()(strings, ...values);
+    } else {
+      promise = connectionManager.getInstance()(strings, ...values);
+    }
+    
+    return promise.then((result: T) => {
+      const duration = performance.now() - startTime;
+      connectionManager.trackQuery(true, duration);
+      return result;
+    }).catch((error: any) => {
+      const duration = performance.now() - startTime;
+      connectionManager.trackQuery(false, duration);
+      throw error;
+    });
+  } catch (error) {
+    // Handle synchronous errors (shouldn't happen with neon, but just in case)
+    connectionManager.trackQuery(false, 0);
+    throw error;
   }
-
-  return connectionManager.getInstance()(strings, ...values);
 }
 
 // Add a query method to the sql object for compatibility
 sql.query = async function(queryText: string, values: any[] = []): Promise<any[]> {
+  const startTime = performance.now();
+  
   try {
     // Handle parameterized queries by directly passing to the neon client
     // This ensures proper handling of $1, $2, etc. placeholders
     const result = await connectionManager.getInstance()(queryText, ...values);
+    
+    const duration = performance.now() - startTime;
+    connectionManager.trackQuery(true, duration);
+    
     return result;
   } catch (error) {
+    const duration = performance.now() - startTime;
+    connectionManager.trackQuery(false, duration);
     throw error;
   }
 };
@@ -139,6 +185,7 @@ export const verifyConnection = async (): Promise<boolean> => {
 export const getConnectionState = (): ConnectionState => connectionManager.getState();
 export const isConnected = (): boolean => connectionManager.isConnected();
 export const forceReconnect = (): void => {}; // Empty implementation for compatibility
+export const getConnectionMetrics = () => connectionManager.getMetrics();
 
 // Define row type for easier use in the application
 export interface SqlRow {
