@@ -1,15 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- CRITICAL FIXES FOR LODASH - MUST BE FIRST -->
+    <!-- AGGRESSIVE LODASH FIX -->
     <script>
-      // Emergency inline fix - define global _ immediately at the very top
-      window._ = window._ || {
+      // CRITICAL: Lodash preinitialization before ANYTHING else
+      // This variable MUST be defined before any script loads
+      var _ = window._ = {
         noop: function() {},
-        identity: function(value) { return value; }
+        identity: function(value) { return value; },
+        isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
+        isFunction: function(f) { return typeof f === 'function'; },
+        isArray: Array.isArray,
+        forEach: function(collection, iteratee) {
+          if (Array.isArray(collection)) {
+            for (let i = 0; i < collection.length; i++) iteratee(collection[i], i, collection);
+          } else if (collection && typeof collection === 'object') {
+            for (let key in collection) {
+              if (Object.prototype.hasOwnProperty.call(collection, key)) {
+                iteratee(collection[key], key, collection);
+              }
+            }
+          }
+          return collection;
+        },
+        map: function(collection, iteratee) {
+          const result = [];
+          if (Array.isArray(collection)) {
+            for (let i = 0; i < collection.length; i++) result.push(iteratee(collection[i], i, collection));
+          } else if (collection && typeof collection === 'object') {
+            for (let key in collection) {
+              if (Object.prototype.hasOwnProperty.call(collection, key)) {
+                result.push(iteratee(collection[key], key, collection));
+              }
+            }
+          }
+          return result;
+        }
       };
-      console.log("Emergency inline lodash fix applied");
+      
+      // Browser polyfill to prevent "browser is not defined" errors
+      if (typeof browser === 'undefined') {
+        var browser = window.browser = {
+          runtime: { sendMessage: function(){}, onMessage: { addListener: function(){} } },
+          storage: { local: { get: function(){}, set: function(){} } }
+        };
+      }
+      
+      console.log('Emergency fixes applied directly in HTML');
     </script>
+    
+    <!-- Load polyfills -->
+    <script src="/browser-polyfill.js"></script>
     <script src="/lodash-preload.js"></script>
     <script src="/charts-lodash-fix.js"></script>
     
@@ -20,46 +61,53 @@
     <meta name="theme-color" content="#3b82f6">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/assets/icon-192x192.png">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
     <title>Gudcity Loyalty</title>
     
-    <!-- FIX 2: Generate Missing PWA Icons - This fixes the manifest icon error -->
+    <!-- PWA Manifest Fix -->
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-        // Fix for missing manifest icon
+        // Fix for missing manifest icon and path issues
         const manifestLink = document.querySelector('link[rel="manifest"]');
         
         if (manifestLink) {
           fetch(manifestLink.href)
             .then(response => response.json())
-            .catch(() => ({})) // If fetch fails, use empty object
+            .catch(() => ({}))
             .then(manifest => {
-              // Create a new manifest object
+              // Create a fixed manifest object
               const fixedManifest = manifest || {};
               
-              // Ensure icons array exists and use favicon.ico as fallback
-              if (!fixedManifest.icons || !Array.isArray(fixedManifest.icons) || fixedManifest.icons.length === 0) {
-                fixedManifest.icons = [{
-                  src: '/favicon.ico',
-                  sizes: '192x192',
-                  type: 'image/x-icon'
-                }];
-              } else {
-                // Fix any icon paths that point to missing files
+              // Fix icon paths
+              if (fixedManifest.icons && Array.isArray(fixedManifest.icons)) {
                 fixedManifest.icons = fixedManifest.icons.map(icon => {
-                  if (icon.src.includes('/assets/icon-192x192.png')) {
-                    return {
-                      ...icon,
-                      src: '/favicon.ico'
-                    };
-                  }
-                  return icon;
+                  return {
+                    ...icon,
+                    src: (icon.src.startsWith('/') ? '' : '/') + icon.src.replace(/^\/+/, '')
+                  };
+                });
+              }
+              
+              // Fix start_url
+              if (fixedManifest.start_url) {
+                fixedManifest.start_url = (fixedManifest.start_url.startsWith('/') ? '' : '/') + 
+                  fixedManifest.start_url.replace(/^\/+/, '');
+              }
+              
+              // Fix shortcuts
+              if (fixedManifest.shortcuts && Array.isArray(fixedManifest.shortcuts)) {
+                fixedManifest.shortcuts = fixedManifest.shortcuts.map(shortcut => {
+                  return {
+                    ...shortcut,
+                    url: shortcut.url ? 
+                      (shortcut.url.startsWith('/') ? '' : '/') + shortcut.url.replace(/^\/+/, '') : '/'
+                  };
                 });
               }
               
               // Create a blob with the fixed manifest
               const fixedManifestBlob = new Blob(
-                [JSON.stringify(fixedManifest)],
+                [JSON.stringify(fixedManifest, null, 2)],
                 { type: 'application/json' }
               );
               
@@ -69,7 +117,7 @@
               // Replace the original manifest link
               manifestLink.href = fixedManifestURL;
               
-              console.log("PWA manifest icons fixed");
+              console.log("PWA manifest fixed with absolute paths");
             });
         }
       });
