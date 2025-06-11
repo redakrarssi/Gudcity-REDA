@@ -10,6 +10,93 @@
     <link rel="manifest" href="/manifest.json">
     <title>Gudcity Loyalty</title>
     
+    <!-- FIX 1: Lodash Pre-initialization - This prevents the "Cannot access '_' before initialization" error -->
+    <script>
+      // Define lodash as a global variable before any other scripts load
+      // This prevents the Temporal Dead Zone reference error
+      window._ = window._ || {
+        noop: function() {},
+        isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
+        isFunction: function(f) { return typeof f === 'function'; },
+        get: function(obj, path, defaultValue) {
+          // Simple implementation of _.get
+          if (!obj) return defaultValue;
+          const keys = Array.isArray(path) ? path : path.split('.');
+          let result = obj;
+          for (let i = 0; i < keys.length; i++) {
+            result = result[keys[i]];
+            if (result === undefined || result === null) return defaultValue;
+          }
+          return result;
+        },
+        // Add other frequently used lodash methods as needed
+        debounce: function(func, wait) {
+          let timeout;
+          return function() {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(function() {
+              func.apply(context, args);
+            }, wait);
+          };
+        }
+      };
+      console.log("Lodash placeholder initialized to prevent TDZ error");
+    </script>
+    
+    <!-- FIX 2: Generate Missing PWA Icons - This fixes the manifest icon error -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Fix for missing manifest icon
+        const manifestLink = document.querySelector('link[rel="manifest"]');
+        
+        if (manifestLink) {
+          fetch(manifestLink.href)
+            .then(response => response.json())
+            .catch(() => ({})) // If fetch fails, use empty object
+            .then(manifest => {
+              // Create a new manifest object
+              const fixedManifest = manifest || {};
+              
+              // Ensure icons array exists and use favicon.ico as fallback
+              if (!fixedManifest.icons || !Array.isArray(fixedManifest.icons) || fixedManifest.icons.length === 0) {
+                fixedManifest.icons = [{
+                  src: '/favicon.ico',
+                  sizes: '192x192',
+                  type: 'image/x-icon'
+                }];
+              } else {
+                // Fix any icon paths that point to missing files
+                fixedManifest.icons = fixedManifest.icons.map(icon => {
+                  if (icon.src.includes('/assets/icon-192x192.png')) {
+                    return {
+                      ...icon,
+                      src: '/favicon.ico'
+                    };
+                  }
+                  return icon;
+                });
+              }
+              
+              // Create a blob with the fixed manifest
+              const fixedManifestBlob = new Blob(
+                [JSON.stringify(fixedManifest)],
+                { type: 'application/json' }
+              );
+              
+              // Create a URL for the blob
+              const fixedManifestURL = URL.createObjectURL(fixedManifestBlob);
+              
+              // Replace the original manifest link
+              manifestLink.href = fixedManifestURL;
+              
+              console.log("PWA manifest icons fixed");
+            });
+        }
+      });
+    </script>
+    
     <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

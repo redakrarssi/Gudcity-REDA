@@ -1,12 +1,17 @@
 // PWA Icon Generator Script
 // This script can be run to generate the missing PWA icons for your manifest
 
-const fs = require('fs');
-const path = require('path');
-const { createCanvas, loadImage } = require('canvas');
+import fs from 'fs';
+import path from 'path';
+import { createCanvas, loadImage } from 'canvas';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Configuration
-const sourceIcon = process.argv[2] || './public/favicon.ico'; // Use favicon.ico as source or provide a path
+const sourceIcon = process.argv[2] || './public/favicon.svg'; // Use favicon.svg as source or provide a path
 const outputDir = './public/assets';
 const iconSizes = [192, 512]; // Common PWA icon sizes
 
@@ -95,7 +100,7 @@ Usage:
   node pwa-icon-generator.js [source-icon-path]
 
 Arguments:
-  source-icon-path  Path to source icon (default: ./public/favicon.ico)
+  source-icon-path  Path to source icon (default: ./public/favicon.svg)
   
 Requirements:
   - Node.js 
