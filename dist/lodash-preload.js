@@ -81,5 +81,21 @@ window._ = {
   }
 };
 
+// Add commonly used lodash functions by recharts
+_.map = function(collection, iteratee) {
+  if (Array.isArray(collection)) {
+    return collection.map(iteratee);
+  }
+  const result = [];
+  for (const key in collection) {
+    if (Object.prototype.hasOwnProperty.call(collection, key)) {
+      result.push(iteratee(collection[key], key, collection));
+    }
+  }
+  return result;
+};
+
+_.forEach = _.each;
+
 // This will help with debugging
 console.log("Lodash pre-initialization complete"); 

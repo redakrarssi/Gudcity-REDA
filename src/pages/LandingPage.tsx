@@ -35,6 +35,22 @@ const LandingPage = () => {
       return fallback;
     }
   };
+  
+  // Manually trigger error report
+  useEffect(() => {
+    console.log("LandingPage rendering at:", new Date().toISOString());
+    // Force report any uncaught errors
+    window.addEventListener('error', (event) => {
+      console.error('Global error:', event.error);
+    });
+    
+    // Check for Lucide icons
+    try {
+      console.log('Gift icon available:', Gift !== undefined);
+    } catch (err) {
+      console.error('Lucide icons error:', err);
+    }
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
