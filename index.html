@@ -60,7 +60,8 @@
       console.log('Emergency fixes applied directly in HTML');
     </script>
     
-    <!-- Load polyfills -->
+    <!-- Load polyfills - NEW ORDER FOR BETTER DEPENDENCY MANAGEMENT -->
+    <script src="./charts-fix-latest.js" onerror="console.error('Failed to load charts-fix-latest.js')"></script>
     <script src="./fix-browser-global.js" onerror="console.error('Failed to load fix-browser-global.js')"></script>
     <script src="./browser-polyfill.js" onerror="console.error('Failed to load browser-polyfill.js')"></script>
     <script src="./lodash-preload.js" onerror="console.error('Failed to load lodash-preload.js')"></script>
@@ -78,69 +79,16 @@
     
     <!-- PWA Manifest Fix -->
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        // Fix for missing manifest icon and path issues
-        const manifestLink = document.querySelector('link[rel="manifest"]');
-        
-        if (manifestLink) {
-          fetch(manifestLink.href)
-            .then(response => response.json())
-            .catch(() => ({}))
-            .then(manifest => {
-              // Create a fixed manifest object
-              const fixedManifest = manifest || {};
-              
-              // Fix icon paths
-              if (fixedManifest.icons && Array.isArray(fixedManifest.icons)) {
-                fixedManifest.icons = fixedManifest.icons.map(icon => {
-                  return {
-                    ...icon,
-                    src: (icon.src.startsWith('/') ? '' : '/') + icon.src.replace(/^\/+/, '')
-                  };
-                });
-              }
-              
-              // Fix start_url
-              if (fixedManifest.start_url) {
-                fixedManifest.start_url = (fixedManifest.start_url.startsWith('/') ? '' : '/') + 
-                  fixedManifest.start_url.replace(/^\/+/, '');
-              }
-              
-              // Fix shortcuts
-              if (fixedManifest.shortcuts && Array.isArray(fixedManifest.shortcuts)) {
-                fixedManifest.shortcuts = fixedManifest.shortcuts.map(shortcut => {
-                  return {
-                    ...shortcut,
-                    url: shortcut.url ? 
-                      (shortcut.url.startsWith('/') ? '' : '/') + shortcut.url.replace(/^\/+/, '') : '/'
-                  };
-                });
-              }
-              
-              // Create a blob with the fixed manifest
-              const fixedManifestBlob = new Blob(
-                [JSON.stringify(fixedManifest, null, 2)],
-                { type: 'application/json' }
-              );
-              
-              // Create a URL for the blob
-              const fixedManifestURL = URL.createObjectURL(fixedManifestBlob);
-              
-              // Replace the original manifest link
-              manifestLink.href = fixedManifestURL;
-              
-              console.log("PWA manifest fixed with absolute paths");
-            });
-        }
-      });
+      // We won't modify the manifest through JavaScript as it's causing issues
+      // Instead, we've fixed the manifest.json file directly with proper relative paths
+      console.log("Using direct manifest.json with corrected paths");
     </script>
     
     <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
-    <!-- Preload critical assets -->
-    <link rel="preload" href="./fonts/Inter-roman.var.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Removed unnecessary font preload that was causing console warnings -->
     
     <!-- Fast page transitions -->
     <script type="module">

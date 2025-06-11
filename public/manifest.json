@@ -2,19 +2,19 @@
   "name": "Gudcity Loyalty Platform",
   "short_name": "Gudcity",
   "description": "Loyalty program management for businesses and customers",
-  "start_url": "/",
+  "start_url": "https://gudcity-reda.vercel.app/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "icons": [
     {
-      "src": "./assets/icon-192x192.png",
+      "src": "https://gudcity-reda.vercel.app/assets/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./assets/icon-512x512.png",
+      "src": "https://gudcity-reda.vercel.app/assets/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -23,12 +23,12 @@
   "shortcuts": [
     {
       "name": "Scan QR Code",
-      "url": "./qr-scanner",
+      "url": "https://gudcity-reda.vercel.app/qr-scanner",
       "description": "Scan a QR code"
     },
     {
       "name": "My Loyalty Cards",
-      "url": "./my-cards",
+      "url": "https://gudcity-reda.vercel.app/my-cards",
       "description": "View your loyalty cards"
     }
   ],
