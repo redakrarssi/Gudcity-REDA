@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useTranslation } from 'react-i18next';
 import { AuthProvider, ProtectedRoute, AdminProtectedRoute, useAuth } from './contexts/AuthContext';
 import LandingPage from './pages/LandingPage';
+import ErrorBoundary from './components/ErrorBoundary';
+import DiagnosticRenderer from './components/DiagnosticRenderer';
 import Pricing from './pages/Pricing';
 import CommentsPage from './pages/Comments';
 import Unauthorized from './pages/auth/Unauthorized';
@@ -67,7 +69,13 @@ function App() {
             <DatabaseConnectionAlert />
 
             <Routes>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={
+                <ErrorBoundary>
+                  <DiagnosticRenderer name="LandingPage">
+                    <LandingPage />
+                  </DiagnosticRenderer>
+                </ErrorBoundary>
+              } />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/comments" element={<CommentsPage />} />
               <Route path="/login" element={<Login />} />

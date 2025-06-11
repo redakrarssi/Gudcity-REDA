@@ -25,12 +25,12 @@ const AppLoading = () => (
 // Initialize the database when the app starts
 initDb();
 
-// Remove console logging in production
-if (import.meta.env.PROD) {
-  console.log = () => {};
-  console.info = () => {};
-  console.debug = () => {};
-}
+// Temporarily enable console logging in production for debugging
+// if (import.meta.env.PROD) {
+//   console.log = () => {};
+//   console.info = () => {};
+//   console.debug = () => {};
+// }
 
 // Create our application root
 const rootElement = document.getElementById('root');

@@ -1,15 +1,45 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Gift, Star, QrCode, Wallet } from 'lucide-react';
 
 const LandingPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  
+  // Add diagnostic logging for production debugging
+  useEffect(() => {
+    console.log('LandingPage mounted');
+    console.log('Current i18n language:', i18n.language);
+    console.log('i18n resources loaded:', i18n.hasResourceBundle(i18n.language, 'translation'));
+    
+    // Check if Lucide icons are available
+    try {
+      console.log('Lucide icons available:', typeof Gift === 'function');
+    } catch (err) {
+      console.error('Error checking Lucide:', err);
+    }
+    
+    // Report any uncaught errors
+    window.addEventListener('error', (event) => {
+      console.error('Global error caught:', event.error);
+    });
+  }, [i18n]);
+
+  // Create safe translation function with fallbacks
+  const safeT = (key: string, fallback: string) => {
+    try {
+      const translated = t(key);
+      return translated === key ? fallback : translated;
+    } catch (err) {
+      console.error(`Translation error for key "${key}":`, err);
+      return fallback;
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow text-center py-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8">{t('welcome')}</h1>
+        <h1 className="text-4xl font-bold text-gray-900 mb-8">{safeT('welcome', 'Welcome to GudCity')}</h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           <FeatureCard
@@ -39,13 +69,13 @@ const LandingPage = () => {
             to="/register"
             className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           >
-            {t('register')}
+            {safeT('register', 'Register')}
           </Link>
           <Link
             to="/login"
             className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold border border-blue-600 hover:bg-blue-50 transition-colors"
           >
-            {t('login')}
+            {safeT('login', 'Login')}
           </Link>
         </div>
       </main>
@@ -55,7 +85,7 @@ const LandingPage = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <p className="text-sm text-gray-500">
-                &copy; {new Date().getFullYear()} GudCity. {t('All rights reserved.')}
+                &copy; {new Date().getFullYear()} GudCity. {safeT('All rights reserved.', 'All rights reserved.')}
               </p>
             </div>
             <div className="flex space-x-6">
