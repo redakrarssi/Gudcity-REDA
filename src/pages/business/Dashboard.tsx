@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, QrCode, BarChart, Plus, ArrowUp, ArrowDown, TrendingUp, DollarSign, Gift, Coffee, CreditCard, Award, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Users, QrCode, BarChart, Plus, ArrowUp, ArrowDown, TrendingUp, DollarSign, Gift, Coffee, CreditCard, Award, AlertTriangle, AlertCircle, Settings, ChevronRight } from 'lucide-react';
 import type { LoyaltyProgram } from '../../types/loyalty';
 import type { CurrencyCode } from '../../types/currency';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
@@ -10,6 +10,7 @@ import { AnalyticsService } from '../../services/analyticsService';
 import { BusinessAnalyticsDashboard } from '../../components/business/BusinessAnalyticsDashboard';
 import { QRScanner } from '../../components/QRScanner';
 import { ProgramBuilder } from '../../components/business/ProgramBuilder';
+import { Link } from 'react-router-dom';
 
 // Use the same interface as in QRScanner component
 interface ScanResult {
@@ -34,6 +35,8 @@ const BusinessDashboard = () => {
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [selectedProgram, setSelectedProgram] = useState<LoyaltyProgram | null>(null);
   const [animateStats, setAnimateStats] = useState(false);
+  const [businessName, setBusinessName] = useState('');
+  const [businessHasIncompleteSettings, setBusinessHasIncompleteSettings] = useState(false);
 
   useEffect(() => {
     async function loadBusinessData() {
@@ -90,6 +93,19 @@ const BusinessDashboard = () => {
         
         // Trigger stats animation after data loads
         setTimeout(() => setAnimateStats(true), 300);
+        
+        // Load the business profile
+        if (businessProfile) {
+          setBusinessName(businessProfile.businessName || businessProfile.name || user.name || 'Your Business');
+          
+          // Check for incomplete settings
+          const hasIncomplete = !businessProfile.description || 
+                               !businessProfile.phone || 
+                               !businessProfile.businessHours || 
+                               !businessProfile.loyaltySettings.pointsPerDollar;
+          
+          setBusinessHasIncompleteSettings(hasIncomplete);
+        }
         
         setIsLoading(false);
       } catch (err) {
@@ -239,6 +255,31 @@ const BusinessDashboard = () => {
           </div>
         </div>
 
+        {/* Settings Configuration Alert */}
+        {businessHasIncompleteSettings && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-6">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Settings className="h-5 w-5 text-blue-400" aria-hidden="true" />
+              </div>
+              <div className="ml-3 flex-1 md:flex md:justify-between md:items-center">
+                <p className="text-sm text-blue-700">
+                  {t('Complete your business profile and settings to fully utilize your dashboard.')}
+                </p>
+                <div className="mt-3 text-sm md:mt-0 md:ml-6">
+                  <Link
+                    to="/business/settings"
+                    className="whitespace-nowrap bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
+                  >
+                    <span>{t('Update Settings')}</span>
+                    <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Analytics Dashboard */}
         <BusinessAnalyticsDashboard analytics={businessData} currency={currency} />
 
@@ -330,6 +371,60 @@ const BusinessDashboard = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Quick Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+          <Link 
+            to="/business/programs" 
+            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-800">{t('My Programs')}</h3>
+              <div className="bg-blue-50 p-3 rounded-full">
+                <CreditCard className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+            <p className="text-gray-600">{t('Manage your loyalty programs and offers')}</p>
+            <div className="mt-4 flex items-center text-blue-600">
+              <span className="text-sm font-medium">{t('View Programs')}</span>
+              <ChevronRight className="ml-1 w-4 h-4" />
+            </div>
+          </Link>
+
+          <Link 
+            to="/business/customers" 
+            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-800">{t('Customers')}</h3>
+              <div className="bg-purple-50 p-3 rounded-full">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+            <p className="text-gray-600">{t('View and manage your customer relationships')}</p>
+            <div className="mt-4 flex items-center text-blue-600">
+              <span className="text-sm font-medium">{t('View Customers')}</span>
+              <ChevronRight className="ml-1 w-4 h-4" />
+            </div>
+          </Link>
+
+          <Link 
+            to="/business/settings" 
+            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-800">{t('Settings')}</h3>
+              <div className="bg-green-50 p-3 rounded-full">
+                <Settings className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+            <p className="text-gray-600">{t('Configure your business profile and preferences')}</p>
+            <div className="mt-4 flex items-center text-blue-600">
+              <span className="text-sm font-medium">{t('Update Settings')}</span>
+              <ChevronRight className="ml-1 w-4 h-4" />
+            </div>
+          </Link>
         </div>
       </div>
     </BusinessLayout>

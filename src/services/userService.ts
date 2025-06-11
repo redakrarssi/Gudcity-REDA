@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import env from '../utils/env';
+import * as cryptoUtils from '../utils/cryptoUtils';
 
 export interface User {
   id?: number;
@@ -36,8 +37,7 @@ async function hashPassword(password: string): Promise<string> {
     
     try {
       // Fallback to SHA-256 if bcrypt fails
-      const crypto = await import('crypto');
-      const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+      const sha256Hash = await cryptoUtils.createSha256Hash(password);
       return sha256Hash;
     } catch (cryptoError) {
       console.error('Error hashing password with crypto:', cryptoError);
@@ -62,8 +62,7 @@ async function verifyPassword(plainPassword: string, hashedPassword: string): Pr
     }
     
     // Fallback to SHA-256 hash for legacy passwords
-    const crypto = await import('crypto');
-    const sha256Hash = crypto.createHash('sha256').update(plainPassword).digest('hex');
+    const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
     return sha256Hash === hashedPassword;
   } catch (error) {
     console.error('Error verifying password:', error);

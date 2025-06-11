@@ -43,17 +43,20 @@ export interface RevenueAnalysis {
   currency: CurrencyCode;
 }
 
+export interface BusinessPeriodComparison {
+  customers: number;
+  revenue: number;
+  transactions: number;
+  redemptions: number;
+}
+
 export interface BusinessAnalytics {
   retention: RetentionMetrics;
   programPerformance: ProgramPerformance[];
   customerSegments: CustomerSegment[];
   revenue: RevenueAnalysis;
-  periodComparison: {
-    customers: number;
-    revenue: number;
-    transactions: number;
-    redemptions: number;
-  };
+  periodComparison?: BusinessPeriodComparison;
+  isMockData?: boolean;
 }
 
 export interface PlatformMetrics {
@@ -107,4 +110,5 @@ export interface AdminAnalytics {
     revenue: number;
     programsCreated: number;
   };
+  isMockData?: boolean;
 } 

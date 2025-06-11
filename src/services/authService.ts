@@ -1,6 +1,7 @@
 import sql from '../utils/db';
 import env from '../utils/env';
 import { User, getUserByEmail } from './userService';
+import * as cryptoUtils from '../utils/cryptoUtils';
 
 // For rate limiting
 interface RateLimitEntry {
@@ -293,8 +294,7 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
     }
     
     // Fallback to SHA-256 hash for legacy passwords
-    const crypto = await import('crypto');
-    const sha256Hash = crypto.createHash('sha256').update(plainPassword).digest('hex');
+    const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
     return sha256Hash === hashedPassword;
   } catch (error) {
     console.error('Error verifying password:', error);

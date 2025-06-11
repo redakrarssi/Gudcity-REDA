@@ -1,5 +1,23 @@
 import sql from '../utils/db';
-import { createCustomerQRCode, createPromoQRCode, createLoyaltyCardQRCode } from '../utils/qrCodeGenerator';
+import { createStandardCustomerQRCode, createStandardPromoQRCode, createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
+import { QrCodeStorageService } from './qrCodeStorageService';
+import env from '../utils/env';
+import rateLimiter from '../utils/rateLimiter';
+import crypto from 'crypto';
+
+// Import the new validation and error handling utilities
+import { validateQrCodeData, safeValidateQrCode } from '../utils/qrCodeValidator';
+import { 
+  QrCodeError, 
+  QrValidationError, 
+  QrSecurityError, 
+  QrExpirationError,
+  QrBusinessLogicError,
+  QrRateLimitError,
+  logQrCodeError
+} from '../utils/qrCodeErrorHandler';
+import { withRetryableQuery, withRetryableTransaction } from '../utils/dbRetry';
+import { NotificationService } from './notificationService';
 
 export interface QrScanLog {
   id: number;
@@ -57,24 +75,133 @@ export interface BusinessPerformance {
 }
 
 export class QrCodeService {
+  private static readonly SECRET_KEY = env.QR_SECRET_KEY || 'gudcity-qrcode-security-key';
+  
   /**
-   * Validate QR code data before processing
+   * Validate QR code data before processing with enhanced validation
    */
-  static validateQrData(scanType: QrScanLog['scan_type'], data: any): { valid: boolean; message: string } {
+  static async validateQrData(scanType: QrScanLog['scan_type'], data: any): Promise<{ valid: boolean; message: string; verifiedData?: any }> {
     try {
-      // Basic validation checks
-      if (!data) {
-        return { valid: false, message: 'QR code data is empty' };
+      // Basic validation using the enhanced validator
+      const validationResult = safeValidateQrCode(data);
+      
+      if (!validationResult.valid) {
+        return { 
+          valid: false, 
+          message: validationResult.error?.userMessage || 'Invalid QR code data' 
+        };
       }
       
-      // Parse data if it's a string
-      let parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+      // Verified data from basic validation
+      const parsedData = validationResult.data;
       
-      // Type-specific validations
+      if (!parsedData) {
+        return { valid: false, message: 'Failed to parse QR code data' };
+      }
+      
+      // Additional validation based on scan type
       switch (scanType) {
         case 'CUSTOMER_CARD':
-          if (!parsedData.customerId || !parsedData.customerName) {
-            return { valid: false, message: 'Invalid customer card data: missing required fields' };
+          // Verify QR code exists in database
+          if (parsedData.qrUniqueId) {
+            let storedQrCode;
+            
+            try {
+              // Use database retry for resilience
+              storedQrCode = await withRetryableQuery(
+                () => QrCodeStorageService.getQrCodeByUniqueId(parsedData.qrUniqueId),
+                { qrUniqueId: parsedData.qrUniqueId, scanType }
+              );
+            } catch (error) {
+              logQrCodeError(error as Error, { 
+                scanType, 
+                qrUniqueId: parsedData.qrUniqueId 
+              });
+              return { valid: false, message: 'Error verifying QR code. Please try again.' };
+            }
+            
+            if (!storedQrCode) {
+              return { valid: false, message: 'QR code not found in database' };
+            }
+            
+            // Verify QR code status
+            if (storedQrCode.status !== 'ACTIVE') {
+              return { valid: false, message: `QR code is ${storedQrCode.status.toLowerCase()}` };
+            }
+            
+            // Verify digital signature with proper error handling
+            try {
+              const isValid = QrCodeStorageService.validateQrCode(storedQrCode);
+              if (!isValid) {
+                throw new QrSecurityError('QR code signature validation failed', {
+                  qrUniqueId: parsedData.qrUniqueId,
+                  storedQrCodeId: storedQrCode.id
+                });
+              }
+            } catch (error) {
+              logQrCodeError(error as Error, { scanType, storedQrCodeId: storedQrCode.id });
+              return { valid: false, message: 'QR code security verification failed' };
+            }
+            
+            // Verify expiration
+            if (storedQrCode.expiry_date && new Date(storedQrCode.expiry_date) < new Date()) {
+              try {
+                await QrCodeStorageService.checkAndUpdateExpiry(storedQrCode.id);
+              } catch (error) {
+                logQrCodeError(error as Error, { 
+                  scanType, 
+                  operation: 'updateExpiry', 
+                  qrCodeId: storedQrCode.id 
+                });
+              }
+              return { valid: false, message: 'QR code has expired' };
+            }
+            
+            // Check for token rotation if needed
+            try {
+              const needsRotation = await this.checkTokenRotation(storedQrCode);
+              if (needsRotation) {
+                return { valid: false, message: 'QR code needs to be refreshed. Please get an updated code.' };
+              }
+            } catch (error) {
+              logQrCodeError(error as Error, { 
+                scanType, 
+                operation: 'tokenRotation',
+                qrCodeId: storedQrCode.id
+              });
+              return { valid: false, message: 'Error verifying QR code freshness. Please try again.' };
+            }
+            
+            // Verify customer still exists using retryable query
+            try {
+              const customerCheck = await withRetryableQuery(
+                () => sql`
+                  SELECT id FROM users 
+                  WHERE id = ${storedQrCode.customer_id}
+                  AND user_type = 'customer'
+                  AND status = 'active'
+                `,
+                { customerId: storedQrCode.customer_id }
+              );
+              
+              if (!customerCheck.length) {
+                return { valid: false, message: 'Customer not found or inactive' };
+              }
+            } catch (error) {
+              logQrCodeError(error as Error, { 
+                scanType, 
+                operation: 'customerCheck',
+                customerId: storedQrCode.customer_id
+              });
+              return { valid: false, message: 'Error verifying customer status. Please try again.' };
+            }
+            
+            // Return the verified data from the database
+            return { 
+              valid: true, 
+              message: 'QR code verified successfully',
+              verifiedData: storedQrCode.qr_data
+            };
           }
           break;
         
@@ -82,27 +209,209 @@ export class QrCodeService {
           if (!parsedData.promoId || !parsedData.code) {
             return { valid: false, message: 'Invalid promo code data: missing required fields' };
           }
+          
+          // Verify QR code exists in database if it has a uniqueId
+          if (parsedData.qrUniqueId) {
+            const storedQrCode = await QrCodeStorageService.getQrCodeByUniqueId(parsedData.qrUniqueId);
+            
+            if (!storedQrCode) {
+              return { valid: false, message: 'Promo QR code not found in database' };
+            }
+            
+            // Verify QR code status
+            if (storedQrCode.status !== 'ACTIVE') {
+              return { valid: false, message: `Promo code is ${storedQrCode.status.toLowerCase()}` };
+            }
+            
+            // Verify digital signature
+            if (!QrCodeStorageService.validateQrCode(storedQrCode)) {
+              return { valid: false, message: 'Promo code signature validation failed' };
+            }
+            
+            // Return the verified data
+            return { 
+              valid: true, 
+              message: 'Promo code verified successfully', 
+              verifiedData: storedQrCode.qr_data
+            };
+          }
+          
+          // For backward compatibility, check promo code in database
+          const promoCheck = await sql`
+            SELECT id, is_active, valid_until FROM promotions
+            WHERE id = ${parsedData.promoId}
+            AND code = ${parsedData.code}
+          `;
+          
+          if (!promoCheck.length) {
+            return { valid: false, message: 'Promo code not found' };
+          }
+          
+          if (!promoCheck[0].is_active) {
+            return { valid: false, message: 'Promo code is inactive' };
+          }
+          
+          if (promoCheck[0].valid_until && new Date(promoCheck[0].valid_until) < new Date()) {
+            return { valid: false, message: 'Promo code has expired' };
+          }
           break;
           
         case 'LOYALTY_CARD':
           if (!parsedData.programId || !parsedData.customerId) {
             return { valid: false, message: 'Invalid loyalty card data: missing required fields' };
           }
+          
+          // Verify QR code exists in database if it has a uniqueId
+          if (parsedData.qrUniqueId) {
+            const storedQrCode = await QrCodeStorageService.getQrCodeByUniqueId(parsedData.qrUniqueId);
+            
+            if (!storedQrCode) {
+              return { valid: false, message: 'Loyalty card QR code not found in database' };
+            }
+            
+            // Verify QR code status
+            if (storedQrCode.status !== 'ACTIVE') {
+              return { valid: false, message: `Loyalty card is ${storedQrCode.status.toLowerCase()}` };
+            }
+            
+            // Verify digital signature
+            if (!QrCodeStorageService.validateQrCode(storedQrCode)) {
+              return { valid: false, message: 'Loyalty card signature validation failed' };
+            }
+            
+            // Verify the loyalty card still exists
+            const cardCheck = await sql`
+              SELECT id, is_active FROM loyalty_cards
+              WHERE customer_id = ${storedQrCode.customer_id}
+              AND program_id = ${parsedData.programId}
+            `;
+            
+            if (!cardCheck.length) {
+              return { valid: false, message: 'Loyalty card not found' };
+            }
+            
+            if (!cardCheck[0].is_active) {
+              return { valid: false, message: 'Loyalty card is inactive' };
+            }
+            
+            // Return the verified data
+            return { 
+              valid: true, 
+              message: 'Loyalty card verified successfully',
+              verifiedData: storedQrCode.qr_data
+            };
+          }
+          
+          // For backward compatibility, check loyalty card in database
+          const cardCheck = await sql`
+            SELECT id, is_active FROM loyalty_cards
+            WHERE customer_id = ${parsedData.customerId}
+            AND program_id = ${parsedData.programId}
+          `;
+          
+          if (!cardCheck.length) {
+            return { valid: false, message: 'Loyalty card not found' };
+          }
+          
+          if (!cardCheck[0].is_active) {
+            return { valid: false, message: 'Loyalty card is inactive' };
+          }
           break;
           
         default:
-          return { valid: false, message: 'Unknown QR code type' };
+          return { valid: false, message: `Unknown scan type: ${scanType}` };
       }
       
-      return { valid: true, message: 'QR code data is valid' };
+      // If we get here without a return, it means we didn't validate completely
+      return { valid: false, message: 'Incomplete validation process' };
     } catch (error) {
-      console.error('Error validating QR code data:', error);
-      return { valid: false, message: 'Error parsing QR code data' };
+      // Comprehensive error logging
+      logQrCodeError(error as Error, { scanType, data });
+      
+      if (error instanceof QrCodeError) {
+        return { valid: false, message: error.userMessage };
+      }
+      
+      return { valid: false, message: 'An error occurred during validation' };
     }
   }
   
   /**
-   * Process QR code scan with transaction support
+   * Check if a QR code token needs rotation based on creation date
+   * @param qrCode The QR code object from the database
+   * @returns true if token needs rotation, false otherwise
+   */
+  private static async checkTokenRotation(qrCode: any): Promise<boolean> {
+    // If rotation is disabled (0 days), skip rotation
+    if (env.QR_TOKEN_ROTATION_DAYS <= 0) {
+      return false;
+    }
+
+    // Calculate expiration based on creation date
+    const creationDate = new Date(qrCode.created_at);
+    const rotationDate = new Date(creationDate);
+    rotationDate.setDate(rotationDate.getDate() + env.QR_TOKEN_ROTATION_DAYS);
+    
+    // If current date is past rotation date, token needs rotation
+    const currentDate = new Date();
+    return currentDate > rotationDate;
+  }
+
+  /**
+   * Generate a new token for a QR code and update it in the database
+   * @param qrCodeId The ID of the QR code to rotate
+   * @returns The new QR code data or null on failure
+   */
+  static async rotateQrCodeToken(qrCodeId: number): Promise<any | null> {
+    try {
+      // Get the current QR code
+      const qrCode = await QrCodeStorageService.getQrCodeById(qrCodeId);
+      if (!qrCode) {
+        console.error(`QR code not found for rotation: ${qrCodeId}`);
+        return null;
+      }
+
+      // Create a new QR code with updated data
+      const qrData = qrCode.qr_data;
+      const newQrUniqueId = crypto.randomUUID();
+      
+      // Update the data with new identifiers
+      qrData.qrUniqueId = newQrUniqueId;
+      qrData.timestamp = Date.now();
+      
+      // Generate a new digital signature
+      const signature = crypto
+        .createHmac('sha256', this.SECRET_KEY)
+        .update(JSON.stringify(qrData))
+        .digest('hex');
+      
+      // Mark the old QR code as replaced
+      await QrCodeStorageService.updateQrCodeStatus(
+        qrCodeId, 
+        'REPLACED', 
+        'Replaced during token rotation'
+      );
+      
+      // Create a new QR code record
+      const newQrCode = await QrCodeStorageService.createQrCode({
+        customerId: qrCode.customer_id,
+        businessId: qrCode.business_id,
+        qrType: qrCode.qr_type,
+        data: qrData,
+        imageUrl: qrCode.qr_image_url,
+        isPrimary: qrCode.is_primary,
+        digitalSignature: signature
+      });
+      
+      return newQrCode;
+    } catch (error) {
+      console.error('Error rotating QR code token:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Process a QR code scan with enhanced error handling
    */
   static async processQrCodeScan(
     scanType: QrScanLog['scan_type'],
@@ -112,90 +421,213 @@ export class QrCodeService {
       customerId?: number | string;
       programId?: number | string;
       promoCodeId?: number | string;
+      ipAddress?: string;
     } = {}
-  ): Promise<{ success: boolean; message: string; pointsAwarded?: number; scanLogId?: number }> {
-    // Start a transaction to ensure data consistency
-    const client = await sql.query('BEGIN', []);
-    
+  ): Promise<{ success: boolean; message: string; pointsAwarded?: number; scanLogId?: number; error?: any; rateLimited?: boolean }> {
     try {
-      // Validate the data first
-      const validation = this.validateQrData(scanType, scannedData);
+      // Convert ID params to numbers
+      const businessId = typeof scannedBy === 'string' ? parseInt(scannedBy, 10) : scannedBy;
+      const customerId = options.customerId ? (typeof options.customerId === 'string' ? parseInt(options.customerId, 10) : options.customerId) : undefined;
+      const programId = options.programId ? (typeof options.programId === 'string' ? parseInt(options.programId, 10) : options.programId) : undefined;
+      const promoCodeId = options.promoCodeId ? (typeof options.promoCodeId === 'string' ? parseInt(options.promoCodeId, 10) : options.promoCodeId) : undefined;
+      
+      // Check rate limits first
+      const rateLimiter = new RateLimiter();
+      const rateLimitKey = `qrscan:${businessId}:${options.ipAddress || 'unknown'}`;
+      const isRateLimited = await rateLimiter.isRateLimited(rateLimitKey);
+      
+      if (isRateLimited) {
+        const error = new QrRateLimitError('Too many scan attempts', {
+          businessId,
+          ipAddress: options.ipAddress,
+          scanType
+        });
+        
+        logQrCodeError(error, {
+          businessId,
+          scanType,
+          ipAddress: options.ipAddress
+        });
+        
+        // Log the rate-limited scan attempt
+        await this.logScan(
+          scanType,
+          businessId,
+          scannedData,
+          false,
+          {
+            customerId,
+            programId,
+            promoCodeId,
+            errorMessage: 'Rate limit exceeded'
+          }
+        );
+        
+        return {
+          success: false,
+          message: error.userMessage,
+          rateLimited: true
+        };
+      }
+      
+      // Increment rate limit counter
+      await rateLimiter.increment(rateLimitKey);
+      
+      // Validate the QR code data
+      const validation = await this.validateQrData(scanType, scannedData);
+      
       if (!validation.valid) {
-        await sql.query('ROLLBACK', []);
-        return { success: false, message: validation.message };
+        // Log the failed scan
+        const scanLogId = await this.logScan(
+          scanType,
+          businessId,
+          scannedData,
+          false,
+          {
+            customerId,
+            programId,
+            promoCodeId,
+            errorMessage: validation.message
+          }
+        );
+        
+        return {
+          success: false,
+          message: validation.message,
+          scanLogId
+        };
       }
       
-      // Parse data if it's a string
-      const parsedData = typeof scannedData === 'string' ? JSON.parse(scannedData) : scannedData;
+      // Use the verified data from validation
+      const verifiedData = validation.verifiedData || scannedData;
       
-      // Convert IDs to numbers
-      const scannedById = typeof scannedBy === 'string' ? parseInt(scannedBy) : scannedBy;
-      const customerIdNum = options.customerId ? (typeof options.customerId === 'string' ? parseInt(options.customerId) : options.customerId) : undefined;
-      const programIdNum = options.programId ? (typeof options.programId === 'string' ? parseInt(options.programId) : options.programId) : undefined;
-      const promoCodeIdNum = options.promoCodeId ? (typeof options.promoCodeId === 'string' ? parseInt(options.promoCodeId) : options.promoCodeId) : undefined;
+      // Process the scan based on type using retryable transactions
+      let result;
       
-      // Process based on type
-      let pointsAwarded = 0;
-      let result = { success: true, message: 'QR code processed successfully' };
-      
-      switch (scanType) {
-        case 'CUSTOMER_CARD':
-          // Process customer card logic
-          // e.g. Register customer visit, verify customer, etc.
-          result = await this.processCustomerCard(scannedById, parsedData, customerIdNum);
-          break;
-          
-        case 'PROMO_CODE':
-          // Process promo code logic
-          // e.g. Apply promotion, verify eligibility, etc.
-          result = await this.processPromoCode(scannedById, parsedData, customerIdNum, promoCodeIdNum);
-          break;
-          
-        case 'LOYALTY_CARD':
-          // Process loyalty card logic
-          // e.g. Award points, check program status, etc.
-          const loyaltyResult = await this.processLoyaltyCard(scannedById, parsedData, customerIdNum, programIdNum);
-          result = loyaltyResult;
-          pointsAwarded = loyaltyResult.pointsAwarded || 0;
-          break;
+      try {
+        switch (scanType) {
+          case 'CUSTOMER_CARD':
+            result = await withRetryableTransaction(
+              () => this.processCustomerCard(businessId, verifiedData, customerId),
+              { businessId, scanType, customerId }
+            );
+            break;
+            
+          case 'PROMO_CODE':
+            result = await withRetryableTransaction(
+              () => this.processPromoCode(businessId, verifiedData, customerId, promoCodeId),
+              { businessId, scanType, customerId, promoCodeId }
+            );
+            break;
+            
+          case 'LOYALTY_CARD':
+            result = await withRetryableTransaction(
+              () => this.processLoyaltyCard(businessId, verifiedData, customerId, programId),
+              { businessId, scanType, customerId, programId }
+            );
+            break;
+            
+          default:
+            throw new QrValidationError(`Invalid scan type: ${scanType}`, { scanType });
+        }
+      } catch (error) {
+        // Log processing error
+        logQrCodeError(error, {
+          businessId,
+          scanType,
+          customerId,
+          programId,
+          promoCodeId
+        });
+        
+        // Log the failed scan
+        const scanLogId = await this.logScan(
+          scanType,
+          businessId,
+          scannedData,
+          false,
+          {
+            customerId,
+            programId,
+            promoCodeId,
+            errorMessage: error instanceof Error ? error.message : 'Unknown processing error'
+          }
+        );
+        
+        if (error instanceof QrCodeError) {
+          return {
+            success: false,
+            message: error.userMessage,
+            scanLogId,
+            error
+          };
+        }
+        
+        return {
+          success: false,
+          message: 'An error occurred while processing the QR code. Please try again.',
+          scanLogId,
+          error
+        };
       }
       
-      // If processing failed, rollback and return error
-      if (!result.success) {
-        await sql.query('ROLLBACK', []);
-        return result;
-      }
-      
-      // Log the scan
+      // Log the successful scan
       const scanLogId = await this.logScan(
-        scanType, 
-        scannedById, 
-        parsedData, 
-        result.success, 
+        scanType,
+        businessId,
+        scannedData,
+        result.success,
         {
-          customerId: customerIdNum,
-          programId: programIdNum,
-          promoCodeId: promoCodeIdNum,
-          pointsAwarded,
+          customerId,
+          programId,
+          promoCodeId,
+          pointsAwarded: result.pointsAwarded,
           errorMessage: result.success ? undefined : result.message
         }
       );
       
-      // Commit the transaction
-      await sql.query('COMMIT', []);
-      
       return {
         ...result,
-        pointsAwarded,
         scanLogId
       };
     } catch (error) {
-      // Rollback the transaction on error
-      await sql.query('ROLLBACK', []);
-      console.error('Error processing QR code scan:', error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Unknown error processing QR code' 
+      // Catch any unhandled errors
+      logQrCodeError(error, {
+        scanType,
+        scannedBy,
+        options
+      });
+      
+      // Try to log the error
+      try {
+        await this.logScan(
+          scanType,
+          typeof scannedBy === 'string' ? parseInt(scannedBy, 10) : scannedBy,
+          scannedData,
+          false,
+          {
+            customerId: options.customerId,
+            programId: options.programId,
+            promoCodeId: options.promoCodeId,
+            errorMessage: error instanceof Error ? error.message : 'Unknown error'
+          }
+        );
+      } catch (logError) {
+        console.error('Failed to log scan error:', logError);
+      }
+      
+      if (error instanceof QrCodeError) {
+        return {
+          success: false,
+          message: error.userMessage,
+          error
+        };
+      }
+      
+      return {
+        success: false,
+        message: 'An unexpected error occurred. Please try again later.',
+        error
       };
     }
   }
@@ -390,7 +822,7 @@ export class QrCodeService {
   }
   
   /**
-   * Log a QR code scan
+   * Log a QR code scan in the database
    */
   static async logScan(
     scanType: QrScanLog['scan_type'],
@@ -405,71 +837,55 @@ export class QrCodeService {
       errorMessage?: string;
     } = {}
   ): Promise<number | null> {
+    // Validate input parameters
+    if (!scanType) {
+      console.error('Missing scan type in logScan');
+      return null;
+    }
+    
+    if (!scannedBy) {
+      console.error('Missing scanner ID in logScan');
+      return null;
+    }
+    
     try {
-      const {
-        customerId,
-        programId,
-        promoCodeId,
-        pointsAwarded,
-        errorMessage
-      } = options;
-
-      // Convert IDs to numbers if they're strings
+      // Convert IDs to numbers
       const scannedById = typeof scannedBy === 'string' ? parseInt(scannedBy) : scannedBy;
-      const customerIdNum = customerId ? (typeof customerId === 'string' ? parseInt(customerId) : customerId) : undefined;
-      const programIdNum = programId ? (typeof programId === 'string' ? parseInt(programId) : programId) : undefined;
-      const promoCodeIdNum = promoCodeId ? (typeof promoCodeId === 'string' ? parseInt(promoCodeId) : promoCodeId) : undefined;
+      const customerIdNum = options.customerId 
+        ? (typeof options.customerId === 'string' ? parseInt(options.customerId) : options.customerId) 
+        : null;
+      const programIdNum = options.programId 
+        ? (typeof options.programId === 'string' ? parseInt(options.programId) : options.programId) 
+        : null;
+      const promoCodeIdNum = options.promoCodeId 
+        ? (typeof options.promoCodeId === 'string' ? parseInt(options.promoCodeId) : options.promoCodeId) 
+        : null;
       
-      // Create qr_scan_logs table if it doesn't exist
-      await sql`
-        CREATE TABLE IF NOT EXISTS qr_scan_logs (
-          id SERIAL PRIMARY KEY,
-          scan_type VARCHAR(20) NOT NULL,
-          scanned_by INTEGER NOT NULL,
-          scanned_data TEXT NOT NULL,
-          customer_id INTEGER,
-          program_id INTEGER,
-          promo_code_id INTEGER,
-          points_awarded INTEGER,
-          success BOOLEAN NOT NULL DEFAULT FALSE,
-          error_message TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          ip_address VARCHAR(45),
-          user_agent TEXT
-        )
-      `;
+      // Convert data to string if it's an object
+      const scanDataString = typeof scannedData === 'string' 
+        ? scannedData 
+        : JSON.stringify(scannedData);
       
-      // Ensure related tables exist
-      await sql`
-        CREATE TABLE IF NOT EXISTS customer_visits (
-          id SERIAL PRIMARY KEY,
-          business_id INTEGER NOT NULL,
-          customer_id INTEGER NOT NULL,
-          visit_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
+      // Validate converted IDs
+      if (isNaN(scannedById) || scannedById <= 0) {
+        console.error('Invalid scanner ID:', scannedBy);
+        return null;
+      }
       
-      await sql`
-        CREATE TABLE IF NOT EXISTS promo_code_usages (
-          id SERIAL PRIMARY KEY,
-          promo_code_id INTEGER NOT NULL,
-          business_id INTEGER NOT NULL,
-          customer_id INTEGER,
-          used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
+      if (customerIdNum !== null && (isNaN(customerIdNum) || customerIdNum <= 0)) {
+        console.error('Invalid customer ID:', options.customerId);
+        return null;
+      }
       
-      await sql`
-        CREATE TABLE IF NOT EXISTS loyalty_transactions (
-          id SERIAL PRIMARY KEY,
-          program_id INTEGER NOT NULL,
-          customer_id INTEGER NOT NULL,
-          business_id INTEGER NOT NULL,
-          points INTEGER NOT NULL,
-          transaction_type VARCHAR(20) NOT NULL,
-          transaction_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
+      if (programIdNum !== null && (isNaN(programIdNum) || programIdNum <= 0)) {
+        console.error('Invalid program ID:', options.programId);
+        return null;
+      }
+      
+      if (promoCodeIdNum !== null && (isNaN(promoCodeIdNum) || promoCodeIdNum <= 0)) {
+        console.error('Invalid promo code ID:', options.promoCodeId);
+        return null;
+      }
       
       // Insert scan log
       const result = await sql`
@@ -482,24 +898,62 @@ export class QrCodeService {
           promo_code_id,
           points_awarded,
           success,
-          error_message
+          error_message,
+          created_at
         ) VALUES (
           ${scanType},
           ${scannedById},
-          ${JSON.stringify(scannedData)},
-          ${customerIdNum || null},
-          ${programIdNum || null},
-          ${promoCodeIdNum || null},
-          ${pointsAwarded || null},
+          ${scanDataString},
+          ${customerIdNum},
+          ${programIdNum},
+          ${promoCodeIdNum},
+          ${options.pointsAwarded || null},
           ${success},
-          ${errorMessage || null}
+          ${options.errorMessage || null},
+          NOW()
         )
         RETURNING id
       `;
       
-      return result[0]?.id || null;
+      if (result && result.length > 0) {
+        // Also log details for analytics
+        try {
+          await sql`
+            INSERT INTO scan_analytics (
+              scan_log_id,
+              scan_type,
+              business_id,
+              customer_id,
+              program_id,
+              success,
+              points_awarded,
+              scan_date
+            ) VALUES (
+              ${result[0].id},
+              ${scanType},
+              ${scannedById},
+              ${customerIdNum},
+              ${programIdNum},
+              ${success},
+              ${options.pointsAwarded || 0},
+              NOW()
+            )
+          `;
+        } catch (analyticsError) {
+          console.error('Failed to log scan analytics (non-critical):', analyticsError);
+          // Continue anyway - analytics are non-critical
+        }
+        
+        return result[0].id;
+      }
+      
+      return null;
     } catch (error) {
-      console.error('Error logging QR scan:', error);
+      console.error('Error logging QR code scan:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Stack trace:', error.stack);
+      }
       return null;
     }
   }
@@ -725,6 +1179,39 @@ export class QrCodeService {
         dailyScans: [],
         scanTypes: [],
         businessPerformance: []
+      };
+    }
+  }
+
+  /**
+   * Send notification for QR code scan (success or failure)
+   * 
+   * @param userId The user ID to send the notification to
+   * @param success Whether the scan was successful
+   * @param businessName The name of the business where the scan happened
+   * @param points Points earned (if successful)
+   * @param details Additional details about the scan
+   */
+  static async sendScanNotification(
+    userId: string,
+    success: boolean,
+    businessName: string,
+    points?: number,
+    details?: Record<string, any>
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      return await NotificationService.sendScanNotification(
+        userId,
+        success,
+        businessName,
+        points,
+        details
+      );
+    } catch (error) {
+      console.error('Error sending scan notification:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error sending notification'
       };
     }
   }

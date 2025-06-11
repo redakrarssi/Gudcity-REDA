@@ -21,7 +21,9 @@ import { AnalyticsService } from '../../services/analyticsService';
 import type { BusinessAnalytics, ProgramPerformance, CustomerSegment } from '../../types/analytics';
 import { CurrencySelector } from '../CurrencySelector';
 import type { CurrencyCode } from '../../types/currency';
-import { Users, TrendingUp, DollarSign, ArrowLeft, ArrowRight, ChevronUp, ChevronDown, Repeat, Calendar } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, ArrowLeft, ArrowRight, ChevronUp, ChevronDown, Repeat, Calendar, Settings } from 'lucide-react';
+import MockDataBanner from '../MockDataBanner';
+import { Link } from 'react-router-dom';
 
 interface BusinessAnalyticsDashboardProps {
   businessId?: string;
@@ -142,8 +144,19 @@ export const BusinessAnalyticsDashboard: React.FC<BusinessAnalyticsDashboardProp
             selectedCurrency={currency} 
             onCurrencyChange={setCurrency} 
           />
+          <Link 
+            to="/business/settings"
+            className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title={t('Update Business Settings')}
+          >
+            <Settings size={16} />
+            {t('Settings')}
+          </Link>
         </div>
       </div>
+
+      {/* Mock Data Warning Banner */}
+      <MockDataBanner show={!!analytics.isMockData} />
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -341,63 +354,65 @@ export const BusinessAnalyticsDashboard: React.FC<BusinessAnalyticsDashboardProp
       </div>
 
       {/* Period Comparison */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-6">{t('Period Comparison')}</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-500">{t('Customers')}</h4>
-              <Calendar className="w-4 h-4 text-gray-400" />
+      {analytics.periodComparison ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-6">{t('Period Comparison')}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-500">{t('Customers')}</h4>
+                <Calendar className="w-4 h-4 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison?.customers?.toLocaleString() || '0'}</p>
+              <div className="flex items-center mt-2">
+                <span className={`flex items-center text-xs ${getPercentChangeColor(0.12)}`}>
+                  <ChevronUp className="w-3 h-3" />
+                  12.0%
+                </span>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison.customers.toLocaleString()}</p>
-            <div className="flex items-center mt-2">
-              <span className={`flex items-center text-xs ${getPercentChangeColor(0.12)}`}>
-                <ChevronUp className="w-3 h-3" />
-                12.0%
-              </span>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-500">{t('Revenue')}</h4>
+                <Calendar className="w-4 h-4 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(analytics.periodComparison?.revenue || 0)}</p>
+              <div className="flex items-center mt-2">
+                <span className={`flex items-center text-xs ${getPercentChangeColor(0.18)}`}>
+                  <ChevronUp className="w-3 h-3" />
+                  18.0%
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-500">{t('Revenue')}</h4>
-              <Calendar className="w-4 h-4 text-gray-400" />
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-500">{t('Transactions')}</h4>
+                <Calendar className="w-4 h-4 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison?.transactions?.toLocaleString() || '0'}</p>
+              <div className="flex items-center mt-2">
+                <span className={`flex items-center text-xs ${getPercentChangeColor(0.15)}`}>
+                  <ChevronUp className="w-3 h-3" />
+                  15.0%
+                </span>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(analytics.periodComparison.revenue)}</p>
-            <div className="flex items-center mt-2">
-              <span className={`flex items-center text-xs ${getPercentChangeColor(0.18)}`}>
-                <ChevronUp className="w-3 h-3" />
-                18.0%
-              </span>
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-500">{t('Transactions')}</h4>
-              <Calendar className="w-4 h-4 text-gray-400" />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison.transactions.toLocaleString()}</p>
-            <div className="flex items-center mt-2">
-              <span className={`flex items-center text-xs ${getPercentChangeColor(0.15)}`}>
-                <ChevronUp className="w-3 h-3" />
-                15.0%
-              </span>
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-500">{t('Redemptions')}</h4>
-              <Calendar className="w-4 h-4 text-gray-400" />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison.redemptions.toLocaleString()}</p>
-            <div className="flex items-center mt-2">
-              <span className={`flex items-center text-xs ${getPercentChangeColor(0.07)}`}>
-                <ChevronUp className="w-3 h-3" />
-                7.0%
-              </span>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-500">{t('Redemptions')}</h4>
+                <Calendar className="w-4 h-4 text-gray-400" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{analytics.periodComparison?.redemptions?.toLocaleString() || '0'}</p>
+              <div className="flex items-center mt-2">
+                <span className={`flex items-center text-xs ${getPercentChangeColor(0.07)}`}>
+                  <ChevronUp className="w-3 h-3" />
+                  7.0%
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }; 

@@ -40,6 +40,7 @@ export interface Transaction {
   amount?: number; // For points earned from purchase
   rewardId?: string; // For redemptions
   createdAt: string;
+  businessName?: string; // Add businessName field for display purposes
 }
 
 export interface Business {

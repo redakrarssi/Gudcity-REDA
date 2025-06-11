@@ -12,6 +12,10 @@ import {
   getUserByEmail
 } from '../services/userService';
 import { recordBusinessLogin } from '../services/businessService';
+import { UserQrCodeService } from '../services/userQrCodeService';
+import { LoyaltyProgramService } from '../services/loyaltyProgramService';
+import { LoyaltyCardService } from '../services/loyaltyCardService';
+import sql from '../utils/db';
 
 // Define Permission interface
 interface Permission {
@@ -240,6 +244,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const createdUser = await createDbUser(newUser);
       
       if (createdUser && createdUser.id) {
+        try {
+          // Generate a QR code for the customer if it's a customer account
+          if (createdUser.user_type === 'customer') {
+            console.log('Generating QR code for new customer');
+            await UserQrCodeService.generateCustomerQrCode(createdUser);
+            
+            // Automatically enroll the customer in available loyalty programs
+            try {
+              console.log('Enrolling new customer in available loyalty programs');
+              
+              // Find businesses with active loyalty programs
+              const businesses = await sql`
+                SELECT DISTINCT u.id, u.name, u.business_name 
+                FROM users u
+                JOIN loyalty_programs lp ON u.id::text = lp.business_id
+                WHERE u.user_type = 'business'
+                AND u.status = 'active'
+                AND lp.status = 'ACTIVE'
+                LIMIT 5 -- Limit to 5 businesses for initial enrollment
+              `;
+              
+              // For each business, find their default program and create a loyalty card
+              if (businesses && businesses.length > 0) {
+                for (const business of businesses) {
+                  try {
+                    // Get default program for this business
+                    const defaultProgram = await LoyaltyProgramService.getDefaultBusinessProgram(business.id);
+                    
+                    if (defaultProgram) {
+                      // Enroll customer in program
+                      await LoyaltyProgramService.enrollCustomer(
+                        createdUser.id.toString(), 
+                        defaultProgram.id
+                      );
+                      
+                      // Create loyalty card
+                      await LoyaltyCardService.enrollCustomerInProgram(
+                        createdUser.id.toString(),
+                        business.id,
+                        defaultProgram.id
+                      );
+                      
+                      console.log(`Enrolled customer in program: ${defaultProgram.name}`);
+                    }
+                  } catch (enrollError) {
+                    console.error('Error enrolling in business program:', enrollError);
+                    // Don't fail registration if enrollment fails
+                  }
+                }
+              }
+            } catch (enrollError) {
+              console.error('Error during automatic loyalty program enrollment:', enrollError);
+              // Don't fail registration if enrollment fails
+            }
+          }
+        } catch (qrError) {
+          console.error('Error generating QR code during registration:', qrError);
+          // Don't fail registration if QR code generation fails
+        }
+
         // Log the user in automatically
         const appUser = convertDbUserToUser(createdUser);
         setUser(appUser);

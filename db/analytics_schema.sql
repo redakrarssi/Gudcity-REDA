@@ -61,6 +61,37 @@ CREATE TABLE IF NOT EXISTS customer_segments (
   UNIQUE(business_id, segment_name, period_type, period_start)
 );
 
+-- Segment-Program Engagement (Intersection table)
+CREATE TABLE IF NOT EXISTS segment_program_engagement (
+  id SERIAL PRIMARY KEY,
+  segment_id INTEGER NOT NULL REFERENCES customer_segments(id) ON DELETE CASCADE,
+  program_id VARCHAR(50) NOT NULL,
+  business_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  engagement_score DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  period_type VARCHAR(10) NOT NULL CHECK (period_type IN ('day', 'week', 'month', 'year')),
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(segment_id, program_id, period_type, period_start)
+);
+
+-- Customer Analytics (to track individual customers)
+CREATE TABLE IF NOT EXISTS customer_analytics (
+  id SERIAL PRIMARY KEY,
+  customer_id VARCHAR(50) NOT NULL,
+  business_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  segment_id INTEGER REFERENCES customer_segments(id),
+  total_spent DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  visit_count INTEGER NOT NULL DEFAULT 0,
+  last_visit_date DATE,
+  points_balance INTEGER NOT NULL DEFAULT 0,
+  loyalty_score DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_id, business_id)
+);
+
 -- Top Products
 CREATE TABLE IF NOT EXISTS top_products (
   id SERIAL PRIMARY KEY,
@@ -179,4 +210,9 @@ CREATE INDEX IF NOT EXISTS idx_customer_segments_business_id ON customer_segment
 CREATE INDEX IF NOT EXISTS idx_top_products_business_id ON top_products(business_id);
 CREATE INDEX IF NOT EXISTS idx_regional_analytics_region ON regional_analytics(region);
 CREATE INDEX IF NOT EXISTS idx_regional_top_programs_region ON regional_top_programs(region);
-CREATE INDEX IF NOT EXISTS idx_feature_interactions_feature ON feature_interactions(feature_name); 
+CREATE INDEX IF NOT EXISTS idx_feature_interactions_feature ON feature_interactions(feature_name);
+CREATE INDEX IF NOT EXISTS idx_segment_program_engagement_segment_id ON segment_program_engagement(segment_id);
+CREATE INDEX IF NOT EXISTS idx_segment_program_engagement_program_id ON segment_program_engagement(program_id);
+CREATE INDEX IF NOT EXISTS idx_customer_analytics_customer_id ON customer_analytics(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_analytics_business_id ON customer_analytics(business_id);
+CREATE INDEX IF NOT EXISTS idx_customer_analytics_segment_id ON customer_analytics(segment_id); 

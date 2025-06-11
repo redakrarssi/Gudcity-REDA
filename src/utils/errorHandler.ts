@@ -135,19 +135,19 @@ export function asyncHandler(fn: Function) {
 // Transaction wrapper for database operations
 export async function withTransaction<T>(operation: () => Promise<T>): Promise<T> {
   try {
-    // Start transaction
-    await sql.query('BEGIN', []);
+    // Start transaction using tagged template literal
+    await sql`BEGIN`;
     
     // Run the operation
     const result = await operation();
     
-    // Commit if successful
-    await sql.query('COMMIT', []);
+    // Commit if successful using tagged template literal
+    await sql`COMMIT`;
     
     return result;
   } catch (error) {
-    // Rollback on error
-    await sql.query('ROLLBACK', []);
+    // Rollback on error using tagged template literal
+    await sql`ROLLBACK`;
     throw error;
   }
 }

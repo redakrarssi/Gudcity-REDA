@@ -8,11 +8,16 @@ import {
   Calendar, 
   Filter, 
   Download,
-  Gift 
+  Gift,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { Transaction } from '../../types/loyalty';
 import { TransactionService } from '../../services/transactionService';
 import { useAuth } from '../../contexts/AuthContext';
+import { withRetry } from '../../utils/withRetry';
+import { ErrorState } from '../ErrorState';
+import { FallbackIndicator } from '../FallbackIndicator';
 
 interface TransactionHistoryProps {
   customerId?: string;
@@ -33,6 +38,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EARN' | 'REDEEM'>('ALL');
   const [dateRange, setDateRange] = useState<'ALL' | 'WEEK' | 'MONTH' | 'YEAR'>('ALL');
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [usingFallbackData, setUsingFallbackData] = useState(false);
 
   const userId = customerId || user?.id?.toString();
 
@@ -40,7 +48,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     if (userId) {
       fetchTransactions();
     }
-  }, [userId, programId, filterType, dateRange]);
+  }, [userId, programId, filterType, dateRange, retryCount]);
 
   const fetchTransactions = async () => {
     if (!userId) {
@@ -49,16 +57,32 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       return;
     }
     
+    setLoading(true);
+    setError(null);
+    setIsRetrying(retryCount > 0);
+    
     try {
-      setLoading(true);
-      const result = await TransactionService.getTransactionHistory(
-        userId,
-        programId
+      // Use our withRetry utility to handle transient database errors
+      const result = await withRetry(
+        () => TransactionService.getTransactionHistory(userId, programId),
+        {
+          maxRetries: 3,
+          onRetry: (error, attempt) => {
+            console.warn(`Transaction fetch retry attempt ${attempt}/3: ${error.message}`);
+          }
+        }
       );
       
       if (result.transactions) {
         // Apply filters
         let filteredTransactions = result.transactions;
+        
+        // Check if we're using fallback data (mock data)
+        // This is a simple heuristic - in a real app, TransactionService would
+        // explicitly indicate if fallback data is being used
+        setUsingFallbackData(result.transactions.some(tx => 
+          tx.id.startsWith('10') && parseInt(tx.id) > 1000 && parseInt(tx.id) < 2000
+        ));
         
         // Filter by type
         if (filterType !== 'ALL') {
@@ -90,11 +114,18 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         setTransactions(filteredTransactions);
       }
     } catch (err) {
-      setError('Failed to load transaction history');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to load transaction history: ${errorMessage}`);
       console.error('Error fetching transactions:', err);
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
+  };
+
+  // Handle retry
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
   };
 
   // Filter transactions by search term
@@ -110,7 +141,8 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       tx.businessId.toLowerCase().includes(term) ||
       tx.programId.toLowerCase().includes(term) ||
       tx.type.toLowerCase().includes(term) ||
-      tx.points.toString().includes(term)
+      tx.points.toString().includes(term) ||
+      (tx.businessName && tx.businessName.toLowerCase().includes(term))
     );
   });
 
@@ -126,7 +158,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         tx.type,
         tx.points,
         tx.programId,
-        tx.businessId
+        tx.businessName || tx.businessId
       ].join(','))
     ];
     
@@ -144,7 +176,18 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm">
+    <div className="bg-white rounded-lg shadow-sm relative">
+      {/* Fallback data indicator */}
+      {usingFallbackData && (
+        <FallbackIndicator 
+          isUsingFallback={true}
+          type="data"
+          position="top-right"
+          onReload={handleRetry}
+          compact
+        />
+      )}
+      
       <div className="p-4 border-b border-gray-200">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
           <h2 className="text-lg font-semibold text-gray-800 flex items-center">
@@ -167,7 +210,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             <button
               onClick={exportToCSV}
               disabled={transactions.length === 0}
-              className="py-2 px-3 bg-blue-50 text-blue-600 rounded-md text-sm flex items-center hover:bg-blue-100 transition-colors"
+              className="py-2 px-3 bg-blue-50 text-blue-600 rounded-md text-sm flex items-center hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4 mr-1" />
               {t('Export')}
@@ -201,17 +244,20 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
       
       {loading ? (
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <div className="flex flex-col items-center">
+            <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-3" />
+            <p className="text-gray-500">{isRetrying ? t('retrying', 'Retrying...') : t('loading', 'Loading...')}</p>
+          </div>
         </div>
       ) : error ? (
-        <div className="p-6 text-center">
-          <p className="text-red-500">{error}</p>
-          <button
-            onClick={() => fetchTransactions()}
-            className="mt-3 px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
-          >
-            {t('Try Again')}
-          </button>
+        <div className="p-6">
+          <ErrorState
+            error={error}
+            errorType="database"
+            onRetry={handleRetry}
+            isRetrying={isRetrying}
+            retryCount={retryCount}
+          />
         </div>
       ) : transactions.length === 0 ? (
         <div className="p-8 text-center">
@@ -268,7 +314,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                     {transaction.type === 'EARN' ? (
                       <div className="flex items-center">
                         <Award className="w-4 h-4 mr-1 text-green-500" />
-                        <span>{t('Program')}: {transaction.programId}</span>
+                        <span>{transaction.businessName || t('Program')}: {transaction.programId}</span>
                       </div>
                     ) : (
                       <div className="flex items-center">

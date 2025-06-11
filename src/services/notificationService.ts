@@ -425,4 +425,55 @@ export class NotificationService {
       };
     }
   }
+
+  /**
+   * Send push notification for successful or failed QR code scan
+   * 
+   * @param userId The user ID to send the notification to
+   * @param success Whether the scan was successful
+   * @param businessName The name of the business where the scan happened
+   * @param points Points earned (if successful)
+   * @param details Additional details about the scan
+   */
+  static async sendScanNotification(
+    userId: string,
+    success: boolean,
+    businessName: string,
+    points?: number,
+    details?: Record<string, any>
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      let title: string;
+      let message: string;
+      let type: NotificationType;
+      
+      if (success) {
+        type = 'POINTS_EARNED';
+        title = `QR Code Scanned Successfully`;
+        message = points 
+          ? `You earned ${points} points at ${businessName}!` 
+          : `Your QR code was successfully scanned at ${businessName}`;
+      } else {
+        type = 'SYSTEM_ALERT';
+        title = `QR Code Scan Failed`;
+        message = `There was a problem scanning your QR code at ${businessName}. ${details?.errorMessage || ''}`;
+      }
+      
+      // Create notification in database
+      const result = await this.createNotification(
+        userId,
+        type,
+        title,
+        message,
+        details
+      );
+      
+      return { success: result.success };
+    } catch (error) {
+      return { 
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
 } 

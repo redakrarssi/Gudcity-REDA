@@ -1,0 +1,1 @@
+import { neon } from '@neondatabase/serverless'; const DATABASE_URL = process.env.VITE_DATABASE_URL; console.log('Testing connection...'); async function test() { try { const sql = neon(DATABASE_URL); const result = await sql`SELECT 1 as connected`; console.log('Connection successful!', result); } catch (error) { console.error('Connection failed:', error.message); } } test(); 

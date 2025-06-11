@@ -1,6 +1,9 @@
 import { CurrencyService } from './currencyService';
 import { AnalyticsDbService } from './analyticsDbService';
-import sql from '../utils/db';
+import sql, { ConnectionState, getConnectionState, isConnected, forceReconnect, SqlRow } from '../utils/db';
+import { validateBusinessId, validatePeriod, validateCurrencyCode } from '../utils/sqlSafety';
+import { executeWithFallback, validateAnalyticsInputs } from './queryUtilities';
+import { getMockBusinessAnalytics, getMockAdminAnalytics } from './mockDataService';
 import type { CurrencyCode } from '../types/currency';
 import type {
   BusinessAnalytics,
@@ -43,26 +46,54 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year' = 'month'
   ): Promise<BusinessAnalytics> {
     try {
-      console.log(`Fetching business analytics for business ID: ${businessId}, currency: ${currency}, period: ${period}`);
+      // Validate inputs using the utility
+      const { validatedId, validatedCurrency, validatedPeriod } = 
+        validateAnalyticsInputs(businessId, currency, period);
       
-      // Try to fetch from database first
-      const data = await AnalyticsDbService.getBusinessAnalytics(businessId, currency, period);
-      console.log('Successfully retrieved business analytics from database');
-      return data;
-    } catch (error) {
-      console.error('Error getting business analytics from database:', error);
-      
-      // Try to determine if this is a database connection issue
-      if (error instanceof Error && 
-          (error.message.includes('connection') || 
-           error.message.includes('database') || 
-           error.message.includes('sql'))) {
-        console.error('Database connection issue detected');
+      if (!validatedId) {
+        throw new Error('Invalid business ID');
       }
       
-      console.log('Falling back to mock data');
-      // Fall back to mock data
-      return this.getMockBusinessAnalytics(businessId, currency);
+      console.log(`Fetching business analytics for business ID: ${validatedId}, currency: ${validatedCurrency}, period: ${validatedPeriod}`);
+      
+      // If database is currently not connected, try to reconnect
+      if (!isConnected()) {
+        console.log('Database not connected. Attempting to reconnect...');
+        forceReconnect();
+        
+        // Wait a bit for reconnection attempt
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // If still not connected, use mock data
+        if (!isConnected()) {
+          console.log('Could not reconnect to database. Using mock data.');
+          return getMockBusinessAnalytics(validatedId, validatedCurrency);
+        }
+      }
+      
+      // Try to fetch from database with fallback to mock data if needed
+      return executeWithFallback(
+        async () => {
+          const data = await AnalyticsDbService.getBusinessAnalytics(validatedId, validatedCurrency, validatedPeriod);
+          console.log('Successfully retrieved business analytics from database');
+          return data;
+        },
+        getMockBusinessAnalytics(validatedId, validatedCurrency),
+        'Error getting business analytics from database'
+      );
+    } catch (error) {
+      console.error('Unexpected error in getBusinessAnalytics:', error);
+      
+      // If it's a validation error, propagate it upward
+      if (error instanceof Error && 
+          (error.message.includes('ID') || 
+           error.message.includes('currency') || 
+           error.message.includes('period'))) {
+        throw error;
+      }
+      
+      // Otherwise use mock data as a fallback
+      return getMockBusinessAnalytics(businessId, currency);
     }
   }
 
@@ -71,26 +102,50 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year' = 'month'
   ): Promise<AdminAnalytics> {
     try {
-      console.log(`Fetching admin analytics, currency: ${currency}, period: ${period}`);
+      // Validate inputs using the utility
+      const { validatedCurrency, validatedPeriod } = 
+        validateAnalyticsInputs(undefined, currency, period);
       
-      // Try to fetch from database first
-      const data = await AnalyticsDbService.getAdminAnalytics(currency, period);
-      console.log('Successfully retrieved admin analytics from database');
-      return data;
-    } catch (error) {
-      console.error('Error getting admin analytics from database:', error);
+      console.log(`Fetching admin analytics, currency: ${validatedCurrency}, period: ${validatedPeriod}`);
       
-      // Try to determine if this is a database connection issue
-      if (error instanceof Error && 
-          (error.message.includes('connection') || 
-           error.message.includes('database') || 
-           error.message.includes('sql'))) {
-        console.error('Database connection issue detected');
+      // If database is currently not connected, try to reconnect
+      if (!isConnected()) {
+        console.log('Database not connected. Attempting to reconnect...');
+        forceReconnect();
+        
+        // Wait a bit for reconnection attempt
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // If still not connected, use mock data
+        if (!isConnected()) {
+          console.log('Could not reconnect to database. Using mock data.');
+          return getMockAdminAnalytics(validatedCurrency);
+        }
       }
       
-      console.log('Falling back to mock data');
-      // Fall back to mock data
-      return this.getMockAdminAnalytics(currency);
+      // Try to fetch from database with fallback to mock data if needed
+      return executeWithFallback(
+        async () => {
+          const data = await AnalyticsDbService.getAdminAnalytics(validatedCurrency, validatedPeriod);
+          console.log('Successfully retrieved admin analytics from database');
+          // Mark as real database data, not mock data
+          return { ...data, isMockData: false };
+        },
+        getMockAdminAnalytics(validatedCurrency),
+        'Error getting admin analytics from database'
+      );
+    } catch (error) {
+      console.error('Unexpected error in getAdminAnalytics:', error);
+      
+      // If it's a validation error, propagate it upward
+      if (error instanceof Error && 
+          (error.message.includes('currency') || 
+           error.message.includes('period'))) {
+        throw error;
+      }
+      
+      // Otherwise use mock data as a fallback
+      return getMockAdminAnalytics(currency);
     }
   }
 
@@ -108,7 +163,7 @@ export class AnalyticsService {
           avg_visit_frequency,
           customer_lifetime_value
         FROM business_analytics
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY period_start DESC
         LIMIT 1
@@ -159,13 +214,13 @@ export class AnalyticsService {
           avg_transaction_value,
           revenue
         FROM program_analytics
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY active_customers DESC
       `;
 
       if (results.length > 0) {
-        return results.map(row => ({
+        return results.map((row: SqlRow) => ({
           programId: row.program_id,
           programName: row.program_name,
           totalCustomers: row.total_customers,
@@ -225,28 +280,81 @@ export class AnalyticsService {
           visit_frequency,
           loyalty_score
         FROM customer_segments
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY loyalty_score DESC
       `;
 
-      if (results.length > 0) {
-        return results.map(row => ({
-          name: row.segment_name,
-          size: row.segment_size,
-          averageSpend: row.avg_spend,
-          visitFrequency: row.visit_frequency,
-          preferredPrograms: [], // We don't store this in the database yet
-          loyaltyScore: row.loyalty_score
-        }));
+      // Define interface for program preference results
+      interface ProgramPreference extends SqlRow {
+        segment_id: number;
+        program_name: string;
+        engagement_score: number;
+      }
+
+      // Define interface for segment results
+      interface CustomerSegmentRow extends SqlRow {
+        id: number;
+        segment_name: string;
+        segment_size: number;
+        avg_spend: number;
+        visit_frequency: number;
+        loyalty_score: number;
+      }
+      
+      // In parallel, get the program preferences for each segment
+      const programPreferencesQuery = sql<ProgramPreference[]>`
+        SELECT 
+          spe.segment_id, 
+          pa.program_name,
+          spe.engagement_score
+        FROM segment_program_engagement spe
+        JOIN program_analytics pa 
+          ON spe.program_id = pa.program_id 
+          AND spe.business_id = pa.business_id
+        WHERE spe.business_id = ${businessId}
+        AND spe.period_type = ${period}
+        ORDER BY spe.engagement_score DESC
+      `;
+      
+      // Execute both queries in parallel
+      const [segmentResults, programPreferences] = await Promise.all([
+        results,
+        programPreferencesQuery
+      ]);
+      
+      // Cast the results to the correct types
+      const segments = segmentResults as CustomerSegmentRow[];
+      
+      if (segments.length > 0) {
+        // Group program preferences by segment_id
+        const programsBySegment: Record<number, string[]> = {};
+        for (const row of programPreferences) {
+          const segmentId = Number(row.segment_id);
+          if (!programsBySegment[segmentId]) {
+            programsBySegment[segmentId] = [];
+          }
+          programsBySegment[segmentId].push(row.program_name);
+        }
+        
+        return segments.map(row => {
+          return {
+            name: row.segment_name,
+            size: row.segment_size,
+            averageSpend: row.avg_spend,
+            visitFrequency: row.visit_frequency,
+            preferredPrograms: programsBySegment[row.id] || [],
+            loyaltyScore: row.loyalty_score
+          };
+        });
       }
       
       // Fallback to mock data if no results
       return [
-        { name: 'Frequent', size: 320, averageSpend: 75.50, visitFrequency: 4.2, preferredPrograms: [], loyaltyScore: 8.7 },
-        { name: 'Regular', size: 480, averageSpend: 45.75, visitFrequency: 2.1, preferredPrograms: [], loyaltyScore: 6.4 },
-        { name: 'Occasional', size: 650, averageSpend: 28.25, visitFrequency: 1.0, preferredPrograms: [], loyaltyScore: 4.2 },
-        { name: 'New', size: 230, averageSpend: 32.80, visitFrequency: 0.5, preferredPrograms: [], loyaltyScore: 3.5 }
+        { name: 'Frequent', size: 320, averageSpend: 75.50, visitFrequency: 4.2, preferredPrograms: ['Coffee Club', 'Lunch Rewards', 'Weekend Special'], loyaltyScore: 8.7 },
+        { name: 'Regular', size: 480, averageSpend: 45.75, visitFrequency: 2.1, preferredPrograms: ['Lunch Rewards', 'Coffee Club'], loyaltyScore: 6.4 },
+        { name: 'Occasional', size: 650, averageSpend: 28.25, visitFrequency: 1.0, preferredPrograms: ['Happy Hour', 'Weekend Special'], loyaltyScore: 4.2 },
+        { name: 'New', size: 230, averageSpend: 32.80, visitFrequency: 0.5, preferredPrograms: ['Welcome Bonus'], loyaltyScore: 3.5 }
       ];
     } catch (error) {
       console.error('Error fetching customer segments:', error);
@@ -267,7 +375,7 @@ export class AnalyticsService {
           revenue_growth,
           avg_order_value
         FROM business_analytics
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY period_start DESC
         LIMIT 1
@@ -280,7 +388,7 @@ export class AnalyticsService {
           revenue,
           quantity
         FROM top_products
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY revenue DESC
         LIMIT 5
@@ -574,7 +682,7 @@ export class AnalyticsService {
           transactions,
           redemptions
         FROM business_analytics
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY period_start DESC
         LIMIT 1
@@ -648,182 +756,5 @@ export class AnalyticsService {
       console.error('Error fetching platform period comparison:', error);
       throw error;
     }
-  }
-
-  // Mock data methods - used as fallback
-  private static getMockBusinessAnalytics(
-    businessId: string,
-    currency: CurrencyCode
-  ): BusinessAnalytics {
-    return {
-      retention: {
-        period: 'month' as const,
-        activeCustomers: 1248,
-        churnRate: 0.05,
-        repeatVisitRate: 0.68,
-        averageVisitFrequency: 2.3,
-        customerLifetimeValue: 342.5
-      },
-      programPerformance: [
-        {
-          programId: '1',
-          programName: 'Coffee Club',
-          totalCustomers: 650,
-          activeCustomers: 450,
-          pointsIssued: 15000,
-          pointsRedeemed: 4200,
-          redemptionRate: 0.28,
-          averageTransactionValue: 12.5,
-          revenue: 5625,
-          currency: currency
-        },
-        {
-          programId: '2',
-          programName: 'Lunch Rewards',
-          totalCustomers: 520,
-          activeCustomers: 320,
-          pointsIssued: 12000,
-          pointsRedeemed: 4200,
-          redemptionRate: 0.35,
-          averageTransactionValue: 18.75,
-          revenue: 6000,
-          currency: currency
-        },
-        {
-          programId: '3',
-          programName: 'Weekend Special',
-          totalCustomers: 280,
-          activeCustomers: 280,
-          pointsIssued: 8400,
-          pointsRedeemed: 1512,
-          redemptionRate: 0.18,
-          averageTransactionValue: 22.5,
-          revenue: 6300,
-          currency: currency
-        }
-      ],
-      customerSegments: [
-        { name: 'Frequent', size: 320, averageSpend: 75.50, visitFrequency: 4.2, preferredPrograms: [], loyaltyScore: 8.7 },
-        { name: 'Regular', size: 480, averageSpend: 45.75, visitFrequency: 2.1, preferredPrograms: [], loyaltyScore: 6.4 },
-        { name: 'Occasional', size: 650, averageSpend: 28.25, visitFrequency: 1.0, preferredPrograms: [], loyaltyScore: 4.2 },
-        { name: 'New', size: 230, averageSpend: 32.80, visitFrequency: 0.5, preferredPrograms: [], loyaltyScore: 3.5 }
-      ],
-      revenue: {
-        totalRevenue: 45870,
-        revenueGrowth: 0.12,
-        averageOrderValue: 35.75,
-        topProducts: [
-          { name: 'Product A', revenue: 12450, quantity: 458 },
-          { name: 'Product B', revenue: 9870, quantity: 354 },
-          { name: 'Product C', revenue: 8540, quantity: 287 },
-          { name: 'Product D', revenue: 6790, quantity: 198 },
-          { name: 'Product E', revenue: 4320, quantity: 145 }
-        ],
-        currency: currency
-      },
-      periodComparison: {
-        customers: 1248,
-        revenue: 12876,
-        transactions: 384,
-        redemptions: 87
-      }
-    };
-  }
-  
-  private static getMockAdminAnalytics(currency: CurrencyCode): AdminAnalytics {
-    return {
-      platform: {
-        totalUsers: MOCK_DATA.users.total,
-        activeUsers: MOCK_DATA.users.active,
-        userGrowth: MOCK_DATA.users.growth,
-        businessGrowth: MOCK_DATA.businesses.growth,
-        programGrowth: 0.095,
-        totalRevenue: MOCK_DATA.revenue.total,
-        revenueGrowth: MOCK_DATA.revenue.growth,
-        transactionVolume: MOCK_DATA.transactions.volume,
-        averageUserValue: MOCK_DATA.revenue.total / MOCK_DATA.users.active,
-        currency: currency
-      },
-      regional: [
-        { 
-          region: 'North America', 
-          businesses: 450, 
-          customers: 8500, 
-          revenue: 425000,
-          topPrograms: [
-            { programId: '1', programName: 'Coffee Rewards', customers: 3200, revenue: 125000 }
-          ],
-          growth: { businesses: 0.08, customers: 0.12, revenue: 0.15 },
-          currency: currency
-        },
-        { 
-          region: 'Europe', 
-          businesses: 380, 
-          customers: 6400, 
-          revenue: 385000,
-          topPrograms: [
-            { programId: '2', programName: 'Lunch Specials', customers: 2800, revenue: 115000 }
-          ],
-          growth: { businesses: 0.06, customers: 0.09, revenue: 0.11 },
-          currency: currency
-        },
-        { 
-          region: 'Middle East', 
-          businesses: 310, 
-          customers: 5200, 
-          revenue: 265000,
-          topPrograms: [
-            { programId: '3', programName: 'Weekend Specials', customers: 2200, revenue: 95000 }
-          ],
-          growth: { businesses: 0.09, customers: 0.14, revenue: 0.16 },
-          currency: currency
-        },
-        { 
-          region: 'Asia Pacific', 
-          businesses: 280, 
-          customers: 3800, 
-          revenue: 185000,
-          topPrograms: [
-            { programId: '4', programName: 'Loyalty Points', customers: 1800, revenue: 75000 }
-          ],
-          growth: { businesses: 0.11, customers: 0.15, revenue: 0.18 },
-          currency: currency
-        },
-        { 
-          region: 'Africa', 
-          businesses: 210, 
-          customers: 2100, 
-          revenue: 95000,
-          topPrograms: [
-            { programId: '5', programName: 'Points Program', customers: 950, revenue: 35000 }
-          ],
-          growth: { businesses: 0.14, customers: 0.18, revenue: 0.21 },
-          currency: currency
-        }
-      ],
-      engagement: {
-        dailyActiveUsers: 12500,
-        monthlyActiveUsers: MOCK_DATA.users.active,
-        averageSessionDuration: 300, // 5 minutes in seconds
-        interactionsByFeature: {
-          'loyalty-programs': 1200,
-          'rewards-redemption': 800,
-          'qr-scanning': 600,
-          'promo-codes': 400,
-          'customer-dashboard': 350,
-          'business-analytics': 300,
-          'profile-management': 250,
-          'payment-processing': 200
-        },
-        retentionByDay: [100, 80, 65, 55, 48, 44, 42],
-        topFeatures: ['loyalty-programs', 'rewards-redemption', 'qr-scanning', 'promo-codes']
-      },
-      periodComparison: {
-        users: MOCK_DATA.users.total,
-        businesses: MOCK_DATA.businesses.total,
-        revenue: MOCK_DATA.revenue.total,
-        programsCreated: 320
-      }
-    };
   }
 } 

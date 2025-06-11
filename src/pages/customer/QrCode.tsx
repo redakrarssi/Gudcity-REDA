@@ -6,7 +6,8 @@ import {
   QrCode, Smartphone, Download, Share, RefreshCw, 
   Info, Shield, CheckCircle2, Copy, AlertCircle
 } from 'lucide-react';
-import { createCustomerQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
+import { createStandardCustomerQRCode } from '../../utils/standardQrCodeGenerator';
+import QRCode from 'qrcode';
 import { useAuth } from '../../contexts/AuthContext';
 
 const CustomerQrCode = () => {
@@ -58,15 +59,29 @@ const CustomerQrCode = () => {
   const handleDownloadQR = async () => {
     setIsDownloading(true);
     try {
-      await downloadQRCode(
-        { 
-          type: 'customer_card', 
-          customerId: user.id, 
-          name: userName,
-          timestamp: new Date().toISOString() 
-        },
-        `qrcode-${user.id}.png`
-      );
+      const qrData = { 
+        type: 'CUSTOMER_CARD', 
+        customerId: user.id, 
+        customerName: userName,
+        qrUniqueId: crypto.randomUUID(),
+        timestamp: Date.now(),
+        version: '1.0'
+      };
+      
+      // Generate QR code as data URL
+      const dataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+        errorCorrectionLevel: 'M',
+        margin: 4,
+        width: 300
+      });
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `qrcode-${user.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       console.error('Error downloading QR code:', error);
       setError('Failed to download QR code. Please try again.');

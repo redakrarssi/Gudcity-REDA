@@ -1,13 +1,49 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Setting up GudCity Loyalty Platform</title>
+    <meta name="description" content="Gudcity Loyalty Platform - QR code-based loyalty program management">
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/assets/icon-192x192.png">
+    <link rel="manifest" href="/manifest.json">
+    <title>Gudcity Loyalty</title>
+    
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Preload critical assets -->
+    <link rel="preload" href="/fonts/Inter-roman.var.woff2" as="font" type="font/woff2" crossorigin>
+    
+    <!-- Fast page transitions -->
+    <script type="module">
+      document.addEventListener('click', e => {
+        const { target } = e;
+        if (target.tagName === 'A' && target.href.startsWith(window.location.origin)) {
+          const url = new URL(target.href);
+          // Only prefetch same-origin navigations
+          if (url.origin === window.location.origin) {
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = url.href;
+            document.head.appendChild(link);
+          }
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- No-JS fallback -->
+    <noscript>
+      <div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif;">
+        <h1>JavaScript Required</h1>
+        <p>This application requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </noscript>
   </body>
 </html>

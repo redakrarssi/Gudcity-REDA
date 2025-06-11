@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target } from 'lucide-react';
+import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import QrCodeService from '../services/qrCodeService';
 import { RewardModal } from './business/RewardModal';
@@ -9,6 +9,7 @@ import { RedemptionModal } from './business/RedemptionModal';
 import { TransactionConfirmation } from './TransactionConfirmation';
 import { feedbackService } from '../services/feedbackService';
 import { FEATURES } from '../env';
+import { NotificationService } from '../services/notificationService';
 
 interface ScanData {
   type?: string;
@@ -59,7 +60,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
   const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error' | 'pending'>('success');
   const [transactionDetails, setTransactionDetails] = useState<{
-    type: 'reward' | 'redemption' | 'enrollment';
+    type: 'reward' | 'redemption' | 'enrollment' | 'error';
     message: string;
     details?: string;
     customerName?: string;
@@ -67,6 +68,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     points?: number;
     amount?: number;
   } | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
+  const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const checkDomReady = () => {
@@ -238,21 +242,56 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   
   const handleQrCodeScan = async (decodedText: string) => {
     try {
-      if (navigator.vibrate) {
-        navigator.vibrate(100);
+      setError(null);
+      setSuccessScan(null);
+      setProcessingCard(true);
+      playSound('scan');
+      
+      // Check if we're rate limited
+      if (rateLimited && rateLimitResetTime && Date.now() < rateLimitResetTime) {
+        const secondsRemaining = Math.ceil((rateLimitResetTime - Date.now()) / 1000);
+        setError(`Too many scan attempts. Please wait ${secondsRemaining} seconds.`);
+        playSound('error');
+        setProcessingCard(false);
+        return;
       }
       
-      playSound('success');
-      
-      let parsedData: ScanData;
+      let data: ScanData;
       try {
-        parsedData = JSON.parse(decodedText);
-      } catch {
-        parsedData = { text: decodedText };
+        data = JSON.parse(decodedText);
+      } catch (e) {
+        // Improved error feedback for invalid QR codes
+        setError(t('qrScanner.invalidCode', 'Invalid QR code format. Please scan a valid loyalty code.'));
+        setTransactionConfirmationType('error');
+        setTransactionDetails({
+          type: 'error',
+          message: t('qrScanner.invalidCodeTitle', 'Invalid QR Code'),
+          details: t('qrScanner.invalidCodeDetails', 'The scanned code is not a valid loyalty QR code. Please try scanning a different code.'),
+        });
+        setShowTransactionConfirmation(true);
+        playSound('error');
+        setProcessingCard(false);
+        return;
       }
       
-      const qrType = determineQrType(parsedData);
-      const sanitizedData = sanitizeQrData(parsedData, qrType);
+      const qrType = determineQrType(data);
+
+      // Enhanced feedback for unknown QR code types
+      if (qrType === 'unknown') {
+        setError(t('qrScanner.unknownCode', 'Unrecognized QR code type. Please scan a valid loyalty code.'));
+        setTransactionConfirmationType('error');
+        setTransactionDetails({
+          type: 'error',
+          message: t('qrScanner.unknownCodeTitle', 'Unrecognized QR Code'),
+          details: t('qrScanner.unknownCodeDetails', 'This QR code is not associated with our loyalty program. Please try scanning a Gudcity loyalty code.'),
+        });
+        setShowTransactionConfirmation(true);
+        playSound('error');
+        setProcessingCard(false);
+        return;
+      }
+      
+      const sanitizedData = sanitizeQrData(data, qrType);
       
       const result: ScanResult = {
         type: qrType,
@@ -263,23 +302,110 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
       setLastResult(result);
       
-      if (qrType === 'customer_card') {
-        setSuccessScan(`Successfully scanned ${sanitizedData.name || 'customer'}`);
+      // Try to process the scan with the service
+      if (qrType === 'customer_card' && businessId) {
+        const ipAddress = window.location.hostname; // Simple IP proxy for rate limiting
+        const response = await QrCodeService.processQrCodeScan(
+          'CUSTOMER_CARD', 
+          businessId, 
+          sanitizedData,
+          { 
+            customerId: sanitizedData.customerId,
+            ipAddress
+          }
+        );
         
-        if (FEATURES.enableAnimations) {
+        if (response.rateLimited) {
+          // Handle rate limiting
+          setRateLimited(true);
+          // Extract reset time from message or use default 60 seconds
+          const resetTimeMatch = response.message.match(/wait (\d+) seconds/);
+          const waitSeconds = resetTimeMatch ? parseInt(resetTimeMatch[1]) : 60;
+          const newResetTime = Date.now() + (waitSeconds * 1000);
+          setRateLimitResetTime(newResetTime);
+          
+          // Set a timer to clear the rate limit
+          if (rateLimitTimerRef.current) {
+            clearInterval(rateLimitTimerRef.current);
+          }
+          
+          rateLimitTimerRef.current = setInterval(() => {
+            if (rateLimitResetTime && Date.now() >= rateLimitResetTime) {
+              setRateLimited(false);
+              setRateLimitResetTime(null);
+              if (rateLimitTimerRef.current) {
+                clearInterval(rateLimitTimerRef.current);
+                rateLimitTimerRef.current = null;
+              }
+            }
+          }, 1000);
+          
+          setError(response.message);
+          playSound('error');
+          setProcessingCard(false);
+          return;
+        }
+        
+        if (response.success) {
+          setSuccessScan(`Successfully scanned ${sanitizedData.name || 'customer'} card`);
+          playSound('success');
+          
+          // Enhanced success feedback with visual confirmation
+          setTransactionConfirmationType('success');
           setTransactionDetails({
             type: 'reward',
-            message: t('Customer Identified'),
-            details: t('Customer card successfully scanned'),
-            customerName: sanitizedData.name as string || t('Customer'),
-            points: 0
+            message: t('qrScanner.scanSuccessTitle', 'QR Code Scanned Successfully'),
+            details: t('qrScanner.scanSuccessDetails', 'The QR code was successfully validated.'),
+            customerName: sanitizedData.name || 'Customer',
+            businessName: 'Business',
+            points: response.pointsAwarded || 0
           });
-          setTransactionConfirmationType('success');
           setShowTransactionConfirmation(true);
+          
+          // Send push notification for successful scan
+          if (sanitizedData.customerId) {
+            try {
+              await NotificationService.sendScanNotification(
+                sanitizedData.customerId.toString(),
+                true,
+                'Business',
+                response.pointsAwarded
+              );
+            } catch (notificationError) {
+              console.error('Error sending notification:', notificationError);
+            }
+          }
+          
+          // Show reward modal
+          setShowRewardsModal(true);
         } else {
-          setTimeout(() => {
-            setSuccessScan(null);
-          }, 3000);
+          setError(response.message || 'Failed to process customer card');
+          playSound('error');
+          
+          // Enhanced error feedback with visual confirmation
+          setTransactionConfirmationType('error');
+          setTransactionDetails({
+            type: 'reward',
+            message: t('qrScanner.scanFailedTitle', 'QR Code Scan Failed'),
+            details: response.message || t('qrScanner.scanFailedDetails', 'There was a problem processing this QR code.'),
+            customerName: sanitizedData.name || 'Customer'
+          });
+          setShowTransactionConfirmation(true);
+          
+          // Send push notification for failed scan
+          if (sanitizedData.customerId) {
+            try {
+              await NotificationService.sendScanNotification(
+                sanitizedData.customerId.toString(),
+                false,
+                'Business',
+                0,
+                { errorMessage: response.message }
+              );
+            } catch (notificationError) {
+              console.error('Error sending notification:', notificationError);
+            }
+          }
         }
       }
       
@@ -306,6 +432,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             promoCodeValue = sanitizedData.code;
           }
           
+          // Add the IP address for rate limiting
+          const ipAddress = window.location.hostname;
+          
           await QrCodeService.logScan(
             qrType === 'customer_card' ? 'CUSTOMER_CARD' : 
             qrType === 'promo_code' ? 'PROMO_CODE' : 'LOYALTY_CARD',
@@ -315,7 +444,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             {
               customerId: customerIdValue,
               programId: programIdValue,
-              promoCodeId: promoCodeValue
+              promoCodeId: promoCodeValue,
+              ipAddress
             }
           );
         } catch (logError) {
@@ -489,6 +619,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       return Promise.reject(error);
     }
   };
+
+  // Clean up the rate limit timer on unmount
+  useEffect(() => {
+    return () => {
+      if (rateLimitTimerRef.current) {
+        clearInterval(rateLimitTimerRef.current);
+        rateLimitTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="relative">
@@ -708,6 +848,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           onClose={handleTransactionConfirmationClose}
           onFeedback={FEATURES.enableFeedback ? handleFeedbackSubmit : undefined}
         />
+      )}
+      
+      {rateLimited && rateLimitResetTime && (
+        <div className="mt-2 p-2 bg-yellow-100 border border-yellow-400 rounded flex items-center text-yellow-800">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          <span className="text-sm">
+            Rate limit reached. Please wait {Math.ceil((rateLimitResetTime - Date.now()) / 1000)} seconds.
+          </span>
+        </div>
       )}
     </div>
   );

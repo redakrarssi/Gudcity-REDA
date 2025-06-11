@@ -6,14 +6,36 @@ import { EnrolledPrograms } from '../../components/customer/EnrolledPrograms';
 import { TransactionHistory } from '../../components/customer/TransactionHistory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee, Receipt } from 'lucide-react';
+import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee, Receipt, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { TransactionService } from '../../services/transactionService';
+import sql from '../../utils/db';
+import type { Transaction } from '../../types/loyalty';
+
+// Define upcomingReward type
+interface UpcomingReward {
+  programId: number;
+  programName: string;
+  businessName: string;
+  currentPoints: number;
+  rewardId: number;
+  pointsRequired: number;
+  reward: string;
+  pointsNeeded: number;
+  progress: number;
+}
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('enrolled');
   const [animateIn, setAnimateIn] = useState(false);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [pointsLoading, setPointsLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState<Transaction[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [upcomingRewards, setUpcomingRewards] = useState<UpcomingReward[]>([]);
+  const [rewardsLoading, setRewardsLoading] = useState(true);
   
   // Use authenticated user data - ensure we're using the full name from the database
   const userData = {
@@ -34,6 +56,136 @@ const CustomerDashboard = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Fetch total points from all programs
+  useEffect(() => {
+    const fetchTotalPoints = async () => {
+      if (!user?.id) return;
+      
+      setPointsLoading(true);
+      try {
+        const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        const result = await sql`
+          SELECT SUM(current_points) as total_points
+          FROM customer_programs
+          WHERE customer_id = ${userId}
+        `;
+        
+        // Safely handle potential null/undefined result or non-numeric value
+        const points = result[0]?.total_points;
+        setTotalPoints(points ? Number(points) : 0);
+      } catch (error) {
+        console.error('Error fetching total points:', error);
+      } finally {
+        setPointsLoading(false);
+      }
+    };
+    
+    fetchTotalPoints();
+  }, [user?.id]);
+
+  // Fetch recent activities
+  useEffect(() => {
+    const fetchRecentActivities = async () => {
+      if (!user?.id) return;
+      
+      setActivitiesLoading(true);
+      try {
+        const result = await TransactionService.getTransactionHistory(
+          user.id.toString(),
+          undefined // No specific program
+        );
+        
+        if (result.transactions) {
+          // Limit to the 3 most recent transactions
+          setRecentActivity(result.transactions.slice(0, 3));
+        }
+      } catch (error) {
+        console.error('Error fetching recent activities:', error);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+    
+    fetchRecentActivities();
+  }, [user?.id]);
+
+  // Fetch upcoming rewards
+  useEffect(() => {
+    const fetchUpcomingRewards = async () => {
+      if (!user?.id) return;
+      
+      setRewardsLoading(true);
+      try {
+        const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        
+        // Get all enrolled programs with their current points
+        const enrolledPrograms = await sql`
+          SELECT 
+            cp.program_id, 
+            cp.current_points,
+            lp.name AS program_name,
+            b.name AS business_name
+          FROM customer_programs cp
+          JOIN loyalty_programs lp ON cp.program_id = lp.id
+          JOIN businesses b ON lp.business_id = b.id
+          WHERE cp.customer_id = ${userId}
+        `;
+        
+        // For each program, find the next reward tier
+        const nextRewards: UpcomingReward[] = [];
+        for (const program of enrolledPrograms) {
+          // Ensure we have valid values
+          const programId = program.program_id;
+          const currentPoints = Number(program.current_points || 0);
+          
+          if (!programId) continue;
+          
+          const rewardTiers = await sql`
+            SELECT 
+              id, 
+              points_required,
+              reward
+            FROM loyalty_program_rewards
+            WHERE program_id = ${programId}
+            AND points_required > ${currentPoints}
+            ORDER BY points_required ASC
+            LIMIT 1
+          `;
+          
+          if (rewardTiers.length > 0) {
+            const tier = rewardTiers[0];
+            const pointsRequired = Number(tier.points_required || 0);
+            
+            if (pointsRequired > 0) {
+              nextRewards.push({
+                programId,
+                programName: program.program_name || '',
+                businessName: program.business_name || '',
+                currentPoints,
+                rewardId: tier.id,
+                pointsRequired,
+                reward: tier.reward || '',
+                pointsNeeded: Math.max(0, pointsRequired - currentPoints),
+                progress: Math.round((currentPoints / pointsRequired) * 100)
+              });
+            }
+          }
+        }
+        
+        // Sort by progress (highest first)
+        nextRewards.sort((a, b) => b.progress - a.progress);
+        setUpcomingRewards(nextRewards.slice(0, 3)); // Take top 3
+        
+      } catch (error) {
+        console.error('Error fetching upcoming rewards:', error);
+      } finally {
+        setRewardsLoading(false);
+      }
+    };
+    
+    fetchUpcomingRewards();
+  }, [user?.id]);
+
   const handleEnroll = async (programId: string) => {
     // TODO: Implement enrollment API call
     console.log('Enrolling in program:', programId);
@@ -42,6 +194,23 @@ const CustomerDashboard = () => {
   const handleRedeem = async (programId: string, rewardId: string) => {
     // TODO: Implement redemption API call
     console.log('Redeeming reward:', rewardId, 'from program:', programId);
+  };
+
+  // Format date for activity display
+  const formatActivityDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return t('today');
+    } else if (diffDays === 1) {
+      return t('yesterday');
+    } else if (diffDays < 7) {
+      return t('daysAgo', { days: diffDays });
+    } else {
+      return date.toLocaleDateString();
+    }
   };
 
   return (
@@ -54,8 +223,12 @@ const CustomerDashboard = () => {
               {t('customerDashboard.title', 'Customer Dashboard')}
             </h1>
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2 rounded-full text-white text-sm font-medium flex items-center shadow-md">
-              <TrendingUp className="w-4 h-4 mr-1.5" />
-              120 Points
+              {pointsLoading ? (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              ) : (
+                <TrendingUp className="w-4 h-4 mr-1.5" />
+              )}
+              {pointsLoading ? t('loading') : `${totalPoints} ${t('points')}`}
             </div>
           </div>
 
@@ -70,14 +243,20 @@ const CustomerDashboard = () => {
                 <p className="opacity-80 mt-2 text-blue-100">Scan your QR code to earn rewards</p>
                 
                 <div className="flex items-center mt-4 text-sm space-x-4">
-                  <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                    <BadgeCheck className="w-4 h-4 text-blue-200 mr-1.5" />
-                    <span className="text-blue-100">3 Programs</span>
-                  </div>
-                  <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                    <Gift className="w-4 h-4 text-blue-200 mr-1.5" />
-                    <span className="text-blue-100">2 Rewards Ready</span>
-                  </div>
+                  {!pointsLoading && (
+                    <>
+                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                        <BadgeCheck className="w-4 h-4 text-blue-200 mr-1.5" />
+                        <span className="text-blue-100">{upcomingRewards.length} Programs</span>
+                      </div>
+                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                        <Gift className="w-4 h-4 text-blue-200 mr-1.5" />
+                        <span className="text-blue-100">
+                          {upcomingRewards.filter(r => r.progress >= 90).length} Rewards Ready
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20">
@@ -143,26 +322,44 @@ const CustomerDashboard = () => {
               </h3>
               <span className="text-xs bg-blue-50 px-2 py-1 rounded-full text-blue-700">Last 7 days</span>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform">
-                  <Star className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-700">Earned 10 points</p>
-                  <p className="text-xs text-gray-500">Local Coffee Shop • Yesterday</p>
-                </div>
+            
+            {activitiesLoading ? (
+              <div className="flex justify-center items-center py-6">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
               </div>
-              <div className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform">
-                  <BadgeCheck className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-700">Redeemed Free Coffee</p>
-                  <p className="text-xs text-gray-500">Local Coffee Shop • 3 days ago</p>
-                </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p>No recent activity found</p>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map(activity => (
+                  <div key={activity.id} className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform ${
+                      activity.type === 'EARN' ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-indigo-600'
+                    }`}>
+                      {activity.type === 'EARN' ? (
+                        <Star className="w-5 h-5 text-white" />
+                      ) : (
+                        <Gift className="w-5 h-5 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">
+                        {activity.type === 'EARN' ? (
+                          `Earned ${activity.points} points`
+                        ) : (
+                          `Redeemed ${activity.points} points`
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {activity.businessName || 'Business'} • {formatActivityDate(activity.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-blue-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
@@ -173,26 +370,48 @@ const CustomerDashboard = () => {
               </h3>
               <span className="text-xs text-blue-600 cursor-pointer hover:underline">View all</span>
             </div>
-            <div className="space-y-3">
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm group-hover:shadow transition-shadow">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-2 shadow-sm">
-                      <Coffee className="w-4 h-4 text-white" />
-                    </div>
-                    <p className="text-sm font-medium text-gray-800">Free Coffee</p>
-                  </div>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">5 points more</span>
-                </div>
-                <div className="w-full bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full" style={{ width: '50%' }}></div>
-                </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-xs text-gray-500">5/10 points</span>
-                  <span className="text-xs text-blue-700 font-medium">50% complete</span>
-                </div>
+            
+            {rewardsLoading ? (
+              <div className="flex justify-center items-center py-6">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
               </div>
-            </div>
+            ) : upcomingRewards.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p>No upcoming rewards found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {upcomingRewards.map((reward, index) => (
+                  <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm group-hover:shadow transition-shadow">
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-2 shadow-sm">
+                          <Coffee className="w-4 h-4 text-white" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-800">{reward.reward}</p>
+                      </div>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
+                        {reward.pointsNeeded} points more
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full" 
+                        style={{ width: `${reward.progress}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <span className="text-xs text-gray-500">
+                        {reward.currentPoints}/{reward.pointsRequired} points
+                      </span>
+                      <span className="text-xs text-blue-700 font-medium">
+                        {reward.progress}% complete
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-lg border border-purple-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1">

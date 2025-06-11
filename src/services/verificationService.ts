@@ -2,7 +2,7 @@ import sql from '../utils/db';
 import env from '../utils/env';
 import { withTransaction } from '../utils/errorHandler';
 import { getUserByEmail, updateUser } from './userService';
-import crypto from 'crypto';
+import * as cryptoUtils from '../utils/cryptoUtils';
 
 // Interface for verification tokens
 export interface VerificationToken {
@@ -62,7 +62,7 @@ export async function ensureVerificationTokensTableExists(): Promise<void> {
  * Generate a secure random token
  */
 export function generateToken(length: number = 32): string {
-  return crypto.randomBytes(length).toString('hex');
+  return cryptoUtils.generateRandomBytes(length);
 }
 
 /**

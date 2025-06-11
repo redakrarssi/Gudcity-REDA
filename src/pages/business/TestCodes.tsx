@@ -6,11 +6,11 @@ import {
   Download, ChevronDown, ChevronUp, Plus, Hash 
 } from 'lucide-react';
 import { 
-  createCustomerQRCode, 
-  createPromoQRCode, 
-  createLoyaltyCardQRCode,
-  downloadQRCode
-} from '../../utils/qrCodeGenerator';
+  createStandardCustomerQRCode, 
+  createStandardPromoQRCode, 
+  createStandardLoyaltyCardQRCode
+} from '../../utils/standardQrCodeGenerator';
+import QRCode from 'qrcode';
 
 // Sample data for testing
 const SAMPLE_CUSTOMERS = [
@@ -65,7 +65,7 @@ const TestCodesPage: React.FC = () => {
     try {
       // Generate customer QR codes
       for (const customer of SAMPLE_CUSTOMERS) {
-        const qrUrl = await createCustomerQRCode(
+        const qrUrl = await createStandardCustomerQRCode(
           customer.id, 
           MOCK_BUSINESS_ID,
           customer.name
@@ -75,7 +75,7 @@ const TestCodesPage: React.FC = () => {
 
       // Generate promo QR codes
       for (const promo of SAMPLE_PROMOS) {
-        const qrUrl = await createPromoQRCode(
+        const qrUrl = await createStandardPromoQRCode(
           promo.code,
           MOCK_BUSINESS_ID
         );
@@ -84,10 +84,11 @@ const TestCodesPage: React.FC = () => {
 
       // Generate loyalty card QR codes
       for (const card of SAMPLE_LOYALTY_CARDS) {
-        const qrUrl = await createLoyaltyCardQRCode(
+        const qrUrl = await createStandardLoyaltyCardQRCode(
           card.cardId,
           card.programId,
-          MOCK_BUSINESS_ID
+          MOCK_BUSINESS_ID,
+          'test-customer-id' // Added customer ID parameter for standardized format
         );
         newCodes[`loyalty-${card.cardId}`] = qrUrl;
       }
@@ -108,12 +109,17 @@ const TestCodesPage: React.FC = () => {
       let qrUrl = '';
       
       if (customType === 'customer') {
-        qrUrl = await createCustomerQRCode(customId, MOCK_BUSINESS_ID);
+        qrUrl = await createStandardCustomerQRCode(customId, MOCK_BUSINESS_ID);
       } else if (customType === 'promo') {
-        qrUrl = await createPromoQRCode(customId, MOCK_BUSINESS_ID);
+        qrUrl = await createStandardPromoQRCode(customId, MOCK_BUSINESS_ID);
       } else if (customType === 'loyalty') {
         // For loyalty, we use customId as cardId and a fixed programId
-        qrUrl = await createLoyaltyCardQRCode(customId, 'testprogram', MOCK_BUSINESS_ID);
+        qrUrl = await createStandardLoyaltyCardQRCode(
+          customId, 
+          'testprogram', 
+          MOCK_BUSINESS_ID,
+          'test-customer-id' // Added customer ID parameter for standardized format
+        );
       }
       
       setQrCodes(prev => ({
@@ -133,22 +139,53 @@ const TestCodesPage: React.FC = () => {
 
   const handleDownloadQR = async (type: string, id: string) => {
     try {
+      let qrData;
+      
       if (type === 'customer') {
-        await downloadQRCode(
-          { type: 'customer_card', customerId: id, businessId: MOCK_BUSINESS_ID },
-          `customer-${id}.png`
-        );
+        qrData = {
+          type: 'CUSTOMER_CARD',
+          customerId: id,
+          businessId: MOCK_BUSINESS_ID,
+          qrUniqueId: crypto.randomUUID(),
+          timestamp: Date.now(),
+          version: '1.0'
+        };
       } else if (type === 'promo') {
-        await downloadQRCode(
-          { type: 'promo_code', code: id, businessId: MOCK_BUSINESS_ID },
-          `promo-${id}.png`
-        );
+        qrData = {
+          type: 'PROMO_CODE',
+          promoCode: id,
+          businessId: MOCK_BUSINESS_ID,
+          qrUniqueId: crypto.randomUUID(),
+          timestamp: Date.now(),
+          version: '1.0'
+        };
       } else if (type === 'loyalty') {
-        await downloadQRCode(
-          { type: 'loyalty_card', cardId: id, programId: 'testprogram', businessId: MOCK_BUSINESS_ID },
-          `loyalty-${id}.png`
-        );
+        qrData = {
+          type: 'LOYALTY_CARD',
+          cardId: id,
+          programId: 'testprogram',
+          businessId: MOCK_BUSINESS_ID,
+          customerId: 'test-customer-id',
+          qrUniqueId: crypto.randomUUID(),
+          timestamp: Date.now(),
+          version: '1.0'
+        };
       }
+      
+      // Generate QR code using qrcode library
+      const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+        errorCorrectionLevel: 'M',
+        margin: 4,
+        width: 300
+      });
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = qrCodeDataUrl;
+      link.download = `${type}-${id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       console.error('Error downloading QR code:', error);
     }

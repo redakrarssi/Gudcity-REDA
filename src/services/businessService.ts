@@ -296,75 +296,65 @@ export async function updateBusiness(id: number, business: Partial<Business>): P
   try {
     console.log(`Updating business with id: ${id}`);
     
-    // Build dynamic update query
-    let updateFields = [];
-    let updateValues: any[] = [];
+    // Create individual update statements for each field
+    // This approach uses separate SQL queries for each field update
+    const now = new Date();
     
+    // Start with a base SQL query
+    let query = sql`
+      UPDATE businesses 
+      SET updated_at = ${now}
+    `;
+    
+    // Append each field that needs to be updated
     if (business.name !== undefined) {
-      updateFields.push('name = $1');
-      updateValues.push(business.name);
+      query = sql`${query}, name = ${business.name}`;
     }
     
     if (business.owner !== undefined) {
-      updateFields.push(`owner = $${updateValues.length + 1}`);
-      updateValues.push(business.owner);
+      query = sql`${query}, owner = ${business.owner}`;
     }
     
     if (business.email !== undefined) {
-      updateFields.push(`email = $${updateValues.length + 1}`);
-      updateValues.push(business.email);
+      query = sql`${query}, email = ${business.email}`;
     }
     
     if (business.phone !== undefined) {
-      updateFields.push(`phone = $${updateValues.length + 1}`);
-      updateValues.push(business.phone);
+      query = sql`${query}, phone = ${business.phone}`;
     }
     
     if (business.type !== undefined) {
-      updateFields.push(`type = $${updateValues.length + 1}`);
-      updateValues.push(business.type);
+      query = sql`${query}, type = ${business.type}`;
     }
     
     if (business.status !== undefined) {
-      updateFields.push(`status = $${updateValues.length + 1}`);
-      updateValues.push(business.status);
+      query = sql`${query}, status = ${business.status}`;
     }
     
     if (business.address !== undefined) {
-      updateFields.push(`address = $${updateValues.length + 1}`);
-      updateValues.push(business.address);
+      query = sql`${query}, address = ${business.address}`;
     }
     
     if (business.logo !== undefined) {
-      updateFields.push(`logo = $${updateValues.length + 1}`);
-      updateValues.push(business.logo);
+      query = sql`${query}, logo = ${business.logo}`;
     }
     
     if (business.description !== undefined) {
-      updateFields.push(`description = $${updateValues.length + 1}`);
-      updateValues.push(business.description);
+      query = sql`${query}, description = ${business.description}`;
     }
     
     if (business.notes !== undefined) {
-      updateFields.push(`notes = $${updateValues.length + 1}`);
-      updateValues.push(business.notes);
+      query = sql`${query}, notes = ${business.notes}`;
     }
     
-    // Add updated_at timestamp
-    updateFields.push(`updated_at = $${updateValues.length + 1}`);
-    updateValues.push(new Date());
-    
-    // Add ID for WHERE clause
-    updateValues.push(id);
-    
-    const query = `
-      UPDATE businesses 
-      SET ${updateFields.join(', ')} 
-      WHERE id = $${updateValues.length} 
+    // Complete the query with the WHERE clause and RETURNING statement
+    query = sql`
+      ${query}
+      WHERE id = ${id}
       RETURNING *
     `;
     
-    const result = await sql.query(query, updateValues);
+    const result = await query;
     
     if (result && result.length > 0) {
       console.log(`Business with id ${id} updated successfully`);

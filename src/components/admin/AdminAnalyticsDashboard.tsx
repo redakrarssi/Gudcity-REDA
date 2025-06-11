@@ -16,7 +16,9 @@ import { AnalyticsService } from '../../services/analyticsService';
 import type { AdminAnalytics } from '../../types/analytics';
 import { CurrencySelector } from '../CurrencySelector';
 import type { CurrencyCode } from '../../types/currency';
-import { Users, TrendingUp, DollarSign, Globe, ChevronUp, ChevronDown } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Globe, ChevronUp, ChevronDown, Settings, AlertTriangle, ArrowRight } from 'lucide-react';
+import MockDataBanner from '../MockDataBanner';
+import { Link } from 'react-router-dom';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -35,13 +37,52 @@ export const AdminAnalyticsDashboard: React.FC = () => {
     setAnalytics(data);
   };
 
+  // Render settings action card with a prompt to update settings
+  const renderSettingsSection = () => (
+    <div className="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+            <Settings className="w-5 h-5 text-blue-500 mr-2" />
+            {t('Dashboard Configuration')}
+          </h3>
+          <p className="text-gray-500 mt-1">{t('Customize your dashboard settings and update your business profile')}</p>
+        </div>
+        <div className="bg-blue-50 p-2 rounded">
+          <Settings className="w-5 h-5 text-blue-500" />
+        </div>
+      </div>
+      
+      <div className="mt-4 flex">
+        <div className="flex-1">
+          <div className="text-sm text-gray-600 mb-3">
+            <div className="flex items-start mb-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 mr-2" />
+              <span>{t('Keep your business information up to date to maintain accurate analytics')}</span>
+            </div>
+          </div>
+          <Link
+            to="/admin/settings"
+            className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            {t('Update Settings')}
+            <ArrowRight className="ml-1 w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!analytics) {
     return (
-      <div className="flex items-center justify-center h-64 bg-white rounded-xl shadow-sm">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600">{t('Loading analytics data...')}</p>
-        </div>
+      <div className="text-center p-6">
+        <p>{t('No analytics data available')}</p>
+        <button 
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          onClick={() => loadAnalytics()}
+        >
+          {t('Load Data')}
+        </button>
       </div>
     );
   }
@@ -86,6 +127,12 @@ export const AdminAnalyticsDashboard: React.FC = () => {
           />
         </div>
       </div>
+      
+      {/* Render Settings Section */}
+      {renderSettingsSection()}
+
+      {/* Display banner when using mock data */}
+      <MockDataBanner show={!!analytics.isMockData} />
 
       {/* Platform Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -337,4 +337,45 @@ export class LoyaltyProgramService {
       };
     }
   }
+
+  /**
+   * Get a default loyalty program for a business to use for auto-enrollment
+   * @param businessId ID of the business
+   * @returns The first active loyalty program or null if none exists
+   */
+  static async getDefaultBusinessProgram(businessId: string): Promise<LoyaltyProgram | null> {
+    try {
+      const result = await sql`
+        SELECT * FROM loyalty_programs
+        WHERE business_id = ${businessId}
+        AND status = 'ACTIVE'
+        ORDER BY created_at ASC
+        LIMIT 1
+      `;
+      
+      if (!result.length) {
+        return null;
+      }
+      
+      const program = result[0];
+      const rewardTiers = await this.getProgramRewardTiers(program.id);
+      
+      return {
+        id: program.id.toString(),
+        businessId: program.business_id.toString(),
+        name: program.name,
+        description: program.description || '',
+        type: program.type,
+        pointValue: parseFloat(program.point_value || 0),
+        rewardTiers: rewardTiers,
+        expirationDays: program.expiration_days,
+        status: program.status,
+        createdAt: program.created_at,
+        updatedAt: program.updated_at
+      };
+    } catch (error) {
+      console.error('Error fetching default business program:', error);
+      return null;
+    }
+  }
 } 
