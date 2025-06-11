@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- CRITICAL FIXES FOR LODASH - MUST BE FIRST -->
+    <script>
+      // Emergency inline fix - define global _ immediately at the very top
+      window._ = window._ || {
+        noop: function() {},
+        identity: function(value) { return value; }
+      };
+      console.log("Emergency inline lodash fix applied");
+    </script>
+    <script src="/lodash-preload.js"></script>
+    <script src="/charts-lodash-fix.js"></script>
+    
+    <!-- Standard head tags -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Gudcity Loyalty Platform - QR code-based loyalty program management">
@@ -9,41 +22,6 @@
     <link rel="apple-touch-icon" href="/assets/icon-192x192.png">
     <link rel="manifest" href="/manifest.json">
     <title>Gudcity Loyalty</title>
-    
-    <!-- FIX 1: Lodash Pre-initialization - This prevents the "Cannot access '_' before initialization" error -->
-    <script>
-      // Define lodash as a global variable before any other scripts load
-      // This prevents the Temporal Dead Zone reference error
-      window._ = window._ || {
-        noop: function() {},
-        isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
-        isFunction: function(f) { return typeof f === 'function'; },
-        get: function(obj, path, defaultValue) {
-          // Simple implementation of _.get
-          if (!obj) return defaultValue;
-          const keys = Array.isArray(path) ? path : path.split('.');
-          let result = obj;
-          for (let i = 0; i < keys.length; i++) {
-            result = result[keys[i]];
-            if (result === undefined || result === null) return defaultValue;
-          }
-          return result;
-        },
-        // Add other frequently used lodash methods as needed
-        debounce: function(func, wait) {
-          let timeout;
-          return function() {
-            const context = this;
-            const args = arguments;
-            clearTimeout(timeout);
-            timeout = setTimeout(function() {
-              func.apply(context, args);
-            }, wait);
-          };
-        }
-      };
-      console.log("Lodash placeholder initialized to prevent TDZ error");
-    </script>
     
     <!-- FIX 2: Generate Missing PWA Icons - This fixes the manifest icon error -->
     <script>
