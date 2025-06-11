@@ -39,20 +39,32 @@
       };
       
       // Browser polyfill to prevent "browser is not defined" errors
-      if (typeof browser === 'undefined') {
-        var browser = window.browser = {
-          runtime: { sendMessage: function(){}, onMessage: { addListener: function(){} } },
-          storage: { local: { get: function(){}, set: function(){} } }
-        };
-      }
+      window.browser = window.browser || {
+        runtime: { 
+          sendMessage: function(){}, 
+          onMessage: { addListener: function(){}, removeListener: function(){} },
+          getManifest: function() { return {}; },
+          getURL: function(path) { return path; }
+        },
+        storage: { 
+          local: { get: function(){}, set: function(){}, remove: function(){} },
+          sync: { get: function(){}, set: function(){}, remove: function(){} }
+        },
+        tabs: {
+          query: function(){}, 
+          create: function(){}, 
+          update: function(){}
+        }
+      };
       
       console.log('Emergency fixes applied directly in HTML');
     </script>
     
     <!-- Load polyfills -->
-    <script src="/browser-polyfill.js"></script>
-    <script src="/lodash-preload.js"></script>
-    <script src="/charts-lodash-fix.js"></script>
+    <script src="/fix-browser-global.js" onerror="console.error('Failed to load fix-browser-global.js')"></script>
+    <script src="/browser-polyfill.js" onerror="console.error('Failed to load browser-polyfill.js')"></script>
+    <script src="/lodash-preload.js" onerror="console.error('Failed to load lodash-preload.js')"></script>
+    <script src="/charts-lodash-fix.js" onerror="console.error('Failed to load charts-lodash-fix.js')"></script>
     
     <!-- Standard head tags -->
     <meta charset="UTF-8" />

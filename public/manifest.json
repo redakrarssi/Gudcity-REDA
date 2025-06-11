@@ -32,7 +32,12 @@
       "description": "View your loyalty cards"
     }
   ],
-  "categories": ["business", "loyalty", "qr", "productivity"],
+  "categories": [
+    "business",
+    "loyalty",
+    "qr",
+    "productivity"
+  ],
   "orientation": "portrait",
   "prefer_related_applications": false
-} 
+}

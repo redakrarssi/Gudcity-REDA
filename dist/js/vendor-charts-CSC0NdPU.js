@@ -1,3 +1,50 @@
+// Lodash pre-initialization to prevent reference errors
+var _ = window._ = window._ || {
+  noop: function() {},
+  identity: function(value) { return value; },
+  constant: function(value) { return function() { return value; }; },
+  isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
+  isFunction: function(f) { return typeof f === 'function'; },
+  isArray: Array.isArray,
+  isString: function(value) { return typeof value === 'string'; },
+  isNumber: function(value) { return typeof value === 'number'; },
+  isUndefined: function(value) { return value === undefined; },
+  isNil: function(value) { return value == null; },
+  isNaN: isNaN,
+  isFinite: isFinite,
+  each: function(collection, iteratee) {
+    if (Array.isArray(collection)) {
+      for (let i = 0; i < collection.length; i++) {
+        iteratee(collection[i], i, collection);
+      }
+    } else if (typeof collection === 'object' && collection !== null) {
+      for (const key in collection) {
+        if (Object.prototype.hasOwnProperty.call(collection, key)) {
+          iteratee(collection[key], key, collection);
+        }
+      }
+    }
+    return collection;
+  },
+  forEach: function(collection, iteratee) {
+    return this.each(collection, iteratee);
+  },
+  map: function(collection, iteratee) {
+    const result = [];
+    if (Array.isArray(collection)) {
+      for (let i = 0; i < collection.length; i++) result.push(iteratee(collection[i], i, collection));
+    } else if (collection && typeof collection === 'object') {
+      for (let key in collection) {
+        if (Object.prototype.hasOwnProperty.call(collection, key)) {
+          result.push(iteratee(collection[key], key, collection));
+        }
+      }
+    }
+    return result;
+  }
+};
+
+// Original file content follows
 
 // Lodash initialization to prevent TDZ errors
 var _ = (typeof window !== 'undefined' && window._) || {
