@@ -3,28 +3,18 @@
  * Run this after the build process before deploying
  */
 
-const fs = require('fs');
-const path = require('path');
-const glob = require('glob');
+import fs from 'fs';
+import path from 'path';
+import { glob } from 'glob';
 
 // Find all vendor-charts JS files in the dist directory
 console.log('Looking for vendor-charts files...');
-glob('dist/js/vendor-charts-*.js', (err, files) => {
-  if (err) {
-    console.error('Error finding vendor-charts files:', err);
-    process.exit(1);
-  }
-
+glob('dist/js/vendor-charts-*.js').then((files) => {
   if (files.length === 0) {
     console.warn('No vendor-charts files found. Checking for recharts bundle...');
     
     // Look for any recharts-containing bundles as a fallback
-    glob('dist/js/*.js', (err, allFiles) => {
-      if (err) {
-        console.error('Error finding JS files:', err);
-        process.exit(1);
-      }
-      
+    glob('dist/js/*.js').then((allFiles) => {
       const chartsFiles = allFiles.filter(file => {
         try {
           const content = fs.readFileSync(file, 'utf8');
@@ -40,12 +30,16 @@ glob('dist/js/vendor-charts-*.js', (err, files) => {
       }
       
       patchFiles(chartsFiles);
+    }).catch(err => {
+      console.error('Error finding JS files:', err);
+      process.exit(1);
     });
-    
-    return;
+  } else {
+    patchFiles(files);
   }
-  
-  patchFiles(files);
+}).catch(err => {
+  console.error('Error finding vendor-charts files:', err);
+  process.exit(1);
 });
 
 function patchFiles(files) {
