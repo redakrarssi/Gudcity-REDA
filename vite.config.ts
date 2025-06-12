@@ -66,7 +66,7 @@ export default defineConfig({
   
   optimizeDeps: {
     exclude: ['lucide-react'],
-    include: ['html5-qrcode', 'react', 'react-dom', 'react-router-dom'],
+    include: ['html5-qrcode', 'react', 'react-dom', 'react-router-dom', 'lodash'],
     esbuildOptions: {
       target: 'esnext',
     },
@@ -95,43 +95,11 @@ export default defineConfig({
     // More granular chunk strategy
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('scheduler') || id.includes('prop-types')) {
-              return 'vendor-react';
-            }
-            if (id.includes('lucide-react') || id.includes('@headlessui')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('html5-qrcode') || id.includes('qrcode')) {
-              return 'vendor-qr';
-            }
-            if (id.includes('i18next') || id.includes('react-i18next')) {
-              return 'vendor-i18n';
-            }
-            if (id.includes('mapbox') || id.includes('recharts')) {
-              return 'vendor-charts';
-            }
-            return 'vendor-other';
-          }
-          
-          // Split app code by features
-          if (id.includes('/components/')) {
-            return 'app-components';
-          }
-          if (id.includes('/pages/')) {
-            return 'app-pages';
-          }
-          if (id.includes('/utils/') || id.includes('/services/')) {
-            return 'app-core';
-          }
+        manualChunks: {
+          // Explicitly define lodash chunk to ensure it loads before charts
+          'vendor-lodash': ['lodash'],
         },
-        
-        // Ensure assets have content-based hashes for better caching
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-        chunkFileNames: 'js/[name]-[hash].js',
-        entryFileNames: 'js/[name]-[hash].js',
-      },
+      }
     },
     
     // Increase limit to avoid unnecessary warnings
