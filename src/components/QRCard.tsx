@@ -38,8 +38,18 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName }) => {
         });
         
         if (qrCode) {
-          // If we have a QR code URL from the database, use it
-          setQrData(qrCode);
+          // If we have a QR code URL from the database, use it directly
+          // Instead of setting the data URL as the QR code content, create proper standardized content
+          const standardData: StandardQrCodeData = {
+            type: 'CUSTOMER_CARD',
+            qrUniqueId: crypto.randomUUID(),
+            timestamp: Date.now(),
+            version: '1.0',
+            customerId: userId,
+            customerName: displayName
+          };
+          // Set the QR code data as a JSON string
+          setQrData(JSON.stringify(standardData));
           setUniqueCode('••••••');  // This would come from the database in a real implementation
           
           // Get QR code details including expiration date

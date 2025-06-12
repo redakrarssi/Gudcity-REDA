@@ -10,6 +10,7 @@ import { TransactionConfirmation } from './TransactionConfirmation';
 import { feedbackService } from '../services/feedbackService';
 import { FEATURES } from '../env';
 import { NotificationService } from '../services/notificationService';
+import qrScanMonitor from '../utils/qrScanMonitor';
 
 interface ScanData {
   type?: string;
@@ -240,58 +241,64 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
   };
   
-  const handleQrCodeScan = async (decodedText: string) => {
+  const handleQrCodeScan = async (decodedText: string, decodedResult: any) => {
+    setError(null);
+    setProcessingCard(true);
+    setSuccessScan('Processing scan...');
+    
     try {
-      setError(null);
-      setSuccessScan(null);
-      setProcessingCard(true);
       playSound('scan');
       
-      // Check if we're rate limited
-      if (rateLimited && rateLimitResetTime && Date.now() < rateLimitResetTime) {
-        const secondsRemaining = Math.ceil((rateLimitResetTime - Date.now()) / 1000);
-        setError(`Too many scan attempts. Please wait ${secondsRemaining} seconds.`);
-        playSound('error');
-        setProcessingCard(false);
-        return;
-      }
+      console.log("QR code scan received:", decodedText.substring(0, 50) + "...");
       
       let data: ScanData;
+      
       try {
         data = JSON.parse(decodedText);
-      } catch (e) {
-        // Improved error feedback for invalid QR codes
-        setError(t('qrScanner.invalidCode', 'Invalid QR code format. Please scan a valid loyalty code.'));
-        setTransactionConfirmationType('error');
-        setTransactionDetails({
-          type: 'error',
-          message: t('qrScanner.invalidCodeTitle', 'Invalid QR Code'),
-          details: t('qrScanner.invalidCodeDetails', 'The scanned code is not a valid loyalty QR code. Please try scanning a different code.'),
-        });
-        setShowTransactionConfirmation(true);
-        playSound('error');
-        setProcessingCard(false);
-        return;
+        console.log("Successfully parsed QR data:", data);
+      } catch (parseError) {
+        console.error("QR Parse error:", parseError);
+        // Try legacy format or simple text
+        data = { text: decodedText };
+        console.log("Using fallback format:", data);
+        qrScanMonitor.recordFailedScan("Failed to parse QR code JSON", decodedText);
+      }
+      
+      // Safety check - ensure we have an object
+      if (!data || typeof data !== 'object') {
+        console.error("Invalid QR data format, using text fallback");
+        data = { text: decodedText };
+        qrScanMonitor.recordFailedScan("Invalid QR data format", decodedText);
+      }
+      
+      // Before determining the type, check for QR code format issues
+      const diagnostics = qrScanMonitor.diagnoseQrCodeFormat(decodedText);
+      if (!diagnostics.isValid) {
+        console.warn("QR code format issues detected:", diagnostics.issues);
       }
       
       const qrType = determineQrType(data);
-
-      // Enhanced feedback for unknown QR code types
+      console.log("Determined QR Type:", qrType, "from data:", data);
+      
       if (qrType === 'unknown') {
-        setError(t('qrScanner.unknownCode', 'Unrecognized QR code type. Please scan a valid loyalty code.'));
-        setTransactionConfirmationType('error');
-        setTransactionDetails({
-          type: 'error',
-          message: t('qrScanner.unknownCodeTitle', 'Unrecognized QR Code'),
-          details: t('qrScanner.unknownCodeDetails', 'This QR code is not associated with our loyalty program. Please try scanning a Gudcity loyalty code.'),
-        });
-        setShowTransactionConfirmation(true);
-        playSound('error');
+        console.error("Unknown QR code type:", data);
+        setError('Unrecognized QR code format');
         setProcessingCard(false);
+        playSound('error');
+        qrScanMonitor.recordFailedScan("Unknown QR code type", decodedText, data);
         return;
       }
       
+      // Add more debugging info
+      console.log("QR code detected:", { 
+        type: qrType, 
+        customerId: data.customerId, 
+        businessId,
+        raw: decodedText.substring(0, 100) // first 100 chars for debugging
+      });
+      
       const sanitizedData = sanitizeQrData(data, qrType);
+      console.log("Sanitized QR data:", sanitizedData);
       
       const result: ScanResult = {
         type: qrType,
@@ -301,6 +308,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       };
       
       setLastResult(result);
+      console.log("Scan result prepared:", result);
       
       // Try to process the scan with the service
       if (qrType === 'customer_card' && businessId) {
@@ -378,6 +386,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           
           // Show reward modal
           setShowRewardsModal(true);
+          
+          // At the end of successful processing
+          if (qrType === 'customer_card') {
+            qrScanMonitor.recordSuccessfulScan(qrType, sanitizedData);
+          }
         } else {
           setError(response.message || 'Failed to process customer card');
           playSound('error');
@@ -465,31 +478,54 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }, 1000);
       }
     } catch (error) {
-      console.error("Error processing scan result:", error);
-      setError('Failed to process scan result');
+      console.error("QR scan processing error:", error);
+      qrScanMonitor.recordFailedScan("Processing error", decodedText);
+      setError(`Scan processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setProcessingCard(false);
+      playSound('error');
     }
   };
   
   const determineQrType = (data: ScanData): string => {
-    if (data.type === 'customer_card' || data.customerId) {
-      return 'customer_card';
-    } else if (data.type === 'promo_code' || data.code) {
-      return 'promo_code';
-    } else if (data.type === 'loyalty_card' || data.cardId) {
-      return 'loyalty_card';
+    try {
+      // First try to handle standardized format
+      if (data.type === 'CUSTOMER_CARD' || data.type === 'customer_card') {
+        return 'customer_card';
+      } else if (data.type === 'PROMO_CODE' || data.type === 'promo_code') {
+        return 'promo_code';
+      } else if (data.type === 'LOYALTY_CARD' || data.type === 'loyalty_card') {
+        return 'loyalty_card';
+      }
+      
+      // Fallback to legacy format detection
+      if (data.customerId) {
+        return 'customer_card';
+      } else if (data.code) {
+        return 'promo_code';
+      } else if (data.cardId) {
+        return 'loyalty_card';
+      }
+      return 'unknown';
+    } catch (error) {
+      console.error("Error determining QR type:", error);
+      return 'unknown';
     }
-    return 'unknown';
   };
   
   const sanitizeQrData = (data: ScanData, type: string): ScanData => {
-    if (type === 'customer_card') {
-      return {
-        name: data.name || 'Customer',
-        customerId: data.customerId || data.id || '',
-        type: 'customer_card'
-      };
+    try {
+      if (type === 'customer_card') {
+        return {
+          name: data.name || data.customerName || 'Customer',
+          customerId: data.customerId || data.id || '',
+          type: 'customer_card'
+        };
+      }
+      return data;
+    } catch (error) {
+      console.error("Error sanitizing QR data:", error);
+      return data;
     }
-    return data;
   };
   
   const toggleScanner = () => {

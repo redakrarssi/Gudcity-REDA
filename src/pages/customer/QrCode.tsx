@@ -68,7 +68,7 @@ const CustomerQrCode = () => {
         version: '1.0'
       };
       
-      // Generate QR code as data URL
+      // Generate QR code as data URL from JSON string
       const dataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
         errorCorrectionLevel: 'M',
         margin: 4,
