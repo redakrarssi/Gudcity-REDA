@@ -105,10 +105,10 @@ function convertDbUserToUser(dbUser: DbUser): User {
     name: dbUser.name || 'Unknown User',
     email: dbUser.email || 'unknown@example.com',
     role: (dbUser.role as UserRole) || 'customer',
-    avatar_url: dbUser.avatar_url,
+    avatar_url: dbUser.avatar_url || undefined,
     user_type: (dbUser.user_type as UserType) || 'customer',
-    business_name: dbUser.business_name,
-    business_phone: dbUser.business_phone,
+    business_name: dbUser.business_name || undefined,
+    business_phone: dbUser.business_phone || undefined,
     status: dbUser.status as 'active' | 'banned' | 'restricted' || 'active'
   };
 }
@@ -124,34 +124,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuth = async () => {
       try {
         console.log('Initializing authentication...');
-        // First ensure the database is set up properly
-        await ensureUserTableExists();
         
-        // Then ensure demo users exist
-        await ensureDemoUsers();
-        console.log('Database initialization complete');
+        // CRITICAL FIX: Set a timeout to ensure the app doesn't get stuck loading
+        const isProduction = window.location.hostname === 'gudcity-reda.vercel.app';
+        const timeout = isProduction ? 2000 : 10000; // 2s in prod, 10s otherwise
         
-        const storedUserId = localStorage.getItem('authUserId');
-        if (storedUserId) {
+        // Create a promise that resolves after the timeout
+        const timeoutPromise = new Promise<void>(resolve => {
+          setTimeout(() => {
+            console.warn(`Authentication initialization timed out after ${timeout}ms`);
+            resolve();
+          }, timeout);
+        });
+        
+        // Create the actual auth initialization promise
+        const initAuthPromise = (async () => {
           try {
-            const userId = parseInt(storedUserId, 10);
-            const dbUser = await getUserById(userId);
-            if (dbUser) {
-              setUser(convertDbUserToUser(dbUser));
-              console.log('User authenticated from stored ID:', userId);
+            // First ensure the database is set up properly
+            await ensureUserTableExists();
+            
+            // Then ensure demo users exist
+            await ensureDemoUsers();
+            console.log('Database initialization complete');
+            
+            const storedUserId = localStorage.getItem('authUserId');
+            if (storedUserId) {
+              try {
+                const userId = parseInt(storedUserId, 10);
+                const dbUser = await getUserById(userId);
+                if (dbUser) {
+                  setUser(convertDbUserToUser(dbUser));
+                  console.log('User authenticated from stored ID:', userId);
+                } else {
+                  localStorage.removeItem('authUserId');
+                  console.log('Stored user ID not found in database:', userId);
+                }
+              } catch (error) {
+                console.error('Error checking auth:', error);
+                localStorage.removeItem('authUserId');
+              }
             } else {
-              localStorage.removeItem('authUserId');
-              console.log('Stored user ID not found in database:', userId);
+              console.log('No stored user ID found');
             }
           } catch (error) {
-            console.error('Error checking auth:', error);
-            localStorage.removeItem('authUserId');
+            console.error('Error during authentication initialization:', error);
           }
-        } else {
-          console.log('No stored user ID found');
-        }
-      } catch (error) {
-        console.error('Error during authentication initialization:', error);
+        })();
+        
+        // Race between the timeout and actual initialization
+        await Promise.race([initAuthPromise, timeoutPromise]);
       } finally {
         setIsLoading(false);
       }

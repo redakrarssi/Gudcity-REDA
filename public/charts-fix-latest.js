@@ -88,4 +88,7 @@
   }
   
   console.log('Charts emergency fix complete - Lodash available:', typeof window._ === 'object');
-})(); 
+})();
+
+// Polyfill for charts compatibility
+console.log('charts-fix-latest.js loaded'); 

@@ -8,8 +8,8 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // Use relative paths for assets - critical fix for Vercel deployment
-  base: './',
+  // Remove relative path base as it causes issues in production
+  // base: './',
   plugins: [
     react({
       // Improve build-time performance
