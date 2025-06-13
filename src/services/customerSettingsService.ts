@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ensureCustomerExists } from '../utils/initDb';
 
 // Types for customer settings
 export interface RegionalSettings {
@@ -74,6 +75,22 @@ export class CustomerSettingsService {
         
         if (customerByUserResult.length === 0) {
           console.error(`No customer found with ID or user_id: ${customerId}`);
+          
+          // Try to create a customer record for this user ID
+          const createdCustomerId = await ensureCustomerExists(customerIdNum);
+          if (createdCustomerId) {
+            // Fetch the newly created customer
+            const newCustomerResult = await sql`
+              SELECT * FROM customers 
+              WHERE id = ${createdCustomerId}
+            `;
+            
+            if (newCustomerResult.length > 0) {
+              console.log(`Created and retrieved new customer record with ID: ${createdCustomerId}`);
+              return this.formatCustomerData(newCustomerResult[0]);
+            }
+          }
+          
           return null;
         }
         
@@ -114,12 +131,24 @@ export class CustomerSettingsService {
         
         if (customerByUserExists.length === 0) {
           console.error(`No customer found with ID or user_id: ${customerId}`);
-          return null;
+          
+          // Try to create a customer record for this user ID
+          const createdCustomerId = await ensureCustomerExists(customerIdNum, {
+            name: settings.name,
+            email: settings.email
+          });
+          
+          if (createdCustomerId) {
+            console.log(`Created new customer record with ID: ${createdCustomerId} for user ID: ${customerIdNum}`);
+            customerIdNum = createdCustomerId;
+          } else {
+            return null;
+          }
+        } else {
+          // Use the actual customer ID for updates
+          customerIdNum = Number(customerByUserExists[0].id);
+          console.log(`Found customer with user_id ${customerId}, using customer ID: ${customerIdNum}`);
         }
-        
-        // Use the actual customer ID for updates
-        customerIdNum = Number(customerByUserExists[0].id);
-        console.log(`Found customer with user_id ${customerId}, using customer ID: ${customerIdNum}`);
       }
       
       // First check if the notification_preferences and regional_settings columns exist

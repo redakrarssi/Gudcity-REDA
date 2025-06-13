@@ -11,6 +11,13 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
   try {
     console.log('Ensuring customer settings columns exist...');
     
+    // First check if the customers table exists
+    const tableExists = await sql.tableExists('customers');
+    if (!tableExists) {
+      console.log('Customers table does not exist yet, will be created during initialization');
+      return;
+    }
+    
     // Check if the necessary columns exist in the customers table
     const columnsResult = await sql.query(`
       SELECT column_name
@@ -70,6 +77,88 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
     }
   } catch (error) {
     console.error('❌ Error ensuring customer settings columns:', error);
+  }
+}
+
+// Helper function to ensure a customer record exists for a user
+export async function ensureCustomerExists(userId: number, userData: any = null): Promise<number | null> {
+  try {
+    console.log(`Ensuring customer exists for user ID: ${userId}`);
+    
+    // Check if customer already exists for this user
+    const existingCustomer = await sql`
+      SELECT id FROM customers 
+      WHERE user_id = ${userId}
+    `;
+    
+    if (existingCustomer.length > 0) {
+      console.log(`Customer already exists for user ID ${userId} with customer ID: ${existingCustomer[0].id}`);
+      return Number(existingCustomer[0].id);
+    }
+    
+    // If no customer exists, create one
+    console.log(`No customer found for user ID ${userId}, creating new customer record`);
+    
+    // Get user data if not provided
+    let user = userData;
+    if (!user) {
+      const userResult = await sql`
+        SELECT name, email FROM users 
+        WHERE id = ${userId}
+      `;
+      
+      if (userResult.length === 0) {
+        console.error(`User with ID ${userId} not found`);
+        return null;
+      }
+      
+      user = userResult[0];
+    }
+    
+    // Create customer record
+    const result = await sql`
+      INSERT INTO customers (
+        user_id, 
+        name, 
+        email,
+        notification_preferences,
+        regional_settings,
+        joined_at,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${userId},
+        ${user.name || 'Customer'},
+        ${user.email},
+        ${{
+          email: true,
+          push: true,
+          sms: false,
+          promotions: true,
+          rewards: true,
+          system: true
+        }}::jsonb,
+        ${{
+          language: 'en',
+          country: 'United States',
+          currency: 'USD',
+          timezone: 'UTC'
+        }}::jsonb,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      ) RETURNING id
+    `;
+    
+    if (result.length > 0) {
+      console.log(`Created new customer with ID ${result[0].id} for user ID ${userId}`);
+      return Number(result[0].id);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error ensuring customer exists for user ID ${userId}:`, error);
+    return null;
   }
 }
 

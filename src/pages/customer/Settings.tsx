@@ -197,8 +197,12 @@ const CustomerSettings = () => {
     try {
       console.log('Saving customer settings...', formData);
       
+      // Make sure we're using the user ID consistently
+      const idToUse = formData.userId || formData.id || user.id;
+      console.log(`Using ID ${idToUse} for settings update`);
+      
       const updatedSettings = await CustomerSettingsService.updateCustomerSettings(
-        formData.id,
+        idToUse,
         {
           name: formData.name,
           email: formData.email,
@@ -232,14 +236,14 @@ const CustomerSettings = () => {
         setSaveError(true);
         setTimeout(() => {
           setSaveError(false);
-        }, 3000);
+        }, 5000);
       }
     } catch (error) {
       console.error('Error saving settings:', error);
       setSaveError(true);
       setTimeout(() => {
         setSaveError(false);
-      }, 3000);
+      }, 5000);
     } finally {
       setLoading(false);
     }
