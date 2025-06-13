@@ -8,6 +8,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import './i18n';
 import './index.css';
 import initDb from './utils/initDb';
+import { startAppInitialization } from './utils/initApp';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { reportWebVitals } from './utils/performance';
 import { queryClient } from './utils/queryClient';
@@ -18,15 +19,17 @@ const App = lazy(() => import('./App.tsx'));
 // Loading component for suspense fallback
 const AppLoading = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-white dark:bg-gray-900">
-    <div className="text-center">
-      <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-      <p className="mt-4 text-gray-600 dark:text-gray-300">Loading Gudcity...</p>
-    </div>
+    {/* Loading screen removed as requested */}
   </div>
 );
 
-// Initialize the database when the app starts
+// Initialize the database and app when it starts
 initDb();
+startAppInitialization();
+
+// Log app version and initialization
+console.log(`Gudcity App v${import.meta.env.VITE_APP_VERSION || '1.0.0'}`);
+console.log('App initialization started...');
 
 // Temporarily enable console logging in production for debugging
 // if (import.meta.env.PROD) {
