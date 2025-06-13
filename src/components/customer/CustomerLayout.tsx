@@ -48,9 +48,9 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
       path: '/promotions' 
     },
     { 
-      name: t('QR Code'), 
+      name: t('QR Card'), 
       icon: <QrCode className="w-5 h-5" />, 
-      path: '/qr-code' 
+      path: '/qr-card' 
     }
   ];
 

@@ -1,5 +1,8 @@
 import sql from '../utils/db';
 import { useAuth } from '../contexts/AuthContext';
+import { v4 as uuidv4 } from 'uuid';
+import { QrCodeStorageService } from './qrCodeStorageService';
+import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -150,81 +153,328 @@ export class LoyaltyCardService {
     businessId: string,
     programId: string
   ): Promise<LoyaltyCard | null> {
+    let transaction;
     try {
-      // Check if card already exists
-      const existingCard = await sql`
-        SELECT * FROM loyalty_cards
-        WHERE customer_id = ${customerId}
+      // Start a transaction to ensure atomicity
+      transaction = await sql.begin();
+
+      // Validate inputs first
+      if (!customerId || !businessId || !programId) {
+        throw new Error('Missing required parameters for enrollment');
+      }
+
+      // Validate customer exists
+      const customerCheck = await transaction`
+        SELECT id FROM users
+        WHERE id = ${customerId}
+        AND user_type = 'customer'
+        AND status = 'active'
+      `;
+
+      if (customerCheck.length === 0) {
+        throw new Error('Customer not found or not active');
+      }
+
+      // Validate business exists
+      const businessCheck = await transaction`
+        SELECT id FROM businesses
+        WHERE id = ${businessId}
+        AND status = 'active'
+      `;
+
+      if (businessCheck.length === 0) {
+        throw new Error('Business not found or not active');
+      }
+
+      // Validate program exists
+      const programCheck = await transaction`
+        SELECT id, points_to_enroll FROM loyalty_programs
+        WHERE id = ${programId}
         AND business_id = ${businessId}
+        AND status = 'active'
+      `;
+
+      if (programCheck.length === 0) {
+        throw new Error('Loyalty program not found or not active');
+      }
+
+      // Check if the customer already has a card for this program
+      const existingCard = await transaction`
+        SELECT id, status FROM loyalty_cards
+        WHERE customer_id = ${customerId}
         AND program_id = ${programId}
       `;
-      
+
+      let cardId;
+      let isNewCard = false;
+
       if (existingCard.length > 0) {
-        // If exists but inactive, reactivate it
-        if (!existingCard[0].is_active) {
-          await sql`
+        // Card exists - update it if needed
+        if (existingCard[0].status !== 'active') {
+          await transaction`
             UPDATE loyalty_cards
-            SET is_active = true, updated_at = NOW()
+            SET status = 'active', updated_at = NOW()
             WHERE id = ${existingCard[0].id}
           `;
-          
-          const updatedCard = await sql`
-            SELECT * FROM loyalty_cards WHERE id = ${existingCard[0].id}
-          `;
-          
-          return this.formatCard(updatedCard[0]);
+        }
+        cardId = existingCard[0].id;
+      } else {
+        // No card exists - create a new one
+        isNewCard = true;
+        
+        // Generate a unique card number
+        const cardNumber = await this.generateUniqueCardNumber(customerId, businessId);
+        
+        const cardInsert = await transaction`
+          INSERT INTO loyalty_cards (
+            customer_id, 
+            business_id, 
+            program_id, 
+            card_number,
+            points_balance, 
+            total_points_earned,
+            status,
+            enrollment_date,
+            created_at, 
+            updated_at
+          )
+          VALUES (
+            ${customerId}, 
+            ${businessId}, 
+            ${programId}, 
+            ${cardNumber},
+            0, 
+            0,
+            'active',
+            NOW(),
+            NOW(), 
+            NOW()
+          )
+          RETURNING id
+        `;
+        
+        if (!cardInsert || cardInsert.length === 0) {
+          throw new Error('Failed to create loyalty card');
         }
         
-        // Card already exists and is active
-        return this.formatCard(existingCard[0]);
+        cardId = cardInsert[0].id;
+        
+        // Create a QR code for this card
+        try {
+          // Generate QR code data
+          const customer = await transaction`
+            SELECT name FROM users WHERE id = ${customerId}
+          `;
+          
+          const customerName = customer.length > 0 ? customer[0].name : 'Customer';
+          
+          // Create the QR code for the loyalty card
+          const qrImageUrl = await createStandardLoyaltyCardQRCode(
+            cardId.toString(),
+            programId,
+            businessId,
+            customerId
+          );
+          
+          // Store the QR code in the database
+          if (qrImageUrl) {
+            const qrData = {
+              type: 'LOYALTY_CARD',
+              cardId: cardId,
+              programId: programId,
+              businessId: businessId,
+              customerId: customerId,
+              cardNumber: cardNumber,
+              timestamp: Date.now(),
+              qrUniqueId: uuidv4()
+            };
+            
+            await QrCodeStorageService.createQrCode({
+              customerId: customerId,
+              businessId: businessId,
+              qrType: 'LOYALTY_CARD',
+              data: JSON.stringify(qrData),
+              imageUrl: qrImageUrl,
+              isPrimary: false,  // Not the primary customer QR code
+              expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // Valid for 1 year
+            });
+            
+            // Update the card with the QR code URL
+            await transaction`
+              UPDATE loyalty_cards
+              SET qr_code_url = ${qrImageUrl}
+              WHERE id = ${cardId}
+            `;
+          }
+        } catch (qrError) {
+          console.error('Error creating QR code for loyalty card:', qrError);
+          // Continue even if QR creation fails
+        }
       }
       
-      // Generate unique promo code
-      const promoCode = await this.generateUniquePromoCode(businessId, customerId);
-      
-      // Create new card
-      const newCard = await sql`
-        INSERT INTO loyalty_cards (
-          customer_id,
-          business_id,
-          program_id,
-          card_type,
-          tier,
-          points,
-          promo_code,
-          benefits,
-          points_multiplier,
-          available_rewards,
-          points_to_next,
-          is_active,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${customerId},
-          ${businessId},
-          ${programId},
-          'STANDARD',
-          'STANDARD',
-          0,
-          ${promoCode},
-          ${this.cardTiers[0].benefits},
-          ${this.cardTiers[0].pointsMultiplier},
-          ${JSON.stringify(this.getDefaultRewards('STANDARD'))},
-          ${1000},
-          true,
-          NOW(),
-          NOW()
-        )
-        RETURNING *
+      // Get the full card data
+      const card = await transaction`
+        SELECT 
+          lc.*,
+          lp.name as program_name,
+          b.name as business_name
+        FROM loyalty_cards lc
+        LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
+        LEFT JOIN businesses b ON lc.business_id = b.id
+        WHERE lc.id = ${cardId}
       `;
+
+      // Commit the transaction
+      await transaction.commit();
+
+      // Format and return the card
+      if (card.length > 0) {
+        // If this is a new card enrollment, trigger any welcome actions
+        if (isNewCard) {
+          try {
+            // This is non-blocking - don't await
+            this.handleNewCardEnrollment(card[0].id, customerId, businessId, programId);
+          } catch (welcomeError) {
+            console.error('Error processing welcome actions:', welcomeError);
+          }
+        }
+        
+        return this.formatCard(card[0]);
+      }
       
-      return this.formatCard(newCard[0]);
-    } catch (error) {
-      console.error('Error enrolling customer in program:', error);
       return null;
+    } catch (error) {
+      // Rollback transaction on error
+      if (transaction) await transaction.rollback();
+      console.error('Error enrolling customer in loyalty program:', error);
+      throw error;
     }
   }
   
+  /**
+   * Generate a unique card number for a loyalty card
+   */
+  private static async generateUniqueCardNumber(customerId: string, businessId: string): Promise<string> {
+    // Create a base pattern: BXXXX-CXXXX-YYYY
+    // where B = business prefix, C = customer prefix, Y = random digits
+    const businessPrefix = businessId.toString().padStart(4, '0').slice(-4);
+    const customerPrefix = customerId.toString().padStart(4, '0').slice(-4);
+    const randomPart = Math.floor(10000 + Math.random() * 90000).toString();
+    
+    const cardNumber = `${businessPrefix}-${customerPrefix}-${randomPart}`;
+    
+    // Check if this card number already exists
+    const existingCard = await sql`
+      SELECT id FROM loyalty_cards
+      WHERE card_number = ${cardNumber}
+    `;
+    
+    if (existingCard.length > 0) {
+      // Recursive call to generate a different number if this one exists
+      return this.generateUniqueCardNumber(customerId, businessId);
+    }
+    
+    return cardNumber;
+  }
+
+  /**
+   * Handle new card enrollment actions (e.g., welcome points)
+   */
+  private static async handleNewCardEnrollment(
+    cardId: number,
+    customerId: string,
+    businessId: string,
+    programId: string
+  ): Promise<void> {
+    try {
+      // Check if program offers welcome points
+      const program = await sql`
+        SELECT welcome_points FROM loyalty_programs
+        WHERE id = ${programId}
+      `;
+      
+      if (program.length > 0 && program[0].welcome_points > 0) {
+        // Award welcome points
+        await this.awardPointsToCard(
+          cardId.toString(),
+          program[0].welcome_points,
+          'WELCOME',
+          'Welcome bonus for joining the program'
+        );
+      }
+    } catch (error) {
+      console.error('Error processing welcome actions:', error);
+      // Don't throw, this is a non-critical operation
+    }
+  }
+
+  /**
+   * Award points to a loyalty card
+   */
+  static async awardPointsToCard(
+    cardId: string,
+    points: number,
+    source: 'PURCHASE' | 'SCAN' | 'WELCOME' | 'PROMOTION' | 'MANUAL' | 'OTHER',
+    description: string = '',
+    transactionRef: string = '',
+    businessId: string = ''
+  ): Promise<boolean> {
+    if (points <= 0) {
+      return false;
+    }
+
+    try {
+      // Start transaction
+      const transaction = await sql.begin();
+
+      try {
+        // Update card points balance
+        await transaction`
+          UPDATE loyalty_cards
+          SET 
+            points_balance = points_balance + ${points},
+            total_points_earned = total_points_earned + ${points},
+            updated_at = NOW()
+          WHERE id = ${cardId}
+        `;
+
+        // Record the transaction
+        await transaction`
+          INSERT INTO loyalty_transactions (
+            card_id,
+            transaction_type,
+            points,
+            source,
+            description,
+            transaction_ref,
+            business_id,
+            created_at
+          )
+          VALUES (
+            ${cardId},
+            'CREDIT',
+            ${points},
+            ${source},
+            ${description},
+            ${transactionRef},
+            ${businessId || null},
+            NOW()
+          )
+        `;
+
+        // Commit transaction
+        await transaction.commit();
+        return true;
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error awarding points to card:', error);
+      return false;
+    }
+  }
+
   /**
    * Add points to a customer's loyalty card
    */

@@ -26,6 +26,10 @@ export interface StandardQrCodeData {
   cardId?: string | number;
   promoCode?: string;
   
+  // Card specific fields
+  cardNumber?: string;
+  cardType?: string;
+  
   // Security fields
   signature?: string;
 }
@@ -106,7 +110,9 @@ function addSignature(data: StandardQrCodeData): StandardQrCodeData {
 export async function createStandardCustomerQRCode(
   customerId: string | number,
   businessId?: string | number,
-  customerName?: string
+  customerName?: string,
+  cardNumber?: string,
+  cardType?: string
 ): Promise<string> {
   // Create standardized data structure
   const qrData: StandardQrCodeData = {
@@ -116,7 +122,9 @@ export async function createStandardCustomerQRCode(
     version: '1.0',
     customerId,
     customerName,
-    businessId
+    businessId,
+    cardNumber: cardNumber || `${customerId}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+    cardType: cardType || 'STANDARD'
   };
   
   // Generate QR code with standard options

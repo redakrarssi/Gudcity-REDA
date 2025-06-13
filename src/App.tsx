@@ -11,7 +11,7 @@ import Unauthorized from './pages/auth/Unauthorized';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerCards from './pages/customer/Cards';
 import CustomerPromotions from './pages/customer/Promotions';
-import CustomerQrCode from './pages/customer/QrCode';
+import CustomerQrCard from './pages/customer/QrCard';
 import CustomerSettings from './pages/customer/Settings';
 import CustomerNearby from './pages/customer/Nearby';
 import BusinessDashboard from './pages/business/Dashboard';
@@ -109,10 +109,13 @@ function App() {
                   <CustomerPromotions />
                 </ProtectedRoute>
               } />
-              <Route path="/qr-code" element={
+              <Route path="/qr-card" element={
                 <ProtectedRoute>
-                  <CustomerQrCode />
+                  <CustomerQrCard />
                 </ProtectedRoute>
+              } />
+              <Route path="/qr-code" element={
+                <Navigate to="/qr-card" replace />
               } />
               <Route path="/settings" element={
                 <ProtectedRoute>

@@ -1,7 +1,8 @@
-import { QrCodeStorageService } from './qrCodeStorageService';
-import { createStandardCustomerQRCode } from '../utils/standardQrCodeGenerator';
+import { QrCodeStorageService, QrCodeCreationParams } from './qrCodeStorageService';
+import { createStandardCustomerQRCode, StandardQrCodeData } from '../utils/standardQrCodeGenerator';
 import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 /**
  * Service to manage user QR codes, ensuring each customer has a valid QR code
@@ -13,97 +14,222 @@ export class UserQrCodeService {
   /**
    * Generate a QR code for a newly registered customer
    */
-  static async generateCustomerQrCode(user: User): Promise<string | null> {
-    if (!user.id || user.user_type !== 'customer') {
-      console.log('Cannot generate QR code for non-customer or missing user ID');
+  static async generateCustomerQrCode(user: User, cardDetails?: {
+    cardNumber?: string;
+    cardType?: string;
+  }): Promise<string | null> {
+    if (!user || !user.id) {
       return null;
     }
-
+    
     try {
-      console.log(`Generating QR code for customer: ${user.id} (${user.name})`);
-
-      // Generate a unique token for this customer
+      // Generate a unique token and ID for security
       const uniqueToken = this.generateUniqueToken(user.id);
       const qrUniqueId = uuidv4();
 
-      // First, generate the QR code image
-      const qrData = {
-        type: 'CUSTOMER_CARD',
-        customerId: user.id,
-        name: user.name,
-        timestamp: Date.now(),
-        uniqueToken,
-        app: 'GudCity Loyalty',
-        qrUniqueId
-      };
-
-      // Create a visual QR code for the user
+      // Generate card number if not provided
+      const cardNumber = cardDetails?.cardNumber || `${user.id}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      const cardType = cardDetails?.cardType || 'STANDARD';
+      
+      // Create a standardized QR code for the customer
       const qrImageUrl = await createStandardCustomerQRCode(
-        user.id.toString(), 
-        '', // No specific business yet
-        user.name
+        user.id,
+        undefined, // business ID not needed here
+        user.name || 'Customer',
+        cardNumber,
+        cardType
       );
-
-      if (!qrImageUrl) {
-        console.error(`Failed to create QR code image for customer ${user.id}`);
-        return null;
-      }
-
+      
       // Store the QR code in the database
       try {
-        const storedQrCode = await QrCodeStorageService.createQrCode({
+        // Standard QR code data
+        const qrData: StandardQrCodeData = {
+          type: 'CUSTOMER_CARD',
+          qrUniqueId,
+          timestamp: Date.now(),
+          version: '1.0',
           customerId: user.id,
-          qrType: 'MASTER_CARD', // This is the main customer card
-          data: qrData,
+          customerName: user.name || 'Customer',
+          cardNumber,
+          cardType
+        };
+        
+        // Try to store the QR code
+        const params: QrCodeCreationParams = {
+          customerId: user.id,
+          qrType: 'CUSTOMER_CARD',
+          data: JSON.stringify(qrData),
           imageUrl: qrImageUrl,
-          isPrimary: true, // This is the primary QR code
-        });
+          isPrimary: true,
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        };
+        
+        await QrCodeStorageService.createQrCode(params);
 
-        if (storedQrCode) {
-          console.log(`QR code stored successfully for customer ${user.id}, unique ID: ${storedQrCode.qr_unique_id}`);
-          return qrImageUrl;
-        } else {
-          console.error(`Failed to store QR code for customer ${user.id}`);
-          return null;
-        }
-      } catch (dbError) {
-        console.error(`Database error storing QR code for customer ${user.id}:`, dbError);
-        return qrImageUrl; // Return the image URL anyway so the customer can still use it
+        // Cache the result
+        this.cacheQrCode(user.id.toString(), qrImageUrl);
+      } catch (storageError) {
+        console.error('Error storing QR code:', storageError);
+        // Return the QR code anyway even if we couldn't store it
       }
+      
+      return qrImageUrl;
     } catch (error) {
       console.error('Error generating customer QR code:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
-        console.error('Stack trace:', error.stack);
-      }
       return null;
     }
   }
 
   /**
-   * Get a customer's primary QR code or generate one if it doesn't exist
+   * Get or create a QR code for a customer
    */
-  static async getOrCreateCustomerQrCode(user: User): Promise<string | null> {
-    if (!user.id || user.user_type !== 'customer') {
+  static async getOrCreateCustomerQrCode(user: User, cardDetails?: {
+    cardNumber?: string;
+    cardType?: string;
+  }): Promise<string | null> {
+    if (!user || !user.id) {
+      console.error('Invalid user provided to getOrCreateCustomerQrCode');
       return null;
     }
 
-    try {
-      // Check if user already has a primary QR code
-      const existingQrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
-        user.id,
-        'MASTER_CARD'
-      );
+    const userId = user.id.toString();
+    
+    // Try to get from session storage cache first for performance
+    const cachedQrCode = this.getCachedQrCode(userId);
+    if (cachedQrCode && !cardDetails) {
+      return cachedQrCode;
+    }
 
-      if (existingQrCode) {
-        // If it exists, just return the image URL
-        return existingQrCode.qr_image_url || null;
+    // Try to get from storage service
+    try {
+      // Get customer's primary QR code
+      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(userId, 'CUSTOMER_CARD');
+      
+      if (qrCode) {
+        // Check if we have new card details to update
+        if (cardDetails && qrCode.qr_data) {
+          try {
+            const existingData = JSON.parse(qrCode.qr_data);
+            if (cardDetails.cardNumber && cardDetails.cardNumber !== existingData.cardNumber ||
+                cardDetails.cardType && cardDetails.cardType !== existingData.cardType) {
+              // Card details changed, generate a new QR code
+              return this.generateCustomerQrCode(user, cardDetails);
+            }
+          } catch (parseError) {
+            console.error('Error parsing QR code data:', parseError);
+          }
+        }
+        
+        // Use the existing QR code image URL
+        if (qrCode.qr_image_url) {
+          this.cacheQrCode(userId, qrCode.qr_image_url);
+          return qrCode.qr_image_url;
+        }
+        
+        // No image URL in storage, try to extract from qr_data
+        if (qrCode.qr_data) {
+          try {
+            const data = JSON.parse(qrCode.qr_data);
+            if (data.qrImageUrl) {
+              this.cacheQrCode(userId, data.qrImageUrl);
+              return data.qrImageUrl;
+            }
+          } catch (parseError) {
+            console.error('Error parsing QR code data:', parseError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error getting QR code from storage:', error);
+      // Continue and try to generate a fresh QR code
+    }
+
+    // If we got here, we need to generate a new QR code
+    console.log('Generating new QR code for customer');
+    return this.generateCustomerQrCode(user, cardDetails);
+  }
+
+  /**
+   * Cache a QR code in session storage for better performance
+   */
+  private static cacheQrCode(userId: string, qrImageUrl: string): void {
+    try {
+      sessionStorage.setItem(`qrcode_${userId}`, JSON.stringify({
+        timestamp: Date.now(),
+        qrImageUrl
+      }));
+    } catch (error) {
+      console.error('Error caching QR code:', error);
+    }
+  }
+
+  /**
+   * Get a cached QR code from session storage
+   */
+  private static getCachedQrCode(userId: string): string | null {
+    try {
+      const cachedItem = sessionStorage.getItem(`qrcode_${userId}`);
+      if (cachedItem) {
+        const { timestamp, qrImageUrl } = JSON.parse(cachedItem);
+        // Check if the cache is still valid (1 hour)
+        if (Date.now() - timestamp < 60 * 60 * 1000) {
+          return qrImageUrl;
+        }
+      }
+    } catch (error) {
+      console.error('Error getting cached QR code:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Generate a unique token for the user based on their ID
+   */
+  private static generateUniqueToken(userId: string | number): string {
+    const hmac = crypto.createHmac('sha256', this.SECRET_KEY);
+    hmac.update(userId.toString());
+    return hmac.digest('hex');
+  }
+
+  /**
+   * Get QR code details for a customer
+   */
+  static async getQrCodeDetails(userId: string | number): Promise<{
+    expirationDate?: Date;
+    cardNumber?: string;
+    cardType?: string;
+    isActive?: boolean;
+  } | null> {
+    try {
+      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(userId.toString(), 'CUSTOMER_CARD');
+      if (!qrCode) {
+        return null;
       }
 
-      // If not, generate a new one
-      return this.generateCustomerQrCode(user);
+      const result: {
+        expirationDate?: Date;
+        cardNumber?: string;
+        cardType?: string;
+        isActive?: boolean;
+      } = {
+        expirationDate: qrCode.expiry_date,
+        isActive: qrCode.status === 'ACTIVE'
+      };
+
+      // Try to extract card details from QR data
+      if (qrCode.qr_data) {
+        try {
+          const data = JSON.parse(qrCode.qr_data);
+          result.cardNumber = data.cardNumber;
+          result.cardType = data.cardType;
+        } catch (parseError) {
+          console.error('Error parsing QR code data:', parseError);
+        }
+      }
+
+      return result;
     } catch (error) {
-      console.error('Error getting or creating customer QR code:', error);
+      console.error('Error getting QR code details:', error);
       return null;
     }
   }
@@ -369,62 +495,6 @@ export class UserQrCodeService {
         isValid: false,
         message: 'Error processing QR code'
       };
-    }
-  }
-  
-  /**
-   * Generate a unique token based on customer ID
-   */
-  private static generateUniqueToken(id: string | number): string {
-    // Create a deterministic but hard-to-guess token for this customer
-    const idStr = String(id);
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const payload = `${idStr}|${this.SECRET_KEY}|${timestamp}`;
-    
-    // Simple hash function (djb2)
-    let hash = 5381;
-    for (let i = 0; i < payload.length; i++) {
-      hash = ((hash << 5) + hash) + payload.charCodeAt(i);
-    }
-    
-    // Convert to alphanumeric string (base 36)
-    return Math.abs(hash).toString(36);
-  }
-
-  /**
-   * Get details about a QR code including expiration date
-   */
-  static async getQrCodeDetails(userId: string | number): Promise<{
-    expirationDate: string;
-    isActive: boolean;
-    createdAt: string;
-    lastUsed?: string;
-  } | null> {
-    try {
-      // First check if the user has a QR code
-      const existingQrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
-        typeof userId === 'string' ? parseInt(userId) : userId,
-        'MASTER_CARD'
-      );
-
-      if (!existingQrCode) {
-        return null;
-      }
-
-      // Set expiration date to 30 days from creation or last update
-      const creationDate = new Date(existingQrCode.created_at || new Date());
-      const expirationDate = new Date(creationDate);
-      expirationDate.setDate(expirationDate.getDate() + 30); // 30 days validity
-
-      return {
-        expirationDate: expirationDate.toISOString(),
-        isActive: true,
-        createdAt: creationDate.toISOString(),
-        lastUsed: existingQrCode.last_used_at ? new Date(existingQrCode.last_used_at).toISOString() : undefined
-      };
-    } catch (error) {
-      console.error('Error getting QR code details:', error);
-      return null;
     }
   }
 } 

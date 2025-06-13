@@ -411,7 +411,7 @@ export class QrCodeService {
   }
   
   /**
-   * Process a QR code scan with enhanced error handling
+   * Process a QR code scan and perform appropriate actions based on the scan type
    */
   static async processQrCodeScan(
     scanType: QrScanLog['scan_type'],
@@ -421,250 +421,296 @@ export class QrCodeService {
       customerId?: number | string;
       programId?: number | string;
       promoCodeId?: number | string;
+      pointsToAward?: number;
       ipAddress?: string;
     } = {}
   ): Promise<{ success: boolean; message: string; pointsAwarded?: number; scanLogId?: number; error?: any; rateLimited?: boolean }> {
     try {
-      // Convert ID params to numbers
-      const businessId = typeof scannedBy === 'string' ? parseInt(scannedBy, 10) : scannedBy;
-      const customerId = options.customerId ? (typeof options.customerId === 'string' ? parseInt(options.customerId, 10) : options.customerId) : undefined;
-      const programId = options.programId ? (typeof options.programId === 'string' ? parseInt(options.programId, 10) : options.programId) : undefined;
-      const promoCodeId = options.promoCodeId ? (typeof options.promoCodeId === 'string' ? parseInt(options.promoCodeId, 10) : options.promoCodeId) : undefined;
-      
-      // Check rate limits first
-      const rateLimiter = new RateLimiter();
-      const rateLimitKey = `qrscan:${businessId}:${options.ipAddress || 'unknown'}`;
-      const isRateLimited = await rateLimiter.isRateLimited(rateLimitKey);
+      // Convert IDs to strings for consistency in database operations
+      const businessId = String(scannedBy);
+      const customerId = options.customerId ? String(options.customerId) : undefined;
+      const programId = options.programId ? String(options.programId) : undefined;
+      const pointsToAward = options.pointsToAward || 10; // Default to 10 points if not specified
+
+      // First, rate limit check to prevent excessive scanning
+      const ipAddress = options.ipAddress || '127.0.0.1';
+      const isRateLimited = await rateLimiter.check(`qr_scan:${businessId}:${ipAddress}`, 5, 60); // 5 scans per minute
       
       if (isRateLimited) {
-        const error = new QrRateLimitError('Too many scan attempts', {
-          businessId,
-          ipAddress: options.ipAddress,
-          scanType
-        });
-        
-        logQrCodeError(error, {
-          businessId,
-          scanType,
-          ipAddress: options.ipAddress
-        });
-        
-        // Log the rate-limited scan attempt
-        await this.logScan(
-          scanType,
-          businessId,
-          scannedData,
-          false,
-          {
-            customerId,
-            programId,
-            promoCodeId,
-            errorMessage: 'Rate limit exceeded'
-          }
-        );
-        
-        return {
-          success: false,
-          message: error.userMessage,
-          rateLimited: true
+        return { 
+          success: false, 
+          message: 'Rate limit exceeded. Please wait before scanning again.', 
+          rateLimited: true 
         };
       }
       
-      // Increment rate limit counter
-      await rateLimiter.increment(rateLimitKey);
+      // Validate the QR code data with enhanced security checks
+      const validationResult = await this.validateQrData(scanType, scannedData);
       
-      // Validate the QR code data
-      const validation = await this.validateQrData(scanType, scannedData);
-      
-      if (!validation.valid) {
-        // Log the failed scan
+      if (!validationResult.valid) {
         const scanLogId = await this.logScan(
           scanType,
           businessId,
           scannedData,
           false,
-          {
-            customerId,
-            programId,
-            promoCodeId,
-            errorMessage: validation.message
-          }
+          { errorMessage: validationResult.message }
         );
         
-        return {
-          success: false,
-          message: validation.message,
-          scanLogId
-        };
+        return { success: false, message: validationResult.message, scanLogId };
       }
       
-      // Use the verified data from validation
-      const verifiedData = validation.verifiedData || scannedData;
+      // Use the verified data if available, otherwise use the original data
+      const dataToProcess = validationResult.verifiedData || scannedData;
       
-      // Process the scan based on type using retryable transactions
-      let result;
+      let processResult;
       
-      try {
-        switch (scanType) {
-          case 'CUSTOMER_CARD':
-            result = await withRetryableTransaction(
-              () => this.processCustomerCard(businessId, verifiedData, customerId),
-              { businessId, scanType, customerId }
+      // Process based on scan type
+      switch (scanType) {
+        case 'CUSTOMER_CARD':
+          try {
+            // Verify or create customer-business relationship
+            await this.verifyOrCreateCustomerBusiness(
+              businessId, 
+              customerId || dataToProcess.customerId
             );
-            break;
             
-          case 'PROMO_CODE':
-            result = await withRetryableTransaction(
-              () => this.processPromoCode(businessId, verifiedData, customerId, promoCodeId),
-              { businessId, scanType, customerId, promoCodeId }
+            // Process the customer card scan with points award
+            processResult = await this.processCustomerCard(
+              businessId, 
+              dataToProcess, 
+              customerId,
+              pointsToAward
             );
-            break;
-            
-          case 'LOYALTY_CARD':
-            result = await withRetryableTransaction(
-              () => this.processLoyaltyCard(businessId, verifiedData, customerId, programId),
-              { businessId, scanType, customerId, programId }
-            );
-            break;
-            
-          default:
-            throw new QrValidationError(`Invalid scan type: ${scanType}`, { scanType });
-        }
-      } catch (error) {
-        // Log processing error
-        logQrCodeError(error, {
-          businessId,
-          scanType,
-          customerId,
-          programId,
-          promoCodeId
-        });
-        
-        // Log the failed scan
-        const scanLogId = await this.logScan(
-          scanType,
-          businessId,
-          scannedData,
-          false,
-          {
-            customerId,
-            programId,
-            promoCodeId,
-            errorMessage: error instanceof Error ? error.message : 'Unknown processing error'
+          } catch (error) {
+            console.error('Error processing customer card:', error);
+            processResult = { 
+              success: false, 
+              message: error instanceof Error ? error.message : 'Error processing customer card' 
+            };
           }
-        );
-        
-        if (error instanceof QrCodeError) {
-          return {
-            success: false,
-            message: error.userMessage,
-            scanLogId,
-            error
-          };
-        }
-        
-        return {
-          success: false,
-          message: 'An error occurred while processing the QR code. Please try again.',
-          scanLogId,
-          error
-        };
+          break;
+          
+        case 'PROMO_CODE':
+          processResult = await this.processPromoCode(
+            businessId, 
+            dataToProcess, 
+            customerId, 
+            options.promoCodeId
+          );
+          break;
+          
+        case 'LOYALTY_CARD':
+          processResult = await this.processLoyaltyCard(
+            businessId, 
+            dataToProcess, 
+            customerId, 
+            programId
+          );
+          break;
+          
+        default:
+          processResult = { success: false, message: 'Unsupported QR code type' };
       }
       
-      // Log the successful scan
+      // Log the scan result
       const scanLogId = await this.logScan(
         scanType,
         businessId,
-        scannedData,
-        result.success,
+        dataToProcess,
+        processResult.success,
         {
-          customerId,
-          programId,
-          promoCodeId,
-          pointsAwarded: result.pointsAwarded,
-          errorMessage: result.success ? undefined : result.message
+          customerId: customerId || dataToProcess.customerId,
+          programId: programId || dataToProcess.programId,
+          pointsAwarded: processResult.pointsAwarded,
+          errorMessage: !processResult.success ? processResult.message : undefined
         }
       );
       
-      return {
-        ...result,
-        scanLogId
-      };
+      return { ...processResult, scanLogId };
     } catch (error) {
-      // Catch any unhandled errors
-      logQrCodeError(error, {
-        scanType,
-        scannedBy,
-        options
-      });
-      
-      // Try to log the error
-      try {
-        await this.logScan(
-          scanType,
-          typeof scannedBy === 'string' ? parseInt(scannedBy, 10) : scannedBy,
-          scannedData,
-          false,
-          {
-            customerId: options.customerId,
-            programId: options.programId,
-            promoCodeId: options.promoCodeId,
-            errorMessage: error instanceof Error ? error.message : 'Unknown error'
-          }
-        );
-      } catch (logError) {
-        console.error('Failed to log scan error:', logError);
-      }
-      
-      if (error instanceof QrCodeError) {
-        return {
-          success: false,
-          message: error.userMessage,
-          error
-        };
-      }
-      
-      return {
-        success: false,
-        message: 'An unexpected error occurred. Please try again later.',
-        error
+      console.error('Error processing QR code scan:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Error processing QR code scan',
+        error 
       };
     }
   }
   
   /**
-   * Process customer card scan
+   * Verify or create a relationship between customer and business
    */
-  private static async processCustomerCard(businessId: number, data: any, customerId?: number): Promise<{ success: boolean; message: string }> {
+  private static async verifyOrCreateCustomerBusiness(
+    businessId: string | number,
+    customerId?: string | number
+  ): Promise<boolean> {
     try {
-      // Verify that the customer exists
-      const customerCheck = await sql`
-        SELECT id FROM users 
-        WHERE id = ${customerId || data.customerId}
-        AND user_type = 'customer'
-      `;
-      
-      if (!customerCheck.length) {
-        return { success: false, message: 'Customer not found' };
+      if (!customerId || !businessId) {
+        return false;
       }
       
-      // Record the customer visit
+      // Check if relationship exists
+      const existingRelationship = await sql`
+        SELECT id FROM customer_business_relationships
+        WHERE customer_id = ${String(customerId)}
+        AND business_id = ${String(businessId)}
+      `;
+      
+      if (existingRelationship.length > 0) {
+        // Relationship exists, update last interaction
+        await sql`
+          UPDATE customer_business_relationships
+          SET updated_at = NOW(),
+              interaction_count = interaction_count + 1
+          WHERE id = ${existingRelationship[0].id}
+        `;
+        return true;
+      }
+      
+      // Create new relationship
       await sql`
-        INSERT INTO customer_visits (
-          business_id,
+        INSERT INTO customer_business_relationships (
           customer_id,
-          visit_time
+          business_id,
+          relationship_type,
+          created_at,
+          updated_at,
+          interaction_count
         ) VALUES (
-          ${businessId},
-          ${customerId || data.customerId},
-          NOW()
+          ${String(customerId)},
+          ${String(businessId)},
+          'loyalty_member',
+          NOW(),
+          NOW(),
+          1
         )
       `;
       
-      return { success: true, message: 'Customer card processed successfully' };
+      return true;
+    } catch (error) {
+      console.error('Error verifying/creating customer-business relationship:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Process a customer card scan and award loyalty points
+   */
+  private static async processCustomerCard(
+    businessId: number | string, 
+    data: any, 
+    customerId?: number | string,
+    pointsToAward: number = 10
+  ): Promise<{ success: boolean; message: string; pointsAwarded?: number }> {
+    try {
+      // Use provided customer ID or extract from data
+      const customerIdToUse = customerId || data.customerId;
+      
+      if (!customerIdToUse) {
+        return { success: false, message: 'Missing customer ID' };
+      }
+      
+      // Verify customer exists
+      const customerCheck = await sql`
+        SELECT id FROM users
+        WHERE id = ${String(customerIdToUse)}
+        AND user_type = 'customer'
+        AND status = 'active'
+      `;
+      
+      if (!customerCheck.length) {
+        return { success: false, message: 'Customer not found or inactive' };
+      }
+      
+      // Determine which loyalty program to use
+      const programs = await sql`
+        SELECT id FROM loyalty_programs
+        WHERE business_id = ${String(businessId)}
+        AND is_active = true
+        ORDER BY is_default DESC, created_at ASC
+      `;
+      
+      if (!programs.length) {
+        return { success: false, message: 'No active loyalty programs found for this business' };
+      }
+      
+      // Use first program (should be default if exists)
+      const programId = programs[0].id;
+      
+      // Check if customer has a card for this program
+      let card = await sql`
+        SELECT id FROM loyalty_cards
+        WHERE customer_id = ${String(customerIdToUse)}
+        AND business_id = ${String(businessId)}
+        AND program_id = ${programId}
+        AND is_active = true
+      `;
+      
+      // If no card exists, create one through LoyaltyCardService
+      if (!card.length) {
+        try {
+          // Use the LoyaltyCardService to create a new card
+          const { LoyaltyCardService } = await import('./loyaltyCardService');
+          
+          const newCard = await LoyaltyCardService.enrollCustomerInProgram(
+            String(customerIdToUse),
+            String(businessId),
+            String(programId)
+          );
+          
+          if (!newCard) {
+            return { 
+              success: false, 
+              message: 'Failed to create loyalty card for customer' 
+            };
+          }
+          
+          card = [{ id: newCard.id }];
+        } catch (enrollError) {
+          console.error('Error enrolling customer in program:', enrollError);
+          return { 
+            success: false, 
+            message: 'Error creating loyalty card: ' + 
+              (enrollError instanceof Error ? enrollError.message : 'Unknown error') 
+          };
+        }
+      }
+      
+      // Add points to the card
+      try {
+        const { LoyaltyCardService } = await import('./loyaltyCardService');
+        
+        const updatedCard = await LoyaltyCardService.addPoints(
+          card[0].id,
+          pointsToAward,
+          'QR_SCAN'
+        );
+        
+        if (!updatedCard) {
+          return { success: false, message: 'Failed to add points to card' };
+        }
+        
+        const customerName = data.customerName || 'Customer';
+        return { 
+          success: true, 
+          message: `Added ${pointsToAward} points to ${customerName}'s card`, 
+          pointsAwarded: pointsToAward
+        };
+      } catch (pointsError) {
+        console.error('Error adding points to card:', pointsError);
+        return { 
+          success: false, 
+          message: 'Error adding points: ' + 
+            (pointsError instanceof Error ? pointsError.message : 'Unknown error')
+        };
+      }
     } catch (error) {
       console.error('Error processing customer card:', error);
-      return { success: false, message: 'Failed to process customer card' };
+      return { 
+        success: false, 
+        message: 'Error processing customer card: ' + 
+          (error instanceof Error ? error.message : 'Unknown error')
+      };
     }
   }
   
