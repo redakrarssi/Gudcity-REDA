@@ -207,10 +207,15 @@ const DAYS_OF_WEEK = [
 
 // Convert BusinessSettings from service to BusinessData for the component
 const convertBusinessSettingsToData = (settings: BusinessSettings, userEmail: string): BusinessData => {
+  console.log('Converting business settings to data:', settings);
+  
+  // Use businessName as the primary name, fallback to name if needed
+  const displayName = settings.businessName || settings.name || '';
+  
   return {
     id: settings.businessId.toString(),
-    name: settings.name,
-    businessName: settings.businessName,
+    name: displayName,
+    businessName: displayName,
     email: settings.email || userEmail,
     phone: settings.phone,
     address: settings.address,
@@ -258,28 +263,36 @@ const BusinessSettings = () => {
   const loadBusinessSettings = async () => {
     if (!user) {
       setLoading(false);
-      setError('No user found. Please log in.');
+      setError('User not authenticated');
       return;
     }
-    
-    setLoading(true);
-    setError(null);
-    
+
     try {
+      setLoading(true);
+      setError(null);
+      
       const settings = await BusinessSettingsService.getBusinessSettings(user.id);
+      console.log('Loaded business settings:', settings);
       
       if (settings) {
-        console.log('Loaded settings:', settings);
         const businessDataConverted = convertBusinessSettingsToData(settings, user.email);
+        console.log('Converted business data:', businessDataConverted);
+        
+        // Ensure name and businessName are consistent
+        if (businessDataConverted.name !== businessDataConverted.businessName) {
+          const preferredName = businessDataConverted.businessName || businessDataConverted.name;
+          businessDataConverted.name = preferredName;
+          businessDataConverted.businessName = preferredName;
+        }
+        
         setBusinessData(businessDataConverted);
         setFormData(businessDataConverted);
-        setError(null);
       } else {
-        setError('Failed to load settings. Please try again.');
+        setError('Failed to load business settings');
       }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      setError('Error loading settings. Please try again.');
+    } catch (err) {
+      console.error('Error loading business settings:', err);
+      setError('An error occurred while loading settings');
     } finally {
       setLoading(false);
     }
@@ -386,6 +399,8 @@ const BusinessSettings = () => {
     setErrorMessage('There was an error updating your settings. Please try again.');
     
     try {
+      console.log('Saving business settings with form data:', formData);
+      
       // Convert form data to BusinessSettings format
       const businessSettings: Partial<BusinessSettings> = {
         businessId: parseInt(formData.id),
@@ -408,6 +423,16 @@ const BusinessSettings = () => {
         notificationSettings: formData.notificationSettings,
         integrations: formData.integrations
       };
+      
+      // Make sure both name and businessName are set to the same value
+      // This ensures the update works regardless of which field the service uses
+      if (businessSettings.name && !businessSettings.businessName) {
+        businessSettings.businessName = businessSettings.name;
+      } else if (businessSettings.businessName && !businessSettings.name) {
+        businessSettings.name = businessSettings.businessName;
+      }
+      
+      console.log('Sending business settings to service:', businessSettings);
       
       // Call service to update settings
       const updatedSettings = await BusinessSettingsService.updateBusinessSettings(

@@ -296,9 +296,6 @@ export class BusinessSettingsService {
           settings.language || settings.country || settings.currency || settings.timezone ||
           settings.taxId) {
         
-        // Get the name value to update
-        const nameValue = settings.name || settings.businessName;
-        
         try {
           // Check if business_name column exists
           const columnsResult = await sql`
@@ -309,6 +306,10 @@ export class BusinessSettingsService {
           
           const columns = columnsResult.map(col => col.column_name);
           console.log('Available columns in business_profile:', columns);
+          
+          // Handle name and businessName properly
+          // Get the name value to update - prioritize businessName if both are provided
+          const nameValue = settings.businessName || settings.name;
           
           // Create individual updates for each field
           if (columns.includes('business_name') && nameValue) {
@@ -343,20 +344,20 @@ export class BusinessSettingsService {
                 WHERE id = ${businessIdNum}
               `;
               
-              if (userExists[0].count > 0) {
+              if (userExists && userExists[0] && Number(userExists[0].count) > 0) {
                 console.log(`Updating business_name in users table for ID: ${businessIdNum}`);
                 await sql`
                   UPDATE users
-                  SET business_name = ${nameValue}
+                  SET business_name = ${nameValue}, name = ${nameValue}
                   WHERE id = ${businessIdNum}
                 `;
                 
                 // Verify the user table update
                 const verifyUserUpdate = await sql`
-                  SELECT business_name FROM users
+                  SELECT business_name, name FROM users
                   WHERE id = ${businessIdNum}
                 `;
-                console.log('After update, users.business_name is:', JSON.stringify(verifyUserUpdate, null, 2));
+                console.log('After update, users.business_name and users.name are:', JSON.stringify(verifyUserUpdate, null, 2));
               }
             } catch (userUpdateError) {
               console.error('Error updating users table:', userUpdateError);
@@ -792,7 +793,7 @@ export class BusinessSettingsService {
     return {
       id: profile?.id || 0,
       businessId: user?.id || (profile?.business_id || 0),
-      name: user?.name || profile?.business_name || '',
+      name: businessName,
       businessName: businessName,
       phone: profile?.phone || user?.business_phone || '',
       email: profile?.email || user?.email || '',
