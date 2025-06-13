@@ -195,6 +195,8 @@ const CustomerSettings = () => {
     setSaveError(false);
     
     try {
+      console.log('Saving customer settings...', formData);
+      
       const updatedSettings = await CustomerSettingsService.updateCustomerSettings(
         formData.id,
         {
@@ -209,6 +211,7 @@ const CustomerSettings = () => {
       );
       
       if (updatedSettings) {
+        console.log('Settings updated successfully:', updatedSettings);
         setUserData(updatedSettings);
         setFormData(updatedSettings);
         
@@ -225,6 +228,7 @@ const CustomerSettings = () => {
           setSaveSuccess(false);
         }, 3000);
       } else {
+        console.error('Failed to update settings: No settings returned from service');
         setSaveError(true);
         setTimeout(() => {
           setSaveError(false);

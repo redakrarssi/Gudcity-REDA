@@ -95,7 +95,9 @@ export class CustomerSettingsService {
     settings: Partial<CustomerSettings>
   ): Promise<CustomerSettings | null> {
     try {
-      const customerIdNum = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      let customerIdNum = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      console.log(`Updating customer settings for ID: ${customerIdNum}`);
+      console.log('Settings to update:', JSON.stringify(settings, null, 2));
       
       // Check if customer exists
       const customerExists = await sql`
@@ -104,8 +106,70 @@ export class CustomerSettingsService {
       `;
       
       if (customerExists.length === 0) {
-        console.error(`No customer found with ID: ${customerId}`);
-        return null;
+        // Try to find by user_id instead
+        const customerByUserExists = await sql`
+          SELECT id FROM customers 
+          WHERE user_id = ${customerIdNum}
+        `;
+        
+        if (customerByUserExists.length === 0) {
+          console.error(`No customer found with ID or user_id: ${customerId}`);
+          return null;
+        }
+        
+        // Use the actual customer ID for updates
+        customerIdNum = Number(customerByUserExists[0].id);
+        console.log(`Found customer with user_id ${customerId}, using customer ID: ${customerIdNum}`);
+      }
+      
+      // First check if the notification_preferences and regional_settings columns exist
+      try {
+        const columnsResult = await sql`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'customers' AND (
+            column_name = 'notification_preferences' OR
+            column_name = 'regional_settings'
+          )
+        `;
+        
+        const columnNames = columnsResult.map((row: any) => row.column_name);
+        console.log('Available columns for settings:', columnNames);
+        
+        if (columnNames.length < 2) {
+          console.log('Missing required columns, adding them now...');
+          
+          // Add notification_preferences column if it doesn't exist
+          if (!columnNames.includes('notification_preferences')) {
+            await sql`
+              ALTER TABLE customers ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{
+                "email": true,
+                "push": true,
+                "sms": false,
+                "promotions": true,
+                "rewards": true,
+                "system": true
+              }'
+            `;
+            console.log('Added notification_preferences column');
+          }
+          
+          // Add regional_settings column if it doesn't exist
+          if (!columnNames.includes('regional_settings')) {
+            await sql`
+              ALTER TABLE customers ADD COLUMN IF NOT EXISTS regional_settings JSONB DEFAULT '{
+                "language": "en",
+                "country": "United States",
+                "currency": "USD",
+                "timezone": "UTC"
+              }'
+            `;
+            console.log('Added regional_settings column');
+          }
+        }
+      } catch (columnsError) {
+        console.error('Error checking/adding columns:', columnsError);
+        // Continue with the update - we'll let SQL handle any missing columns
       }
       
       // Update basic customer fields if provided
@@ -116,43 +180,67 @@ export class CustomerSettingsService {
         settings.address || 
         settings.birthday
       ) {
-        await sql`
-          UPDATE customers SET
-            name = COALESCE(${settings.name}, name),
-            email = COALESCE(${settings.email}, email),
-            phone = COALESCE(${settings.phone}, phone),
-            address = COALESCE(${settings.address}, address),
-            birthday = COALESCE(${settings.birthday ? new Date(settings.birthday) : null}, birthday),
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${customerIdNum}
-        `;
+        try {
+          await sql`
+            UPDATE customers SET
+              name = COALESCE(${settings.name}, name),
+              email = COALESCE(${settings.email}, email),
+              phone = COALESCE(${settings.phone}, phone),
+              address = COALESCE(${settings.address}, address),
+              birthday = COALESCE(${settings.birthday ? new Date(settings.birthday) : null}, birthday),
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${customerIdNum}
+          `;
+          console.log('Updated basic customer fields');
+        } catch (updateError) {
+          console.error('Error updating basic fields:', updateError);
+          throw new Error(`Failed to update basic fields: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`);
+        }
       }
       
       // Update notification preferences if provided
       if (settings.notificationPreferences) {
-        await sql`
-          UPDATE customers SET
-            notification_preferences = ${JSON.stringify(settings.notificationPreferences)},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${customerIdNum}
-        `;
+        try {
+          const notificationPrefsJson = JSON.stringify(settings.notificationPreferences);
+          console.log('Updating notification preferences:', notificationPrefsJson);
+          
+          await sql`
+            UPDATE customers SET
+              notification_preferences = ${notificationPrefsJson}::jsonb,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${customerIdNum}
+          `;
+          console.log('Updated notification preferences');
+        } catch (notificationError) {
+          console.error('Error updating notification preferences:', notificationError);
+          throw new Error(`Failed to update notification preferences: ${notificationError instanceof Error ? notificationError.message : 'Unknown error'}`);
+        }
       }
       
       // Update regional settings if provided
       if (settings.regionalSettings) {
-        await sql`
-          UPDATE customers SET
-            regional_settings = ${JSON.stringify(settings.regionalSettings)},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${customerIdNum}
-        `;
+        try {
+          const regionalSettingsJson = JSON.stringify(settings.regionalSettings);
+          console.log('Updating regional settings:', regionalSettingsJson);
+          
+          await sql`
+            UPDATE customers SET
+              regional_settings = ${regionalSettingsJson}::jsonb,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${customerIdNum}
+          `;
+          console.log('Updated regional settings');
+        } catch (regionError) {
+          console.error('Error updating regional settings:', regionError);
+          throw new Error(`Failed to update regional settings: ${regionError instanceof Error ? regionError.message : 'Unknown error'}`);
+        }
       }
       
       // Get the updated settings
-      return await this.getCustomerSettings(customerId);
+      return await this.getCustomerSettings(customerIdNum);
     } catch (error) {
       console.error('Error updating customer settings:', error);
-      return null;
+      throw error; // Rethrow so the UI can show the error
     }
   }
   
@@ -179,14 +267,34 @@ export class CustomerSettingsService {
     };
     
     // Parse notification preferences from database or use defaults
-    const notificationPreferences = customer.notification_preferences 
-      ? customer.notification_preferences
-      : defaultNotificationPreferences;
-      
+    let notificationPreferences = defaultNotificationPreferences;
+    if (customer.notification_preferences) {
+      try {
+        // Handle both string and object formats
+        if (typeof customer.notification_preferences === 'string') {
+          notificationPreferences = JSON.parse(customer.notification_preferences);
+        } else {
+          notificationPreferences = customer.notification_preferences;
+        }
+      } catch (e) {
+        console.error('Error parsing notification preferences:', e);
+      }
+    }
+    
     // Parse regional settings from database or use defaults
-    const regionalSettings = customer.regional_settings
-      ? customer.regional_settings
-      : defaultRegionalSettings;
+    let regionalSettings = defaultRegionalSettings;
+    if (customer.regional_settings) {
+      try {
+        // Handle both string and object formats
+        if (typeof customer.regional_settings === 'string') {
+          regionalSettings = JSON.parse(customer.regional_settings);
+        } else {
+          regionalSettings = customer.regional_settings;
+        }
+      } catch (e) {
+        console.error('Error parsing regional settings:', e);
+      }
+    }
     
     return {
       id: customer.id,
