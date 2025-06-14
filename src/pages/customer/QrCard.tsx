@@ -5,37 +5,23 @@ import { QRCard } from '../../components/QRCard';
 import { 
   QrCode, Smartphone, Download, Share, RefreshCw, 
   Info, Shield, CheckCircle2, Copy, AlertCircle,
-  CreditCard
+  CreditCard, Tag, BadgeCheck
 } from 'lucide-react';
-import { createStandardCustomerQRCode } from '../../utils/standardQrCodeGenerator';
-import QRCode from 'qrcode';
 import { useAuth } from '../../contexts/AuthContext';
-import { LoyaltyCardService } from '../../services/loyaltyCardService';
 import { UserQrCodeService } from '../../services/userQrCodeService';
-import { v4 as uuidv4 } from 'uuid';
 
 const CustomerQrCard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [animateIn, setAnimateIn] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cardDetails, setCardDetails] = useState<{
-    cardNumber?: string,
-    joinedPrograms: number,
-    availableRewards: number
-  }>({
-    cardNumber: undefined,
-    joinedPrograms: 0,
-    availableRewards: 0
-  });
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [cardNumber, setCardNumber] = useState<string | null>(null);
+  const [enrolledPrograms, setEnrolledPrograms] = useState<any[]>([]);
+  const [availablePromos, setAvailablePromos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Debug logging to identify user data
-  console.log('Current user data in QR card page:', user);
 
   // Trigger animation after a short delay
   useEffect(() => {
@@ -46,71 +32,137 @@ const CustomerQrCard = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Generate or fetch customer loyalty card when component mounts
   useEffect(() => {
-    const setupCustomerCard = async () => {
-      if (!user) return;
+    const fetchCardInfo = async () => {
+      if (!user?.id) return;
       
       try {
         setIsLoading(true);
         
-        // Try to get existing customer QR card details
-        const qrDetails = await UserQrCodeService.getQrCodeDetails(user.id.toString());
+        // Get customer card info with all relevant data
+        const cardInfo = await UserQrCodeService.getCustomerCardInfo(user.id);
         
-        // If no card exists or we need to regenerate, create a new unique card
-        if (!qrDetails || !qrDetails.cardNumber) {
-          setIsGenerating(true);
-          
-          // Generate a unique card number
-          const cardNumber = `${user.id}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-          
-          // Create a new QR code with this card number
-          await UserQrCodeService.generateCustomerQrCode(user, {
-            cardNumber: cardNumber,
-            cardType: 'MASTER'
-          });
-          
-          // Update card details
-          setCardDetails(prev => ({
-            ...prev,
-            cardNumber: cardNumber
-          }));
-          
-          setIsGenerating(false);
-        } else {
-          // Use existing card details
-          setCardDetails(prev => ({
-            ...prev,
-            cardNumber: qrDetails.cardNumber
-          }));
-        }
+        // Set card number from consistent generation
+        setCardNumber(cardInfo.cardNumber);
         
-        // Get loyalty cards for this customer
-        const cards = await LoyaltyCardService.getCustomerCards(user.id.toString());
+        // Set enrolled programs and promo codes
+        setEnrolledPrograms(cardInfo.programs || []);
+        setAvailablePromos(cardInfo.promoCodes || []);
         
-        // Calculate stats
-        const joinedPrograms = cards.length;
-        const availableRewards = cards.reduce((total, card) => {
-          // We need to ensure card.availableRewards exists and is an array
-          return total + (Array.isArray(card.availableRewards) ? 
-            card.availableRewards.filter(r => r && r.isRedeemable).length : 0);
-        }, 0);
-        
-        setCardDetails(prev => ({
-          ...prev,
-          joinedPrograms,
-          availableRewards
-        }));
-      } catch (error) {
-        console.error('Error loading card data:', error);
-        setError('Failed to load your loyalty card data');
-      } finally {
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error fetching card info:', err);
+        setError('Failed to load your loyalty card information');
         setIsLoading(false);
       }
     };
     
-    setupCustomerCard();
-  }, [user]);
+    fetchCardInfo();
+  }, [user?.id]);
+
+  const handleCardReady = (newCardNumber: string) => {
+    setCardNumber(newCardNumber);
+  };
+
+  const handleJoinProgram = async (programId: number, businessId: number) => {
+    try {
+      setIsLoading(true);
+      const success = await UserQrCodeService.enrollCustomerInProgram(
+        user?.id || '', 
+        programId,
+        businessId
+      );
+      
+      if (success) {
+        setSuccessMessage('Successfully joined program!');
+        
+        // Refresh programs list
+        const programs = await UserQrCodeService.getCustomerEnrolledPrograms(user?.id || '');
+        setEnrolledPrograms(programs || []);
+        
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        setError('Failed to join program');
+        setTimeout(() => {
+          setError(null);
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Error joining program:', err);
+      setError('Failed to join program');
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClaimPromo = async (promoId: number) => {
+    try {
+      setIsLoading(true);
+      const success = await UserQrCodeService.assignPromoCodeToCustomer(
+        user?.id || '', 
+        promoId
+      );
+      
+      if (success) {
+        setSuccessMessage('Successfully claimed promo code!');
+        
+        // Refresh promo codes list
+        const promos = await UserQrCodeService.getCustomerAvailablePromoCodes(user?.id || '');
+        setAvailablePromos(promos || []);
+        
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        setError('Failed to claim promo code');
+        setTimeout(() => {
+          setError(null);
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Error claiming promo code:', err);
+      setError('Failed to claim promo code');
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopyId = () => {
+    if (!cardNumber) return;
+    
+    navigator.clipboard.writeText(cardNumber).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleShare = async () => {
+    if (!cardNumber) return;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My Loyalty Card',
+          text: `Scan my loyalty card (ID: ${cardNumber})`,
+        });
+      } catch (shareError) {
+        console.error('Error sharing:', shareError);
+        // Fallback to copy
+        handleCopyId();
+      }
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      handleCopyId();
+    }
+  };
 
   // Check if user is available
   if (!user) {
@@ -134,97 +186,6 @@ const CustomerQrCard = () => {
     );
   }
 
-  // Ensure we have a valid user name
-  const userName = user.name || t('customer.defaultName', 'Customer');
-
-  const handleDownloadQR = async () => {
-    setIsDownloading(true);
-    try {
-      const qrData = { 
-        type: 'CUSTOMER_CARD', 
-        customerId: user.id, 
-        customerName: userName,
-        qrUniqueId: uuidv4(),
-        timestamp: Date.now(),
-        version: '1.0',
-        cardNumber: cardDetails.cardNumber
-      };
-      
-      // Generate QR code as data URL from JSON string
-      const dataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
-        errorCorrectionLevel: 'M',
-        margin: 4,
-        width: 300
-      });
-      
-      // Create download link
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `loyalty-card-${user.id}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Error downloading QR card:', error);
-      setError('Failed to download QR card. Please try again.');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(cardDetails.cardNumber || user.id.toString()).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'My Loyalty Card',
-          text: `Scan my loyalty card (ID: ${cardDetails.cardNumber || user.id})`,
-        });
-      } catch (error) {
-        console.error('Error sharing:', error);
-      }
-    } else {
-      // Fallback for browsers that don't support Web Share API
-      handleCopyId();
-    }
-  };
-  
-  const handleRegenerateCard = async () => {
-    if (isGenerating) return;
-    
-    try {
-      setIsGenerating(true);
-      setError(null);
-      
-      // Generate a new card number
-      const cardNumber = `${user.id}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-      
-      // Create a new QR code with this card number
-      await UserQrCodeService.generateCustomerQrCode(user, {
-        cardNumber: cardNumber,
-        cardType: 'MASTER'
-      });
-      
-      // Update card details
-      setCardDetails(prev => ({
-        ...prev,
-        cardNumber: cardNumber
-      }));
-      
-    } catch (error) {
-      console.error('Error regenerating card:', error);
-      setError('Failed to regenerate your loyalty card');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
     <CustomerLayout>
       <div className="max-w-2xl mx-auto pb-12">
@@ -241,6 +202,20 @@ const CustomerQrCard = () => {
           </div>
         </div>
 
+        {/* Display success message if any */}
+        {successMessage && (
+          <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-700">{successMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Display errors if any */}
         {error && (
           <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
@@ -255,173 +230,159 @@ const CustomerQrCard = () => {
           </div>
         )}
 
-        {/* Loading indicator */}
-        {isLoading && (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          </div>
-        )}
-
-        {!isLoading && (
-          <>
-            {/* Main Card Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <h3 className="text-sm text-gray-500">{t('Card Number')}</h3>
-                <p className="text-lg font-semibold">{cardDetails.cardNumber || `${user.id}-0000`}</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <h3 className="text-sm text-gray-500">{t('Joined Programs')}</h3>
-                <p className="text-lg font-semibold">{cardDetails.joinedPrograms}</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <h3 className="text-sm text-gray-500">{t('Available Rewards')}</h3>
-                <p className="text-lg font-semibold">{cardDetails.availableRewards}</p>
-              </div>
-            </div>
-
-            {/* Main QR Code Card */}
-            <div className={`transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 md:p-8 border border-blue-100 shadow-lg text-center relative overflow-hidden">
-                {/* Decorative elements */}
-                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-200 rounded-full opacity-20 transform translate-x-20 -translate-y-20"></div>
-                <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-200 rounded-full opacity-20 transform -translate-x-20 translate-y-20"></div>
-                
-                {/* QR Card */}
-                <div className="relative z-10 transform transition-transform duration-500 hover:scale-105">
-                  {isGenerating ? (
-                    <div className="flex flex-col items-center justify-center h-72 w-72 mx-auto">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                      <p className="mt-4 text-sm text-gray-600">{t('Generating your unique QR card...')}</p>
-                    </div>
-                  ) : (
-                    <QRCard 
-                      userId={user.id.toString()} 
-                      userName={userName} 
-                      cardNumber={cardDetails.cardNumber}
-                      cardType="MASTER"
-                    />
-                  )}
-                </div>
-                
-                {/* Info text */}
-                <p className="text-gray-600 mt-6 max-w-md mx-auto">
-                  {t('Present this card when making purchases to collect and redeem loyalty points')}
-                </p>
-                
-                {/* Action buttons */}
-                <div className="flex flex-wrap justify-center gap-3 mt-6">
-                  <button
-                    onClick={handleDownloadQR}
-                    disabled={isDownloading || isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {isDownloading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4" />
-                    )}
-                    {t(isDownloading ? 'Downloading...' : 'Download')}
-                  </button>
-                  
-                  <button
-                    onClick={handleShare}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    <Share className="w-4 h-4" />
-                    {t('Share')}
-                  </button>
-                  
-                  <button
-                    onClick={handleRegenerateCard}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {isGenerating ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    {t('Regenerate Card')}
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowInfo(!showInfo)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-                  >
-                    <Info className="w-4 h-4" />
-                    {t(showInfo ? 'Hide Info' : 'More Info')}
-                  </button>
-                </div>
-              </div>
+        {/* QR Card Section */}
+        <div className={`mb-8 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="p-6">
+              {user?.id && (
+                <QRCard 
+                  userId={user.id.toString()} 
+                  userName={user.name || user.email?.split('@')[0] || 'Customer'} 
+                  cardNumber={cardNumber || undefined} 
+                  onCardReady={handleCardReady}
+                />
+              )}
             </div>
             
-            {/* Additional info section */}
-            {showInfo && (
-              <div className={`mt-6 bg-white rounded-xl p-6 border border-gray-200 shadow-sm transition-all duration-300 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-                <h2 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
-                  <Info className="w-5 h-5 text-blue-500 mr-2" />
-                  {t('About Your Loyalty Card')}
-                </h2>
+            {/* Card Actions */}
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+              <div className="flex flex-wrap justify-center gap-4">
+                <button 
+                  onClick={handleCopyId} 
+                  className="flex items-center text-gray-600 hover:text-blue-600 text-sm transition-colors"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  {copied ? t('Copied!') : t('Copy Card Number')}
+                </button>
                 
-                <div className="space-y-4">
-                  <div className="flex items-start">
-                    <Shield className="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-medium text-gray-700">{t('Secure Identification')}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {t('Your loyalty card contains a secure identifier linked to your account. No personal information is stored on the card itself.')}
-                      </p>
-                    </div>
+                <button 
+                  onClick={handleShare} 
+                  className="flex items-center text-gray-600 hover:text-blue-600 text-sm transition-colors"
+                >
+                  <Share className="h-4 w-4 mr-1" />
+                  {t('Share Card')}
+                </button>
+                
+                <button 
+                  onClick={() => window.print()} 
+                  className="flex items-center text-gray-600 hover:text-blue-600 text-sm transition-colors"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  {t('Print Card')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Programs Section */}
+        <div className={`mb-8 transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <h2 className="text-xl font-semibold mb-3 flex items-center">
+            <BadgeCheck className="mr-2 h-5 w-5 text-blue-600" />
+            {t('My Programs')}
+          </h2>
+          
+          {isLoading ? (
+            <div className="animate-pulse bg-gray-100 h-32 rounded-lg"></div>
+          ) : enrolledPrograms.length > 0 ? (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              {enrolledPrograms.map((program) => (
+                <div 
+                  key={program.id} 
+                  className="bg-white shadow-md rounded-lg p-4 border border-gray-200"
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-medium">{program.programName}</h3>
+                    <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                      {program.tierLevel}
+                    </span>
                   </div>
-                  
-                  <div className="flex items-start">
-                    <Smartphone className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-medium text-gray-700">{t('Always Available')}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {t('Save this card to your phone or print it out to always have it available, even without internet access.')}
-                      </p>
-                    </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {t('Points')}: {program.points}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {t('Joined')}: {new Date(program.joinDate).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <p className="text-gray-600 mb-4">{t('You have not joined any programs yet')}</p>
+              <p className="text-sm text-gray-500">
+                {t('Show your QR card at participating businesses to join their loyalty programs')}
+              </p>
+            </div>
+          )}
+        </div>
+        
+        {/* Promos Section */}
+        <div className={`mb-8 transition-all duration-500 ease-out transform delay-200 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <h2 className="text-xl font-semibold mb-3 flex items-center">
+            <Tag className="mr-2 h-5 w-5 text-purple-600" />
+            {t('Available Promos')}
+          </h2>
+          
+          {isLoading ? (
+            <div className="animate-pulse bg-gray-100 h-32 rounded-lg"></div>
+          ) : availablePromos.length > 0 ? (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              {availablePromos.map((promo) => (
+                <div 
+                  key={promo.id} 
+                  className="bg-white shadow-md rounded-lg p-4 border border-gray-200"
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-medium">{promo.code}</h3>
+                    <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                      {promo.discountType === 'PERCENTAGE' ? `${promo.discountValue}% OFF` : `$${promo.discountValue} OFF`}
+                    </span>
                   </div>
-                  
-                  <div className="flex items-start">
-                    <CheckCircle2 className="w-5 h-5 text-indigo-500 mt-0.5 mr-3 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-medium text-gray-700">{t('Universal Use')}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {t('This single loyalty card works across all participating businesses. Join programs, collect points, and redeem rewards!')}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 pt-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-500 mr-2">{t('Card Number')}:</span>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-700">
-                          {cardDetails.cardNumber || `${user.id}-0000`}
-                        </code>
-                      </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {promo.description || 'Special discount offer'}
+                  </p>
+                  <div className="flex justify-between items-center mt-4">
+                    <p className="text-xs text-gray-500">
+                      {t('Expires')}: {new Date(promo.endDate).toLocaleDateString()}
+                    </p>
+                    {!promo.claimed ? (
                       <button
-                        onClick={handleCopyId}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                        title={t('Copy Number')}
+                        onClick={() => handleClaimPromo(promo.id)}
+                        className="px-3 py-1 bg-purple-600 text-white rounded-md text-sm"
+                        disabled={isLoading}
                       >
-                        {copied ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
+                        {t('Claim')}
                       </button>
-                    </div>
+                    ) : (
+                      <span className="text-xs text-green-600 font-medium flex items-center">
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        {t('Claimed')}
+                      </span>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <p className="text-gray-600 mb-4">{t('No promo codes available at the moment')}</p>
+              <p className="text-sm text-gray-500">
+                {t('Show your QR card at participating businesses to receive special offers')}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Security Notice */}
+        <div className={`transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start">
+            <Shield className="h-5 w-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-800">{t('Security Information')}</h3>
+              <p className="text-sm text-blue-600 mt-1">{t('Your QR code is unique to you and securely signed. It refreshes automatically to protect your account.')}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </CustomerLayout>
   );

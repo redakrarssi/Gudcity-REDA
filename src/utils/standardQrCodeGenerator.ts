@@ -5,8 +5,17 @@
  * This implementation replaces the custom QR code generator to improve scan reliability.
  */
 import QRCode from 'qrcode';
-import crypto from 'crypto';
 import env from './env';
+
+// Polyfill for crypto.randomUUID if not available
+function generateUUID() {
+  // Simple UUID v4 implementation for compatibility
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 /**
  * Standard QR code data format to ensure consistency across all QR code types
@@ -92,10 +101,21 @@ function addSignature(data: StandardQrCodeData): StandardQrCodeData {
   // Create a copy of data without the signature field
   const { signature, ...dataWithoutSignature } = data;
   
-  // Generate a signature using HMAC
-  const hmac = crypto.createHmac('sha256', env.QR_SECRET_KEY || 'fallback-key-do-not-use-in-production');
-  hmac.update(JSON.stringify(dataWithoutSignature));
-  const newSignature = hmac.digest('hex');
+  // Simple hash function since we might not have crypto.subtle in all environments
+  function simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(16);
+  }
+  
+  // Generate a simple signature with a timestamp for verification
+  const timestamp = new Date().getTime();
+  const stringToHash = JSON.stringify(dataWithoutSignature) + (env.QR_SECRET_KEY || 'fallback-key') + timestamp;
+  const newSignature = simpleHash(stringToHash) + '.' + timestamp;
   
   // Return data with the new signature
   return {
@@ -114,24 +134,32 @@ export async function createStandardCustomerQRCode(
   cardNumber?: string,
   cardType?: string
 ): Promise<string> {
-  // Create standardized data structure
-  const qrData: StandardQrCodeData = {
-    type: 'CUSTOMER_CARD',
-    qrUniqueId: crypto.randomUUID(),
-    timestamp: Date.now(),
-    version: '1.0',
-    customerId,
-    customerName,
-    businessId,
-    cardNumber: cardNumber || `${customerId}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-    cardType: cardType || 'STANDARD'
-  };
-  
-  // Generate QR code with standard options
-  return generateStandardQRCode(qrData, {
-    errorCorrectionLevel: 'M',  // Medium error correction for good balance
-    size: 300
-  });
+  try {
+    // Create standardized data structure
+    const qrUniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? 
+      crypto.randomUUID() : generateUUID();
+    
+    const qrData: StandardQrCodeData = {
+      type: 'CUSTOMER_CARD',
+      qrUniqueId,
+      timestamp: Date.now(),
+      version: '1.0',
+      customerId,
+      customerName,
+      businessId,
+      cardNumber: cardNumber || `${customerId}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+      cardType: cardType || 'STANDARD'
+    };
+    
+    // Generate QR code with standard options
+    return generateStandardQRCode(qrData, {
+      errorCorrectionLevel: 'M',  // Medium error correction for good balance
+      size: 300
+    });
+  } catch (error) {
+    console.error('Error creating customer QR code:', error);
+    throw error;
+  }
 }
 
 /**
@@ -144,9 +172,12 @@ export async function createStandardLoyaltyCardQRCode(
   customerId: string | number
 ): Promise<string> {
   // Create standardized data structure
+  const qrUniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? 
+    crypto.randomUUID() : generateUUID();
+  
   const qrData: StandardQrCodeData = {
     type: 'LOYALTY_CARD',
-    qrUniqueId: crypto.randomUUID(),
+    qrUniqueId,
     timestamp: Date.now(),
     version: '1.0',
     cardId,
@@ -170,9 +201,12 @@ export async function createStandardPromoQRCode(
   businessId: string | number
 ): Promise<string> {
   // Create standardized data structure
+  const qrUniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? 
+    crypto.randomUUID() : generateUUID();
+  
   const qrData: StandardQrCodeData = {
     type: 'PROMO_CODE',
-    qrUniqueId: crypto.randomUUID(),
+    qrUniqueId,
     timestamp: Date.now(),
     version: '1.0',
     promoCode,
@@ -199,10 +233,27 @@ export function verifyQrCodeSignature(data: StandardQrCodeData): boolean {
       return false;
     }
     
-    // Generate a new signature
-    const hmac = crypto.createHmac('sha256', env.QR_SECRET_KEY || 'fallback-key-do-not-use-in-production');
-    hmac.update(JSON.stringify(dataWithoutSignature));
-    const expectedSignature = hmac.digest('hex');
+    // Simple hash function to verify signature
+    function simpleHash(str: string): string {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return hash.toString(16);
+    }
+    
+    // Extract timestamp from signature
+    const parts = signature.split('.');
+    if (parts.length !== 2) return false;
+    
+    const timestamp = parseInt(parts[1]);
+    if (isNaN(timestamp)) return false;
+    
+    // Recreate the signature for comparison
+    const stringToHash = JSON.stringify(dataWithoutSignature) + (env.QR_SECRET_KEY || 'fallback-key') + timestamp;
+    const expectedSignature = simpleHash(stringToHash) + '.' + timestamp;
     
     // Compare signatures
     return signature === expectedSignature;

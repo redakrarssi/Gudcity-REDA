@@ -3,6 +3,7 @@ import { createStandardCustomerQRCode, StandardQrCodeData } from '../utils/stand
 import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import sql from '../utils/db';
 
 /**
  * Service to manage user QR codes, ensuring each customer has a valid QR code
@@ -12,6 +13,23 @@ export class UserQrCodeService {
   private static readonly SECRET_KEY = process.env.QR_SECRET_KEY || 'gudcity-qr-security-key-with-additional-entropy-for-hmac-generation';
 
   /**
+   * Generate a consistent cardNumber for a user
+   */
+  private static generateConsistentCardNumber(userId: string | number): string {
+    // Format: CUST-{userId padded to 6 digits}-{checksum digit}
+    const paddedId = userId.toString().padStart(6, '0');
+    
+    // Simple checksum calculation (sum of digits modulo 10)
+    let sum = 0;
+    for (let i = 0; i < paddedId.length; i++) {
+      sum += parseInt(paddedId[i]);
+    }
+    const checksum = sum % 10;
+    
+    return `CUST-${paddedId}-${checksum}`;
+  }
+
+  /**
    * Generate a QR code for a newly registered customer
    */
   static async generateCustomerQrCode(user: User, cardDetails?: {
@@ -19,6 +37,7 @@ export class UserQrCodeService {
     cardType?: string;
   }): Promise<string | null> {
     if (!user || !user.id) {
+      console.error('Invalid user provided to generateCustomerQrCode');
       return null;
     }
     
@@ -27,28 +46,77 @@ export class UserQrCodeService {
       const uniqueToken = this.generateUniqueToken(user.id);
       const qrUniqueId = uuidv4();
 
-      // Generate card number if not provided
-      const cardNumber = cardDetails?.cardNumber || `${user.id}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      // Convert user ID to string for consistency
+      const userId = user.id.toString();
+
+      // Generate consistent card number if not provided
+      let cardNumber = cardDetails?.cardNumber;
+      if (!cardNumber) {
+        cardNumber = this.generateConsistentCardNumber(userId);
+        console.log(`Generated consistent card number: ${cardNumber} for user ${userId}`);
+      }
+
       const cardType = cardDetails?.cardType || 'STANDARD';
       
-      // Create a standardized QR code for the customer
-      const qrImageUrl = await createStandardCustomerQRCode(
-        user.id,
-        undefined, // business ID not needed here
-        user.name || 'Customer',
+      console.log('Creating standard QR code with:', {
+        userId,
         cardNumber,
         cardType
-      );
+      });
+      
+      let qrImageUrl;
+      try {
+        // Create a standardized QR code for the customer
+        qrImageUrl = await createStandardCustomerQRCode(
+          userId,
+          undefined, // business ID not needed here
+          user.name || 'Customer',
+          cardNumber,
+          cardType
+        );
+        
+        console.log('QR code created successfully');
+      } catch (qrGenError) {
+        console.error('Error generating QR code image:', qrGenError);
+        
+        // Create a simpler QR code as fallback
+        try {
+          console.log('Attempting fallback QR generation');
+          const fallbackData = JSON.stringify({
+            customerId: userId,
+            cardNumber: cardNumber,
+            timestamp: Date.now(),
+            type: 'CUSTOMER_CARD',
+          });
+          
+          // Use direct QRCode library
+          const QRCode = (await import('qrcode')).default;
+          qrImageUrl = await QRCode.toDataURL(fallbackData);
+          
+          console.log('Fallback QR code created successfully');
+        } catch (fallbackError) {
+          console.error('Fallback QR generation failed:', fallbackError);
+          return null;
+        }
+      }
       
       // Store the QR code in the database
       try {
+        // Ensure customer_qrcodes table exists before attempting insert
+        const tableExists = await sql.tableExists('customer_qrcodes');
+        if (!tableExists) {
+          console.error('customer_qrcodes table does not exist in the database');
+          // Return just the QR code for display
+          return qrImageUrl;
+        }
+
         // Standard QR code data
         const qrData: StandardQrCodeData = {
           type: 'CUSTOMER_CARD',
           qrUniqueId,
           timestamp: Date.now(),
           version: '1.0',
-          customerId: user.id,
+          customerId: userId,
           customerName: user.name || 'Customer',
           cardNumber,
           cardType
@@ -56,18 +124,24 @@ export class UserQrCodeService {
         
         // Try to store the QR code
         const params: QrCodeCreationParams = {
-          customerId: user.id,
+          customerId: userId,
           qrType: 'CUSTOMER_CARD',
           data: JSON.stringify(qrData),
           imageUrl: qrImageUrl,
           isPrimary: true,
-          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+          expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 365 days (1 year)
         };
         
-        await QrCodeStorageService.createQrCode(params);
+        const savedQrCode = await QrCodeStorageService.createQrCode(params);
+        
+        if (savedQrCode) {
+          console.log(`Successfully stored QR code in database for user ${userId}`);
+        } else {
+          console.error(`Failed to store QR code in database for user ${userId}`);
+        }
 
-        // Cache the result
-        this.cacheQrCode(user.id.toString(), qrImageUrl);
+        // Cache the result regardless of database storage success
+        this.cacheQrCode(userId, qrImageUrl);
       } catch (storageError) {
         console.error('Error storing QR code:', storageError);
         // Return the QR code anyway even if we couldn't store it
@@ -94,34 +168,39 @@ export class UserQrCodeService {
 
     const userId = user.id.toString();
     
+    console.log(`Getting or creating QR code for customer ${userId}`);
+    
     // Try to get from session storage cache first for performance
     const cachedQrCode = this.getCachedQrCode(userId);
-    if (cachedQrCode && !cardDetails) {
+    if (cachedQrCode) {
+      console.log('Using cached QR code from session storage');
       return cachedQrCode;
     }
+
+    // Ensure consistent card number
+    if (!cardDetails) {
+      cardDetails = {
+        cardNumber: this.generateConsistentCardNumber(userId),
+        cardType: 'STANDARD'
+      };
+    } else if (!cardDetails.cardNumber) {
+      cardDetails.cardNumber = this.generateConsistentCardNumber(userId);
+    }
+
+    console.log(`Using card details: ${JSON.stringify(cardDetails)}`);
 
     // Try to get from storage service
     try {
       // Get customer's primary QR code
+      console.log('Fetching primary QR code from storage service');
       const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(userId, 'CUSTOMER_CARD');
       
       if (qrCode) {
-        // Check if we have new card details to update
-        if (cardDetails && qrCode.qr_data) {
-          try {
-            const existingData = JSON.parse(qrCode.qr_data);
-            if (cardDetails.cardNumber && cardDetails.cardNumber !== existingData.cardNumber ||
-                cardDetails.cardType && cardDetails.cardType !== existingData.cardType) {
-              // Card details changed, generate a new QR code
-              return this.generateCustomerQrCode(user, cardDetails);
-            }
-          } catch (parseError) {
-            console.error('Error parsing QR code data:', parseError);
-          }
-        }
+        console.log('Found existing QR code in database');
         
         // Use the existing QR code image URL
         if (qrCode.qr_image_url) {
+          console.log('Using existing QR image URL from database');
           this.cacheQrCode(userId, qrCode.qr_image_url);
           return qrCode.qr_image_url;
         }
@@ -129,15 +208,66 @@ export class UserQrCodeService {
         // No image URL in storage, try to extract from qr_data
         if (qrCode.qr_data) {
           try {
-            const data = JSON.parse(qrCode.qr_data);
-            if (data.qrImageUrl) {
-              this.cacheQrCode(userId, data.qrImageUrl);
-              return data.qrImageUrl;
+            console.log('Parsing QR data from database');
+            let qrData = qrCode.qr_data;
+            
+            // Convert to object if it's a string
+            if (typeof qrData === 'string') {
+              console.log('Converting QR data string to object');
+              qrData = JSON.parse(qrData);
+            }
+            
+            if (qrData.qrImageUrl) {
+              console.log('Found QR image URL in parsed data');
+              this.cacheQrCode(userId, qrData.qrImageUrl);
+              return qrData.qrImageUrl;
+            } else {
+              console.log('No image URL in QR data, regenerating QR code');
             }
           } catch (parseError) {
             console.error('Error parsing QR code data:', parseError);
           }
         }
+        
+        // We have a QR code record but no usable image, generate a new one
+        console.log('Regenerating QR code from existing data');
+        try {
+          const QRCode = (await import('qrcode')).default;
+          let dataToEncode;
+          
+          try {
+            dataToEncode = typeof qrCode.qr_data === 'string' ? 
+              JSON.parse(qrCode.qr_data) : qrCode.qr_data;
+          } catch (e) {
+            dataToEncode = {
+              customerId: userId,
+              cardNumber: cardDetails.cardNumber,
+              timestamp: Date.now(),
+              type: 'CUSTOMER_CARD'
+            };
+          }
+          
+          const regeneratedQrImageUrl = await QRCode.toDataURL(JSON.stringify(dataToEncode));
+          
+          // Update the existing record with the new image URL
+          try {
+            await sql.query(`
+              UPDATE customer_qrcodes
+              SET qr_image_url = $1, updated_at = NOW()
+              WHERE id = $2
+            `, [regeneratedQrImageUrl, qrCode.id]);
+            console.log('Updated QR code record with new image URL');
+          } catch (updateError) {
+            console.error('Error updating QR code record:', updateError);
+          }
+          
+          this.cacheQrCode(userId, regeneratedQrImageUrl);
+          return regeneratedQrImageUrl;
+        } catch (regenerateError) {
+          console.error('Error regenerating QR code:', regenerateError);
+        }
+      } else {
+        console.log('No existing QR code found in database');
       }
     } catch (error) {
       console.error('Error getting QR code from storage:', error);
@@ -231,6 +361,316 @@ export class UserQrCodeService {
     } catch (error) {
       console.error('Error getting QR code details:', error);
       return null;
+    }
+  }
+
+  /**
+   * Get all programs a customer is enrolled in
+   */
+  static async getCustomerEnrolledPrograms(
+    customerId: string | number
+  ): Promise<Array<{
+    id: number;
+    programId: number;
+    businessId: number;
+    programName: string;
+    points: number;
+    tierLevel: string;
+    joinDate: Date;
+    status: string;
+  }>> {
+    try {
+      // Check if the table exists
+      const tableExists = await sql.tableExists('customer_program_enrollments');
+      if (!tableExists) {
+        console.warn('customer_program_enrollments table does not exist in database');
+        return [];
+      }
+
+      // Convert string ID to number if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+
+      // Get all enrollments with program details
+      const enrollments = await sql.query(`
+        SELECT 
+          e.id, 
+          e.program_id as "programId", 
+          e.business_id as "businessId", 
+          p.name as "programName",
+          e.points, 
+          e.tier_level as "tierLevel", 
+          e.join_date as "joinDate", 
+          e.status
+        FROM customer_program_enrollments e
+        LEFT JOIN loyalty_programs p ON e.program_id = p.id
+        WHERE e.customer_id = $1 AND e.status = 'ACTIVE'
+        ORDER BY e.join_date DESC
+      `, [custId]);
+
+      return enrollments;
+    } catch (error) {
+      console.error('Error getting customer enrolled programs:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all promo codes available to a customer
+   */
+  static async getCustomerAvailablePromoCodes(
+    customerId: string | number
+  ): Promise<Array<{
+    id: number;
+    code: string;
+    description: string;
+    discountType: string;
+    discountValue: number;
+    startDate: Date;
+    endDate: Date;
+    status: string;
+    claimed: boolean;
+    used: boolean;
+  }>> {
+    try {
+      // Check if the tables exist
+      const promoCodesTableExists = await sql.tableExists('promo_codes');
+      const customerPromoCodesTableExists = await sql.tableExists('customer_promo_codes');
+      
+      if (!promoCodesTableExists || !customerPromoCodesTableExists) {
+        console.warn('One or more required tables do not exist in database');
+        return [];
+      }
+
+      // Convert string ID to number if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+
+      // Get all available promo codes for the customer
+      const now = new Date();
+      const promoCodes = await sql.query(`
+        SELECT 
+          p.id,
+          p.code,
+          p.description,
+          p.discount_type as "discountType",
+          p.discount_value as "discountValue",
+          p.start_date as "startDate",
+          p.end_date as "endDate",
+          p.status,
+          CASE WHEN cp.id IS NOT NULL THEN TRUE ELSE FALSE END as "claimed",
+          CASE WHEN cp.used_at IS NOT NULL THEN TRUE ELSE FALSE END as "used"
+        FROM promo_codes p
+        LEFT JOIN customer_promo_codes cp ON p.id = cp.promo_code_id AND cp.customer_id = $1
+        WHERE 
+          p.status = 'ACTIVE' AND
+          p.start_date <= $2 AND
+          p.end_date >= $2 AND
+          (p.max_uses IS NULL OR p.current_uses < p.max_uses)
+        ORDER BY p.end_date ASC
+      `, [custId, now]);
+
+      return promoCodes;
+    } catch (error) {
+      console.error('Error getting customer available promo codes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Enroll a customer in a loyalty program
+   */
+  static async enrollCustomerInProgram(
+    customerId: string | number,
+    programId: string | number,
+    businessId: string | number
+  ): Promise<boolean> {
+    try {
+      // Check if the table exists
+      const tableExists = await sql.tableExists('customer_program_enrollments');
+      if (!tableExists) {
+        console.error('customer_program_enrollments table does not exist in database');
+        return false;
+      }
+
+      // Convert string IDs to numbers if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      const progId = typeof programId === 'string' ? parseInt(programId) : programId;
+      const busId = typeof businessId === 'string' ? parseInt(businessId) : businessId;
+
+      // Check if enrollment already exists
+      const existingEnrollment = await sql.query(`
+        SELECT id FROM customer_program_enrollments
+        WHERE customer_id = $1 AND program_id = $2
+      `, [custId, progId]);
+
+      if (existingEnrollment.length > 0) {
+        // If enrollment exists but is inactive, reactivate it
+        if (existingEnrollment[0].status === 'INACTIVE') {
+          await sql.query(`
+            UPDATE customer_program_enrollments
+            SET status = 'ACTIVE', updated_at = NOW()
+            WHERE id = $1
+          `, [existingEnrollment[0].id]);
+          return true;
+        }
+        // Already enrolled and active
+        return true;
+      }
+
+      // Create new enrollment
+      await sql.query(`
+        INSERT INTO customer_program_enrollments (
+          customer_id, program_id, business_id, join_date, status,
+          points, tier_level, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, NOW(), 'ACTIVE', 0, 'STANDARD', NOW(), NOW()
+        )
+      `, [custId, progId, busId]);
+
+      return true;
+    } catch (error) {
+      console.error('Error enrolling customer in program:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Assign a promo code to a customer
+   */
+  static async assignPromoCodeToCustomer(
+    customerId: string | number,
+    promoCodeId: string | number
+  ): Promise<boolean> {
+    try {
+      // Check if the tables exist
+      const promoCodesTableExists = await sql.tableExists('promo_codes');
+      const customerPromoCodesTableExists = await sql.tableExists('customer_promo_codes');
+      
+      if (!promoCodesTableExists || !customerPromoCodesTableExists) {
+        console.error('One or more required tables do not exist in database');
+        return false;
+      }
+
+      // Convert string IDs to numbers if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      const promoId = typeof promoCodeId === 'string' ? parseInt(promoCodeId) : promoCodeId;
+
+      // Start a transaction
+      await sql.begin();
+      
+      try {
+        // Check if the promo code exists and is active
+        const promoCode = await sql.query(`
+          SELECT id, max_uses, current_uses
+          FROM promo_codes
+          WHERE id = $1 AND status = 'ACTIVE'
+          AND start_date <= NOW() AND end_date >= NOW()
+        `, [promoId]);
+
+        if (promoCode.length === 0) {
+          await sql.rollback();
+          return false;
+        }
+
+        // Check if the promo code has reached its usage limit
+        if (promoCode[0].max_uses !== null && 
+            promoCode[0].current_uses >= promoCode[0].max_uses) {
+          await sql.rollback();
+          return false;
+        }
+
+        // Check if the customer already has this promo code
+        const existingPromo = await sql.query(`
+          SELECT id FROM customer_promo_codes
+          WHERE customer_id = $1 AND promo_code_id = $2
+        `, [custId, promoId]);
+
+        if (existingPromo.length > 0) {
+          await sql.rollback();
+          return true; // Already assigned
+        }
+
+        // Assign the promo code to the customer
+        await sql.query(`
+          INSERT INTO customer_promo_codes (
+            customer_id, promo_code_id, claimed_at, status,
+            created_at, updated_at
+          ) VALUES (
+            $1, $2, NOW(), 'CLAIMED', NOW(), NOW()
+          )
+        `, [custId, promoId]);
+
+        await sql.commit();
+        return true;
+      } catch (innerError) {
+        await sql.rollback();
+        throw innerError;
+      }
+    } catch (error) {
+      console.error('Error assigning promo code to customer:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Use a promo code that's been assigned to a customer
+   */
+  static async useCustomerPromoCode(
+    customerId: string | number,
+    promoCodeId: string | number
+  ): Promise<boolean> {
+    try {
+      // Check if the tables exist
+      const promoCodesTableExists = await sql.tableExists('promo_codes');
+      const customerPromoCodesTableExists = await sql.tableExists('customer_promo_codes');
+      
+      if (!promoCodesTableExists || !customerPromoCodesTableExists) {
+        console.error('One or more required tables do not exist in database');
+        return false;
+      }
+
+      // Convert string IDs to numbers if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      const promoId = typeof promoCodeId === 'string' ? parseInt(promoCodeId) : promoCodeId;
+
+      // Start a transaction
+      await sql.begin();
+      
+      try {
+        // Check if the customer has this promo code and it hasn't been used
+        const customerPromo = await sql.query(`
+          SELECT id FROM customer_promo_codes
+          WHERE customer_id = $1 AND promo_code_id = $2
+          AND status = 'CLAIMED' AND used_at IS NULL
+        `, [custId, promoId]);
+
+        if (customerPromo.length === 0) {
+          await sql.rollback();
+          return false;
+        }
+
+        // Mark the promo code as used
+        await sql.query(`
+          UPDATE customer_promo_codes
+          SET used_at = NOW(), status = 'USED', updated_at = NOW()
+          WHERE id = $1
+        `, [customerPromo[0].id]);
+
+        // Increment usage count on the promo code
+        await sql.query(`
+          UPDATE promo_codes
+          SET current_uses = current_uses + 1, updated_at = NOW()
+          WHERE id = $1
+        `, [promoId]);
+
+        await sql.commit();
+        return true;
+      } catch (innerError) {
+        await sql.rollback();
+        throw innerError;
+      }
+    } catch (error) {
+      console.error('Error using customer promo code:', error);
+      return false;
     }
   }
 
@@ -494,6 +934,131 @@ export class UserQrCodeService {
       return {
         isValid: false,
         message: 'Error processing QR code'
+      };
+    }
+  }
+
+  /**
+   * Get customer card information
+   */
+  static async getCustomerCardInfo(customerId: string | number): Promise<{
+    cardNumber: string;
+    cardType: string;
+    expirationDate?: Date;
+    isActive: boolean;
+    programs: Array<{
+      id: number;
+      programId: number;
+      businessId: number;
+      programName: string;
+      points: number;
+      tierLevel: string;
+      joinDate: Date;
+      status: string;
+    }>;
+    promoCodes: Array<{
+      id: number;
+      code: string;
+      description: string;
+      discountType: string;
+      discountValue: number;
+      startDate: Date;
+      endDate: Date;
+      status: string;
+      claimed: boolean;
+      used: boolean;
+    }>;
+  }> {
+    try {
+      // Get the customer's QR code
+      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
+        customerId.toString(), 
+        'CUSTOMER_CARD'
+      );
+
+      // Default response with generated card number
+      const response = {
+        cardNumber: this.generateConsistentCardNumber(customerId),
+        cardType: 'STANDARD',
+        isActive: true,
+        expirationDate: undefined as Date | undefined,
+        programs: [] as Array<{
+          id: number;
+          programId: number;
+          businessId: number;
+          programName: string;
+          points: number;
+          tierLevel: string;
+          joinDate: Date;
+          status: string;
+        }>,
+        promoCodes: [] as Array<{
+          id: number;
+          code: string;
+          description: string;
+          discountType: string;
+          discountValue: number;
+          startDate: Date;
+          endDate: Date;
+          status: string;
+          claimed: boolean;
+          used: boolean;
+        }>
+      };
+
+      // If we found a QR code, update the response with its data
+      if (qrCode) {
+        try {
+          const qrData = typeof qrCode.qr_data === 'string' 
+            ? JSON.parse(qrCode.qr_data) 
+            : qrCode.qr_data;
+          
+          response.cardNumber = qrData.cardNumber || response.cardNumber;
+          response.cardType = qrData.cardType || response.cardType;
+          response.expirationDate = qrCode.expiry_date;
+          response.isActive = qrCode.status === 'ACTIVE';
+        } catch (parseError) {
+          console.error('Error parsing QR code data:', parseError);
+        }
+      }
+
+      // Get enrolled programs
+      response.programs = await this.getCustomerEnrolledPrograms(customerId);
+      
+      // Get promo codes
+      response.promoCodes = await this.getCustomerAvailablePromoCodes(customerId);
+      
+      return response;
+    } catch (error) {
+      console.error('Error getting customer card info:', error);
+      
+      // Return default info with generated card number
+      return {
+        cardNumber: this.generateConsistentCardNumber(customerId),
+        cardType: 'STANDARD',
+        isActive: true,
+        programs: [] as Array<{
+          id: number;
+          programId: number;
+          businessId: number;
+          programName: string;
+          points: number;
+          tierLevel: string;
+          joinDate: Date;
+          status: string;
+        }>,
+        promoCodes: [] as Array<{
+          id: number;
+          code: string;
+          description: string;
+          discountType: string;
+          discountValue: number;
+          startDate: Date;
+          endDate: Date;
+          status: string;
+          claimed: boolean;
+          used: boolean;
+        }>
       };
     }
   }

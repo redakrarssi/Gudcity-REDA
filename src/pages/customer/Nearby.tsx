@@ -16,11 +16,15 @@ import {
   Info, 
   ChevronRight,
   X,
-  Loader
+  Loader,
+  Loader2,
+  MapPin,
+  RefreshCw
 } from 'lucide-react';
 import { LocationService } from '../../services/locationService';
 import { NearbyProgram, Location } from '../../types/location';
 import { NearbyPrograms } from '../../components/location/NearbyPrograms';
+import { Button } from '../../components/ui/Button';
 
 // Category icons and colors
 const CATEGORIES = {
@@ -47,6 +51,8 @@ const CustomerNearby = () => {
   const [loading, setLoading] = useState(false);
   const [radius, setRadius] = useState(10); // Default radius 10km
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>(['all']);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -69,7 +75,7 @@ const CustomerNearby = () => {
     }
 
     // Get user location on component mount
-    handleGetLocation();
+    getUserLocation();
   }, []);
 
   // When user location changes or category changes, search for programs
@@ -93,8 +99,6 @@ const CustomerNearby = () => {
     setLocationError('');
     
     try {
-      const categories = selectedCategory !== 'all' ? [selectedCategory] : [];
-
       const { programs: nearbyPrograms, error } = await LocationService.searchNearbyPrograms({
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
@@ -134,8 +138,9 @@ const CustomerNearby = () => {
     setSearchTerm(e.target.value);
   };
 
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setCategories(value === 'all' ? ['all'] : [value]);
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -168,36 +173,71 @@ const CustomerNearby = () => {
     setSelectedProgram(null);
   };
 
-  const handleGetLocation = () => {
-    if (navigator.geolocation) {
-      setIsLocating(true);
-      setLocationError('');
-      
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          console.log('Location obtained:', position.coords.latitude, position.coords.longitude);
-          
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          });
-          
-          setIsLocating(false);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setLocationError(
-            error.code === 1
-              ? t('Location access denied. Please enable location services.')
-              : t('Could not get your location. Please try again.')
-          );
-          setIsLocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
-    } else {
-      setLocationError(t('Geolocation is not supported by this browser.'));
+  const getUserLocation = () => {
+    setLoading(true);
+    setError(null);
+    
+    // Check if geolocation is supported
+    if (!navigator.geolocation) {
+      setError(t('Geolocation is not supported by your browser'));
+      setLoading(false);
+      return;
     }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        
+        // Handle specific geolocation errors
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setError(t('Location access was denied. Please enable location services.'));
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setError(t('Location information is unavailable. Please try again.'));
+            break;
+          case error.TIMEOUT:
+            setError(t('Location request timed out. Please try again.'));
+            break;
+          default:
+            setError(t('An unknown error occurred getting your location.'));
+        }
+        
+        setLoading(false);
+        
+        // Use fallback location
+        useFallbackLocation();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+  
+  const useFallbackLocation = async () => {
+    try {
+      // Try to get location from IP address or use a default location
+      setUserLocation({
+        latitude: 40.7128, // New York City as fallback
+        longitude: -74.006
+      });
+    } catch (err) {
+      console.error('Error getting fallback location:', err);
+      // Already showing the geolocation error, so no need to update error state
+    }
+  };
+
+  const handleRadiusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRadius(parseInt(e.target.value));
+  };
+
+  const refreshLocation = () => {
+    getUserLocation();
   };
 
   const getFilteredPrograms = () => {
@@ -238,7 +278,7 @@ const CustomerNearby = () => {
       {Object.keys(CATEGORIES).map(category => (
         <button
           key={category}
-          onClick={() => handleCategoryChange(category)}
+          onClick={() => handleCategoryChange({ target: { value: category } } as React.ChangeEvent<HTMLSelectElement>)}
           className={`flex items-center px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
             selectedCategory === category
               ? `${CATEGORIES[category as keyof typeof CATEGORIES].color} font-medium`
@@ -423,12 +463,12 @@ const CustomerNearby = () => {
           {t('List View')}
         </button>
         <button 
-          onClick={handleGetLocation}
-          disabled={isLocating}
+          onClick={refreshLocation}
+          disabled={loading}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
         >
-          <Navigation className="w-4 h-4 mr-1.5" />
-          {isLocating ? t('Locating...') : t('Update Location')}
+          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+          {t('Refresh')}
         </button>
       </div>
     </div>
@@ -462,26 +502,22 @@ const CustomerNearby = () => {
                 {showMap ? t('Map View') : t('Show Map')}
               </button>
               <button
-                onClick={handleGetLocation}
-                disabled={isLocating}
+                onClick={refreshLocation}
+                disabled={loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
               >
-                {isLocating ? (
-                  <Loader className="w-4 h-4 mr-1.5 animate-spin" />
-                ) : (
-                  <Navigation className="w-4 h-4 mr-1.5" />
-                )}
-                {isLocating ? t('Locating...') : t('Update Location')}
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                {t('Refresh')}
               </button>
             </div>
           </div>
         </div>
 
         {/* Location error message */}
-        {locationError && (
+        {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm flex items-start">
-            <Info className="w-5 h-5 mr-2 flex-shrink-0" />
-            <p>{locationError}</p>
+            <MapPin className="w-5 h-5 mr-2 flex-shrink-0" />
+            <p>{error}</p>
           </div>
         )}
 
@@ -527,13 +563,12 @@ const CustomerNearby = () => {
             </label>
             <select
               value={radius}
-              onChange={(e) => setRadius(parseInt(e.target.value))}
+              onChange={handleRadiusChange}
               className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2"
             >
-              <option value="1">{t('1km')}</option>
               <option value="5">{t('5km')}</option>
               <option value="10">{t('10km')}</option>
-              <option value="20">{t('20km')}</option>
+              <option value="25">{t('25km')}</option>
               <option value="50">{t('50km')}</option>
             </select>
           </div>
@@ -547,7 +582,7 @@ const CustomerNearby = () => {
             <div>
               {loading ? (
                 <div className="flex justify-center items-center p-12">
-                  <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                   <span className="ml-3 text-gray-500">{t('Loading nearby programs...')}</span>
                 </div>
               ) : filteredPrograms.length > 0 ? (

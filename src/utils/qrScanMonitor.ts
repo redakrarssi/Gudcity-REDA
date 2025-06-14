@@ -163,10 +163,154 @@ export function diagnoseQrCodeFormat(rawData: string): {
   };
 }
 
-export default {
-  recordSuccessfulScan,
-  recordFailedScan,
-  getScanStatistics,
-  resetScanStatistics,
-  diagnoseQrCodeFormat
-}; 
+// Add the missing methods to qrScanMonitor that are called in QRScanner.tsx
+
+/**
+ * QR Scan Monitor - Tracks and analyzes QR code scanning activity
+ */
+class QrScanMonitor {
+  private scanCount = 0;
+  private successfulScans = 0;
+  private failedScans = 0;
+  private recentSuccessfulScans: { timestamp: string; qrType: string; data: any }[] = [];
+  private recentFailedScans: { timestamp: string; error: string; rawData?: string; parsedData?: any }[] = [];
+  private lastScanTime: number = 0;
+  private rateLimitWindowMs = 1000; // 1 second rate limit window
+  
+  /**
+   * Records a successful QR code scan
+   */
+  recordSuccessfulScan(qrType: string, data: any) {
+    this.scanCount++;
+    this.successfulScans++;
+    
+    // Keep recent scans limited to prevent memory issues
+    if (this.recentSuccessfulScans.length >= 10) {
+      this.recentSuccessfulScans.shift();
+    }
+    
+    this.recentSuccessfulScans.push({
+      timestamp: new Date().toISOString(),
+      qrType,
+      data
+    });
+  }
+  
+  /**
+   * Records a failed QR code scan with error details
+   */
+  recordFailedScan(error: string, rawData?: string, parsedData?: any) {
+    this.scanCount++;
+    this.failedScans++;
+    
+    // Keep recent failures limited to prevent memory issues
+    if (this.recentFailedScans.length >= 10) {
+      this.recentFailedScans.shift();
+    }
+    
+    this.recentFailedScans.push({
+      timestamp: new Date().toISOString(),
+      error,
+      rawData,
+      parsedData
+    });
+  }
+  
+  /**
+   * Get statistics about QR scanning activity
+   */
+  getScanStatistics() {
+    return {
+      totalScans: this.scanCount,
+      successfulScans: this.successfulScans,
+      failedScans: this.failedScans,
+      scanSuccessRate: this.successfulScans / (this.scanCount || 1),
+      recentSuccessfulScans: this.recentSuccessfulScans,
+      recentFailedScans: this.recentFailedScans
+    };
+  }
+  
+  /**
+   * Reset all scanning statistics
+   */
+  resetScanStatistics() {
+    this.scanCount = 0;
+    this.successfulScans = 0;
+    this.failedScans = 0;
+    this.recentSuccessfulScans = [];
+    this.recentFailedScans = [];
+  }
+  
+  /**
+   * Diagnose QR code format issues
+   */
+  diagnoseQrCodeFormat(rawData: string) {
+    const issues: string[] = [];
+    let valid = true;
+    
+    // Check if it's a valid JSON
+    try {
+      const parsed = JSON.parse(rawData);
+      
+      // Check for required fields
+      if (!parsed.type) {
+        issues.push('Missing "type" field');
+        valid = false;
+      }
+      
+      // Based on type, check for additional required fields
+      if (parsed.type === 'CUSTOMER_CARD') {
+        if (!parsed.customerId) {
+          issues.push('Missing "customerId" field for customer card');
+          valid = false;
+        }
+      } else if (parsed.type === 'PROMO_CODE') {
+        if (!parsed.promoId || !parsed.code) {
+          issues.push('Missing required fields for promo code');
+          valid = false;
+        }
+      } else if (parsed.type === 'LOYALTY_CARD') {
+        if (!parsed.programId || !parsed.customerId) {
+          issues.push('Missing required fields for loyalty card');
+          valid = false;
+        }
+      }
+    } catch (e) {
+      issues.push('Not valid JSON format');
+      valid = false;
+    }
+    
+    return {
+      valid,
+      issues
+    };
+  }
+  
+  /**
+   * Track a scanning attempt and update rate limiting
+   */
+  trackScan() {
+    this.lastScanTime = Date.now();
+    this.scanCount++;
+  }
+  
+  /**
+   * Check if scanning is currently rate limited
+   */
+  isRateLimited() {
+    const currentTime = Date.now();
+    const timeSinceLastScan = currentTime - this.lastScanTime;
+    return timeSinceLastScan < this.rateLimitWindowMs;
+  }
+  
+  /**
+   * Get the timestamp when rate limiting will reset
+   */
+  getResetTime() {
+    return this.lastScanTime + this.rateLimitWindowMs;
+  }
+}
+
+// Create a singleton instance
+const qrScanMonitor = new QrScanMonitor();
+export default qrScanMonitor; 

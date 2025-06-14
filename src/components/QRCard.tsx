@@ -3,17 +3,23 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { StandardQrCodeData } from '../utils/standardQrCodeGenerator';
-import { Clock, RefreshCw, Shield, CreditCard } from 'lucide-react';
-import crypto from 'crypto';
+import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, User } from 'lucide-react';
 
 interface QRCardProps {
   userId: string;
   userName: string;
   cardNumber?: string;
   cardType?: string;
+  onCardReady?: (cardNumber: string) => void;
 }
 
-export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, cardType = "STANDARD" }) => {
+export const QRCard: React.FC<QRCardProps> = ({ 
+  userId, 
+  userName, 
+  cardNumber, 
+  cardType = "STANDARD",
+  onCardReady 
+}) => {
   const { t } = useTranslation();
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
@@ -24,14 +30,95 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
   const [isExpiringSoon, setIsExpiringSoon] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [enrolledPrograms, setEnrolledPrograms] = useState<any[]>([]);
+  const [availablePromos, setAvailablePromos] = useState<number>(0);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [useFallback, setUseFallback] = useState<boolean>(false);
   
-  // Ensure we have a valid display name
-  const displayName = userName && userName !== 'Customer User' 
-    ? userName 
-    : t('user.defaultName', 'Customer');
+  // Create a more user-friendly display name
+  const getDisplayName = (): string => {
+    // If we have a proper name, use it
+    if (userName && userName !== 'Customer User' && userName !== 'Customer') {
+      return userName;
+    }
+    
+    // Try to extract a name from email if username looks like an email
+    if (userName && userName.includes('@')) {
+      const emailParts = userName.split('@');
+      return emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1);
+    }
+    
+    // Last resort, use a translated generic name
+    return t('user.defaultName', 'Customer');
+  };
 
-  // Generate a card number if not provided
-  const actualCardNumber = cardNumber || `${userId}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+  // Get user initials for avatar fallback
+  const getUserInitials = (): string => {
+    if (!userName || userName === 'Customer' || userName === 'Customer User') {
+      return 'C';
+    }
+    
+    // If it looks like an email address
+    if (userName.includes('@')) {
+      return userName.split('@')[0].charAt(0).toUpperCase();
+    }
+    
+    // Get initials from name parts
+    const nameParts = userName.trim().split(' ');
+    if (nameParts.length >= 2) {
+      return (
+        (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0))
+        .toUpperCase()
+      );
+    }
+    
+    // Single name
+    return userName.charAt(0).toUpperCase();
+  };
+
+  const displayName = getDisplayName();
+  const userInitials = getUserInitials();
+
+  // Generate a deterministic card number based on user ID
+  // This ensures the same user always gets the same card number
+  const generateUniqueCardNumber = (id: string): string => {
+    // Format: CUST-{userId padded to 6 digits}-{checksum digit}
+    const paddedId = id.toString().padStart(6, '0');
+    
+    // Simple checksum calculation (sum of digits modulo 10)
+    let sum = 0;
+    for (let i = 0; i < paddedId.length; i++) {
+      sum += parseInt(paddedId[i]);
+    }
+    const checksum = sum % 10;
+    
+    return `CUST-${paddedId}-${checksum}`;
+  };
+
+  // Use provided card number or generate a consistent one from user ID
+  const actualCardNumber = cardNumber || generateUniqueCardNumber(userId);
+
+  // Create direct QR code from data
+  const createFallbackQrCode = () => {
+    try {
+      console.log('Creating fallback QR code');
+      const fallbackData = JSON.stringify({
+        customerId: userId,
+        cardNumber: actualCardNumber,
+        timestamp: Date.now(),
+        type: 'CUSTOMER_CARD',
+      });
+      setQrData(fallbackData);
+      setQrImageUrl(null);
+      setError(null);
+      return true;
+    } catch (error) {
+      console.error('Error creating fallback QR:', error);
+      // If even this fails, use the absolute last resort fallback
+      setUseFallback(true);
+      return false;
+    }
+  };
 
   const fetchQrCode = async () => {
     if (!userId) return;
@@ -39,50 +126,79 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
     try {
       setLoading(true);
       setError(null);
+      console.log(`Fetching QR code for user ${userId} with card number ${actualCardNumber}`);
       
-      // Get or create the customer's QR code
-      const qrImageUrl = await UserQrCodeService.getOrCreateCustomerQrCode({
+      // Try to get or create the customer's QR code from the service
+      const user = {
         id: parseInt(userId),
         name: userName || displayName,
         email: '',  // Email is not needed here
         role: 'customer',
         user_type: 'customer'
-      });
+      };
+      
+      const cardDetails = {
+        cardNumber: actualCardNumber,
+        cardType: cardType
+      };
+      
+      let qrImageUrl = null;
+      try {
+        qrImageUrl = await UserQrCodeService.getOrCreateCustomerQrCode(user, cardDetails);
+        console.log('QR code returned:', qrImageUrl ? 'Yes' : 'No');
+      } catch (serviceError) {
+        console.error('Error from UserQrCodeService:', serviceError);
+      }
       
       if (qrImageUrl) {
+        console.log('QR code data URL received, length:', qrImageUrl.length);
+        setDebugInfo({
+          dataType: typeof qrImageUrl,
+          isDataUrl: qrImageUrl.startsWith('data:'),
+          length: qrImageUrl.length,
+        });
+        
         // Case 1: We got a data URL directly - use it
         if (qrImageUrl.startsWith('data:image')) {
           setQrImageUrl(qrImageUrl);
           setQrData(null); // No need for QR data when we have an image
+          setError(null); // Clear any previous errors
+          console.log('Using QR image data URL');
         } 
         // Case 2: We got a JSON string or other format - parse and use for QRCodeSVG
         else {
           try {
             // Check if it's JSON data
-            const parsedData = JSON.parse(qrImageUrl);
-            // Create standardized QR code data with card info
-            const standardData: StandardQrCodeData = {
-              type: 'CUSTOMER_CARD',
-              qrUniqueId: parsedData.qrUniqueId || crypto.randomUUID(),
-              timestamp: Date.now(),
-              version: '1.0',
-              customerId: userId,
-              customerName: displayName,
-              // Add card-specific data
-              cardNumber: actualCardNumber,
-              cardType: cardType
-            };
+            let parsedData;
+            try {
+              parsedData = JSON.parse(qrImageUrl);
+              setQrData(JSON.stringify(parsedData));
+              setQrImageUrl(null);
+              console.log('Parsed QR data as JSON');
+            } catch (parseError) {
+              // Not valid JSON, use as URL or data directly
+              setQrData(qrImageUrl); // Use as raw data
+              setQrImageUrl(null);
+              console.log('Using QR raw data');
+            }
             
-            setQrData(JSON.stringify(standardData));
-            setQrImageUrl(null);
+            setError(null); // Clear any previous errors
           } catch (parseError) {
-            // Not valid JSON, use as URL or data directly
-            setQrImageUrl(qrImageUrl);
-            setQrData(null);
+            console.error('Error parsing QR data:', parseError);
+            // Try fallback
+            if (!createFallbackQrCode()) {
+              setError('Error processing QR code data. Please try again.');
+            }
           }
         }
         
+        // Format the card display code (last 6 characters)
         setUniqueCode(actualCardNumber.slice(-6));
+        
+        // Notify parent that card is ready
+        if (onCardReady) {
+          onCardReady(actualCardNumber);
+        }
         
         // Get QR code details including expiration date
         try {
@@ -96,73 +212,48 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
             const daysDifference = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             setIsExpiringSoon(daysDifference <= 7 && daysDifference > 0);
           } else {
-            // Set default expiration date (30 days from now)
+            // Set default expiration date (365 days from now - longer expiration)
             const defaultExpDate = new Date();
-            defaultExpDate.setDate(defaultExpDate.getDate() + 30);
+            defaultExpDate.setDate(defaultExpDate.getDate() + 365);
             setExpirationDate(defaultExpDate.toLocaleDateString());
           }
         } catch (detailsError) {
           console.error('Error getting QR details:', detailsError);
-          // Set default expiration date (30 days from now)
+          // Set default expiration date
           const defaultExpDate = new Date();
-          defaultExpDate.setDate(defaultExpDate.getDate() + 30);
+          defaultExpDate.setDate(defaultExpDate.getDate() + 365);
           setExpirationDate(defaultExpDate.toLocaleDateString());
         }
+        
+        // Fetch enrolled programs
+        try {
+          const programs = await UserQrCodeService.getCustomerEnrolledPrograms(userId);
+          setEnrolledPrograms(programs || []);
+        } catch (programsError) {
+          console.error('Error fetching enrolled programs:', programsError);
+        }
+        
+        // Fetch available promos
+        try {
+          const promos = await UserQrCodeService.getCustomerAvailablePromoCodes(userId);
+          setAvailablePromos(promos.length || 0);
+        } catch (promosError) {
+          console.error('Error fetching available promos:', promosError);
+        }
       } else {
-        // Failed to get QR code, generate a fallback
-        const standardData: StandardQrCodeData = {
-          type: 'CUSTOMER_CARD',
-          qrUniqueId: crypto.randomUUID(),
-          timestamp: Date.now(),
-          version: '1.0',
-          customerId: userId,
-          customerName: displayName,
-          cardNumber: actualCardNumber,
-          cardType: cardType
-        };
+        console.error('No QR image URL returned from service');
         
-        setQrData(JSON.stringify(standardData));
-        setQrImageUrl(null);
-        setError('Could not load QR code from server, using locally generated version');
-        
-        // Set default expiration date (30 days from now)
-        const defaultExpDate = new Date();
-        defaultExpDate.setDate(defaultExpDate.getDate() + 30);
-        setExpirationDate(defaultExpDate.toLocaleDateString());
+        // Try to create a fallback QR code directly
+        if (!createFallbackQrCode()) {
+          setError('Could not load your loyalty card. Please try again later.');
+        }
       }
     } catch (err) {
       console.error('Error getting QR code:', err);
-      setError('Could not load your QR code');
       
-      // If we've tried less than 3 times, retry after a delay
-      if (retryCount < 3) {
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          fetchQrCode();
-        }, 1000 * Math.pow(2, retryCount)); // Exponential backoff: 1s, 2s, 4s
-      } else {
-        // After 3 retries, fall back to a generated QR code
-        try {
-          const standardData: StandardQrCodeData = {
-            type: 'CUSTOMER_CARD',
-            qrUniqueId: crypto.randomUUID(),
-            timestamp: Date.now(),
-            version: '1.0',
-            customerId: userId,
-            customerName: displayName,
-            cardNumber: actualCardNumber,
-            cardType: cardType
-          };
-          setQrData(JSON.stringify(standardData));
-          setQrImageUrl(null);
-          
-          // Set default expiration date (30 days from now)
-          const defaultExpDate = new Date();
-          defaultExpDate.setDate(defaultExpDate.getDate() + 30);
-          setExpirationDate(defaultExpDate.toLocaleDateString());
-        } catch (fallbackError) {
-          console.error('Error creating fallback QR code:', fallbackError);
-        }
+      // Try to create a fallback QR code directly
+      if (!createFallbackQrCode()) {
+        setError('Could not load your loyalty card');
       }
     } finally {
       setLoading(false);
@@ -174,12 +265,33 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
     if (userId) {
       fetchQrCode();
     }
-  }, [userId, userName, cardNumber, cardType]);
+  }, [userId, userName, cardType]);
+
+  // Retry logic with exponential backoff
+  useEffect(() => {
+    if (error && retryCount < 3) {
+      const retryDelay = Math.pow(2, retryCount) * 1000; // exponential backoff
+      const timer = setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        fetchQrCode();
+      }, retryDelay);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount]);
+
+  // Last resort fallback: if all QR code methods fail after retries
+  useEffect(() => {
+    if (retryCount >= 3 && error) {
+      setUseFallback(true);
+    }
+  }, [retryCount, error]);
 
   const handleRefreshQrCode = () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    setRetryCount(0); // Reset retry count
+    setRetryCount(0);
+    setUseFallback(false);
     fetchQrCode();
   };
 
@@ -204,11 +316,17 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
       </div>
       
       <div className="text-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-800">{displayName}</h2>
+        <div className="flex justify-center items-center mb-2">
+          {/* User Avatar/Initials */}
+          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-sm font-medium">
+            {userInitials}
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800">{displayName}</h2>
+        </div>
         <p className="text-sm text-gray-500">{t('qrCard.showToCollect', 'Show this card to collect points')}</p>
       </div>
       
-      {error && (
+      {error && !useFallback && (
         <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm flex items-start">
           <div className="flex-1">{error}</div>
           <button 
@@ -226,8 +344,8 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
         </div>
       )}
       
-      <div className="flex justify-center p-4 bg-white rounded-lg">
-        {qrImageUrl ? (
+      <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
+        {qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL
           <img 
             src={qrImageUrl} 
@@ -235,54 +353,97 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
             className="mx-auto"
             width={250}
             height={250}
+            onError={(e) => {
+              console.error('Failed to load QR image');
+              setError('QR image failed to load. Please try again later.');
+              createFallbackQrCode();
+            }}
           />
-        ) : qrData ? (
-          // Generate QR code from data using QRCodeSVG
-          <QRCodeSVG
-            value={qrData}
-            size={250}
-            level="H" // High error correction for better scanning reliability
-            includeMargin={true}
-            className="mx-auto"
-            bgColor={"#ffffff"}
-            fgColor={"#000000"}
-          />
+        ) : qrData && !useFallback ? (
+          // QR Code SVG generation
+          <div className="border border-gray-200 p-4 rounded-lg">
+            <QRCodeSVG 
+              value={qrData} 
+              size={250} 
+              includeMargin={true}
+              level="M" // Error correction level
+            />
+          </div>
+        ) : useFallback ? (
+          // Absolute last resort: Direct QR code generation
+          <div className="border border-gray-200 p-4 rounded-lg">
+            <QRCodeSVG 
+              value={JSON.stringify({
+                cardNumber: actualCardNumber,
+                userId: userId,
+                timestamp: Date.now()
+              })}
+              size={250} 
+              includeMargin={true}
+              level="L" // Low error correction level for simplicity
+            />
+          </div>
         ) : (
-          <div className="w-64 h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">QR code unavailable</p>
+          // No QR code available
+          <div className="flex flex-col items-center justify-center h-64 w-64 border border-red-200 rounded-lg">
+            <Shield className="text-red-500 h-12 w-12 mb-4" />
+            <div className="text-red-500 text-center">
+              {t('qrCard.noQrCode', 'No QR code available')}
+              <button 
+                onClick={handleRefreshQrCode} 
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md block mx-auto"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? t('qrCard.retrying', 'Retrying...') : t('qrCard.retry', 'Try Again')}
+              </button>
+            </div>
           </div>
         )}
       </div>
       
-      <div className="mt-4 text-center">
-        <p className="text-xs text-gray-400">ID: {userId}</p>
-        {uniqueCode && (
-          <p className="text-xs font-medium text-blue-600 mt-1">
-            {t('qrCard.cardNumber', 'Card Number')}: {actualCardNumber}
-          </p>
-        )}
-        <p className="text-xs text-gray-400 mt-1">
-          {t('qrCard.updated', 'Updated')}: {new Date().toLocaleString()}
-        </p>
-        {expirationDate && (
-          <div className={`mt-2 flex items-center justify-center ${isExpiringSoon ? 'text-orange-500' : 'text-gray-500'}`}>
-            <Clock className="h-3 w-3 mr-1" />
-            <p className="text-xs font-medium">
-              {isExpiringSoon 
-                ? t('qrCard.expiresSoon', 'Expires Soon: {{date}}', { date: expirationDate })
-                : t('qrCard.expires', 'Expires: {{date}}', { date: expirationDate })}
-            </p>
-          </div>
-        )}
-        
-        <div className="mt-4 flex items-center justify-center text-xs text-green-600">
-          <Shield className="w-3 h-3 mr-1" />
-          <p>{t('qrCard.secureCard', 'Secure card')}</p>
+      <div className="border-t border-gray-100 pt-4 mt-2 space-y-2">
+        {/* Card Details */}
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-gray-500">{t('qrCard.cardNumber', 'Card Number')}:</span>
+          <span className="font-medium">{actualCardNumber}</span>
         </div>
         
+        {/* Expiration Date */}
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-gray-500 flex items-center">
+            <Clock className="h-3 w-3 inline mr-1" />
+            {t('qrCard.expires', 'Expires')}:
+          </span>
+          <span className={`font-medium ${isExpiringSoon ? 'text-amber-600' : ''}`}>
+            {expirationDate}
+            {isExpiringSoon && ' (Soon)'}
+          </span>
+        </div>
+        
+        {/* Program Enrollment Info */}
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-gray-500 flex items-center">
+            <BadgeCheck className="h-3 w-3 inline mr-1" />
+            {t('qrCard.programs', 'Programs')}:
+          </span>
+          <span className="font-medium">{enrolledPrograms.length}</span>
+        </div>
+        
+        {/* Available Promos */}
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-gray-500 flex items-center">
+            <Tag className="h-3 w-3 inline mr-1" />
+            {t('qrCard.promos', 'Available Promos')}:
+          </span>
+          <span className="font-medium">{availablePromos}</span>
+        </div>
+      </div>
+      
+      {/* Action Buttons */}
+      <div className="mt-4 flex justify-between">
         <button 
-          onClick={handleRefreshQrCode}
-          className="mt-4 text-xs text-blue-600 flex items-center justify-center mx-auto hover:text-blue-800 transition-colors"
+          onClick={handleRefreshQrCode} 
+          className="text-blue-600 text-sm flex items-center"
           disabled={isRefreshing}
         >
           {isRefreshing ? (
@@ -290,8 +451,13 @@ export const QRCard: React.FC<QRCardProps> = ({ userId, userName, cardNumber, ca
           ) : (
             <RefreshCw className="w-3 h-3 mr-1" />
           )}
-          {t('qrCard.refresh', 'Refresh Card')}
+          {t('qrCard.refresh', 'Refresh')}
         </button>
+        
+        <div className="flex items-center text-green-600 text-xs">
+          <Shield className="h-3 w-3 mr-1" />
+          {t('qrCard.secureCard', 'Secure Card')}
+        </div>
       </div>
     </div>
   );

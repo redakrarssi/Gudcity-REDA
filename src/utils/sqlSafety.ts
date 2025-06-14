@@ -145,4 +145,59 @@ export function sanitizeDbIdentifier(identifier: string): string {
 export function escapeLikeValue(value: string): string {
   // Escape special LIKE characters: % _ \
   return value.replace(/[\\%_]/g, '\\$&');
+}
+
+/**
+ * Validate and sanitize a program ID
+ */
+export function validateProgramId(programId: any): number {
+  if (programId === undefined || programId === null) {
+    throw new Error('Program ID is required');
+  }
+  
+  // Convert to number if it's a string
+  const programIdNum = typeof programId === 'string' ? parseInt(programId, 10) : programId;
+  
+  // Ensure it's a valid number
+  if (isNaN(programIdNum) || programIdNum <= 0) {
+    throw new Error('Invalid program ID');
+  }
+  
+  return programIdNum;
+}
+
+/**
+ * Sanitize a string for use in SQL queries
+ */
+export function sanitizeString(str: any): string {
+  if (str === undefined || str === null) {
+    return '';
+  }
+  
+  // Convert to string if it's not already
+  const strValue = String(str);
+  
+  // Remove potentially dangerous characters
+  return strValue
+    .replace(/'/g, "''") // Escape single quotes
+    .replace(/\\/g, '\\\\'); // Escape backslashes
+}
+
+/**
+ * Validate and sanitize a date string
+ */
+export function validateDateString(dateStr: any): string {
+  if (!dateStr) {
+    throw new Error('Date is required');
+  }
+  
+  // Try to parse the date
+  const date = new Date(dateStr);
+  
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date format');
+  }
+  
+  // Return ISO format
+  return date.toISOString();
 } 

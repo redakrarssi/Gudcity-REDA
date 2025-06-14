@@ -66,8 +66,15 @@ export class QrCodeStorageService {
    */
   static async createQrCode(params: QrCodeCreationParams): Promise<CustomerQrCode | null> {
     try {
+      // First check if the table exists
+      const tableExists = await sql.tableExists('customer_qrcodes');
+      if (!tableExists) {
+        console.error('customer_qrcodes table does not exist in the database');
+        return null;
+      }
+
       // Start a transaction
-      await sql`BEGIN`;
+      await sql.begin();
       
       try {
         // Convert string IDs to numbers if needed
@@ -85,19 +92,22 @@ export class QrCodeStorageService {
         
         // Validate inputs before inserting
         if (!customerId || customerId <= 0) {
+          await sql.rollback();
           throw new Error('Invalid customer ID');
         }
         
         if (params.businessId && (typeof businessId !== 'number' || businessId <= 0)) {
+          await sql.rollback();
           throw new Error('Invalid business ID');
         }
         
         if (!params.qrType) {
+          await sql.rollback();
           throw new Error('QR code type is required');
         }
 
         // Insert the new QR code into the database
-        const result = await sql`
+        const result = await sql.query(`
           INSERT INTO customer_qrcodes (
             qr_unique_id,
             customer_id,
@@ -113,48 +123,50 @@ export class QrCodeStorageService {
             created_at,
             updated_at
           ) VALUES (
-            ${qrUniqueId},
-            ${customerId},
-            ${businessId},
-            ${params.data},
-            ${params.imageUrl || null},
-            ${params.qrType},
-            ${'ACTIVE'},
-            ${verificationCode},
-            ${params.isPrimary || false},
-            ${params.expiryDate || null},
-            ${signature},
-            NOW(),
-            NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW()
           )
           RETURNING *
-        `;
+        `, [
+          qrUniqueId,
+          customerId,
+          businessId,
+          params.data,
+          params.imageUrl || null,
+          params.qrType,
+          'ACTIVE',
+          verificationCode,
+          params.isPrimary || false,
+          params.expiryDate || null,
+          signature
+        ]);
 
         if (result && result.length > 0) {
           // If this is set as primary, unset any existing primary QR codes
           if (params.isPrimary) {
-            await sql`
+            await sql.query(`
               UPDATE customer_qrcodes
               SET is_primary = FALSE
-              WHERE customer_id = ${customerId}
-              AND id != ${result[0].id}
-              AND qr_type = ${params.qrType}
-            `;
+              WHERE customer_id = $1
+              AND id != $2
+              AND qr_type = $3
+            `, [customerId, result[0].id, params.qrType]);
           }
           
           // Commit the transaction
-          await sql`COMMIT`;
+          await sql.commit();
           
-          return result[0] as CustomerQrCode;
+          console.log(`Successfully created QR code for customer ${customerId}, QR ID: ${qrUniqueId}`);
+          return result[0] as unknown as CustomerQrCode;
         } else {
           // No result returned, roll back
-          await sql`ROLLBACK`;
+          await sql.rollback();
           console.error('Failed to create QR code: No result returned');
           return null;
         }
       } catch (innerError) {
         // Roll back on any error
-        await sql`ROLLBACK`;
+        await sql.rollback();
+        console.error('Inner transaction error:', innerError);
         throw innerError;
       }
     } catch (error) {
@@ -171,12 +183,12 @@ export class QrCodeStorageService {
    */
   static async getQrCodeByUniqueId(qrUniqueId: string): Promise<CustomerQrCode | null> {
     try {
-      const result = await sql`
+      const result = await sql.query(`
         SELECT * FROM customer_qrcodes
-        WHERE qr_unique_id = ${qrUniqueId}
-      `;
+        WHERE qr_unique_id = $1
+      `, [qrUniqueId]);
 
-      return result.length > 0 ? result[0] as CustomerQrCode : null;
+      return result.length > 0 ? result[0] as unknown as CustomerQrCode : null;
     } catch (error) {
       console.error('Error getting QR code by unique ID:', error);
       return null;
@@ -285,29 +297,32 @@ export class QrCodeStorageService {
   }
 
   /**
-   * Get all active QR codes for a customer
+   * Get all QR codes for a specific customer
    */
   static async getCustomerQrCodes(customerId: number | string, qrType?: CustomerQrCode['qr_type']): Promise<CustomerQrCode[]> {
     try {
-      const customerIdNum = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+      // Convert customer ID to number if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
       
-      let query = sql`
-        SELECT * FROM customer_qrcodes
-        WHERE customer_id = ${customerIdNum}
-        AND status = 'ACTIVE'
-      `;
-      
+      let result;
       if (qrType) {
-        query = sql`
+        // Filter by QR code type
+        result = await sql.query(`
           SELECT * FROM customer_qrcodes
-          WHERE customer_id = ${customerIdNum}
-          AND status = 'ACTIVE'
-          AND qr_type = ${qrType}
-        `;
+          WHERE customer_id = $1
+          AND qr_type = $2
+          ORDER BY created_at DESC
+        `, [custId, qrType]);
+      } else {
+        // Get all QR codes for the customer
+        result = await sql.query(`
+          SELECT * FROM customer_qrcodes
+          WHERE customer_id = $1
+          ORDER BY created_at DESC
+        `, [custId]);
       }
-      
-      const result = await query;
-      return result as CustomerQrCode[];
+
+      return result.map(row => row as unknown as CustomerQrCode);
     } catch (error) {
       console.error('Error getting customer QR codes:', error);
       return [];
@@ -315,31 +330,49 @@ export class QrCodeStorageService {
   }
 
   /**
-   * Get the primary QR code for a customer
+   * Get a customer's primary QR code
    */
   static async getCustomerPrimaryQrCode(customerId: number | string, qrType: CustomerQrCode['qr_type']): Promise<CustomerQrCode | null> {
     try {
-      const customerIdNum = typeof customerId === 'string' ? parseInt(customerId) : customerId;
-      
-      const result = await sql`
+      // First check if the table exists
+      const tableExists = await sql.tableExists('customer_qrcodes');
+      if (!tableExists) {
+        console.error('customer_qrcodes table does not exist');
+        return null;
+      }
+
+      // Convert string ID to number if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+
+      // Get the primary QR code for this customer and type
+      const result = await sql.query(`
         SELECT * FROM customer_qrcodes
-        WHERE customer_id = ${customerIdNum}
-        AND qr_type = ${qrType}
-        AND is_primary = TRUE
-        AND status = 'ACTIVE'
+        WHERE customer_id = $1 AND qr_type = $2 AND is_primary = TRUE AND status = 'ACTIVE'
         ORDER BY created_at DESC
         LIMIT 1
-      `;
+      `, [custId, qrType]);
 
-      return result.length > 0 ? result[0] as CustomerQrCode : null;
+      // If no primary QR code exists, look for any active QR code
+      if (result.length === 0) {
+        const fallbackResult = await sql.query(`
+          SELECT * FROM customer_qrcodes
+          WHERE customer_id = $1 AND qr_type = $2 AND status = 'ACTIVE'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `, [custId, qrType]);
+
+        return fallbackResult.length > 0 ? fallbackResult[0] as unknown as CustomerQrCode : null;
+      }
+
+      return result[0] as unknown as CustomerQrCode;
     } catch (error) {
-      console.error('Error getting primary QR code:', error);
+      console.error('Error getting customer primary QR code:', error);
       return null;
     }
   }
 
   /**
-   * Record a QR code scan
+   * Record a QR code scan and validate it
    */
   static async recordQrCodeScan(
     qrCodeId: number | string,
@@ -355,118 +388,124 @@ export class QrCodeStorageService {
     } = {}
   ): Promise<QrCodeScan | null> {
     try {
-      const qrCodeIdNum = typeof qrCodeId === 'string' ? parseInt(qrCodeId) : qrCodeId;
-      const scannedByNum = typeof scannedBy === 'string' ? parseInt(scannedBy) : scannedBy;
-      
-      // Validate inputs
-      if (!qrCodeIdNum || qrCodeIdNum <= 0) {
-        throw new Error('Invalid QR code ID');
-      }
-      
-      if (!scannedByNum || scannedByNum <= 0) {
-        throw new Error('Invalid scanner ID');
-      }
-      
-      // Begin transaction
-      await sql`BEGIN`;
-      
-      try {
-        // Check if QR code exists
-        const qrCodeCheck = await sql`
-          SELECT id FROM customer_qrcodes
-          WHERE id = ${qrCodeIdNum}
-        `;
-        
-        if (!qrCodeCheck.length) {
-          console.error(`QR code not found: ${qrCodeIdNum}`);
-          await sql`ROLLBACK`;
-          return null;
-        }
-        
-        // Insert the scan record
-        const result = await sql`
-          INSERT INTO customer_qrcode_scans (
-            qrcode_id,
-            scanned_by,
-            scan_location,
-            scan_device_info,
-            status,
-            points_awarded,
-            scan_result,
-            ip_address,
-            user_agent,
-            created_at
-          ) VALUES (
-            ${qrCodeIdNum},
-            ${scannedByNum},
-            ${details.location || null},
-            ${details.deviceInfo || null},
-            ${isValid ? 'VALID' : 'INVALID'},
-            ${details.pointsAwarded || null},
-            ${details.scanResult || null},
-            ${details.ipAddress || null},
-            ${details.userAgent || null},
-            NOW()
+      // First check if the table exists
+      const tableExists = await sql.tableExists('qr_code_scans');
+      if (!tableExists) {
+        // Create the table if it doesn't exist
+        await sql.query(`
+          CREATE TABLE IF NOT EXISTS qr_code_scans (
+            id SERIAL PRIMARY KEY,
+            qrcode_id INTEGER NOT NULL,
+            scanned_by INTEGER NOT NULL,
+            scan_location JSONB,
+            scan_device_info JSONB,
+            status TEXT NOT NULL,
+            points_awarded INTEGER,
+            scan_result JSONB,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
           )
-          RETURNING *
-        `;
-
-        if (result && result.length > 0) {
-          // Update the QR code's use count and last used timestamp
-          await sql`
-            UPDATE customer_qrcodes
-            SET uses_count = uses_count + 1,
-                last_used_at = NOW()
-            WHERE id = ${qrCodeIdNum}
-          `;
-          
-          // Check for suspicious activity (too many scans in a short period)
-          const recentScansCount = await sql`
-            SELECT COUNT(*) as count
-            FROM customer_qrcode_scans
-            WHERE qrcode_id = ${qrCodeIdNum}
-            AND created_at > NOW() - INTERVAL '1 hour'
-          `;
-          
-          // If there are too many scans, log a security event
-          if (recentScansCount[0].count > 10) {
-            await sql`
-              INSERT INTO customer_qrcode_events (
-                qrcode_id,
-                event_type,
-                event_data,
-                created_at
-              ) VALUES (
-                ${qrCodeIdNum},
-                'SECURITY_ALERT',
-                ${JSON.stringify({ alert: 'High scan frequency', count: recentScansCount[0].count })},
-                NOW()
-              )
-            `;
-            
-            console.warn(`Security alert: High scan frequency detected for QR code ${qrCodeIdNum}`);
-          }
-          
-          // Commit the transaction
-          await sql`COMMIT`;
-          
-          return result[0] as QrCodeScan;
-        } else {
-          // No scan record inserted
-          await sql`ROLLBACK`;
-          console.error('Failed to record QR code scan');
-          return null;
-        }
-      } catch (innerError) {
-        await sql`ROLLBACK`;
-        throw innerError;
+        `);
       }
+
+      // Convert string IDs to numbers if needed
+      const codeId = typeof qrCodeId === 'string' ? parseInt(qrCodeId) : qrCodeId;
+      const scannerId = typeof scannedBy === 'string' ? parseInt(scannedBy) : scannedBy;
+
+      // Record the scan
+      const result = await sql.query(`
+        INSERT INTO qr_code_scans (
+          qrcode_id,
+          scanned_by,
+          scan_location,
+          scan_device_info,
+          status,
+          points_awarded,
+          scan_result,
+          created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, NOW()
+        )
+        RETURNING *
+      `, [
+        codeId,
+        scannerId,
+        details.location ? JSON.stringify(details.location) : null,
+        details.deviceInfo ? JSON.stringify(details.deviceInfo) : JSON.stringify({
+          ip: details.ipAddress || null,
+          userAgent: details.userAgent || null
+        }),
+        isValid ? 'VALID' : 'INVALID',
+        details.pointsAwarded || 0,
+        details.scanResult ? JSON.stringify(details.scanResult) : null
+      ]);
+
+      if (result.length === 0) {
+        return null;
+      }
+
+      // If the scan is valid, update the QR code usage count and last used date
+      if (isValid) {
+        await sql.query(`
+          UPDATE customer_qrcodes
+          SET uses_count = uses_count + 1, last_used_at = NOW(), updated_at = NOW()
+          WHERE id = $1
+        `, [codeId]);
+      }
+
+      return result[0] as unknown as QrCodeScan;
     } catch (error) {
       console.error('Error recording QR code scan:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
-        console.error('Stack trace:', error.stack);
+      return null;
+    }
+  }
+
+  /**
+   * Create or update a customer's primary QR code
+   */
+  static async ensureCustomerQrCode(
+    customerId: number | string,
+    qrData: any,
+    qrImageUrl?: string
+  ): Promise<CustomerQrCode | null> {
+    try {
+      // Convert string ID to number if needed
+      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
+
+      // Check if a QR code already exists for this customer
+      const existingCode = await this.getCustomerPrimaryQrCode(custId, 'CUSTOMER_CARD');
+
+      if (existingCode) {
+        // Update the existing QR code with new data if needed
+        await sql.query(`
+          UPDATE customer_qrcodes
+          SET qr_data = $1, qr_image_url = $2, updated_at = NOW()
+          WHERE id = $3
+        `, [
+          typeof qrData === 'string' ? qrData : JSON.stringify(qrData),
+          qrImageUrl || existingCode.qr_image_url,
+          existingCode.id
+        ]);
+
+        // Return the updated record
+        return {
+          ...existingCode,
+          qr_data: qrData,
+          qr_image_url: qrImageUrl || existingCode.qr_image_url,
+          updated_at: new Date()
+        };
+      } else {
+        // Create a new QR code as primary
+        return await this.createQrCode({
+          customerId: custId,
+          qrType: 'CUSTOMER_CARD',
+          data: typeof qrData === 'string' ? qrData : JSON.stringify(qrData),
+          imageUrl: qrImageUrl,
+          isPrimary: true,
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        });
       }
+    } catch (error) {
+      console.error('Error ensuring customer QR code:', error);
       return null;
     }
   }
@@ -484,64 +523,64 @@ export class QrCodeStorageService {
       }
       
       // Begin transaction
-      await sql`BEGIN`;
+      await sql.begin();
       
       try {
         // First check if the QR code exists and is active
-        const qrCodeCheck = await sql`
+        const qrCodeCheck = await sql.query(`
           SELECT id, status FROM customer_qrcodes
-          WHERE id = ${qrCodeIdNum}
-        `;
+          WHERE id = $1
+        `, [qrCodeIdNum]);
         
         if (!qrCodeCheck.length) {
           console.error(`QR code not found: ${qrCodeIdNum}`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return false;
         }
         
         if (qrCodeCheck[0].status !== 'ACTIVE') {
           console.error(`Cannot revoke QR code that is not active. Current status: ${qrCodeCheck[0].status}`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return false;
         }
       
         // Update the QR code status
-        const result = await sql`
+        const result = await sql.query(`
           UPDATE customer_qrcodes
           SET status = 'REVOKED',
-              revoked_reason = ${reason || 'Manually revoked'},
+              revoked_reason = $2,
               revoked_at = NOW(),
               updated_at = NOW()
-          WHERE id = ${qrCodeIdNum}
+          WHERE id = $1
           RETURNING id
-        `;
+        `, [qrCodeIdNum, reason || 'Manually revoked']);
         
         if (result && result.length > 0) {
           // Log the revocation action
-          await sql`
+          await sql.query(`
             INSERT INTO customer_qrcode_events (
               qrcode_id,
               event_type,
               event_data,
               created_at
             ) VALUES (
-              ${qrCodeIdNum},
+              $1,
               'REVOKED',
-              ${JSON.stringify({ reason: reason || 'Manually revoked' })},
+              $2,
               NOW()
             )
-          `;
+          `, [qrCodeIdNum, JSON.stringify({ reason: reason || 'Manually revoked' })]);
           
           // Commit the transaction
-          await sql`COMMIT`;
+          await sql.commit();
           return true;
         } else {
-          await sql`ROLLBACK`;
+          await sql.rollback();
           console.error('Failed to revoke QR code');
           return false;
         }
       } catch (innerError) {
-        await sql`ROLLBACK`;
+        await sql.rollback();
         throw innerError;
       }
     } catch (error) {
@@ -566,25 +605,25 @@ export class QrCodeStorageService {
       }
       
       // Begin transaction
-      await sql`BEGIN`;
+      await sql.begin();
       
       try {
         // Get the old QR code details
-        const oldQrCode = await sql`
+        const oldQrCode = await sql.query(`
           SELECT * FROM customer_qrcodes
-          WHERE id = ${oldQrCodeIdNum}
-        `;
+          WHERE id = $1
+        `, [oldQrCodeId]);
         
         if (!oldQrCode || oldQrCode.length === 0) {
           console.error('Old QR code not found');
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return null;
         }
         
         // Check if the QR code is in a replaceable state
         if (oldQrCode[0].status !== 'ACTIVE') {
           console.error(`Cannot replace QR code with status: ${oldQrCode[0].status}`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return null;
         }
 
@@ -605,7 +644,7 @@ export class QrCodeStorageService {
           : null;
         
         // Insert new QR code
-        const newQrCodeResult = await sql`
+        const newQrCodeResult = await sql.query(`
           INSERT INTO customer_qrcodes (
             qr_unique_id,
             customer_id,
@@ -621,59 +660,59 @@ export class QrCodeStorageService {
             created_at,
             updated_at
           ) VALUES (
-            ${newQrUniqueId},
-            ${customerId},
-            ${businessId},
-            ${newQrCodeParams.data},
-            ${newQrCodeParams.imageUrl || null},
-            ${newQrCodeParams.qrType},
-            ${'ACTIVE'},
-            ${verificationCode},
-            ${oldQrCode[0].is_primary},
-            ${newQrCodeParams.expiryDate || null},
-            ${signature},
-            NOW(),
-            NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW()
           )
           RETURNING *
-        `;
+        `, [
+          newQrUniqueId,
+          customerId,
+          businessId,
+          newQrCodeParams.data,
+          newQrCodeParams.imageUrl || null,
+          newQrCodeParams.qrType,
+          'ACTIVE',
+          verificationCode,
+          oldQrCode[0].is_primary,
+          newQrCodeParams.expiryDate || null,
+          signature
+        ]);
 
         if (!newQrCodeResult || newQrCodeResult.length === 0) {
           console.error('Failed to create new QR code');
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return null;
         }
 
         // Update the old QR code's status and set the replacement reference
-        await sql`
+        await sql.query(`
           UPDATE customer_qrcodes
           SET status = 'REPLACED',
-              replaced_by = ${newQrCodeResult[0].id},
+              replaced_by = $1,
               updated_at = NOW()
-          WHERE id = ${oldQrCodeIdNum}
-        `;
+          WHERE id = $2
+        `, [newQrCodeResult[0].id, oldQrCodeIdNum]);
 
         // Log the replacement event
-        await sql`
+        await sql.query(`
           INSERT INTO customer_qrcode_events (
             qrcode_id,
             event_type,
             event_data,
             created_at
           ) VALUES (
-            ${oldQrCodeIdNum},
+            $1,
             'REPLACED',
-            ${JSON.stringify({ new_qrcode_id: newQrCodeResult[0].id })},
+            $2,
             NOW()
           )
-        `;
+        `, [oldQrCodeIdNum, JSON.stringify({ new_qrcode_id: newQrCodeResult[0].id })]);
 
         // Commit the transaction
-        await sql`COMMIT`;
+        await sql.commit();
         
         return newQrCodeResult[0] as CustomerQrCode;
       } catch (innerError) {
-        await sql`ROLLBACK`;
+        await sql.rollback();
         throw innerError;
       }
     } catch (error) {
@@ -699,32 +738,32 @@ export class QrCodeStorageService {
       }
       
       // Begin transaction
-      await sql`BEGIN`;
+      await sql.begin();
       
       try {
         // First check if the QR code exists and has an expiry date
-        const qrCode = await sql`
+        const qrCode = await sql.query(`
           SELECT id, qr_unique_id, status, expiry_date 
           FROM customer_qrcodes
-          WHERE id = ${qrCodeIdNum}
-        `;
+          WHERE id = $1
+        `, [qrCodeIdNum]);
         
         if (!qrCode.length) {
           console.error(`QR code not found: ${qrCodeIdNum}`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return false;
         }
         
         // If it's already expired or doesn't have an expiry date, just return
         if (qrCode[0].status === 'EXPIRED') {
           console.log(`QR code ${qrCodeIdNum} is already marked as expired`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return true;
         }
         
         if (!qrCode[0].expiry_date) {
           console.log(`QR code ${qrCodeIdNum} has no expiry date`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return false;
         }
         
@@ -734,47 +773,47 @@ export class QrCodeStorageService {
         
         if (expiryDate > now) {
           console.log(`QR code ${qrCodeIdNum} is not expired yet. Expires: ${expiryDate.toISOString()}`);
-          await sql`ROLLBACK`;
+          await sql.rollback();
           return false;
         }
         
         // Update the status to expired
-        const result = await sql`
+        const result = await sql.query(`
           UPDATE customer_qrcodes
           SET status = 'EXPIRED',
               updated_at = NOW()
-          WHERE id = ${qrCodeIdNum}
+          WHERE id = $1
           RETURNING id
-        `;
+        `, [qrCodeIdNum]);
         
         if (result && result.length > 0) {
           // Log the expiration event
-          await sql`
+          await sql.query(`
             INSERT INTO customer_qrcode_events (
               qrcode_id,
               event_type,
               event_data,
               created_at
             ) VALUES (
-              ${qrCodeIdNum},
+              $1,
               'EXPIRED',
-              ${JSON.stringify({ expiry_date: expiryDate.toISOString() })},
+              $2,
               NOW()
             )
-          `;
+          `, [qrCodeIdNum, JSON.stringify({ expiry_date: expiryDate.toISOString() })]);
           
           // Commit the transaction
-          await sql`COMMIT`;
+          await sql.commit();
           
           console.log(`QR code ${qrCodeIdNum} marked as expired`);
           return true;
         } else {
-          await sql`ROLLBACK`;
+          await sql.rollback();
           console.error(`Failed to update status for QR code ${qrCodeIdNum}`);
           return false;
         }
       } catch (innerError) {
-        await sql`ROLLBACK`;
+        await sql.rollback();
         throw innerError;
       }
     } catch (error) {
@@ -791,7 +830,7 @@ export class QrCodeStorageService {
    */
   static async cleanupExpiredQrCodes(): Promise<number> {
     try {
-      const result = await sql`
+      const result = await sql.query(`
         UPDATE customer_qrcodes
         SET status = 'EXPIRED',
             updated_at = NOW()
@@ -799,7 +838,7 @@ export class QrCodeStorageService {
         AND expiry_date IS NOT NULL
         AND expiry_date < NOW()
         RETURNING id
-      `;
+      `);
 
       return result ? result.length : 0;
     } catch (error) {

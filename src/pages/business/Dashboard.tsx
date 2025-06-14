@@ -11,6 +11,8 @@ import { BusinessAnalyticsDashboard } from '../../components/business/BusinessAn
 import { QRScanner } from '../../components/QRScanner';
 import { ProgramBuilder } from '../../components/business/ProgramBuilder';
 import { Link } from 'react-router-dom';
+import { QrCodeService } from '../../services/qrCodeService';
+import { NotificationService } from '../../services/notificationService';
 
 // Use the same interface as in QRScanner component
 interface ScanResult {
@@ -122,10 +124,87 @@ const BusinessDashboard = () => {
     setPeriod(newPeriod);
   };
 
-  const handleScan = (result: ScanResult) => {
+  const handleScan = async (result: ScanResult) => {
     // TODO: Process QR code data
     setScannerMessage(`Scanned: ${result.raw}`);
-    setShowScanner(false);
+    
+    if (!user?.id) {
+      setScannerMessage('Error: Business ID not available');
+      setShowScanner(false);
+      return;
+    }
+    
+    try {
+      // Show processing message
+      setScannerMessage('Processing scan...');
+      
+      // Determine QR code type
+      let scanType: 'CUSTOMER_CARD' | 'PROMO_CODE' | 'LOYALTY_CARD' = 'CUSTOMER_CARD';
+      
+      if (result.type === 'PROMO_CODE') {
+        scanType = 'PROMO_CODE';
+      } else if (result.type === 'LOYALTY_CARD') {
+        scanType = 'LOYALTY_CARD';
+      }
+      
+      // Get default program if available
+      const defaultProgram = programs.length > 0 ? programs[0] : null;
+      const programId = defaultProgram?.id;
+      
+      // Process the QR code scan
+      const scanResult = await QrCodeService.processQrCodeScan(
+        scanType,
+        user.id,
+        result.data,
+        {
+          customerId: result.data.customerId,
+          programId: programId || result.data.programId,
+          pointsToAward: 10 // Default points to award
+        }
+      );
+      
+      if (scanResult.success) {
+        // Show success message
+        setScannerMessage(`Success! ${scanResult.pointsAwarded || 0} points awarded.`);
+        
+        // Send notification to business owner
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'POINTS_EARNED',
+          'Successful Scan',
+          `You successfully scanned a customer QR code and awarded ${scanResult.pointsAwarded || 0} points.`
+        );
+      } else {
+        // Show error message
+        setScannerMessage(`Error: ${scanResult.message}`);
+        
+        // Send notification about failed scan
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Scan Failed',
+          scanResult.message || 'Failed to process QR code scan'
+        );
+      }
+    } catch (error) {
+      console.error('Error processing QR code:', error);
+      setScannerMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Send error notification
+      if (user?.id) {
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Scan Error',
+          'An error occurred while processing the QR code'
+        );
+      }
+    } finally {
+      // Close scanner after processing
+      setTimeout(() => {
+        setShowScanner(false);
+      }, 2000);
+    }
   };
 
   const handleScanError = (err: any) => {

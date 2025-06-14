@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import QrCodeService from '../services/qrCodeService';
+import { Button } from './ui/Button';
+import { QrCodeService } from '../services/qrCodeService';
 import { RewardModal } from './business/RewardModal';
 import { ProgramEnrollmentModal } from './business/ProgramEnrollmentModal';
 import { RedemptionModal } from './business/RedemptionModal';
@@ -13,6 +14,28 @@ import { NotificationService } from '../services/notificationService';
 import qrScanMonitor from '../utils/qrScanMonitor';
 import { safeValidateQrCode } from '../utils/qrCodeValidator';
 
+// Extend the QrScanMonitor type to include the methods used in this component
+interface ExtendedQrScanMonitor {
+  recordSuccessfulScan: (qrType: string, data: any) => void;
+  recordFailedScan: (error: string, rawData?: string, parsedData?: any) => void;
+  getScanStatistics: () => { 
+    totalScans: number;
+    successfulScans: number;
+    failedScans: number;
+    scanSuccessRate: number;
+    recentSuccessfulScans: any[];
+    recentFailedScans: any[];
+  };
+  resetScanStatistics: () => void;
+  diagnoseQrCodeFormat: (rawData: string) => { valid: boolean; issues: string[] };
+  trackScan: () => void;
+  isRateLimited: () => boolean;
+  getResetTime: () => number;
+}
+
+// Cast the imported qrScanMonitor to the extended interface
+const extendedQrScanMonitor = qrScanMonitor as ExtendedQrScanMonitor;
+
 interface ScanData {
   type?: string;
   customerId?: string | number;
@@ -21,6 +44,10 @@ interface ScanData {
   code?: string;
   cardId?: string | number;
   text?: string;
+  cardNumber?: string;
+  cardType?: string;
+  customerName?: string;
+  timestamp?: number;
   [key: string]: unknown;
 }     
 
@@ -248,169 +275,269 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     try {
       // Prevent scanning the same QR code multiple times in quick succession
       if (
-        lastScanRef.current === decodedText &&
-        Date.now() - lastScanTime.current < 2000
+        processingCard || 
+        rateLimited || 
+        decodedText === lastScanRef.current ||
+        !decodedText
       ) {
-        console.log('Preventing duplicate scan', decodedText);
         return;
       }
       
+      // Store the scanned text to prevent duplicates
       lastScanRef.current = decodedText;
-      lastScanTime.current = Date.now();
+      setProcessingCard(true);
       
-      // Try to parse the QR code data
-      let qrCodeData;
+      // Play scan sound
+      playSound('scan');
+      
+      // Safety checks for scan monitor
+      if (extendedQrScanMonitor && typeof extendedQrScanMonitor.trackScan === 'function') {
+        extendedQrScanMonitor.trackScan();
+        
+        if (extendedQrScanMonitor.isRateLimited()) {
+          console.log('Rate limited by QR scan monitor');
+          setRateLimited(true);
+          setRateLimitResetTime(extendedQrScanMonitor.getResetTime());
+          playSound('error');
+          setError('Scanning too quickly. Please wait a moment before scanning again.');
+          
+          // Start timer to clear rate limit
+          if (rateLimitTimerRef.current) {
+            clearInterval(rateLimitTimerRef.current);
+          }
+          
+          rateLimitTimerRef.current = setInterval(() => {
+            if (extendedQrScanMonitor && !extendedQrScanMonitor.isRateLimited()) {
+              setRateLimited(false);
+              setRateLimitResetTime(null);
+              clearInterval(rateLimitTimerRef.current!);
+              rateLimitTimerRef.current = null;
+            }
+          }, 1000);
+          
+          setTimeout(() => setProcessingCard(false), 2000);
+          return;
+        }
+      }
+      
+      // Parse QR code data
+      let qrCodeData: ScanData;
       try {
-        qrCodeData = JSON.parse(decodedText);
-        console.log('Successfully parsed QR code data:', qrCodeData);
+        // Safely parse the QR code data
+        const validationResult = safeValidateQrCode(decodedText);
+        
+        if (!validationResult.valid || !validationResult.data) {
+          console.error('Failed to parse QR code data:', validationResult.error);
+          playSound('error');
+          setError('Invalid QR code format');
+          setTimeout(() => setProcessingCard(false), 2000);
+          return;
+        }
+        
+        qrCodeData = validationResult.data as ScanData;
       } catch (parseError) {
         console.error('Failed to parse QR code data:', parseError);
-        playErrorSound();
+        playSound('error');
         setError('Invalid QR code format');
+        setTimeout(() => setProcessingCard(false), 2000);
         return;
       }
       
-      // Basic validation of QR code data
-      if (!qrCodeData || !qrCodeData.type) {
+      // Check if QR code has required type
+      if (!qrCodeData.type) {
         console.error('Invalid QR code data: missing type');
-        playErrorSound();
+        playSound('error');
         setError('Invalid QR code: missing required data');
+        setTimeout(() => setProcessingCard(false), 2000);
         return;
       }
+      
+      setLastResult({
+        type: qrCodeData.type,
+        data: qrCodeData,
+        timestamp: new Date().toISOString(),
+        raw: decodedText
+      });
       
       // Process based on QR code type
-      switch (qrCodeData.type) {
-        case 'CUSTOMER_CARD':
-          handleCustomerQrCode(qrCodeData);
-          break;
+      try {
+        switch (qrCodeData.type) {
+          case 'CUSTOMER_CARD':
+            await handleCustomerQrCode(qrCodeData);
+            break;
           
-        case 'LOYALTY_CARD':
-          handleLoyaltyCardQrCode(qrCodeData);
-          break;
+          case 'LOYALTY_CARD':
+            await handleLoyaltyCardQrCode(qrCodeData);
+            break;
+            
+          case 'PROMO_CODE':
+            await handlePromoCodeQrCode(qrCodeData);
+            break;
           
-        case 'PROMO_CODE':
-          handlePromoCodeQrCode(qrCodeData);
-          break;
-          
-        default:
-          console.error('Unknown QR code type:', qrCodeData.type);
-          playErrorSound();
-          setError(`Unknown QR code type: ${qrCodeData.type}`);
+          default:
+            console.error('Unknown QR code type:', qrCodeData.type);
+            playSound('error');
+            setError(`Unknown QR code type: ${qrCodeData.type}`);
+            setTimeout(() => setProcessingCard(false), 2000);
+        }
+      } catch (error) {
+        console.error('Error processing QR code scan:', error);
+        playSound('error');
+        setError('Failed to process QR code');
+        setTimeout(() => setProcessingCard(false), 2000);
       }
-    } catch (error) {
-      console.error('Error processing QR code scan:', error);
-      playErrorSound();
-      setError('Failed to process QR code');
+      
+      // Auto-restart scanning after processing is complete
+      // This gives better UX for businesses scanning multiple customer cards
+      setTimeout(() => {
+        if (isScanning && scannerRef.current) {
+          // Continue scanning
+          setProcessingCard(false);
+          setError(null);
+        }
+      }, 3000);
+      
+    } catch (err) {
+      console.error('General error in QR code handling:', err);
+      playSound('error');
+      setError('An error occurred processing the scan');
+      setTimeout(() => setProcessingCard(false), 2000);
     }
   };
   
-  /**
-   * Handle a customer QR code scan
-   */
-  const handleCustomerQrCode = async (qrCodeData: any) => {
+  const handleCustomerQrCode = async (qrCodeData: ScanData) => {
     try {
-      // Validate required fields
+      // Validate minimum required data
       if (!qrCodeData.customerId) {
-        playErrorSound();
-        setError('Invalid customer QR code: missing customer ID');
-        return;
+        throw new Error('Invalid customer QR code: Missing customer ID');
       }
       
-      // Additional validation for card-based QR codes
-      if (qrCodeData.cardNumber) {
-        console.log('Processing card-based QR code:', qrCodeData.cardNumber);
+      // Save scan result first as a fallback
+      setSuccessScan('Customer Card Scanned');
+      
+      // Make sure businessId is provided
+      if (!businessId) {
+        throw new Error('Missing business ID for scan');
       }
       
-      // Show scanning animation
-      setIsScanning(true);
+      // Prepare scan data for API call
+      const scanData = {
+        customerId: qrCodeData.customerId,
+        businessId, // Already non-null from check above
+        programId,
+        cardNumber: qrCodeData.cardNumber,
+        pointsToAward: pointsToAward
+      };
       
-      // Process the QR code scan
-      const result = await QrCodeService.processQrCodeScan(
-        'CUSTOMER_CARD',
-        businessId,
-        qrCodeData,
-        {
-          customerId: qrCodeData.customerId,
-          programId: programId,
-          pointsToAward: pointsToAward
-        }
-      );
+      // Use specific method for customer card scanning from QrCodeService
+      const result = await QrCodeService.handleCustomerCardScan(scanData);
       
-      // Handle the scan result
+      // If successful, show a brief success message then offer rewards option
       if (result.success) {
-        // Success - play sound and show success UI
-        console.log('QR code scan successful:', result);
-        playSuccessSound();
+        // Play success sound
+        playSound('success');
         
-        // Get the customer details for display
-        try {
-          const customerDetails = await QrCodeService.getUserById(qrCodeData.customerId);
-          
-          // Set scan result details for UI
-          setLastResult({
-            type: 'customer_card',
-            data: {
-              name: customerDetails?.name || qrCodeData.customerName || 'Customer',
-              customerId: qrCodeData.customerId,
-              type: 'customer_card'
-            },
-            timestamp: new Date().toISOString(),
-            raw: decodedText
-          });
-          
-          // Show appropriate modal based on the scan result
-          if (result.newEnrollment) {
+        // Show success notification
+        setSuccessScan(`Successfully scanned ${qrCodeData.customerName || 'customer'}'s card`);
+        
+        // Show the transaction confirmation
+        setTransactionConfirmationType('success');
+        setTransactionDetails({
+          type: 'reward',
+          message: t('Points Awarded Successfully'),
+          customerName: qrCodeData.customerName || t('Customer'),
+          businessName: result.businessName,
+          points: result.pointsAwarded,
+          details: t('Card scan processed')
+        });
+        setShowTransactionConfirmation(true);
+        
+        // If the business has unfinished business with customer, prompt accordingly
+        if (!result.isEnrolled && programId) {
+          // Customer is not enrolled in the current program
+          setTimeout(() => {
             setShowProgramsModal(true);
-          } else if (result.redemptionAvailable) {
+          }, 2000);
+        } else if (result.hasPromos) {
+          // Customer has available promotions
+          setTimeout(() => {
             setShowRedeemModal(true);
-          } else {
+          }, 2000);
+        } else {
+          // If just a normal scan, offer reward
+          setTimeout(() => {
             setShowRewardsModal(true);
-          }
-        } catch (customerError) {
-          console.error('Error getting customer details:', customerError);
-          
-          // Set limited scan result without customer details
-          setLastResult({
-            type: 'customer_card',
-            data: {
-              name: qrCodeData.customerName || 'Customer',
-              customerId: qrCodeData.customerId,
-              type: 'customer_card'
-            },
+          }, 2000);
+        }
+        
+        // Log scan for analytics with all available details
+        try {
+          // Using logScan instead of logScanResult for compatibility
+          feedbackService.logScan({
             timestamp: new Date().toISOString(),
-            raw: decodedText
+            type: 'customer_card',
+            business_id: businessId.toString(),
+            customer_id: qrCodeData.customerId.toString(),
+            card_number: qrCodeData.cardNumber || 'unknown',
+            points_awarded: result.pointsAwarded || pointsToAward,
+            status: 'success',
+            scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
+            program_id: programId?.toString(),
+            device_info: navigator.userAgent
           });
-          
-          setShowRewardsModal(true);
+        } catch (logError) {
+          // Non-critical error, just log it
+          console.error('Failed to log scan result:', logError);
         }
       } else {
-        // Error - play error sound and show error message
-        console.error('QR code scan failed:', result.error || result.message);
-        playErrorSound();
-        setError(result.message || 'Failed to process scan');
-        
-        // If rate limited, show specific message
-        if (result.rateLimited) {
-          setError('This code was recently scanned. Please try again later.');
-        }
+        // Handle scan failure
+        throw new Error(result.message || 'Failed to process customer card');
       }
-    } catch (error) {
-      console.error('Error handling customer QR code:', error);
-      playErrorSound();
-      setError('Failed to process customer QR code');
-    } finally {
-      setIsScanning(false);
+    } catch (apiError) {
+      console.error('API Error processing customer card:', apiError);
+      playSound('error');
+      
+      const errorMessage = apiError instanceof Error
+        ? apiError.message
+        : 'Failed to process customer card';
+      
+      setError(errorMessage);
+      
+      setTransactionConfirmationType('error');
+      setTransactionDetails({
+        type: 'error',
+        message: t('Failed to Award Points'),
+        details: errorMessage,
+      });
+      setShowTransactionConfirmation(true);
+      
+      // Log failed scan
+      try {
+        feedbackService.logScan({
+          timestamp: new Date().toISOString(),
+          type: 'customer_card',
+          business_id: businessId ? businessId.toString() : 'unknown',
+          customer_id: qrCodeData.customerId ? qrCodeData.customerId.toString() : 'unknown',
+          status: 'failed',
+          error: errorMessage
+        });
+      } catch (logError) {
+        // Non-critical error, just log it
+        console.error('Failed to log failed scan:', logError);
+      }
+      
+      setProcessingCard(false);
     }
   };
   
   /**
    * Handle a loyalty card QR code scan
    */
-  const handleLoyaltyCardQrCode = async (qrCodeData: any) => {
+  const handleLoyaltyCardQrCode = async (qrCodeData: ScanData) => {
     try {
       // Validate required fields
       if (!qrCodeData.cardId || !qrCodeData.customerId) {
-        playErrorSound();
+        playSound('error');
         setError('Invalid loyalty card QR code: missing required data');
         return;
       }
@@ -424,7 +551,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         businessId,
         qrCodeData,
         {
-          customerId: qrCodeData.customerId,
+          customerId: String(qrCodeData.customerId),
           programId: qrCodeData.programId || programId,
           pointsToAward: pointsToAward
         }
@@ -434,7 +561,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       if (result.success) {
         // Success - play sound and show success UI
         console.log('Loyalty card scan successful:', result);
-        playSuccessSound();
+        playSound('success');
         
         // Set scan result details for UI
         setLastResult({
@@ -446,19 +573,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             type: 'loyalty_card'
           },
           timestamp: new Date().toISOString(),
-          raw: decodedText
+          raw: qrCodeData.text || JSON.stringify(qrCodeData)
         });
         
         setShowRewardsModal(true);
       } else {
         // Error - play error sound and show error message
         console.error('Loyalty card scan failed:', result.error || result.message);
-        playErrorSound();
+        playSound('error');
         setError(result.message || 'Failed to process loyalty card');
       }
     } catch (error) {
       console.error('Error handling loyalty card QR code:', error);
-      playErrorSound();
+      playSound('error');
       setError('Failed to process loyalty card QR code');
     } finally {
       setIsScanning(false);
@@ -468,11 +595,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   /**
    * Handle a promo code QR code scan
    */
-  const handlePromoCodeQrCode = async (qrCodeData: any) => {
+  const handlePromoCodeQrCode = async (qrCodeData: ScanData) => {
     try {
       // Validate required fields
-      if (!qrCodeData.promoCode) {
-        playErrorSound();
+      if (!qrCodeData.code) {
+        playSound('error');
         setError('Invalid promo code QR code: missing promo code');
         return;
       }
@@ -486,7 +613,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         businessId,
         qrCodeData,
         {
-          promoCodeId: qrCodeData.promoCode
+          promoCodeId: String(qrCodeData.code)
         }
       );
       
@@ -494,29 +621,29 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       if (result.success) {
         // Success - play sound and show success UI
         console.log('Promo code scan successful:', result);
-        playSuccessSound();
+        playSound('success');
         
         // Set scan result details for UI
         setLastResult({
           type: 'promo_code',
           data: {
-            promoCode: qrCodeData.promoCode,
+            code: qrCodeData.code,
             type: 'promo_code'
           },
           timestamp: new Date().toISOString(),
-          raw: decodedText
+          raw: qrCodeData.text || JSON.stringify(qrCodeData)
         });
         
         setShowTransactionConfirmation(true);
       } else {
         // Error - play error sound and show error message
         console.error('Promo code scan failed:', result.error || result.message);
-        playErrorSound();
+        playSound('error');
         setError(result.message || 'Invalid promotion code');
       }
     } catch (error) {
       console.error('Error handling promo code QR code:', error);
-      playErrorSound();
+      playSound('error');
       setError('Failed to process promotion code');
     } finally {
       setIsScanning(false);

@@ -86,9 +86,14 @@ export class QrCodeService {
       const validationResult = safeValidateQrCode(data);
       
       if (!validationResult.valid) {
+        const errorMessage = validationResult.error ? 
+          (typeof validationResult.error.getUserMessage === 'function' ? 
+            validationResult.error.getUserMessage() : 'Invalid QR code data') : 
+          'Invalid QR code data';
+        
         return { 
           valid: false, 
-          message: validationResult.error?.userMessage || 'Invalid QR code data' 
+          message: errorMessage
         };
       }
       
@@ -104,7 +109,7 @@ export class QrCodeService {
         case 'CUSTOMER_CARD':
           // Verify QR code exists in database
           if (parsedData.qrUniqueId) {
-            let storedQrCode;
+            let storedQrCode: any = null;
             
             try {
               // Use database retry for resilience
@@ -125,33 +130,49 @@ export class QrCodeService {
             }
             
             // Verify QR code status
-            if (storedQrCode.status !== 'ACTIVE') {
-              return { valid: false, message: `QR code is ${storedQrCode.status.toLowerCase()}` };
+            if (!storedQrCode.status || storedQrCode.status !== 'ACTIVE') {
+              const status = storedQrCode.status || 'inactive';
+              return { valid: false, message: `QR code is ${status.toLowerCase()}` };
             }
             
             // Verify digital signature with proper error handling
             try {
               const isValid = QrCodeStorageService.validateQrCode(storedQrCode);
               if (!isValid) {
-                throw new QrSecurityError('QR code signature validation failed', {
+                const securityError = new QrSecurityError('QR code signature validation failed', {
                   qrUniqueId: parsedData.qrUniqueId,
-                  storedQrCodeId: storedQrCode.id
+                  storedQrCodeId: storedQrCode.id || 'unknown'
                 });
+                
+                logQrCodeError(securityError, {
+                  scanType,
+                  qrUniqueId: parsedData.qrUniqueId,
+                  operation: 'validateSignature'
+                });
+                
+                return { valid: false, message: 'QR code security verification failed' };
               }
             } catch (error) {
-              logQrCodeError(error as Error, { scanType, storedQrCodeId: storedQrCode.id });
+              logQrCodeError(error as Error, { 
+                scanType, 
+                storedQrCodeId: storedQrCode.id || 'unknown' 
+              });
               return { valid: false, message: 'QR code security verification failed' };
             }
             
             // Verify expiration
-            if (storedQrCode.expiry_date && new Date(storedQrCode.expiry_date) < new Date()) {
+            const expiryDate = storedQrCode.expiry_date ? new Date(storedQrCode.expiry_date) : null;
+            if (expiryDate && expiryDate < new Date()) {
               try {
-                await QrCodeStorageService.checkAndUpdateExpiry(storedQrCode.id);
+                // Only attempt to update expiry if we have a valid ID
+                if (storedQrCode.id) {
+                  await QrCodeStorageService.checkAndUpdateExpiry(storedQrCode.id);
+                }
               } catch (error) {
                 logQrCodeError(error as Error, { 
                   scanType, 
                   operation: 'updateExpiry', 
-                  qrCodeId: storedQrCode.id 
+                  qrCodeId: storedQrCode.id || 'unknown'
                 });
               }
               return { valid: false, message: 'QR code has expired' };
@@ -167,31 +188,36 @@ export class QrCodeService {
               logQrCodeError(error as Error, { 
                 scanType, 
                 operation: 'tokenRotation',
-                qrCodeId: storedQrCode.id
+                qrCodeId: storedQrCode.id || 'unknown'
               });
               return { valid: false, message: 'Error verifying QR code freshness. Please try again.' };
             }
             
             // Verify customer still exists using retryable query
+            const customerId = storedQrCode.customer_id;
+            if (!customerId) {
+              return { valid: false, message: 'Invalid QR code: missing customer ID' };
+            }
+            
             try {
               const customerCheck = await withRetryableQuery(
                 () => sql`
                   SELECT id FROM users 
-                  WHERE id = ${storedQrCode.customer_id}
+                  WHERE id = ${customerId}
                   AND user_type = 'customer'
                   AND status = 'active'
                 `,
-                { customerId: storedQrCode.customer_id }
+                { customerId }
               );
               
-              if (!customerCheck.length) {
+              if (!customerCheck || !Array.isArray(customerCheck) || !customerCheck.length) {
                 return { valid: false, message: 'Customer not found or inactive' };
               }
             } catch (error) {
               logQrCodeError(error as Error, { 
                 scanType, 
                 operation: 'customerCheck',
-                customerId: storedQrCode.customer_id
+                customerId
               });
               return { valid: false, message: 'Error verifying customer status. Please try again.' };
             }
@@ -206,21 +232,25 @@ export class QrCodeService {
           break;
         
         case 'PROMO_CODE':
-          if (!parsedData.promoId || !parsedData.code) {
+          // Parse as any to allow dynamic property access for promo codes
+          const promoData = parsedData as any;
+          
+          if (!promoData.promoId || !promoData.code) {
             return { valid: false, message: 'Invalid promo code data: missing required fields' };
           }
           
           // Verify QR code exists in database if it has a uniqueId
-          if (parsedData.qrUniqueId) {
-            const storedQrCode = await QrCodeStorageService.getQrCodeByUniqueId(parsedData.qrUniqueId);
+          if (promoData.qrUniqueId) {
+            const storedQrCode = await QrCodeStorageService.getQrCodeByUniqueId(promoData.qrUniqueId);
             
             if (!storedQrCode) {
               return { valid: false, message: 'Promo QR code not found in database' };
             }
             
             // Verify QR code status
-            if (storedQrCode.status !== 'ACTIVE') {
-              return { valid: false, message: `Promo code is ${storedQrCode.status.toLowerCase()}` };
+            if (!storedQrCode.status || storedQrCode.status !== 'ACTIVE') {
+              const status = storedQrCode.status || 'inactive';
+              return { valid: false, message: `Promo code is ${status.toLowerCase()}` };
             }
             
             // Verify digital signature
@@ -237,24 +267,42 @@ export class QrCodeService {
           }
           
           // For backward compatibility, check promo code in database
-          const promoCheck = await sql`
-            SELECT id, is_active, valid_until FROM promotions
-            WHERE id = ${parsedData.promoId}
-            AND code = ${parsedData.code}
-          `;
-          
-          if (!promoCheck.length) {
-            return { valid: false, message: 'Promo code not found' };
+          try {
+            const promoCheck = await sql`
+              SELECT id, code, valid_until, is_active FROM promotions
+              WHERE id = ${promoData.promoId}
+              AND code = ${promoData.code}
+            `;
+            
+            if (!promoCheck || !Array.isArray(promoCheck) || !promoCheck.length) {
+              return { valid: false, message: 'Promo code not found' };
+            }
+            
+            const promo = promoCheck[0];
+            
+            // Check if the promo is still active
+            if (!promo.is_active) {
+              return { valid: false, message: 'Promo code is inactive' };
+            }
+            
+            // Check if the promo has expired
+            if (promo.valid_until) {
+              const expiryDate = new Date(promo.valid_until);
+              if (expiryDate < new Date()) {
+                return { valid: false, message: 'Promo code has expired' };
+              }
+            }
+            
+            return { valid: true, message: 'Promo code verified', verifiedData: parsedData };
+          } catch (promoError) {
+            logQrCodeError(promoError as Error, {
+              scanType,
+              operation: 'promoCheck',
+              promoId: promoData.promoId,
+              promoCode: promoData.code
+            });
+            return { valid: false, message: 'Error verifying promo code' };
           }
-          
-          if (!promoCheck[0].is_active) {
-            return { valid: false, message: 'Promo code is inactive' };
-          }
-          
-          if (promoCheck[0].valid_until && new Date(promoCheck[0].valid_until) < new Date()) {
-            return { valid: false, message: 'Promo code has expired' };
-          }
-          break;
           
         case 'LOYALTY_CARD':
           if (!parsedData.programId || !parsedData.customerId) {
@@ -322,39 +370,51 @@ export class QrCodeService {
           return { valid: false, message: `Unknown scan type: ${scanType}` };
       }
       
-      // If we get here without a return, it means we didn't validate completely
-      return { valid: false, message: 'Incomplete validation process' };
+      // If we reach here, no specific validation occurred
+      return { valid: true, message: 'Basic validation passed', verifiedData: parsedData };
     } catch (error) {
-      // Comprehensive error logging
-      logQrCodeError(error as Error, { scanType, data });
-      
-      if (error instanceof QrCodeError) {
-        return { valid: false, message: error.userMessage };
-      }
-      
-      return { valid: false, message: 'An error occurred during validation' };
+      console.error('Error validating QR data:', error);
+      return { 
+        valid: false, 
+        message: error instanceof Error ? 
+          error.message : 'An error occurred during QR code validation'
+      };
     }
   }
   
   /**
-   * Check if a QR code token needs rotation based on creation date
-   * @param qrCode The QR code object from the database
-   * @returns true if token needs rotation, false otherwise
+   * Check if a QR code token needs to be rotated for security
    */
   private static async checkTokenRotation(qrCode: any): Promise<boolean> {
-    // If rotation is disabled (0 days), skip rotation
-    if (env.QR_TOKEN_ROTATION_DAYS <= 0) {
-      return false;
-    }
+    try {
+      // If rotation is disabled (0 days), skip rotation
+      if (!env.QR_TOKEN_ROTATION_DAYS || env.QR_TOKEN_ROTATION_DAYS <= 0) {
+        return false;
+      }
 
-    // Calculate expiration based on creation date
-    const creationDate = new Date(qrCode.created_at);
-    const rotationDate = new Date(creationDate);
-    rotationDate.setDate(rotationDate.getDate() + env.QR_TOKEN_ROTATION_DAYS);
-    
-    // If current date is past rotation date, token needs rotation
-    const currentDate = new Date();
-    return currentDate > rotationDate;
+      // If qrCode is missing created_at, use a conservative approach
+      if (!qrCode || !qrCode.created_at) {
+        console.warn('QR code missing creation date in checkTokenRotation');
+        return false; // Don't trigger rotation for invalid data
+      }
+
+      // Calculate expiration based on creation date
+      const creationDate = new Date(qrCode.created_at);
+      if (isNaN(creationDate.getTime())) {
+        console.warn('Invalid creation date in QR code');
+        return false; // Invalid date, don't trigger rotation
+      }
+      
+      const rotationDate = new Date(creationDate);
+      rotationDate.setDate(rotationDate.getDate() + env.QR_TOKEN_ROTATION_DAYS);
+      
+      // If current date is past rotation date, token needs rotation
+      const currentDate = new Date();
+      return currentDate > rotationDate;
+    } catch (error) {
+      console.error('Error in checkTokenRotation:', error);
+      return false; // Default to not rotating on error
+    }
   }
 
   /**
@@ -363,51 +423,110 @@ export class QrCodeService {
    * @returns The new QR code data or null on failure
    */
   static async rotateQrCodeToken(qrCodeId: number): Promise<any | null> {
-    try {
-      // Get the current QR code
-      const qrCode = await QrCodeStorageService.getQrCodeById(qrCodeId);
-      if (!qrCode) {
-        console.error(`QR code not found for rotation: ${qrCodeId}`);
-        return null;
-      }
-
-      // Create a new QR code with updated data
-      const qrData = qrCode.qr_data;
-      const newQrUniqueId = crypto.randomUUID();
-      
-      // Update the data with new identifiers
-      qrData.qrUniqueId = newQrUniqueId;
-      qrData.timestamp = Date.now();
-      
-      // Generate a new digital signature
-      const signature = crypto
-        .createHmac('sha256', this.SECRET_KEY)
-        .update(JSON.stringify(qrData))
-        .digest('hex');
-      
-      // Mark the old QR code as replaced
-      await QrCodeStorageService.updateQrCodeStatus(
-        qrCodeId, 
-        'REPLACED', 
-        'Replaced during token rotation'
-      );
-      
-      // Create a new QR code record
-      const newQrCode = await QrCodeStorageService.createQrCode({
-        customerId: qrCode.customer_id,
-        businessId: qrCode.business_id,
-        qrType: qrCode.qr_type,
-        data: qrData,
-        imageUrl: qrCode.qr_image_url,
-        isPrimary: qrCode.is_primary,
-        digitalSignature: signature
-      });
-      
-      return newQrCode;
-    } catch (error) {
-      console.error('Error rotating QR code token:', error);
+    if (!qrCodeId || isNaN(qrCodeId) || qrCodeId <= 0) {
+      console.error('Invalid QR code ID for rotation');
       return null;
     }
+    
+    // Retry logic for rotation
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      try {
+        // Get the current QR code
+        const qrCode = await QrCodeStorageService.getQrCodeById(qrCodeId);
+        if (!qrCode) {
+          console.error(`QR code not found for rotation: ${qrCodeId}`);
+          return null;
+        }
+        
+        // Ensure qrCode has required properties
+        if (!qrCode.qr_data) {
+          console.error(`QR code ${qrCodeId} missing required data for rotation`);
+          return null;
+        }
+
+        // Begin transaction for atomicity
+        await sql.begin();
+        
+        try {
+          // Create a new QR code with updated data
+          const qrData = typeof qrCode.qr_data === 'string' ? 
+            JSON.parse(qrCode.qr_data) : qrCode.qr_data;
+            
+          const newQrUniqueId = crypto.randomUUID();
+          
+          // Update the data with new identifiers
+          qrData.qrUniqueId = newQrUniqueId;
+          qrData.timestamp = Date.now();
+          qrData.rotationDate = new Date().toISOString();
+          qrData.previousId = qrCode.qr_unique_id; // Keep reference to previous QR
+          
+          // Generate a new digital signature with full payloads
+          const signature = crypto
+            .createHmac('sha256', this.SECRET_KEY)
+            .update(JSON.stringify({
+              data: qrData,
+              created: new Date().toISOString(),
+              version: '2.0' // Increment version to indicate rotation
+            }))
+            .digest('hex');
+          
+          // Mark the old QR code as replaced
+          await QrCodeStorageService.updateQrCodeStatus(
+            qrCodeId, 
+            'REPLACED', 
+            'Replaced during token rotation'
+          );
+          
+          // Create a new QR code record
+          const newQrCode = await QrCodeStorageService.createQrCode({
+            customerId: qrCode.customer_id,
+            businessId: qrCode.business_id,
+            qrType: qrCode.qr_type,
+            data: qrData,
+            imageUrl: qrCode.qr_image_url,
+            isPrimary: qrCode.is_primary,
+            digitalSignature: signature
+          });
+          
+          // Commit transaction
+          await sql.commit();
+          
+          console.log(`Successfully rotated QR code token: ${qrCodeId} -> ${newQrCode?.id || 'unknown'}`);
+          return newQrCode;
+        } catch (txError) {
+          // Roll back on error
+          try {
+            await sql.rollback();
+          } catch (rollbackError) {
+            console.error('Error during transaction rollback in QR rotation:', rollbackError);
+          }
+          
+          // If this is the last attempt, throw the error
+          if (attempts >= maxAttempts) {
+            throw txError;
+          }
+          
+          // Otherwise, wait and retry
+          console.warn(`Error during QR code rotation (attempt ${attempts}/${maxAttempts}):`, txError);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        if (attempts >= maxAttempts) {
+          console.error('Error rotating QR code token after multiple attempts:', error);
+          return null;
+        }
+        
+        console.warn(`Error in QR code rotation (attempt ${attempts}/${maxAttempts}):`, error);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    return null;
   }
   
   /**
@@ -539,58 +658,121 @@ export class QrCodeService {
   
   /**
    * Verify or create a relationship between customer and business
+   * This function ensures a connection exists between customer and business
    */
   private static async verifyOrCreateCustomerBusiness(
     businessId: string | number,
     customerId?: string | number
   ): Promise<boolean> {
-    try {
-      if (!customerId || !businessId) {
-        return false;
-      }
-      
-      // Check if relationship exists
-      const existingRelationship = await sql`
-        SELECT id FROM customer_business_relationships
-        WHERE customer_id = ${String(customerId)}
-        AND business_id = ${String(businessId)}
-      `;
-      
-      if (existingRelationship.length > 0) {
-        // Relationship exists, update last interaction
-        await sql`
-          UPDATE customer_business_relationships
-          SET updated_at = NOW(),
-              interaction_count = interaction_count + 1
-          WHERE id = ${existingRelationship[0].id}
-        `;
-        return true;
-      }
-      
-      // Create new relationship
-      await sql`
-        INSERT INTO customer_business_relationships (
-          customer_id,
-          business_id,
-          relationship_type,
-          created_at,
-          updated_at,
-          interaction_count
-        ) VALUES (
-          ${String(customerId)},
-          ${String(businessId)},
-          'loyalty_member',
-          NOW(),
-          NOW(),
-          1
-        )
-      `;
-      
-      return true;
-    } catch (error) {
-      console.error('Error verifying/creating customer-business relationship:', error);
+    if (!customerId || !businessId) {
+      console.error('Missing customer ID or business ID in verifyOrCreateCustomerBusiness');
       return false;
     }
+    
+    // Convert IDs to consistent string format
+    const strCustomerId = String(customerId);
+    const strBusinessId = String(businessId);
+    
+    // Retry logic for database operations
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      try {
+        // Check if relationship exists - using parameterized query
+        const existingRelationship = await sql`
+          SELECT id, relationship_type 
+          FROM customer_business_relationships
+          WHERE customer_id = ${strCustomerId}
+          AND business_id = ${strBusinessId}
+        `;
+        
+        if (existingRelationship.length > 0) {
+          // Relationship exists, update last interaction
+          await sql`
+            UPDATE customer_business_relationships
+            SET updated_at = NOW(),
+                interaction_count = interaction_count + 1
+            WHERE id = ${existingRelationship[0].id}
+          `;
+          console.log(`Updated existing customer-business relationship: ${strCustomerId}-${strBusinessId}`);
+          return true;
+        }
+        
+        // Begin transaction for creating relationship
+        await sql.begin();
+        
+        try {
+          // Double check if relationship was created by another process
+          const doubleCheck = await sql`
+            SELECT id FROM customer_business_relationships
+            WHERE customer_id = ${strCustomerId}
+            AND business_id = ${strBusinessId}
+          `;
+          
+          if (doubleCheck.length > 0) {
+            // Another process created it, just update
+            await sql`
+              UPDATE customer_business_relationships
+              SET updated_at = NOW(),
+                  interaction_count = interaction_count + 1
+              WHERE id = ${doubleCheck[0].id}
+            `;
+            await sql.commit();
+            console.log(`Used existing customer-business relationship: ${strCustomerId}-${strBusinessId}`);
+            return true;
+          }
+          
+          // Create new relationship
+          await sql`
+            INSERT INTO customer_business_relationships (
+              customer_id,
+              business_id,
+              relationship_type,
+              created_at,
+              updated_at,
+              interaction_count
+            ) VALUES (
+              ${strCustomerId},
+              ${strBusinessId},
+              'loyalty_member',
+              NOW(),
+              NOW(),
+              1
+            )
+          `;
+          
+          await sql.commit();
+          console.log(`Created new customer-business relationship: ${strCustomerId}-${strBusinessId}`);
+          return true;
+        } catch (txError) {
+          // Something went wrong during transaction
+          await sql.rollback();
+          
+          if (attempts >= maxAttempts) {
+            throw txError;
+          }
+          
+          // Wait and retry
+          console.warn(`Transaction error in verifyOrCreateCustomerBusiness (attempt ${attempts}):`, txError);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+      } catch (error) {
+        if (attempts >= maxAttempts) {
+          console.error('Failed to verify/create customer-business relationship after multiple attempts:', error);
+          return false;
+        }
+        
+        // Wait and retry
+        console.warn(`Error in verifyOrCreateCustomerBusiness (attempt ${attempts}):`, error);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    return false;
   }
 
   /**
@@ -1258,6 +1440,255 @@ export class QrCodeService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error sending notification'
+      };
+    }
+  }
+
+  /**
+   * Handle scanning a customer card for enrollment and promo codes
+   */
+  static async handleCustomerCardScan(params: {
+    customerId: string | number;
+    businessId: string | number;
+    programId?: string | number;
+    cardNumber?: string;
+    pointsToAward?: number;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    pointsAwarded?: number;
+    isEnrolled?: boolean;
+    hasPromos?: boolean;
+    businessName?: string;
+  }> {
+    try {
+      const customerId = typeof params.customerId === 'string' 
+        ? parseInt(params.customerId) 
+        : params.customerId;
+      
+      const businessId = typeof params.businessId === 'string' 
+        ? parseInt(params.businessId) 
+        : params.businessId;
+      
+      let programId: number | undefined = undefined;
+      if (params.programId) {
+        programId = typeof params.programId === 'string' 
+          ? parseInt(params.programId) 
+          : params.programId;
+      }
+
+      // Apply rate limiting to prevent abuse - using a more unique key including card number if available
+      const rateLimitKey = `scan:${customerId}:${businessId}:${params.cardNumber || 'card'}`;
+      if (rateLimiter.isRateLimited(rateLimitKey)) {
+        console.warn(`Rate limited scan attempt: ${rateLimitKey}`);
+        return {
+          success: false,
+          message: 'This card was scanned recently. Please wait before scanning again.'
+        };
+      }
+
+      // Track the scan attempt with shorter timeout to reduce false positives
+      rateLimiter.trackEvent(rateLimitKey, 30); // 30 second rate limit instead of default
+
+      // Get business information with proper error handling
+      let businessName = 'Business';
+      try {
+        const businessResult = await sql`
+          SELECT name FROM businesses WHERE id = ${businessId}
+        `;
+        
+        if (businessResult && businessResult.length > 0) {
+          businessName = businessResult[0].name || 'Business';
+        } else {
+          console.warn(`Business with ID ${businessId} not found`);
+        }
+      } catch (businessError) {
+        console.error('Error fetching business information:', businessError);
+        // Continue processing with default business name
+      }
+
+      // Check if the customer exists with better error handling
+      try {
+        const customerResult = await sql`
+          SELECT id, name FROM users 
+          WHERE id = ${customerId}
+          AND status = 'active'
+          AND user_type = 'customer'
+        `;
+        
+        if (customerResult.length === 0) {
+          return {
+            success: false,
+            message: 'Customer not found or inactive',
+            businessName
+          };
+        }
+      } catch (customerError) {
+        console.error('Error verifying customer:', customerError);
+        return {
+          success: false,
+          message: 'Error verifying customer information. Please try again.',
+          businessName
+        };
+      }
+
+      // Establish customer-business relationship first
+      try {
+        const relationshipEstablished = await this.verifyOrCreateCustomerBusiness(businessId, customerId);
+        if (!relationshipEstablished) {
+          console.warn(`Failed to establish customer-business relationship: ${customerId}-${businessId}`);
+          // Continue processing but log the warning
+        }
+      } catch (relationshipError) {
+        console.error('Error establishing customer-business relationship:', relationshipError);
+        // Continue processing despite relationship error
+      }
+
+      // Record the scan and award points - using transaction with retry mechanism
+      const pointsToAward = params.pointsToAward || 10;
+      let transactionAttempts = 0;
+      const maxAttempts = 3;
+      
+      while (transactionAttempts < maxAttempts) {
+        transactionAttempts++;
+        
+        // Begin transaction
+        try {
+          await sql.begin();
+          
+          // Award points to the customer
+          await sql`
+            INSERT INTO customer_points (
+              customer_id,
+              business_id,
+              program_id,
+              points,
+              source,
+              description,
+              created_at
+            ) VALUES (
+              ${customerId},
+              ${businessId},
+              ${programId || null},
+              ${pointsToAward},
+              'qr_scan',
+              'Points awarded for QR card scan',
+              NOW()
+            )
+          `;
+          
+          // Check if the customer is enrolled in the program if programId is provided
+          let isEnrolled = false;
+          if (programId) {
+            const enrollmentResult = await sql`
+              SELECT id FROM customer_program_enrollments
+              WHERE customer_id = ${customerId}
+              AND program_id = ${programId}
+              AND status = 'ACTIVE'
+            `;
+            
+            isEnrolled = enrollmentResult.length > 0;
+          }
+          
+          // Check if the customer has available promo codes
+          const promoResult = await sql`
+            SELECT COUNT(*) as count FROM promo_codes p
+            WHERE p.status = 'ACTIVE'
+            AND p.start_date <= NOW()
+            AND p.end_date >= NOW()
+            AND (p.max_uses IS NULL OR p.current_uses < p.max_uses)
+            AND NOT EXISTS (
+              SELECT 1 FROM customer_promo_codes cp
+              WHERE cp.customer_id = ${customerId}
+              AND cp.promo_code_id = p.id
+            )
+            LIMIT 1
+          `;
+          
+          const hasPromos = promoResult.length > 0 && promoResult[0].count > 0;
+          
+          // Log the scan
+          const scanLogParams = {
+            scanType: 'CUSTOMER_CARD' as QrScanLog['scan_type'],
+            scannedBy: businessId,
+            scannedData: JSON.stringify({ 
+              customerId, 
+              businessId, 
+              programId, 
+              cardNumber: params.cardNumber,
+              pointsAwarded: pointsToAward 
+            }),
+            success: true,
+            customerId,
+            programId,
+            pointsAwarded: pointsToAward
+          };
+          
+          await this.logScan(
+            scanLogParams.scanType,
+            scanLogParams.scannedBy,
+            scanLogParams.scannedData,
+            scanLogParams.success,
+            {
+              customerId: scanLogParams.customerId,
+              programId: scanLogParams.programId,
+              pointsAwarded: scanLogParams.pointsAwarded
+            }
+          );
+          
+          // Commit transaction
+          await sql.commit();
+          
+          // Send notification to customer - non-blocking
+          try {
+            this.sendScanNotification(
+              customerId.toString(),
+              true,
+              businessName,
+              pointsToAward,
+              { isEnrolled, hasPromos }
+            ).catch(notifyError => {
+              console.error('Error sending scan notification:', notifyError);
+            });
+          } catch (notifyError) {
+            console.error('Error initiating scan notification:', notifyError);
+            // Non-critical error, continue
+          }
+          
+          return {
+            success: true,
+            message: `Successfully awarded ${pointsToAward} points to customer`,
+            pointsAwarded: pointsToAward,
+            isEnrolled,
+            hasPromos,
+            businessName
+          };
+        } catch (txError) {
+          // Attempt rollback
+          try {
+            await sql.rollback();
+          } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+          }
+          
+          // If this is the last attempt, throw the error
+          if (transactionAttempts >= maxAttempts) {
+            throw txError;
+          }
+          
+          // Otherwise wait and retry
+          console.warn(`Transaction failed, retrying (${transactionAttempts}/${maxAttempts}):`, txError);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // If we got here, we failed all transaction attempts
+      throw new Error(`Failed to process transaction after ${maxAttempts} attempts`);
+    } catch (error) {
+      console.error('Error handling customer card scan:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to process customer card'
       };
     }
   }

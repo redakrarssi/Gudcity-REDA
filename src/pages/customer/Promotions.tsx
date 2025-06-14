@@ -83,7 +83,9 @@ const CustomerPromotions = () => {
         const { promotions, error } = await PromoService.getAvailablePromotions();
         
         if (error) {
-          throw new Error(error);
+          setError(error);
+          console.error('Error from PromoService:', error);
+          return;
         }
         
         setPromos(promotions);

@@ -11,6 +11,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { TransactionService } from '../../services/transactionService';
 import sql from '../../utils/db';
 import type { Transaction } from '../../types/loyalty';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { NotificationService } from '../../services/notificationService';
+import { LoyaltyCardService } from '../../services/loyaltyCardService';
 
 // Define upcomingReward type
 interface UpcomingReward {
@@ -36,6 +39,7 @@ const CustomerDashboard = () => {
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [upcomingRewards, setUpcomingRewards] = useState<UpcomingReward[]>([]);
   const [rewardsLoading, setRewardsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Use authenticated user data - ensure we're using the full name from the database
   const userData = {
@@ -189,11 +193,158 @@ const CustomerDashboard = () => {
   const handleEnroll = async (programId: string) => {
     // TODO: Implement enrollment API call
     console.log('Enrolling in program:', programId);
+    
+    if (!user?.id) {
+      setError('You must be logged in to enroll in a program');
+      return;
+    }
+    
+    try {
+      const result = await LoyaltyProgramService.enrollCustomer(
+        user.id.toString(),
+        programId
+      );
+      
+      if (result.success) {
+        // Show success notification
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'PROGRAM_ENROLLED',
+          'Successfully enrolled',
+          'You have been enrolled in the program'
+        );
+        
+        // Refresh enrolled programs list
+        if (activeTab === 'browse') {
+          setActiveTab('enrolled');
+        }
+      } else {
+        // Show error notification
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Enrollment failed',
+          result.error || 'Failed to enroll in the program'
+        );
+      }
+    } catch (error) {
+      console.error('Error enrolling in program:', error);
+      
+      // Show error notification
+      if (user?.id) {
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Enrollment error',
+          'An error occurred while enrolling in the program'
+        );
+      }
+    }
   };
 
   const handleRedeem = async (programId: string, rewardId: string) => {
-    // TODO: Implement redemption API call
     console.log('Redeeming reward:', rewardId, 'from program:', programId);
+    
+    if (!user?.id) {
+      setError('You must be logged in to redeem rewards');
+      return;
+    }
+    
+    const userId = user.id.toString();
+    
+    try {
+      // Get the card for this program
+      const userIdNum = parseInt(userId, 10);
+      const programIdNum = parseInt(programId, 10);
+      
+      const cards = await sql`
+        SELECT id FROM loyalty_cards
+        WHERE customer_id = ${userIdNum}
+        AND program_id = ${programIdNum}
+        AND is_active = true
+      `;
+      
+      if (!cards || cards.length === 0) {
+        await NotificationService.createNotification(
+          userId,
+          'SYSTEM_ALERT',
+          'Redemption failed',
+          'You do not have an active card for this program'
+        );
+        return;
+      }
+      
+      // Ensure card id exists and convert to string
+      if (!cards[0] || !cards[0].id) {
+        await NotificationService.createNotification(
+          userId,
+          'SYSTEM_ALERT',
+          'Redemption failed',
+          'Invalid card data'
+        );
+        return;
+      }
+      
+      const cardId = String(cards[0].id);
+      const rewardIdNum = parseInt(rewardId, 10);
+      
+      // Get reward details
+      const rewards = await sql`
+        SELECT name FROM loyalty_program_rewards
+        WHERE id = ${rewardIdNum}
+      `;
+      
+      if (!rewards || rewards.length === 0) {
+        await NotificationService.createNotification(
+          userId,
+          'SYSTEM_ALERT',
+          'Redemption failed',
+          'Reward not found'
+        );
+        return;
+      }
+      
+      // Ensure reward name exists and convert to string
+      if (!rewards[0] || !rewards[0].name) {
+        await NotificationService.createNotification(
+          userId,
+          'SYSTEM_ALERT',
+          'Redemption failed',
+          'Invalid reward data'
+        );
+        return;
+      }
+      
+      const rewardName = String(rewards[0].name);
+      
+      // Use the loyalty card service to redeem the reward
+      const result = await LoyaltyCardService.redeemReward(cardId, rewardName);
+      
+      if (result.success) {
+        await NotificationService.createNotification(
+          userId,
+          'REWARD_AVAILABLE',
+          'Reward redeemed',
+          `You have successfully redeemed ${rewardName}`
+        );
+      } else {
+        await NotificationService.createNotification(
+          userId,
+          'SYSTEM_ALERT',
+          'Redemption failed',
+          result.message || 'Failed to redeem reward'
+        );
+      }
+    } catch (error) {
+      console.error('Error redeeming reward:', error);
+      
+      await NotificationService.createNotification(
+        userId,
+        'SYSTEM_ALERT',
+        'Redemption error',
+        'An error occurred while redeeming the reward'
+      );
+    }
   };
 
   // Format date for activity display
