@@ -14,6 +14,7 @@ import { LoyaltyProgram } from '../../types/loyalty';
 import { RedemptionModal } from '../../components/business/RedemptionModal';
 import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollmentModal';
 import { RewardModal } from '../../components/business/RewardModal';
+import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
 
 interface ScanResult {
   type: string; 
@@ -41,6 +42,7 @@ const QrScannerPage = () => {
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
+  const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
 
   // Load previous scan results from localStorage
   useEffect(() => {
@@ -539,6 +541,13 @@ const QrScannerPage = () => {
                     {selectedResult.type === 'customer_card' && (
                       <div className="grid grid-cols-1 gap-2">
                         <button 
+                          onClick={() => setShowCustomerDetailsModal(true)}
+                          className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          {t('Show Customer Details')}
+                        </button>
+                        <button 
                           onClick={() => setShowRewardModal(true)}
                           className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
                         >
@@ -703,6 +712,15 @@ const QrScannerPage = () => {
             customerId={String(selectedResult.data.customerId || '')}
             businessId={user?.id ? String(user.id) : ''}
             customerName={selectedResult.data.name || 'Customer'}
+          />
+
+          {/* Customer Details Modal */}
+          <CustomerDetailsModal
+            isOpen={showCustomerDetailsModal}
+            onClose={() => setShowCustomerDetailsModal(false)}
+            customerId={String(selectedResult.data.customerId || '')}
+            businessId={user?.id ? String(user.id) : ''}
+            initialData={selectedResult.data}
           />
         </>
       )}

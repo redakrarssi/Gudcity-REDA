@@ -82,8 +82,8 @@ export class FeedbackService {
   async logScan(data: {
     timestamp: string;
     type: string;
-    business_id: string;
-    customer_id: string;
+    business_id: string | number;
+    customer_id: string | number;
     card_number?: string;
     points_awarded?: number;
     status: string;
@@ -93,7 +93,14 @@ export class FeedbackService {
     error?: string;
   }): Promise<boolean> {
     try {
-      const response = await api.post('/analytics/scan', data);
+      // Ensure business_id and customer_id are strings for API consistency
+      const apiData = {
+        ...data,
+        business_id: String(data.business_id),
+        customer_id: String(data.customer_id)
+      };
+      
+      const response = await api.post('/analytics/scan', apiData);
       return response.status === 200;
     } catch (error) {
       console.error('Error logging scan:', error);

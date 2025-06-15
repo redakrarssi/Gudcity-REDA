@@ -7,6 +7,7 @@ import { RewardModal } from './business/RewardModal';
 import { ProgramEnrollmentModal } from './business/ProgramEnrollmentModal';
 import { RedemptionModal } from './business/RedemptionModal';
 import { TransactionConfirmation } from './TransactionConfirmation';
+import { CustomerDetailsModal } from './business/CustomerDetailsModal';
 import { feedbackService } from '../services/feedbackService';
 import { FEATURES } from '../env';
 import { NotificationService } from '../services/notificationService';
@@ -74,6 +75,16 @@ interface QRScannerProps {
   pointsToAward?: number;
 }
 
+interface TransactionDetails {
+  type: 'reward' | 'redemption' | 'enrollment';
+  message: string;
+  details?: string;
+  customerName?: string;
+  businessName?: string;
+  points?: number;
+  amount?: number;
+}
+
 export const QRScanner: React.FC<QRScannerProps> = ({ 
   onScan, 
   businessId,
@@ -92,21 +103,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showProgramsModal, setShowProgramsModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
   const [scanAnimation, setScanAnimation] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const animationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [domReady, setDomReady] = useState(false);
   const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
   const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error' | 'pending'>('success');
-  const [transactionDetails, setTransactionDetails] = useState<{
-    type: 'reward' | 'redemption' | 'enrollment' | 'error';
-    message: string;
-    details?: string;
-    customerName?: string;
-    businessName?: string;
-    points?: number;
-    amount?: number;
-  } | null>(null);
+  const [transactionDetails, setTransactionDetails] = useState<TransactionDetails | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -447,19 +451,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         throw new Error('Missing business ID for scan');
       }
       
-      // Prepare scan data for API call
-      const scanData = {
-        customerId: qrCodeData.customerId,
-        businessId, // Already non-null from check above
-        programId,
-        cardNumber: qrCodeData.cardNumber,
-        pointsToAward: pointsToAward
-      };
+      // Ensure customerId is properly formatted
+      const customerIdStr = String(qrCodeData.customerId);
+      const businessIdStr = String(businessId);
       
-      debugLog('Calling handleCustomerCardScan with data:', scanData);
+      // Convert programId to string or null (not undefined)
+      const programIdValue = programId ? String(programId) : null;
       
       // Use specific method for customer card scanning from QrCodeService
-      const result = await QrCodeService.handleCustomerCardScan(scanData);
+      const result = await QrCodeService.handleCustomerCardScan({
+        customerId: customerIdStr,
+        businessId: businessIdStr,
+        programId: programIdValue,
+        cardNumber: qrCodeData.cardNumber || undefined,
+        pointsToAward
+      });
+      
       debugLog('Customer card scan result:', result);
       
       // If successful, show a brief success message then offer rewards option
@@ -478,7 +485,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setTransactionConfirmationType('success');
         setTransactionDetails({
           type: 'reward',
-          message: t('Points Awarded Successfully'),
+          message: t('Customer Card Scanned'),
           customerName: qrCodeData.customerName || t('Customer'),
           businessName: result.businessName || t('Business'),
           points: result.pointsAwarded || pointsToAward || 10,
@@ -486,23 +493,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         });
         setShowTransactionConfirmation(true);
         
-        // If the business has unfinished business with customer, prompt accordingly
-        if (!result.isEnrolled && programId) {
-          // Customer is not enrolled in the current program
-          setTimeout(() => {
-            setShowProgramsModal(true);
-          }, 2000);
-        } else if (result.hasPromos) {
-          // Customer has available promotions
-          setTimeout(() => {
-            setShowRedeemModal(true);
-          }, 2000);
-        } else {
-          // If just a normal scan, offer reward
-          setTimeout(() => {
-            setShowRewardsModal(true);
-          }, 2000);
-        }
+        // Show customer details modal with action options
+        setTimeout(() => {
+          setShowCustomerDetailsModal(true);
+        }, 1500);
         
         // Log scan for analytics with all available details
         try {
@@ -510,13 +504,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           feedbackService.logScan({
             timestamp: new Date().toISOString(),
             type: 'customer_card',
-            business_id: businessId.toString(),
-            customer_id: qrCodeData.customerId.toString(),
+            business_id: businessIdStr,
+            customer_id: customerIdStr,
             card_number: qrCodeData.cardNumber || 'unknown',
             points_awarded: result.pointsAwarded || pointsToAward || 0,
             status: 'success',
             scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
-            program_id: programId?.toString() || '',
+            program_id: programIdValue || '',
             device_info: navigator.userAgent
           });
         } catch (logError) {
@@ -526,10 +520,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       } else {
         // Handle scan failure
         debugLog('Scan failed:', result.message);
-      playSound('error');
+        playSound('error');
         setError(result.message || 'Failed to process customer card');
         setTimeout(() => {
-      setProcessingCard(false);
+          setProcessingCard(false);
           // Don't clear the error message here to ensure user sees it
         }, 3000);
       }
@@ -777,17 +771,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   };
   
   const handleFeedbackSubmit = async (rating: number, comment: string) => {
-    if (!lastResult?.data.customerId || !businessId || !transactionDetails) {
-      return;
-    }
-    
     try {
       await feedbackService.submitFeedback({
-        customerId: lastResult.data.customerId,
-        businessId,
-        transactionType: transactionDetails.type,
         rating,
         comment,
+        category: 'qr_scan',
+        page: 'scanner',
         timestamp: new Date().toISOString()
       });
       
@@ -1010,10 +999,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             businessId={String(businessId)}
             customerName={lastResult.data.name as string || 'Customer'}
           />
+
+          <CustomerDetailsModal
+            isOpen={showCustomerDetailsModal}
+            onClose={() => setShowCustomerDetailsModal(false)}
+            customerId={String(lastResult.data.customerId || '')}
+            businessId={businessId ? String(businessId) : ''}
+            initialData={lastResult.data}
+          />
         </>
       )}
       
-      {showTransactionConfirmation && transactionDetails && FEATURES.enableAnimations && (
+      {/* Transaction confirmation */}
+      {showTransactionConfirmation && transactionDetails && (
         <TransactionConfirmation
           type={transactionConfirmationType}
           transactionType={transactionDetails.type}
@@ -1024,7 +1022,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           points={transactionDetails.points}
           amount={transactionDetails.amount}
           onClose={handleTransactionConfirmationClose}
-          onFeedback={FEATURES.enableFeedback ? handleFeedbackSubmit : undefined}
+          onFeedback={handleFeedbackSubmit}
         />
       )}
       
