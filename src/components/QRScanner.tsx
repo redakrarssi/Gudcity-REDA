@@ -115,6 +115,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastScanRef = useRef<string>(''); // Store the last scanned text to prevent duplicates
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDomReady = () => {
@@ -455,15 +456,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const customerIdStr = String(qrCodeData.customerId);
       const businessIdStr = String(businessId);
       
-      // Convert programId to string or undefined (not null)
-      const programIdValue = programId ? String(programId) : undefined;
+      // Convert programId to string (not null or undefined)
+      const programIdValue = programId ? String(programId) : '';
+      
+      // Set last result data for use in the modal
+      setLastResult({
+        type: 'customer_card',
+        data: {
+          customerId: customerIdStr,
+          customerName: qrCodeData.customerName || 'Customer',
+          cardNumber: qrCodeData.cardNumber || '',
+          type: 'customer_card'
+        },
+        timestamp: new Date().toISOString(),
+        raw: qrCodeData.text || JSON.stringify(qrCodeData)
+      });
       
       // Use specific method for customer card scanning from QrCodeService
       const result = await QrCodeService.handleCustomerCardScan({
         customerId: customerIdStr,
         businessId: businessIdStr,
         programId: programIdValue,
-        cardNumber: qrCodeData.cardNumber || undefined,
+        cardNumber: qrCodeData.cardNumber || '',
         pointsToAward
       });
       
@@ -493,11 +507,46 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         });
         setShowTransactionConfirmation(true);
         
+        // Update last result with additional data from the scan result
+        setLastResult(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              pointsAwarded: result.pointsAwarded || pointsToAward || 0,
+              businessName: result.businessName,
+              isEnrolled: result.isEnrolled,
+              hasPromos: result.hasPromos
+            }
+          };
+        });
+        
+        // Notify parent component via onScan callback
+        if (onScan) {
+          onScan({
+            type: 'customer_card',
+            data: {
+              customerId: customerIdStr,
+              customerName: qrCodeData.customerName || 'Customer',
+              cardNumber: qrCodeData.cardNumber || '',
+              type: 'customer_card',
+              pointsAwarded: result.pointsAwarded || pointsToAward || 0,
+              businessName: result.businessName,
+              isEnrolled: result.isEnrolled,
+              hasPromos: result.hasPromos
+            },
+            timestamp: new Date().toISOString(),
+            raw: qrCodeData.text || JSON.stringify(qrCodeData)
+          });
+        }
+        
         // Show customer details modal with action options
         setTimeout(() => {
+          setSelectedCustomerId(customerIdStr);
           setShowCustomerDetailsModal(true);
           setProcessingCard(false);
-        }, 2000);
+        }, 1000);
         
         // Log scan for analytics with all available details
         try {
@@ -511,7 +560,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             points_awarded: result.pointsAwarded || pointsToAward || 0,
             status: 'success',
             scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
-            program_id: programIdValue ? programIdValue : '',
+            program_id: programIdValue,
             device_info: navigator.userAgent
           });
         } catch (logError) {
@@ -929,7 +978,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           </p>
           <p className="text-sm mt-2 bg-white/60 backdrop-blur-sm p-2 rounded-md">
             {lastResult.type === 'customer_card' 
-              ? `Customer: ${lastResult.data.name || 'Customer'}` 
+              ? `Customer: ${lastResult.data.customerName || lastResult.data.name || 'Customer'}` 
               : lastResult.type === 'promo_code' 
                 ? `Promo code: ${lastResult.data.code}` 
                 : `Data: ${JSON.stringify(lastResult.data).substring(0, 50)}...`}
@@ -1013,7 +1062,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             onClose={() => setShowCustomerDetailsModal(false)}
             customerId={String(lastResult.data.customerId || '')}
             businessId={businessId ? String(businessId) : ''}
-            initialData={lastResult.data}
+            initialData={{
+              ...lastResult.data,
+              name: lastResult.data.customerName || lastResult.data.name || 'Customer'
+            }}
           />
         </>
       )}

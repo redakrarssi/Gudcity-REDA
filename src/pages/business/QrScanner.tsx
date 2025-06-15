@@ -718,7 +718,7 @@ const QrScannerPage = () => {
           <CustomerDetailsModal
             isOpen={showCustomerDetailsModal}
             onClose={() => setShowCustomerDetailsModal(false)}
-            customerId={selectedResult?.data.customerId ? String(selectedResult.data.customerId) : ''}
+            customerId={selectedResult?.data?.customerId ? String(selectedResult.data.customerId) : ''}
             businessId={user?.id ? String(user.id) : ''}
             initialData={selectedResult?.data}
           />
