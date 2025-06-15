@@ -290,7 +290,7 @@ export async function initializeDbSchema(): Promise<boolean> {
     await sql.begin();
 
     // Create customer_qrcodes table if it doesn't exist
-    await sql.query(`
+    await sql`
       CREATE TABLE IF NOT EXISTS customer_qrcodes (
         id SERIAL PRIMARY KEY,
         qr_unique_id UUID NOT NULL UNIQUE,
@@ -316,10 +316,10 @@ export async function initializeDbSchema(): Promise<boolean> {
       CREATE INDEX IF NOT EXISTS idx_customer_qrcodes_customer_id ON customer_qrcodes(customer_id);
       CREATE INDEX IF NOT EXISTS idx_customer_qrcodes_qr_unique_id ON customer_qrcodes(qr_unique_id);
       CREATE INDEX IF NOT EXISTS idx_customer_qrcodes_status ON customer_qrcodes(status);
-    `);
+    `;
     
     // Create customer_program_enrollments table if it doesn't exist
-    await sql.query(`
+    await sql`
       CREATE TABLE IF NOT EXISTS customer_program_enrollments (
         id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
@@ -336,10 +336,10 @@ export async function initializeDbSchema(): Promise<boolean> {
       );
       
       CREATE INDEX IF NOT EXISTS idx_enrollments_customer_program ON customer_program_enrollments(customer_id, program_id);
-    `);
+    `;
     
     // Create loyalty programs table if it doesn't exist
-    await sql.query(`
+    await sql`
       CREATE TABLE IF NOT EXISTS loyalty_programs (
         id SERIAL PRIMARY KEY,
         business_id INTEGER NOT NULL,
@@ -356,10 +356,10 @@ export async function initializeDbSchema(): Promise<boolean> {
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
-    `);
+    `;
     
     // Create promo_codes table if it doesn't exist
-    await sql.query(`
+    await sql`
       CREATE TABLE IF NOT EXISTS promo_codes (
         id SERIAL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
@@ -383,10 +383,10 @@ export async function initializeDbSchema(): Promise<boolean> {
       CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code);
       CREATE INDEX IF NOT EXISTS idx_promo_codes_business_id ON promo_codes(business_id);
       CREATE INDEX IF NOT EXISTS idx_promo_codes_status ON promo_codes(status);
-    `);
+    `;
     
     // Create customer_promo_codes table to track which customers have which codes
-    await sql.query(`
+    await sql`
       CREATE TABLE IF NOT EXISTS customer_promo_codes (
         id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
@@ -401,7 +401,7 @@ export async function initializeDbSchema(): Promise<boolean> {
       
       CREATE INDEX IF NOT EXISTS idx_customer_promo_customer_id ON customer_promo_codes(customer_id);
       CREATE INDEX IF NOT EXISTS idx_customer_promo_promo_id ON customer_promo_codes(promo_code_id);
-    `);
+    `;
 
     await sql.commit();
     console.log('Database schema initialized successfully');

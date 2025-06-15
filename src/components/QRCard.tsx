@@ -5,11 +5,14 @@ import { UserQrCodeService } from '../services/userQrCodeService';
 import { StandardQrCodeData } from '../utils/standardQrCodeGenerator';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, User } from 'lucide-react';
 
-interface QRCardProps {
+export interface QRCardProps {
   userId: string;
   userName: string;
   cardNumber?: string;
   cardType?: string;
+  cardId?: string;
+  businessId?: string;
+  points?: number;
   onCardReady?: (cardNumber: string) => void;
 }
 
@@ -18,6 +21,9 @@ export const QRCard: React.FC<QRCardProps> = ({
   userName, 
   cardNumber, 
   cardType = "STANDARD",
+  cardId = "",
+  businessId = "",
+  points = 0,
   onCardReady 
 }) => {
   const { t } = useTranslation();
@@ -105,6 +111,9 @@ export const QRCard: React.FC<QRCardProps> = ({
       const fallbackData = JSON.stringify({
         customerId: userId,
         cardNumber: actualCardNumber,
+        cardId: cardId || "",
+        businessId: businessId || "",
+        points: points || 0,
         timestamp: Date.now(),
         type: 'CUSTOMER_CARD',
       });
@@ -139,7 +148,10 @@ export const QRCard: React.FC<QRCardProps> = ({
       
       const cardDetails = {
         cardNumber: actualCardNumber,
-        cardType: cardType
+        cardType: cardType,
+        cardId: cardId,
+        businessId: businessId,
+        points: points
       };
       
       let qrImageUrl = null;

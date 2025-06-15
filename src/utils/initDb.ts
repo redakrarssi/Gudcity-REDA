@@ -14,7 +14,7 @@ async function initializeDbSchema(): Promise<boolean> {
     const qrCodesTableExists = await sql.tableExists('qr_codes');
     if (!qrCodesTableExists) {
       console.log('Creating qr_codes table...');
-      await sql.query(`
+      await sql`
         CREATE TABLE IF NOT EXISTS qr_codes (
           id SERIAL PRIMARY KEY,
           user_id INTEGER NOT NULL,
@@ -23,7 +23,7 @@ async function initializeDbSchema(): Promise<boolean> {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
-      `);
+      `;
       console.log('Created qr_codes table');
     }
     
@@ -31,7 +31,7 @@ async function initializeDbSchema(): Promise<boolean> {
     const userQrCodesTableExists = await sql.tableExists('user_qr_codes');
     if (!userQrCodesTableExists) {
       console.log('Creating user_qr_codes table...');
-      await sql.query(`
+      await sql`
         CREATE TABLE IF NOT EXISTS user_qr_codes (
           id SERIAL PRIMARY KEY,
           user_id INTEGER NOT NULL,
@@ -41,7 +41,7 @@ async function initializeDbSchema(): Promise<boolean> {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id) ON DELETE CASCADE
         )
-      `);
+      `;
       console.log('Created user_qr_codes table');
     }
     
@@ -65,20 +65,20 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
     }
     
     // Check if the necessary columns exist in the customers table
-    const columnsResult = await sql.query(`
+    const columnsResult = await sql`
       SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'customers' AND (
         column_name = 'notification_preferences' OR
         column_name = 'regional_settings'
       )
-    `);
+    `;
     
     if (columnsResult.length < 2) {
       console.log('Adding missing customer settings columns...');
       
       // Add notification_preferences column if it doesn't exist
-      await sql.query(`
+      await sql`
         DO $$
         BEGIN
           IF NOT EXISTS (
@@ -96,10 +96,10 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
           END IF;
         END
         $$;
-      `);
+      `;
       
       // Add regional_settings column if it doesn't exist
-      await sql.query(`
+      await sql`
         DO $$
         BEGIN
           IF NOT EXISTS (
@@ -115,7 +115,7 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
           END IF;
         END
         $$;
-      `);
+      `;
       
       console.log('✅ Customer settings columns added');
     } else {
@@ -123,6 +123,7 @@ async function ensureCustomerSettingsColumns(): Promise<void> {
     }
   } catch (error) {
     console.error('❌ Error ensuring customer settings columns:', error);
+    throw error;
   }
 }
 

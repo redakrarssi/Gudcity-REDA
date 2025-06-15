@@ -11,10 +11,10 @@ dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
 
 // Create a database connection
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: true
-});
+  const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: true
+  });
 
 async function main() {
   console.log('Starting QR Code Scanner Points System Fix');
@@ -39,7 +39,7 @@ async function main() {
     
     if (!statusColumnExists) {
       console.log('Adding missing status column to customer_programs table...');
-      await pool.query(`
+    await pool.query(`
         ALTER TABLE customer_programs 
         ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'
       `);
@@ -140,7 +140,7 @@ async function main() {
     
     // Check if the card_activities table exists
     const cardActivitiesTable = await pool.query(`
-      SELECT EXISTS (
+        SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_name = 'card_activities'
       );
@@ -182,16 +182,16 @@ async function main() {
       console.log('Creating customer_points table...');
       await pool.query(`
         CREATE TABLE customer_points (
-          id SERIAL PRIMARY KEY,
+              id SERIAL PRIMARY KEY,
           customer_id VARCHAR(255) NOT NULL,
           business_id VARCHAR(255) NOT NULL,
           program_id INTEGER,
-          points INTEGER NOT NULL,
+              points INTEGER NOT NULL,
           source VARCHAR(50) NOT NULL,
           description TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-        
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            
         CREATE INDEX idx_customer_points_customer_id ON customer_points(customer_id);
         CREATE INDEX idx_customer_points_business_id ON customer_points(business_id);
       `);
@@ -271,7 +271,7 @@ async function main() {
         CREATE INDEX idx_qr_scan_logs_created_at ON qr_scan_logs(created_at);
       `);
       console.log('✅ Created qr_scan_logs table');
-    } else {
+      } else {
       console.log('✅ QR scan logs table exists');
     }
     

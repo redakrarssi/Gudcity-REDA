@@ -1572,25 +1572,25 @@ export class QrCodeService {
           });
           
           try {
-            await sql`
-              INSERT INTO customer_points (
-                customer_id,
-                business_id,
-                program_id,
-                points,
-                source,
-                description,
-                created_at
-              ) VALUES (
-                ${customerId},
-                ${businessId},
-                ${programId || null},
-                ${pointsToAward},
-                'qr_scan',
-                'Points awarded for QR card scan',
-                NOW()
-              )
-            `;
+          await sql`
+            INSERT INTO customer_points (
+              customer_id,
+              business_id,
+              program_id,
+              points,
+              source,
+              description,
+              created_at
+            ) VALUES (
+              ${customerId},
+              ${businessId},
+              ${programId || null},
+              ${pointsToAward},
+              'qr_scan',
+              'Points awarded for QR card scan',
+              NOW()
+            )
+          `;
             console.log('[QrCodeService] Points inserted successfully');
           } catch (sqlError) {
             console.error('[QrCodeService] SQL error inserting points:', sqlError);
@@ -1659,7 +1659,7 @@ export class QrCodeService {
           // Commit transaction
           console.log('[QrCodeService] Committing transaction');
           try {
-            await sql.commit();
+          await sql.commit();
             console.log('[QrCodeService] Transaction committed successfully');
           } catch (commitError) {
             console.error('[QrCodeService] Error committing transaction:', commitError);

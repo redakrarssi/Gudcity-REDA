@@ -27,6 +27,8 @@ export interface LoyaltyCard {
   availableRewards: Reward[];
   createdAt: string;
   updatedAt: string;
+  businessName?: string;
+  programName?: string;
 }
 
 // Define the Reward interface
@@ -126,16 +128,13 @@ export class LoyaltyCardService {
    */
   static async getCustomerCards(customerId: string): Promise<LoyaltyCard[]> {
     try {
+      // Use the customer_loyalty_cards view that joins all the necessary tables
       const cards = await sql`
-        SELECT lc.*, 
-               lp.name as program_name, 
-               u.name as business_name
-        FROM loyalty_cards lc
-        JOIN loyalty_programs lp ON lc.program_id = lp.id
-        JOIN users u ON lp.business_id = u.id::text
-        WHERE lc.customer_id = ${customerId}
-        AND lc.is_active = true
-        ORDER BY lc.updated_at DESC
+        SELECT * 
+        FROM customer_loyalty_cards
+        WHERE customer_id = ${customerId}
+        AND is_active = true
+        ORDER BY updated_at DESC
       `;
       
       return cards.map(card => this.formatCard(card));
@@ -923,6 +922,27 @@ export class LoyaltyCardService {
   }
 
   /**
+   * Get customer ID by user ID
+   */
+  static async getCustomerIdByUserId(userId: number | string): Promise<string | null> {
+    try {
+      const result = await sql`
+        SELECT id FROM customers
+        WHERE user_id = ${userId}
+      `;
+      
+      if (result && result.length > 0) {
+        return result[0].id.toString();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting customer ID by user ID:', error);
+      return null;
+    }
+  }
+
+  /**
    * Format a loyalty card from database to API format
    */
   private static formatCard(card: any): LoyaltyCard {
@@ -944,7 +964,9 @@ export class LoyaltyCardService {
       isActive: card.is_active,
       availableRewards: card.available_rewards || this.getDefaultRewards(card.tier || 'STANDARD'),
       createdAt: card.created_at,
-      updatedAt: card.updated_at
+      updatedAt: card.updated_at,
+      businessName: card.business_name,
+      programName: card.program_name
     };
   }
 }

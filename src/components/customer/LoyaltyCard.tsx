@@ -5,10 +5,8 @@ import { LoyaltyCard as LoyaltyCardType, Reward } from '../../services/loyaltyCa
 
 interface LoyaltyCardProps {
   card: LoyaltyCardType;
-  businessName: string;
-  programName: string;
   onRedeemReward?: (rewardName: string) => void;
-  onSharePromoCode?: (promoCode: string) => void;
+  onShareCode?: (code: string) => void;
   className?: string;
 }
 
@@ -41,10 +39,8 @@ const CardTierColorMap: { [key: string]: { bg: string; border: string; text: str
 
 export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({ 
   card, 
-  businessName,
-  programName, 
   onRedeemReward,
-  onSharePromoCode,
+  onShareCode,
   className = '' 
 }) => {
   const { t } = useTranslation();
@@ -53,6 +49,12 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   const [copiedPromoCode, setCopiedPromoCode] = useState(false);
   
   const tierColors = CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
+  
+  // Use businessName from card, or fallback to businessId if not available
+  const businessName = card.businessName || card.business_name || t('Business');
+  
+  // Use programName from card, or fallback to a generic name if not available
+  const programName = card.programName || card.program_name || t('Loyalty Program');
   
   // Reset copied state after 3 seconds
   useEffect(() => {
@@ -70,8 +72,8 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   };
   
   const handleSharePromoCode = () => {
-    if (onSharePromoCode && card.promoCode) {
-      onSharePromoCode(card.promoCode);
+    if (onShareCode && card.promoCode) {
+      onShareCode(card.promoCode);
       setShowPromoCode(false);
     }
   };

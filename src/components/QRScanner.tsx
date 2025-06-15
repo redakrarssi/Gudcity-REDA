@@ -282,6 +282,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   
   const handleQrCodeScan = async (decodedText: string) => {
     try {
+      console.log('QR code scanned:', decodedText);
       debugLog('QR code scanned:', decodedText);
       
       // Prevent scanning the same QR code multiple times in quick succession
@@ -307,46 +308,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Play scan sound
       playSound('scan');
       debugLog('Processing scan, sound played');
-      
-      // Safety checks for scan monitor
-      if (extendedQrScanMonitor && typeof extendedQrScanMonitor.trackScan === 'function') {
-        extendedQrScanMonitor.trackScan();
-        debugLog('Tracked scan in monitor');
-        
-        if (extendedQrScanMonitor.isRateLimited()) {
-          console.log('Rate limited by QR scan monitor');
-          setRateLimited(true);
-          setRateLimitResetTime(extendedQrScanMonitor.getResetTime());
-          playSound('error');
-          setError('Scanning too quickly. Please wait a moment before scanning again.');
-          debugLog('Rate limited, showing error');
-          
-          // Start timer to clear rate limit
-          if (rateLimitTimerRef.current) {
-            clearInterval(rateLimitTimerRef.current);
-          }
-          
-          rateLimitTimerRef.current = setInterval(() => {
-            if (extendedQrScanMonitor && !extendedQrScanMonitor.isRateLimited()) {
-              setRateLimited(false);
-              setRateLimitResetTime(null);
-              setError(null); // Clear the error message when rate limit is lifted
-              clearInterval(rateLimitTimerRef.current!);
-              rateLimitTimerRef.current = null;
-              debugLog('Rate limit cleared');
-            }
-          }, 500); // Check more frequently
-          
-          setTimeout(() => {
-            setProcessingCard(false);
-            if (!extendedQrScanMonitor.isRateLimited()) {
-              setError(null); // Clear the error if no longer rate limited
-            }
-          }, 2000);
-          
-          return;
-        }
-      }
       
       // Parse QR code data
       let qrCodeData: ScanData;
@@ -383,34 +344,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           }
         }
         
-        if (isCustomFormat) {
-          // Use the custom parsed data directly
-          qrCodeData = parsedData as ScanData;
-          debugLog('Using custom parsed data:', qrCodeData);
-        } else {
-          // Use the standard validation for JSON data
-          const validationResult = safeValidateQrCode(parsedData);
-          debugLog('Validation result:', validationResult);
-          
-          if (!validationResult.valid || !validationResult.data) {
-            console.error('Failed to parse QR code data:', validationResult.error);
-            playSound('error');
-            setError('Invalid QR code format');
-            debugLog('Invalid QR code format:', validationResult.error);
-            setTimeout(() => {
-              setProcessingCard(false);
-              setError(null); // Clear error after timeout
-            }, 2000);
-            return;
-          }
-          
-          // Convert StandardQrCodeData to ScanData with proper type casting
-          qrCodeData = {
-            ...validationResult.data,
-            type: validationResult.data.type,
-            customerId: validationResult.data.customerId,
-          } as unknown as ScanData;
-        }
+        // Use the parsed data directly
+        qrCodeData = {
+          ...parsedData,
+          type: parsedData.type || 'CUSTOMER_CARD',
+          customerId: parsedData.customerId || parsedData.id || '',
+        } as ScanData;
         
         debugLog('QR code data parsed successfully:', qrCodeData);
       } catch (parseError) {
@@ -443,6 +382,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
       // Process based on QR code type
       try {
+        debugLog(`Processing QR code with type: ${qrCodeData.type}`);
         switch (qrCodeData.type) {
           case 'CUSTOMER_CARD':
             await handleCustomerQrCode(qrCodeData);
@@ -573,10 +513,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             business_id: businessId.toString(),
             customer_id: qrCodeData.customerId.toString(),
             card_number: qrCodeData.cardNumber || 'unknown',
-            points_awarded: result.pointsAwarded || pointsToAward,
+            points_awarded: result.pointsAwarded || pointsToAward || 0,
             status: 'success',
             scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
-            program_id: programId?.toString(),
+            program_id: programId?.toString() || '',
             device_info: navigator.userAgent
           });
         } catch (logError) {
@@ -585,42 +525,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       } else {
         // Handle scan failure
-        throw new Error(result.message || 'Failed to process customer card');
-      }
-    } catch (apiError) {
-      console.error('API Error processing customer card:', apiError);
+        debugLog('Scan failed:', result.message);
       playSound('error');
-      
-      const errorMessage = apiError instanceof Error
-        ? apiError.message
-        : 'Failed to process customer card';
-      
-      setError(errorMessage);
-      
-      setTransactionConfirmationType('error');
-      setTransactionDetails({
-        type: 'error',
-        message: t('Failed to Award Points'),
-        details: errorMessage,
-      });
-      setShowTransactionConfirmation(true);
-      
-      // Log failed scan
-      try {
-        feedbackService.logScan({
-          timestamp: new Date().toISOString(),
-          type: 'customer_card',
-          business_id: businessId ? businessId.toString() : 'unknown',
-          customer_id: qrCodeData.customerId ? qrCodeData.customerId.toString() : 'unknown',
-          status: 'failed',
-          error: errorMessage
-        });
-      } catch (logError) {
-        // Non-critical error, just log it
-        console.error('Failed to log failed scan:', logError);
-      }
-      
+        setError(result.message || 'Failed to process customer card');
+        setTimeout(() => {
       setProcessingCard(false);
+          // Don't clear the error message here to ensure user sees it
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error in handleCustomerQrCode:', error);
+      playSound('error');
+      setError(error instanceof Error ? error.message : 'Failed to process customer card');
+      setTimeout(() => setProcessingCard(false), 2000);
     }
   };
   
