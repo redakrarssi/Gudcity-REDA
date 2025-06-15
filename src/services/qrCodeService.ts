@@ -1639,6 +1639,13 @@ export class QrCodeService {
           // Commit transaction
           await sql.commit();
           
+          // Invalidate customer dashboard queries to refresh the UI
+          import('../utils/queryClient').then(({ invalidateCustomerQueries }) => {
+            invalidateCustomerQueries(customerId);
+          }).catch(err => {
+            console.error('Failed to invalidate customer queries:', err);
+          });
+          
           // Send notification to customer - non-blocking
           try {
             this.sendScanNotification(

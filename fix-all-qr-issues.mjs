@@ -17,35 +17,100 @@ const pool = new Pool({
 });
 
 async function main() {
-  console.log('Starting QR Code Scanner Points System Fix');
+  console.log('Starting QR Code Scanner and Points System Fix');
   console.log('Database URL:', DATABASE_URL.replace(/postgres:\/\/.*?@/, 'postgres://****@'));
   
   try {
-    console.log('\n=== 1. Checking database tables ===');
+    console.log('\n=== 1. Checking program_enrollments table ===');
     
-    // Check customer_programs table structure
-    const customerProgramsColumns = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'customer_programs'
+    // Check if program_enrollments table exists
+    const programEnrollmentsExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'program_enrollments'
+      );
     `);
     
-    console.log(`Found ${customerProgramsColumns.rows.length} columns in customer_programs table`);
-    
-    // Check if status column exists in customer_programs table
-    const statusColumnExists = customerProgramsColumns.rows.some(
-      col => col.column_name === 'status'
-    );
-    
-    if (!statusColumnExists) {
-      console.log('Adding missing status column to customer_programs table...');
-      await pool.query(`
-        ALTER TABLE customer_programs 
-        ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'
+    if (programEnrollmentsExists.rows[0].exists) {
+      console.log('✅ program_enrollments table exists');
+      
+      // Check if status column exists in program_enrollments
+      const programEnrollmentsColumns = await pool.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'program_enrollments'
       `);
-      console.log('✅ Added status column to customer_programs table');
+      
+      const statusColumnExists = programEnrollmentsColumns.rows.some(
+        col => col.column_name === 'status'
+      );
+      
+      if (!statusColumnExists) {
+        console.log('Adding status column to program_enrollments table...');
+        await pool.query(`
+          ALTER TABLE program_enrollments 
+          ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'
+        `);
+        console.log('✅ Added status column to program_enrollments table');
+      } else {
+        console.log('✅ Status column already exists in program_enrollments table');
+      }
+      
+      // Check the customer_programs view definition
+      console.log('Checking customer_programs view definition...');
+      
+      // Drop and recreate the view to include the status column
+      await pool.query(`
+        DROP VIEW IF EXISTS customer_programs;
+        
+        CREATE OR REPLACE VIEW customer_programs AS
+        SELECT 
+          id,
+          customer_id,
+          program_id,
+          current_points,
+          status,
+          last_activity AS updated_at,
+          enrolled_at
+        FROM program_enrollments;
+      `);
+      
+      console.log('✅ Updated customer_programs view to include status column');
     } else {
-      console.log('✅ Status column already exists in customer_programs table');
+      console.log('Creating program_enrollments table...');
+      await pool.query(`
+        CREATE TABLE program_enrollments (
+          id SERIAL PRIMARY KEY,
+          customer_id VARCHAR(255) NOT NULL,
+          program_id INTEGER NOT NULL,
+          current_points INTEGER DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'ACTIVE',
+          last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX idx_program_enrollments_customer ON program_enrollments(customer_id);
+        CREATE INDEX idx_program_enrollments_program ON program_enrollments(program_id);
+        CREATE UNIQUE INDEX idx_program_enrollments_unique ON program_enrollments(customer_id, program_id);
+      `);
+      
+      console.log('✅ Created program_enrollments table');
+      
+      // Create the customer_programs view
+      await pool.query(`
+        CREATE OR REPLACE VIEW customer_programs AS
+        SELECT 
+          id,
+          customer_id,
+          program_id,
+          current_points,
+          status,
+          last_activity AS updated_at,
+          enrolled_at
+        FROM program_enrollments;
+      `);
+      
+      console.log('✅ Created customer_programs view');
     }
     
     // Check loyalty_cards table structure
@@ -200,21 +265,21 @@ async function main() {
       console.log('✅ Customer points table exists');
     }
 
-    // Create or update stored procedure to ensure customer_programs are updated when points are awarded
+    // Create or update stored procedure to ensure program_enrollments are updated when points are awarded
     console.log('\n=== 5. Creating points update trigger ===');
     
     await pool.query(`
       CREATE OR REPLACE FUNCTION update_customer_program_points()
       RETURNS TRIGGER AS $$
       BEGIN
-        -- Create the customer program enrollment if it doesn't exist
-        INSERT INTO customer_programs (customer_id, program_id, current_points, status, enrolled_at, updated_at)
-        VALUES (NEW.customer_id, NEW.program_id, NEW.points, 'ACTIVE', NOW(), NOW())
+        -- Create the program enrollment if it doesn't exist
+        INSERT INTO program_enrollments (customer_id, program_id, current_points, status, enrolled_at)
+        VALUES (NEW.customer_id, NEW.program_id, NEW.points, 'ACTIVE', NOW())
         ON CONFLICT (customer_id, program_id) 
         DO UPDATE SET 
-          current_points = customer_programs.current_points + NEW.points,
+          current_points = program_enrollments.current_points + NEW.points,
           status = 'ACTIVE',
-          updated_at = NOW();
+          last_activity = NOW();
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
@@ -273,67 +338,6 @@ async function main() {
       console.log('✅ Created qr_scan_logs table');
     } else {
       console.log('✅ QR scan logs table exists');
-    }
-    
-    // Check if program_enrollments table exists and has customer data
-    console.log('\n=== 7. Ensuring program enrollments are tracked correctly ===');
-    
-    // Check if both program_enrollments and customer_programs exist
-    const programEnrollmentsExists = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'program_enrollments'
-      );
-    `);
-    
-    const customerProgramsExists = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'customer_programs'
-      );
-    `);
-    
-    // If both tables exist, ensure data is synced between them
-    if (programEnrollmentsExists.rows[0].exists && customerProgramsExists.rows[0].exists) {
-      console.log('Both program_enrollments and customer_programs tables exist, syncing data...');
-      
-      // Add status column to program_enrollments if it doesn't exist
-      const programEnrollmentsColumns = await pool.query(`
-        SELECT column_name
-        FROM information_schema.columns 
-        WHERE table_name = 'program_enrollments'
-      `);
-      
-      const statusInProgramEnrollments = programEnrollmentsColumns.rows.some(
-        col => col.column_name === 'status'
-      );
-      
-      if (!statusInProgramEnrollments) {
-        await pool.query(`
-          ALTER TABLE program_enrollments 
-          ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'
-        `);
-        console.log('✅ Added status column to program_enrollments');
-      }
-      
-      // Copy data from program_enrollments to customer_programs
-      await pool.query(`
-        INSERT INTO customer_programs (
-          customer_id, program_id, current_points, status, enrolled_at
-        )
-        SELECT 
-          customer_id, program_id, 
-          COALESCE(current_points, 0) as current_points, 
-          COALESCE(status, 'ACTIVE') as status, 
-          COALESCE(enrolled_at, NOW()) as enrolled_at
-        FROM program_enrollments
-        ON CONFLICT (customer_id, program_id)
-        DO UPDATE SET
-          current_points = EXCLUDED.current_points,
-          status = EXCLUDED.status,
-          updated_at = NOW()
-      `);
-      console.log('✅ Synced data between program_enrollments and customer_programs');
     }
     
     console.log('\n=== All QR code and points system fixes completed ===');

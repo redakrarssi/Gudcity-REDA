@@ -414,6 +414,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
       // Save scan result first as a fallback
       setSuccessScan('Customer Card Scanned');
+      // Clear any previous error since the scan was valid
+      setError(null);
       
       // Make sure businessId is provided
       if (!businessId) {

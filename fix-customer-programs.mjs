@@ -60,6 +60,7 @@ async function main() {
             customer_id VARCHAR(255) NOT NULL,
             program_id INTEGER NOT NULL REFERENCES loyalty_programs(id) ON DELETE CASCADE,
             current_points INTEGER DEFAULT 0,
+            status VARCHAR(50) DEFAULT 'ACTIVE',
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );

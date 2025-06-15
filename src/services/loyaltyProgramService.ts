@@ -299,6 +299,17 @@ export class LoyaltyProgramService {
       `;
 
       if (existingEnrollmentResult.length > 0) {
+        // If enrollment exists but is inactive, reactivate it
+        if (existingEnrollmentResult[0].status === 'INACTIVE') {
+          await sql`
+            UPDATE customer_programs
+            SET status = 'ACTIVE', updated_at = NOW()
+            WHERE customer_id = ${parseInt(customerId)}
+            AND program_id = ${parseInt(programId)}
+          `;
+          return { success: true };
+        }
+        
         return { success: false, error: 'Customer is already enrolled in this program' };
       }
 
@@ -319,11 +330,13 @@ export class LoyaltyProgramService {
           customer_id,
           program_id,
           current_points,
+          status,
           enrolled_at
         ) VALUES (
           ${parseInt(customerId)},
           ${parseInt(programId)},
           0,
+          'ACTIVE',
           NOW()
         )
       `;
