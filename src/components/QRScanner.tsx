@@ -540,8 +540,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           type: 'reward',
           message: t('Points Awarded Successfully'),
           customerName: qrCodeData.customerName || t('Customer'),
-          businessName: result.businessName,
-          points: result.pointsAwarded,
+          businessName: result.businessName || t('Business'),
+          points: result.pointsAwarded || pointsToAward || 10,
           details: t('Card scan processed')
         });
         setShowTransactionConfirmation(true);
