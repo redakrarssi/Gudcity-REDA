@@ -1461,6 +1461,7 @@ export class QrCodeService {
     hasPromos?: boolean;
     businessName?: string;
   }> {
+    console.log('[QrCodeService] handleCustomerCardScan called with params:', params);
     try {
       const customerId = typeof params.customerId === 'string' 
         ? parseInt(params.customerId) 
@@ -1479,6 +1480,7 @@ export class QrCodeService {
 
       // Apply rate limiting to prevent abuse - using a more unique key including card number if available
       const rateLimitKey = `scan:${customerId}:${businessId}:${params.cardNumber || 'card'}`;
+      console.log('[QrCodeService] Checking rate limit for key:', rateLimitKey);
       if (rateLimiter.isRateLimited(rateLimitKey)) {
         console.warn(`Rate limited scan attempt: ${rateLimitKey}`);
         return {
@@ -1488,6 +1490,7 @@ export class QrCodeService {
       }
 
       // Track the scan attempt with shorter timeout to reduce false positives
+      console.log('[QrCodeService] Not rate limited, tracking event');
       rateLimiter.trackEvent(rateLimitKey, 30); // 30 second rate limit instead of default
 
       // Get business information with proper error handling
@@ -1549,33 +1552,50 @@ export class QrCodeService {
       let transactionAttempts = 0;
       const maxAttempts = 3;
       
+      console.log('[QrCodeService] Starting transaction to award points:', pointsToAward);
+      
       while (transactionAttempts < maxAttempts) {
         transactionAttempts++;
+        console.log(`[QrCodeService] Transaction attempt ${transactionAttempts}/${maxAttempts}`);
         
         // Begin transaction
         try {
+          console.log('[QrCodeService] Beginning SQL transaction');
           await sql.begin();
           
           // Award points to the customer
-          await sql`
-            INSERT INTO customer_points (
-              customer_id,
-              business_id,
-              program_id,
-              points,
-              source,
-              description,
-              created_at
-            ) VALUES (
-              ${customerId},
-              ${businessId},
-              ${programId || null},
-              ${pointsToAward},
-              'qr_scan',
-              'Points awarded for QR card scan',
-              NOW()
-            )
-          `;
+          console.log('[QrCodeService] Inserting points record:', {
+            customerId,
+            businessId,
+            programId: programId || null,
+            pointsToAward
+          });
+          
+          try {
+            await sql`
+              INSERT INTO customer_points (
+                customer_id,
+                business_id,
+                program_id,
+                points,
+                source,
+                description,
+                created_at
+              ) VALUES (
+                ${customerId},
+                ${businessId},
+                ${programId || null},
+                ${pointsToAward},
+                'qr_scan',
+                'Points awarded for QR card scan',
+                NOW()
+              )
+            `;
+            console.log('[QrCodeService] Points inserted successfully');
+          } catch (sqlError) {
+            console.error('[QrCodeService] SQL error inserting points:', sqlError);
+            throw sqlError;
+          }
           
           // Check if the customer is enrolled in the program if programId is provided
           let isEnrolled = false;
@@ -1637,13 +1657,22 @@ export class QrCodeService {
           );
           
           // Commit transaction
-          await sql.commit();
+          console.log('[QrCodeService] Committing transaction');
+          try {
+            await sql.commit();
+            console.log('[QrCodeService] Transaction committed successfully');
+          } catch (commitError) {
+            console.error('[QrCodeService] Error committing transaction:', commitError);
+            throw commitError;
+          }
           
           // Invalidate customer dashboard queries to refresh the UI
+          console.log('[QrCodeService] Invalidating customer queries for customer ID:', customerId);
           import('../utils/queryClient').then(({ invalidateCustomerQueries }) => {
             invalidateCustomerQueries(customerId);
+            console.log('[QrCodeService] Customer queries invalidated successfully');
           }).catch(err => {
-            console.error('Failed to invalidate customer queries:', err);
+            console.error('[QrCodeService] Failed to invalidate customer queries:', err);
           });
           
           // Send notification to customer - non-blocking

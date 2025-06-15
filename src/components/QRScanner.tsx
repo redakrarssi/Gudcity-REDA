@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button } from './ui/Button';
 import { QrCodeService } from '../services/qrCodeService';
 import { RewardModal } from './business/RewardModal';
 import { ProgramEnrollmentModal } from './business/ProgramEnrollmentModal';
@@ -35,6 +34,16 @@ interface ExtendedQrScanMonitor {
 
 // Cast the imported qrScanMonitor to the extended interface
 const extendedQrScanMonitor = qrScanMonitor as ExtendedQrScanMonitor;
+
+// Add debug flag for development mode
+const DEBUG_ENABLED = true;
+
+// Debug logging function
+function debugLog(...args: any[]) {
+  if (DEBUG_ENABLED) {
+    console.log('[QRScanner Debug]', ...args);
+  }
+}
 
 interface ScanData {
   type?: string;
@@ -273,6 +282,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   
   const handleQrCodeScan = async (decodedText: string) => {
     try {
+      debugLog('QR code scanned:', decodedText);
+      
       // Prevent scanning the same QR code multiple times in quick succession
       if (
         processingCard || 
@@ -280,6 +291,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         decodedText === lastScanRef.current ||
         !decodedText
       ) {
+        debugLog('Scan prevented:', { 
+          processingCard, 
+          rateLimited, 
+          isRepeatScan: decodedText === lastScanRef.current,
+          emptyCode: !decodedText 
+        });
         return;
       }
       
@@ -289,10 +306,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
       // Play scan sound
       playSound('scan');
+      debugLog('Processing scan, sound played');
       
       // Safety checks for scan monitor
       if (extendedQrScanMonitor && typeof extendedQrScanMonitor.trackScan === 'function') {
         extendedQrScanMonitor.trackScan();
+        debugLog('Tracked scan in monitor');
         
         if (extendedQrScanMonitor.isRateLimited()) {
           console.log('Rate limited by QR scan monitor');
@@ -300,6 +319,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           setRateLimitResetTime(extendedQrScanMonitor.getResetTime());
           playSound('error');
           setError('Scanning too quickly. Please wait a moment before scanning again.');
+          debugLog('Rate limited, showing error');
           
           // Start timer to clear rate limit
           if (rateLimitTimerRef.current) {
@@ -313,6 +333,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               setError(null); // Clear the error message when rate limit is lifted
               clearInterval(rateLimitTimerRef.current!);
               rateLimitTimerRef.current = null;
+              debugLog('Rate limit cleared');
             }
           }, 500); // Check more frequently
           
@@ -331,24 +352,72 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       let qrCodeData: ScanData;
       try {
         // Safely parse the QR code data
-        const validationResult = safeValidateQrCode(decodedText);
+        debugLog('Validating QR code data');
         
-        if (!validationResult.valid || !validationResult.data) {
-          console.error('Failed to parse QR code data:', validationResult.error);
-          playSound('error');
-          setError('Invalid QR code format');
-          setTimeout(() => {
-            setProcessingCard(false);
-            setError(null); // Clear error after timeout
-          }, 2000);
-          return;
+        // First, try to parse as JSON directly
+        let parsedData: any;
+        let isCustomFormat = false;
+        
+        try {
+          // Try to parse as JSON
+          parsedData = JSON.parse(decodedText);
+          debugLog('Successfully parsed QR code as JSON:', parsedData);
+        } catch (jsonError) {
+          debugLog('QR code is not valid JSON, trying custom format:', decodedText);
+          isCustomFormat = true;
+          
+          // If it's not JSON, check if it's a simple customer ID
+          if (/^\d+$/.test(decodedText)) {
+            debugLog('QR code appears to be a numeric customer ID');
+            parsedData = {
+              type: 'CUSTOMER_CARD',
+              customerId: decodedText,
+              qrUniqueId: `manual-${Date.now()}`,
+              timestamp: Date.now(),
+              version: '1.0'
+            };
+          } else {
+            // Try other formats or fail
+            debugLog('QR code is not a recognized format');
+            throw new Error('Unrecognized QR code format');
+          }
         }
         
-        qrCodeData = validationResult.data as ScanData;
+        if (isCustomFormat) {
+          // Use the custom parsed data directly
+          qrCodeData = parsedData as ScanData;
+          debugLog('Using custom parsed data:', qrCodeData);
+        } else {
+          // Use the standard validation for JSON data
+          const validationResult = safeValidateQrCode(parsedData);
+          debugLog('Validation result:', validationResult);
+          
+          if (!validationResult.valid || !validationResult.data) {
+            console.error('Failed to parse QR code data:', validationResult.error);
+            playSound('error');
+            setError('Invalid QR code format');
+            debugLog('Invalid QR code format:', validationResult.error);
+            setTimeout(() => {
+              setProcessingCard(false);
+              setError(null); // Clear error after timeout
+            }, 2000);
+            return;
+          }
+          
+          // Convert StandardQrCodeData to ScanData with proper type casting
+          qrCodeData = {
+            ...validationResult.data,
+            type: validationResult.data.type,
+            customerId: validationResult.data.customerId,
+          } as unknown as ScanData;
+        }
+        
+        debugLog('QR code data parsed successfully:', qrCodeData);
       } catch (parseError) {
         console.error('Failed to parse QR code data:', parseError);
         playSound('error');
         setError('Invalid QR code format');
+        debugLog('Error parsing QR code:', parseError);
         setTimeout(() => {
           setProcessingCard(false);
           setError(null); // Clear error after timeout
@@ -420,6 +489,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   
   const handleCustomerQrCode = async (qrCodeData: ScanData) => {
     try {
+      debugLog('Processing customer QR code:', qrCodeData);
+      
       // Validate minimum required data
       if (!qrCodeData.customerId) {
         throw new Error('Invalid customer QR code: Missing customer ID');
@@ -432,6 +503,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
       // Make sure businessId is provided
       if (!businessId) {
+        debugLog('Missing business ID for scan');
         throw new Error('Missing business ID for scan');
       }
       
@@ -444,8 +516,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         pointsToAward: pointsToAward
       };
       
+      debugLog('Calling handleCustomerCardScan with data:', scanData);
+      
       // Use specific method for customer card scanning from QrCodeService
       const result = await QrCodeService.handleCustomerCardScan(scanData);
+      debugLog('Customer card scan result:', result);
       
       // If successful, show a brief success message then offer rewards option
       if (result.success) {
@@ -678,6 +753,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   };
   
   const toggleScanner = () => {
+    debugLog('Toggle scanner called, current state:', isScanning);
     if (isScanning) {
       stopScanning();
     } else {
