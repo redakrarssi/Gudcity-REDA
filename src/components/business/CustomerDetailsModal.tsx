@@ -13,6 +13,7 @@ import {
   MinusCircle,
   Tag,
   BadgeCheck,
+  Loader,
 } from 'lucide-react';
 import { CustomerService } from '../../services/customerService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
@@ -48,25 +49,49 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   const [activeAction, setActiveAction] = useState<'join'|'credit'|'promo'|'deduct'|null>(null);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loadAttempts, setLoadAttempts] = useState(0);
 
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+      setActiveAction(null);
+      setLoadAttempts(0);
+    }
+  }, [isOpen]);
+
+  // Load customer data when modal opens
   useEffect(() => {
     if (isOpen && customerId) {
+      console.log('CustomerDetailsModal: Loading data for customer', customerId);
       loadCustomerData();
       loadPrograms();
     }
   }, [isOpen, customerId, businessId]);
 
   const loadCustomerData = async () => {
+    if (!customerId || customerId === '') {
+      setError('Invalid customer ID');
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
+      console.log('CustomerDetailsModal: Loading customer data for ID:', customerId);
+      
       // If we have initial data from the scan, use it first
       if (initialData && initialData.name) {
+        console.log('CustomerDetailsModal: Using initial data:', initialData);
         setCustomer({
           id: customerId,
-          name: initialData.name,
+          name: initialData.name || 'Customer',
           email: initialData.email || '',
+          phone: initialData.phone || '',
           tier: initialData.tier || 'STANDARD',
           loyaltyPoints: initialData.points || 0,
           totalSpent: initialData.totalSpent || 0,
@@ -78,14 +103,25 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
 
       // Then load full customer details
       const customerData = await CustomerService.getCustomerById(customerId);
+      console.log('CustomerDetailsModal: Customer data loaded:', customerData);
+      
       if (customerData) {
         setCustomer(customerData);
-      } else if (!initialData) {
+      } else if (!initialData || !initialData.name) {
+        // Only show error if we don't have initial data
         setError('Customer not found');
       }
     } catch (err) {
       console.error('Error loading customer data:', err);
       setError('Error loading customer data');
+      
+      // Retry loading if we have initial data but failed to get full details
+      if (initialData && loadAttempts < 2) {
+        setTimeout(() => {
+          setLoadAttempts(prev => prev + 1);
+          loadCustomerData();
+        }, 1000);
+      }
     } finally {
       setLoading(false);
     }
@@ -93,13 +129,17 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
 
   const loadPrograms = async () => {
     try {
+      console.log('CustomerDetailsModal: Loading programs for business', businessId);
       const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
+      console.log('CustomerDetailsModal: Programs loaded:', businessPrograms);
+      
       setPrograms(businessPrograms);
       if (businessPrograms.length > 0) {
         setSelectedProgramId(businessPrograms[0].id);
       }
     } catch (err) {
       console.error('Error loading programs:', err);
+      // Don't set error state as this is not critical
     }
   };
 
@@ -114,6 +154,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     setSuccess(null);
     
     try {
+      console.log('CustomerDetailsModal: Enrolling customer in program:', selectedProgramId);
       const result = await LoyaltyProgramService.enrollCustomer(customerId, selectedProgramId);
       
       if (result.success) {
@@ -149,8 +190,8 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     setSuccess(null);
     
     try {
+      console.log('CustomerDetailsModal: Adding points:', pointsToAdd);
       // Add points transaction
-      // Note: In a real implementation, we'd use a transaction service
       await CustomerService.recordCustomerInteraction(
         customerId,
         businessId,
@@ -176,8 +217,8 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     setSuccess(null);
     
     try {
+      console.log('CustomerDetailsModal: Deducting points:', pointsToDeduct);
       // Add points transaction
-      // Note: In a real implementation, we'd use a transaction service
       await CustomerService.recordCustomerInteraction(
         customerId,
         businessId,
@@ -205,6 +246,12 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     try {
       const description = promoDesc || 
         `Special promo code for ${customer?.name}`;
+      
+      console.log('CustomerDetailsModal: Generating promo code:', { 
+        businessId, 
+        value: promoValue,
+        description 
+      });
       
       // Generate a unique promo code
       const result = await PromoService.generateCode(
@@ -270,8 +317,9 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
           {loading ? (
-            <div className="flex justify-center items-center py-10">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="flex flex-col justify-center items-center py-10">
+              <Loader className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+              <p className="text-blue-500">Loading customer details...</p>
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center">

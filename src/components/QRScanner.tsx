@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { QrCodeService } from '../services/qrCodeService';
 import { RewardModal } from './business/RewardModal';
@@ -455,8 +455,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const customerIdStr = String(qrCodeData.customerId);
       const businessIdStr = String(businessId);
       
-      // Convert programId to string or null (not undefined)
-      const programIdValue = programId ? String(programId) : null;
+      // Convert programId to string or undefined (not null)
+      const programIdValue = programId ? String(programId) : undefined;
       
       // Use specific method for customer card scanning from QrCodeService
       const result = await QrCodeService.handleCustomerCardScan({
@@ -496,7 +496,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         // Show customer details modal with action options
         setTimeout(() => {
           setShowCustomerDetailsModal(true);
-        }, 1500);
+          setProcessingCard(false);
+        }, 2000);
         
         // Log scan for analytics with all available details
         try {
@@ -510,7 +511,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             points_awarded: result.pointsAwarded || pointsToAward || 0,
             status: 'success',
             scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
-            program_id: programIdValue || '',
+            program_id: programIdValue ? programIdValue : '',
             device_info: navigator.userAgent
           });
         } catch (logError) {
@@ -946,7 +947,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                 <Zap className="w-4 h-4 mr-1 text-amber-500" />
                 {t('Quick Actions')}:
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <button
+                  onClick={() => setShowCustomerDetailsModal(true)}
+                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  {t('Show Customer Details')}
+                </button>
                 <button
                   onClick={handleGiveReward}
                   className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
