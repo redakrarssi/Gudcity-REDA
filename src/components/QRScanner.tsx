@@ -310,12 +310,19 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             if (extendedQrScanMonitor && !extendedQrScanMonitor.isRateLimited()) {
               setRateLimited(false);
               setRateLimitResetTime(null);
+              setError(null); // Clear the error message when rate limit is lifted
               clearInterval(rateLimitTimerRef.current!);
               rateLimitTimerRef.current = null;
             }
-          }, 1000);
+          }, 500); // Check more frequently
           
-          setTimeout(() => setProcessingCard(false), 2000);
+          setTimeout(() => {
+            setProcessingCard(false);
+            if (!extendedQrScanMonitor.isRateLimited()) {
+              setError(null); // Clear the error if no longer rate limited
+            }
+          }, 2000);
+          
           return;
         }
       }
@@ -330,7 +337,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           console.error('Failed to parse QR code data:', validationResult.error);
           playSound('error');
           setError('Invalid QR code format');
-          setTimeout(() => setProcessingCard(false), 2000);
+          setTimeout(() => {
+            setProcessingCard(false);
+            setError(null); // Clear error after timeout
+          }, 2000);
           return;
         }
         
@@ -339,7 +349,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         console.error('Failed to parse QR code data:', parseError);
         playSound('error');
         setError('Invalid QR code format');
-        setTimeout(() => setProcessingCard(false), 2000);
+        setTimeout(() => {
+          setProcessingCard(false);
+          setError(null); // Clear error after timeout
+        }, 2000);
         return;
       }
       
@@ -438,6 +451,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       if (result.success) {
         // Play success sound
         playSound('success');
+        
+        // Clear any previous errors and reset rate limiting state
+        setError(null);
+        setRateLimited(false);
         
         // Show success notification
         setSuccessScan(`Successfully scanned ${qrCodeData.customerName || 'customer'}'s card`);
@@ -565,6 +582,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         console.log('Loyalty card scan successful:', result);
         playSound('success');
         
+        // Clear any previous errors and reset rate limiting state
+        setError(null);
+        setRateLimited(false);
+        
         // Set scan result details for UI
         setLastResult({
           type: 'loyalty_card',
@@ -624,6 +645,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         // Success - play sound and show success UI
         console.log('Promo code scan successful:', result);
         playSound('success');
+        
+        // Clear any previous errors and reset rate limiting state
+        setError(null);
+        setRateLimited(false);
         
         // Set scan result details for UI
         setLastResult({

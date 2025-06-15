@@ -175,7 +175,7 @@ class QrScanMonitor {
   private recentSuccessfulScans: { timestamp: string; qrType: string; data: any }[] = [];
   private recentFailedScans: { timestamp: string; error: string; rawData?: string; parsedData?: any }[] = [];
   private lastScanTime: number = 0;
-  private rateLimitWindowMs = 1000; // 1 second rate limit window
+  private rateLimitWindowMs = 2000; // 2 seconds rate limit window
   
   /**
    * Records a successful QR code scan
