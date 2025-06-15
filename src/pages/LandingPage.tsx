@@ -103,6 +103,9 @@ const LandingPage = () => {
               <p className="text-sm text-gray-500">
                 &copy; {new Date().getFullYear()} GudCity. {safeT('All rights reserved.', 'All rights reserved.')}
               </p>
+              <p className="text-xs text-gray-400 mt-1">
+                gudcity 1;
+              </p>
             </div>
             <div className="flex space-x-6">
               <Link to="/pricing" className="text-sm text-gray-500 hover:text-gray-700">
