@@ -515,9 +515,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             data: {
               ...prev.data,
               pointsAwarded: result.pointsAwarded || pointsToAward || 0,
-              businessName: result.businessName,
-              isEnrolled: result.isEnrolled,
-              hasPromos: result.hasPromos
+              businessName: result.businessName || '',
+              isEnrolled: result.isEnrolled || false,
+              hasPromos: result.hasPromos || false,
+              name: qrCodeData.customerName || 'Customer' // Ensure name is set for display
             }
           };
         });
@@ -527,26 +528,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           onScan({
             type: 'customer_card',
             data: {
-              customerId: customerIdStr,
+                              customerId: customerIdStr,
               customerName: qrCodeData.customerName || 'Customer',
               cardNumber: qrCodeData.cardNumber || '',
               type: 'customer_card',
               pointsAwarded: result.pointsAwarded || pointsToAward || 0,
-              businessName: result.businessName,
-              isEnrolled: result.isEnrolled,
-              hasPromos: result.hasPromos
+              businessName: result.businessName || '',
+              isEnrolled: result.isEnrolled || false,
+              hasPromos: result.hasPromos || false,
+              name: qrCodeData.customerName || 'Customer' // Ensure name is set for display
             },
             timestamp: new Date().toISOString(),
             raw: qrCodeData.text || JSON.stringify(qrCodeData)
           });
         }
         
-        // Show customer details modal with action options
+        // IMPORTANT: Show customer details modal with action options
         setTimeout(() => {
           setSelectedCustomerId(customerIdStr);
           setShowCustomerDetailsModal(true);
           setProcessingCard(false);
-        }, 1000);
+        }, 1500); // Slightly longer delay to ensure transaction confirmation is seen first
         
         // Log scan for analytics with all available details
         try {

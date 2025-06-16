@@ -682,6 +682,11 @@ const QrScannerPage = () => {
             </div>
           </div>
         </div>
+        
+        {/* Version footer */}
+        <div className="text-center mt-8 mb-2">
+          <p className="text-xs text-gray-400">gudcity 9</p>
+        </div>
       </div>
 
       {/* Modal Components */}

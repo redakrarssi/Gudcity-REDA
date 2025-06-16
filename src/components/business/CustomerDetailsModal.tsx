@@ -50,6 +50,9 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [loadAttempts, setLoadAttempts] = useState(0);
+  const [secretPromos, setSecretPromos] = useState<any[]>([]);
+  const [selectedSecretPromo, setSelectedSecretPromo] = useState<string>('');
+  const [loadingPromos, setLoadingPromos] = useState(false);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -59,8 +62,13 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       setSuccess(null);
       setActiveAction(null);
       setLoadAttempts(0);
+      
+      // Show Join Program action by default if customer not enrolled
+      if (initialData && initialData.isEnrolled !== undefined && initialData.isEnrolled === false) {
+        setActiveAction('join');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   // Load customer data when modal opens
   useEffect(() => {
@@ -68,6 +76,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       console.log('CustomerDetailsModal: Loading data for customer', customerId);
       loadCustomerData();
       loadPrograms();
+      loadSecretPromos();
     }
   }, [isOpen, customerId, businessId]);
 
@@ -140,6 +149,28 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     } catch (err) {
       console.error('Error loading programs:', err);
       // Don't set error state as this is not critical
+    }
+  };
+
+  const loadSecretPromos = async () => {
+    try {
+      setLoadingPromos(true);
+      console.log('CustomerDetailsModal: Loading secret promos for business', businessId);
+      const { codes } = await PromoService.getBusinessCodes(businessId);
+      console.log('CustomerDetailsModal: Secret promos loaded:', codes);
+      
+      // Filter to only active promos
+      const activePromos = codes.filter(promo => promo.status === 'ACTIVE');
+      setSecretPromos(activePromos);
+      
+      if (activePromos.length > 0) {
+        setSelectedSecretPromo(activePromos[0].id);
+      }
+    } catch (err) {
+      console.error('Error loading secret promos:', err);
+      // Don't set error state as this is not critical
+    } finally {
+      setLoadingPromos(false);
     }
   };
 
@@ -286,6 +317,41 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     }
   };
 
+  const handleAssignSecretPromo = async () => {
+    if (!selectedSecretPromo) {
+      setError('Please select a promotion');
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const selectedPromo = secretPromos.find(promo => promo.id === selectedSecretPromo);
+      if (!selectedPromo) {
+        throw new Error('Selected promotion not found');
+      }
+      
+      console.log('CustomerDetailsModal: Assigning secret promo:', selectedPromo);
+      
+      // Record customer interaction for the secret promo
+      await CustomerService.recordCustomerInteraction(
+        customerId,
+        businessId,
+        'SECRET_PROMO_ASSIGNED',
+        `Assigned secret promo: ${selectedPromo.name || selectedPromo.code} (${selectedPromo.value}% discount)`
+      );
+      
+      setSuccess(`Successfully assigned promo code: ${selectedPromo.code}`);
+    } catch (err) {
+      console.error('Error assigning secret promo:', err);
+      setError('Error assigning secret promo');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -418,35 +484,44 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                     Join Program
                   </h4>
                   
-                  <div className="mb-4">
-                    <label htmlFor="program" className="block text-sm font-medium text-blue-800 mb-1">
-                      Select Program
-                    </label>
-                    <select
-                      id="program"
-                      className="w-full border border-blue-300 rounded-lg px-3 py-2"
-                      value={selectedProgramId}
-                      onChange={(e) => setSelectedProgramId(e.target.value)}
-                      disabled={processing}
-                    >
-                      <option value="">Select a program...</option>
-                      {programs.map(program => (
-                        <option key={program.id} value={program.id}>
-                          {program.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleJoinProgram}
-                      disabled={processing || !selectedProgramId}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
-                    >
-                      {processing ? 'Processing...' : 'Join Program'}
-                    </button>
-                  </div>
+                  {programs.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-gray-500">No loyalty programs available.</p>
+                      <p className="text-sm text-gray-400 mt-1">Create programs in the business dashboard first.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-4">
+                        <label htmlFor="program" className="block text-sm font-medium text-blue-800 mb-1">
+                          Select Program
+                        </label>
+                        <select
+                          id="program"
+                          className="w-full border border-blue-300 rounded-lg px-3 py-2"
+                          value={selectedProgramId}
+                          onChange={(e) => setSelectedProgramId(e.target.value)}
+                          disabled={processing}
+                        >
+                          <option value="">Select a program...</option>
+                          {programs.map(program => (
+                            <option key={program.id} value={program.id}>
+                              {program.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleJoinProgram}
+                          disabled={processing || !selectedProgramId}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+                        >
+                          {processing ? 'Processing...' : 'Join Program'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -491,45 +566,107 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                     Create Special Promo Code
                   </h4>
                   
-                  <div className="mb-4">
-                    <label htmlFor="value" className="block text-sm font-medium text-amber-800 mb-1">
-                      Discount Percentage
-                    </label>
-                    <input
-                      id="value"
-                      type="number"
-                      min="1"
-                      max="100"
-                      className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                      value={promoValue}
-                      onChange={(e) => setPromoValue(Number(e.target.value))}
-                      disabled={processing}
-                    />
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label htmlFor="description" className="block text-sm font-medium text-amber-800 mb-1">
-                      Description (Optional)
-                    </label>
-                    <input
-                      id="description"
-                      type="text"
-                      className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                      value={promoDesc}
-                      onChange={(e) => setPromoDesc(e.target.value)}
-                      placeholder={`Special promo for ${customer?.name}`}
-                      disabled={processing}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleGeneratePromoCode}
-                      disabled={processing || promoValue <= 0 || promoValue > 100}
-                      className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:bg-amber-300"
-                    >
-                      {processing ? 'Processing...' : 'Generate Promo Code'}
-                    </button>
+                  <div className="space-y-4">
+                    {/* Unique Promo Code Option */}
+                    <div className="p-4 bg-white border border-amber-100 rounded-lg mb-4">
+                      <h5 className="font-medium text-amber-700 mb-2 flex items-center">
+                        <Gift className="w-4 h-4 mr-2" />
+                        Generate Unique Promotion
+                      </h5>
+                      
+                      <div className="mb-4">
+                        <label htmlFor="value" className="block text-sm font-medium text-amber-800 mb-1">
+                          Discount Percentage
+                        </label>
+                        <input
+                          id="value"
+                          type="number"
+                          min="1"
+                          max="100"
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
+                          value={promoValue}
+                          onChange={(e) => setPromoValue(Number(e.target.value))}
+                          disabled={processing}
+                        />
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label htmlFor="description" className="block text-sm font-medium text-amber-800 mb-1">
+                          Description (Optional)
+                        </label>
+                        <input
+                          id="description"
+                          type="text"
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
+                          value={promoDesc}
+                          onChange={(e) => setPromoDesc(e.target.value)}
+                          placeholder={`Special promo for ${customer?.name}`}
+                          disabled={processing}
+                        />
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleGeneratePromoCode}
+                          disabled={processing || promoValue <= 0 || promoValue > 100}
+                          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:bg-amber-300"
+                        >
+                          {processing ? 'Processing...' : 'Generate Promo Code'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Existing Secret Promos Option */}
+                    <div className="p-4 bg-white border border-amber-100 rounded-lg">
+                      <h5 className="font-medium text-amber-700 mb-2 flex items-center">
+                        <BadgeCheck className="w-4 h-4 mr-2" />
+                        Assign Secret Promotion
+                      </h5>
+                      
+                      {loadingPromos ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader className="w-5 h-5 text-amber-500 animate-spin mr-2" />
+                          <span className="text-amber-500 text-sm">Loading secret promotions...</span>
+                        </div>
+                      ) : secretPromos.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500">No secret promotions available.</p>
+                          <p className="text-sm text-gray-400 mt-1">Create promotions in the business dashboard first.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="mb-4">
+                            <label htmlFor="secret-promo" className="block text-sm font-medium text-amber-800 mb-1">
+                              Select Secret Promotion
+                            </label>
+                            <select
+                              id="secret-promo"
+                              className="w-full border border-amber-300 rounded-lg px-3 py-2"
+                              value={selectedSecretPromo}
+                              onChange={(e) => setSelectedSecretPromo(e.target.value)}
+                              disabled={processing}
+                            >
+                              <option value="">Select a promotion...</option>
+                              {secretPromos.map(promo => (
+                                <option key={promo.id} value={promo.id}>
+                                  {promo.name || promo.code} ({promo.value}% discount)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div className="flex justify-end">
+                            <button
+                              onClick={handleAssignSecretPromo}
+                              disabled={processing || !selectedSecretPromo}
+                              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:bg-amber-300"
+                            >
+                              {processing ? 'Processing...' : 'Assign Promotion'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -556,10 +693,17 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                     />
                   </div>
                   
+                  {customer && customer.loyaltyPoints < pointsToDeduct && (
+                    <div className="mb-4 p-2 bg-red-50 border border-red-100 rounded text-red-600 text-sm">
+                      <AlertCircle className="w-4 h-4 inline mr-1" />
+                      Customer only has {customer.loyaltyPoints} points available.
+                    </div>
+                  )}
+                  
                   <div className="flex justify-end">
                     <button
                       onClick={handleDeductCredit}
-                      disabled={processing || pointsToDeduct <= 0}
+                      disabled={processing || pointsToDeduct <= 0 || (customer && customer.loyaltyPoints < pointsToDeduct)}
                       className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-300"
                     >
                       {processing ? 'Processing...' : 'Use Points'}
