@@ -126,9 +126,7 @@ const QrScannerPage = () => {
     // If it's a customer card scan, show the customer details modal
     if (result.type === 'customer_card' && result.data && result.data.customerId) {
       console.log('Opening customer details modal for customer:', result.data.customerId);
-      setTimeout(() => {
-        setShowCustomerDetailsModal(true);
-      }, 1000);
+      setShowCustomerDetailsModal(true);
     }
   };
 

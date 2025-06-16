@@ -368,6 +368,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }, 2000);
         return;
       }
+
+      // CRITICAL FIX: Ensure we have a customer ID - this might be the issue
+      if (!qrCodeData.customerId && qrCodeData.id) {
+        qrCodeData.customerId = qrCodeData.id;
+      }
       
       // Check if QR code has required type
       if (!qrCodeData.type) {
@@ -464,8 +469,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         type: 'customer_card',
         data: {
           customerId: customerIdStr,
-          customerName: qrCodeData.customerName || 'Customer',
-          name: qrCodeData.customerName || 'Customer',
+          customerName: qrCodeData.customerName || qrCodeData.name || 'Customer',
+          name: qrCodeData.customerName || qrCodeData.name || 'Customer',
           cardNumber: qrCodeData.cardNumber || '',
           type: 'customer_card',
           // Add additional customer fields to ensure data is available
@@ -473,12 +478,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           phone: qrCodeData.phone || '',
           tier: qrCodeData.tier || 'STANDARD',
           points: qrCodeData.points || 0,
-          loyaltyPoints: qrCodeData.points || 0,
+          loyaltyPoints: qrCodeData.points || qrCodeData.loyaltyPoints || 0,
           visits: qrCodeData.visits || 0
         },
         timestamp: new Date().toISOString(),
         raw: qrCodeData.text || JSON.stringify(qrCodeData)
       });
+      
+      // CRITICAL FIX: Save selected customer ID for the modal
+      setSelectedCustomerId(customerIdStr);
       
       // Use specific method for customer card scanning from QrCodeService
       const result = await QrCodeService.handleCustomerCardScan({
@@ -501,24 +509,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setRateLimited(false);
         
         // Show success notification
-        setSuccessScan(`Successfully scanned ${qrCodeData.customerName || 'customer'}'s card`);
+        setSuccessScan(`Successfully scanned ${qrCodeData.customerName || qrCodeData.name || 'customer'}'s card`);
         
         // Show the transaction confirmation
         setTransactionConfirmationType('success');
         setTransactionDetails({
           type: 'reward',
           message: `${result.pointsAwarded} points awarded!`,
-          details: `You've successfully awarded points to ${qrCodeData.customerName || 'the customer'}.`,
+          details: `You've successfully awarded points to ${qrCodeData.customerName || qrCodeData.name || 'the customer'}.`,
           points: result.pointsAwarded,
-          customerName: qrCodeData.customerName,
+          customerName: (qrCodeData.customerName || qrCodeData.name || 'Customer') as string,
           businessName: result.businessName
         });
+        
+        // CRITICAL FIX: Only set the transaction confirmation flag after successful scan
         setShowTransactionConfirmation(true);
         
-        // Save customer ID for modal reference
-        setSelectedCustomerId(customerIdStr);
-        
-        // CRITICAL FIX: Show customer details modal immediately without any timeout
+        // CRITICAL FIX: Show customer details modal immediately
         setShowCustomerDetailsModal(true);
         debugLog('Showing customer details modal IMMEDIATELY after successful scan');
         
@@ -528,7 +535,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             type: 'customer_card',
             data: {
               customerId: customerIdStr,
-              name: qrCodeData.customerName || 'Customer',
+              name: qrCodeData.customerName || qrCodeData.name || 'Customer',
               // Include all customer data that might be needed by parent
               ...qrCodeData,
               ...result,
@@ -538,6 +545,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             raw: qrCodeData.text || JSON.stringify(qrCodeData)
           };
           
+          // CRITICAL FIX: Make sure to call onScan to notify parent component
           onScan(scanResult);
         }
       } else {
@@ -573,10 +581,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       playSound('error');
       setError('Error processing customer card');
     } finally {
-      // Add a delay before allowing another scan to prevent accidental double scans
+      // CRITICAL FIX: Allow QR scanning even if we've had an error
       setTimeout(() => {
         setProcessingCard(false);
-      }, 2000);
+      }, 1000); // Shorter delay to improve scanning responsiveness
     }
   };
   
@@ -602,7 +610,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         qrCodeData,
         {
           customerId: String(qrCodeData.customerId),
-          programId: qrCodeData.programId || programId,
+          programId: qrCodeData.programId ? String(qrCodeData.programId) : programId ? String(programId) : undefined,
           pointsToAward: pointsToAward
         }
       );
@@ -621,9 +629,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setLastResult({
           type: 'loyalty_card',
           data: {
-            customerId: qrCodeData.customerId,
-            cardId: qrCodeData.cardId,
-            cardNumber: qrCodeData.cardNumber,
+            customerId: String(qrCodeData.customerId),
+            cardId: String(qrCodeData.cardId),
+            cardNumber: qrCodeData.cardNumber || '',
             type: 'loyalty_card'
           },
           timestamp: new Date().toISOString(),
@@ -685,7 +693,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setLastResult({
           type: 'promo_code',
           data: {
-            code: qrCodeData.code,
+            code: String(qrCodeData.code),
             type: 'promo_code'
           },
           timestamp: new Date().toISOString(),
