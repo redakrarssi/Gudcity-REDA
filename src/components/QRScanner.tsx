@@ -476,9 +476,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const result = await QrCodeService.handleCustomerCardScan({
         customerId: customerIdStr,
         businessId: businessIdStr,
-        programId: programIdValue,
+        programId: programIdValue || '',
         cardNumber: qrCodeData.cardNumber || '',
-        pointsToAward
+        pointsToAward: pointsToAward || 0
       });
       
       debugLog('Customer card scan result:', result);
@@ -528,7 +528,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           onScan({
             type: 'customer_card',
             data: {
-                              customerId: customerIdStr,
+              customerId: customerIdStr,
               customerName: qrCodeData.customerName || 'Customer',
               cardNumber: qrCodeData.cardNumber || '',
               type: 'customer_card',
@@ -536,19 +536,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               businessName: result.businessName || '',
               isEnrolled: result.isEnrolled || false,
               hasPromos: result.hasPromos || false,
-              name: qrCodeData.customerName || 'Customer' // Ensure name is set for display
+              name: qrCodeData.customerName || 'Customer', // Ensure name is set for display
+              points: 0, // Will be loaded in the modal
+              email: '',
+              phone: '',
+              tier: 'STANDARD',
+              joinedAt: new Date().toISOString()
             },
             timestamp: new Date().toISOString(),
             raw: qrCodeData.text || JSON.stringify(qrCodeData)
           });
+          
+          // Log that we've sent the scan data to parent
+          debugLog('Sent customer card scan data to parent component');
         }
         
         // IMPORTANT: Show customer details modal with action options
         setTimeout(() => {
+          debugLog('Showing customer details modal for customer ID:', customerIdStr);
           setSelectedCustomerId(customerIdStr);
           setShowCustomerDetailsModal(true);
           setProcessingCard(false);
-        }, 1500); // Slightly longer delay to ensure transaction confirmation is seen first
+        }, 1000); // Short delay to ensure transaction confirmation is seen
         
         // Log scan for analytics with all available details
         try {

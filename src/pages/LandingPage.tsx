@@ -104,7 +104,7 @@ const LandingPage = () => {
                 &copy; {new Date().getFullYear()} GudCity. {safeT('All rights reserved.', 'All rights reserved.')}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                gudcity 9
+                gudcity 10
               </p>
             </div>
             <div className="flex space-x-6">

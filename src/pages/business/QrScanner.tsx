@@ -122,6 +122,14 @@ const QrScannerPage = () => {
     
     // Play success sound
     playSuccessSound();
+    
+    // If it's a customer card scan, show the customer details modal
+    if (result.type === 'customer_card' && result.data && result.data.customerId) {
+      console.log('Opening customer details modal for customer:', result.data.customerId);
+      setTimeout(() => {
+        setShowCustomerDetailsModal(true);
+      }, 1000);
+    }
   };
 
   const playSuccessSound = () => {
@@ -685,7 +693,7 @@ const QrScannerPage = () => {
         
         {/* Version footer */}
         <div className="text-center mt-8 mb-2">
-          <p className="text-xs text-gray-400">gudcity 9</p>
+          <p className="text-xs text-gray-400">gudcity 10</p>
         </div>
       </div>
 
