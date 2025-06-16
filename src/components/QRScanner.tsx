@@ -459,14 +459,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Convert programId to string (not null or undefined)
       const programIdValue = programId ? String(programId) : '';
       
-      // Set last result data for use in the modal
+      // Set last result data for use in the modal with enhanced customer info
       setLastResult({
         type: 'customer_card',
         data: {
           customerId: customerIdStr,
           customerName: qrCodeData.customerName || 'Customer',
+          name: qrCodeData.customerName || 'Customer',
           cardNumber: qrCodeData.cardNumber || '',
-          type: 'customer_card'
+          type: 'customer_card',
+          // Add additional customer fields to ensure data is available
+          email: qrCodeData.email || '',
+          phone: qrCodeData.phone || '',
+          tier: qrCodeData.tier || 'STANDARD',
+          points: qrCodeData.points || 0,
+          loyaltyPoints: qrCodeData.points || 0,
+          visits: qrCodeData.visits || 0
         },
         timestamp: new Date().toISOString(),
         raw: qrCodeData.text || JSON.stringify(qrCodeData)
@@ -499,100 +507,76 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setTransactionConfirmationType('success');
         setTransactionDetails({
           type: 'reward',
-          message: t('Customer Card Scanned'),
-          customerName: qrCodeData.customerName || t('Customer'),
-          businessName: result.businessName || t('Business'),
-          points: result.pointsAwarded || pointsToAward || 10,
-          details: t('Card scan processed')
+          message: `${result.pointsAwarded} points awarded!`,
+          details: `You've successfully awarded points to ${qrCodeData.customerName || 'the customer'}.`,
+          points: result.pointsAwarded,
+          customerName: qrCodeData.customerName,
+          businessName: result.businessName
         });
         setShowTransactionConfirmation(true);
         
-        // Update last result with additional data from the scan result
-        setLastResult(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            data: {
-              ...prev.data,
-              pointsAwarded: result.pointsAwarded || pointsToAward || 0,
-              businessName: result.businessName || '',
-              isEnrolled: result.isEnrolled || false,
-              hasPromos: result.hasPromos || false,
-              name: qrCodeData.customerName || 'Customer' // Ensure name is set for display
-            }
-          };
-        });
+        // Save customer ID for modal reference
+        setSelectedCustomerId(customerIdStr);
         
-        // Notify parent component via onScan callback
+        // CRITICAL FIX: Show customer details modal immediately without any timeout
+        setShowCustomerDetailsModal(true);
+        debugLog('Showing customer details modal IMMEDIATELY after successful scan');
+        
+        // Call the onScan callback with the result
         if (onScan) {
-          onScan({
+          const scanResult: ScanResult = {
             type: 'customer_card',
             data: {
               customerId: customerIdStr,
-              customerName: qrCodeData.customerName || 'Customer',
-              cardNumber: qrCodeData.cardNumber || '',
-              type: 'customer_card',
-              pointsAwarded: result.pointsAwarded || pointsToAward || 0,
-              businessName: result.businessName || '',
-              isEnrolled: result.isEnrolled || false,
-              hasPromos: result.hasPromos || false,
-              name: qrCodeData.customerName || 'Customer', // Ensure name is set for display
-              points: 0, // Will be loaded in the modal
-              email: '',
-              phone: '',
-              tier: 'STANDARD',
-              joinedAt: new Date().toISOString()
+              name: qrCodeData.customerName || 'Customer',
+              // Include all customer data that might be needed by parent
+              ...qrCodeData,
+              ...result,
+              pointsAwarded: result.pointsAwarded || 0
             },
             timestamp: new Date().toISOString(),
             raw: qrCodeData.text || JSON.stringify(qrCodeData)
-          });
+          };
           
-          // Log that we've sent the scan data to parent
-          debugLog('Sent customer card scan data to parent component');
-        }
-        
-        // IMPORTANT: Show customer details modal with action options
-        setTimeout(() => {
-          debugLog('Showing customer details modal for customer ID:', customerIdStr);
-          setSelectedCustomerId(customerIdStr);
-          setShowCustomerDetailsModal(true);
-          setProcessingCard(false);
-        }, 1000); // Short delay to ensure transaction confirmation is seen
-        
-        // Log scan for analytics with all available details
-        try {
-          // Using logScan instead of logScanResult for compatibility
-          feedbackService.logScan({
-            timestamp: new Date().toISOString(),
-            type: 'customer_card',
-            business_id: businessIdStr,
-            customer_id: customerIdStr,
-            card_number: qrCodeData.cardNumber || 'unknown',
-            points_awarded: result.pointsAwarded || pointsToAward || 0,
-            status: 'success',
-            scan_duration_ms: Date.now() - (qrCodeData.timestamp || Date.now()),
-            program_id: programIdValue,
-            device_info: navigator.userAgent
-          });
-        } catch (logError) {
-          // Non-critical error, just log it
-          console.error('Failed to log scan result:', logError);
+          onScan(scanResult);
         }
       } else {
         // Handle scan failure
-        debugLog('Scan failed:', result.message);
         playSound('error');
         setError(result.message || 'Failed to process customer card');
-        setTimeout(() => {
-          setProcessingCard(false);
-          // Don't clear the error message here to ensure user sees it
-        }, 3000);
+        
+        // Set specific error for rate limiting
+        if (result.message?.includes('rate') || result.message?.includes('recently')) {
+          setRateLimited(true);
+          // Set reset time to 30 seconds from now
+          setRateLimitResetTime(Date.now() + 30000);
+          
+          // Start countdown timer
+          if (rateLimitTimerRef.current) {
+            clearInterval(rateLimitTimerRef.current);
+          }
+          
+          rateLimitTimerRef.current = setInterval(() => {
+            if (rateLimitResetTime && Date.now() >= rateLimitResetTime) {
+              setRateLimited(false);
+              setRateLimitResetTime(null);
+              if (rateLimitTimerRef.current) {
+                clearInterval(rateLimitTimerRef.current);
+                rateLimitTimerRef.current = null;
+              }
+            }
+          }, 1000);
+        }
       }
-    } catch (error) {
-      console.error('Error in handleCustomerQrCode:', error);
+    } catch (err) {
+      console.error('Error processing customer QR code:', err);
       playSound('error');
-      setError(error instanceof Error ? error.message : 'Failed to process customer card');
-      setTimeout(() => setProcessingCard(false), 2000);
+      setError('Error processing customer card');
+    } finally {
+      // Add a delay before allowing another scan to prevent accidental double scans
+      setTimeout(() => {
+        setProcessingCard(false);
+      }, 2000);
     }
   };
   
