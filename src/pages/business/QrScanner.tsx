@@ -550,32 +550,34 @@ const QrScannerPage = () => {
                       <div className="grid grid-cols-1 gap-2">
                         <button 
                           onClick={() => setShowCustomerDetailsModal(true)}
-                          className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
+                          className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
                         >
                           <User className="w-4 h-4 mr-2" />
-                          {t('Show Customer Details')}
+                          {t('Show Customer Details & Actions')}
                         </button>
-                        <button 
-                          onClick={() => setShowRewardModal(true)}
-                          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                        >
-                          <Award className="w-4 h-4 mr-2" />
-                          {t('Give Reward')}
-                        </button>
-                        <button
-                          onClick={() => setShowProgramModal(true)}
-                          className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                        >
-                          <Users className="w-4 h-4 mr-2" />
-                          {t('Join Program')}
-                        </button>
-                        <button
-                          onClick={() => setShowRedeemModal(true)}
-                          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                        >
-                          <KeyRound className="w-4 h-4 mr-2" />
-                          {t('Redeem Code')}
-                        </button>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <button 
+                            onClick={() => setShowProgramModal(true)}
+                            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
+                          >
+                            <Users className="w-4 h-4 mr-1" />
+                            {t('Join Program')}
+                          </button>
+                          <button 
+                            onClick={() => setShowRewardModal(true)}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
+                          >
+                            <Award className="w-4 h-4 mr-1" />
+                            {t('Give Reward')}
+                          </button>
+                          <button
+                            onClick={() => setShowRedeemModal(true)}
+                            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
+                          >
+                            <KeyRound className="w-4 h-4 mr-1" />
+                            {t('Redeem Points')}
+                          </button>
+                        </div>
                       </div>
                     )}
                     
@@ -693,7 +695,7 @@ const QrScannerPage = () => {
         
         {/* Version footer */}
         <div className="text-center mt-8 mb-2">
-          <p className="text-xs text-gray-400">gudcity 10</p>
+          <p className="text-xs text-gray-400">gudcity 11</p>
         </div>
       </div>
 
