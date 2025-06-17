@@ -18,6 +18,8 @@ import {
 import { CustomerService } from '../../services/customerService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { PromoService } from '../../services/promoService';
+import { LoyaltyCardService } from '../../services/loyaltyCardService';
+import sql from '../../utils/db';
 import type { Customer } from '../../services/customerService';
 import type { LoyaltyProgram } from '../../types/loyalty';
 
@@ -221,6 +223,53 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
         
         // Register customer with business if not already registered
         await CustomerService.associateCustomerWithBusiness(customerId, businessId, selectedProgramId);
+        
+        // Force create the loyalty card immediately - fixes the delay in card creation
+        try {
+          console.log('Creating loyalty card immediately for customer:', customerId);
+          const cardResult = await LoyaltyCardService.enrollCustomerInProgram(
+            customerId,
+            businessId,
+            selectedProgramId
+          );
+          
+          if (cardResult) {
+            console.log('Loyalty card created successfully:', cardResult);
+          } else {
+            // Try alternate method if the first one fails
+            console.log('Trying alternate method to create loyalty card');
+            
+            // Get the program info
+            const program = await LoyaltyProgramService.getProgramById(selectedProgramId);
+            if (program) {
+              // Generate a card number
+              const cardNumber = `C${customerId}-${selectedProgramId}-${Date.now().toString().slice(-6)}`;
+              
+              // Create card directly in the database
+              await sql`
+                INSERT INTO loyalty_cards (
+                  customer_id, business_id, program_id, card_number, 
+                  card_type, tier, points_multiplier, points,
+                  points_to_next, benefits, status, is_active, 
+                  created_at, updated_at
+                ) VALUES (
+                  ${customerId}, ${businessId}, ${selectedProgramId}, ${cardNumber},
+                  ${program.type || 'POINTS'}, 'STANDARD', 1.0, 0,
+                  1000, ARRAY['Basic rewards', 'Birthday gift'], 'active', true,
+                  NOW(), NOW()
+                )
+                ON CONFLICT (customer_id, program_id) DO UPDATE SET
+                  status = 'active',
+                  is_active = true,
+                  updated_at = NOW()
+              `;
+              console.log('Created loyalty card using direct SQL');
+            }
+          }
+        } catch (cardErr) {
+          console.error('Error creating loyalty card:', cardErr);
+          // Non-critical error, continue
+        }
         
         // Reload customer data
         loadCustomerData();
