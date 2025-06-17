@@ -67,8 +67,19 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       if (initialData && initialData.isEnrolled !== undefined && initialData.isEnrolled === false) {
         setActiveAction('join');
       }
+      
+      // Add timeout to prevent endless loading
+      const loadingTimeout = setTimeout(() => {
+        // If still loading after 5 seconds, stop loading and use initial data
+        if (loading && initialData) {
+          console.log('CustomerDetailsModal: Loading timed out, using initial data');
+          setLoading(false);
+        }
+      }, 5000);
+      
+      return () => clearTimeout(loadingTimeout);
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, loading]);
 
   // Load customer data when modal opens
   useEffect(() => {
@@ -93,7 +104,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     try {
       console.log('CustomerDetailsModal: Loading customer data for ID:', customerId);
       
-      // If we have initial data from the scan, use it first
+      // If we have initial data from the scan, use it immediately as a fallback
       if (initialData && initialData.name) {
         console.log('CustomerDetailsModal: Using initial data:', initialData);
         setCustomer({
@@ -108,10 +119,24 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
           joinedAt: initialData.joinedAt || new Date().toISOString(),
           favoriteItems: initialData.favoriteItems || [],
         });
+        
+        // Show data immediately but continue loading in background
+        setLoading(false);
       }
 
-      // Then load full customer details
-      const customerData = await CustomerService.getCustomerById(customerId);
+      // Set maximum time for loading
+      const loadingPromise = CustomerService.getCustomerById(customerId);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Loading timed out')), 3000)
+      );
+      
+      // Race between the actual loading and the timeout
+      const customerData = await Promise.race([loadingPromise, timeoutPromise])
+        .catch(err => {
+          console.log('CustomerDetailsModal: Loading timed out or failed');
+          return null;
+        });
+      
       console.log('CustomerDetailsModal: Customer data loaded:', customerData);
       
       if (customerData) {
@@ -122,15 +147,10 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       }
     } catch (err) {
       console.error('Error loading customer data:', err);
-      setError('Error loading customer data');
-      
-      // Retry loading if we have initial data but failed to get full details
-      if (initialData && loadAttempts < 2) {
-        setTimeout(() => {
-          setLoadAttempts(prev => prev + 1);
-          loadCustomerData();
-        }, 1000);
+      if (!customer) {
+        setError('Error loading customer data');
       }
+      // Don't retry, already using initialData as fallback
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { KeyRound, Check, X, AlertCircle, Gift } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { KeyRound, Check, X, AlertCircle, Gift, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PromoService } from '../../services/promoService';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { Confetti } from '../ui/Confetti';
 
 interface RedemptionModalProps {
@@ -30,12 +31,57 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
     promotionName?: string;
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState<boolean>(false);
+  const [checkingEnrollment, setCheckingEnrollment] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    // Check customer enrollment status when modal opens
+    if (isOpen && customerId) {
+      checkCustomerEnrollment();
+    }
+  }, [isOpen, customerId, businessId]);
+
+  const checkCustomerEnrollment = async () => {
+    if (!customerId || !businessId) return;
+
+    setCheckingEnrollment(true);
+    
+    try {
+      // Get all programs for this business
+      const programs = await LoyaltyProgramService.getBusinessPrograms(businessId);
+      
+      if (!programs || programs.length === 0) {
+        setIsEnrolled(false);
+        return;
+      }
+      
+      // Check if customer is enrolled in any of the business programs
+      const enrollmentPromises = programs.map(program => 
+        LoyaltyProgramService.checkEnrollment(customerId, program.id)
+      );
+      
+      const enrollmentResults = await Promise.all(enrollmentPromises);
+      
+      // Customer is enrolled if they're enrolled in at least one program
+      setIsEnrolled(enrollmentResults.some(result => result.isEnrolled));
+      
+    } catch (err) {
+      console.error('Error checking customer enrollment:', err);
+      // Default to not enrolled on error
+      setIsEnrolled(false);
+    } finally {
+      setCheckingEnrollment(false);
+    }
+  };
 
   const handleRedeemCode = async () => {
     if (!promoCode.trim()) {
       setError('Please enter a promotion code');
+      return;
+    }
+
+    if (!isEnrolled) {
+      setError('Customer must be enrolled in a program to redeem codes');
       return;
     }
 
@@ -94,6 +140,8 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 relative overflow-hidden">
@@ -116,6 +164,24 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
         <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-lg">
           <p className="font-medium">{t('Customer')}: {customerName}</p>
           <p className="text-sm text-blue-600">{t('ID')}: {customerId}</p>
+          
+          {/* Enrollment status indicator */}
+          <div className="mt-2 pt-2 border-t border-blue-100">
+            {checkingEnrollment ? (
+              <p className="text-sm flex items-center">
+                <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>
+                {t('Checking enrollment status...')}
+              </p>
+            ) : isEnrolled ? (
+              <p className="text-sm flex items-center text-green-600">
+                <Check className="w-4 h-4 mr-1" /> {t('Enrolled in program')}
+              </p>
+            ) : (
+              <p className="text-sm flex items-center text-amber-600">
+                <AlertCircle className="w-4 h-4 mr-1" /> {t('Not enrolled in any program')}
+              </p>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -146,6 +212,17 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
           </div>
         )}
 
+        {/* Not enrolled warning */}
+        {!checkingEnrollment && !isEnrolled && !success && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-700 p-3 rounded-lg flex items-center">
+            <Users className="w-5 h-5 mr-2 flex-shrink-0" />
+            <div>
+              <p className="font-medium">{t('Customer not enrolled')}</p>
+              <p className="text-sm mt-1">{t('Customer must be enrolled in a program to redeem codes.')}</p>
+            </div>
+          </div>
+        )}
+
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('Enter Promotion Code')}
@@ -157,7 +234,7 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
               onChange={(e) => setPromoCode(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm transition-shadow"
               placeholder="Enter code (e.g. SUMMER25)"
-              disabled={isProcessing}
+              disabled={isProcessing || !isEnrolled || checkingEnrollment}
               onKeyPress={(e) => e.key === 'Enter' && handleRedeemCode()}
             />
           </div>
@@ -166,7 +243,7 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
           </p>
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-between space-x-3">
           <button
             onClick={onClose}
             className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors shadow-sm"
@@ -176,8 +253,12 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
           </button>
           <button
             onClick={handleRedeemCode}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center shadow-sm hover:shadow-md"
-            disabled={isProcessing}
+            className={`px-4 py-2 bg-amber-500 text-white rounded-lg transition-colors flex items-center shadow-sm ${
+              isEnrolled && !checkingEnrollment && !isProcessing 
+                ? 'hover:bg-amber-600 hover:shadow-md'
+                : 'opacity-50 cursor-not-allowed'
+            }`}
+            disabled={isProcessing || !isEnrolled || checkingEnrollment}
           >
             {isProcessing ? (
               <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>

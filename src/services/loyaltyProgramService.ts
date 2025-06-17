@@ -391,4 +391,74 @@ export class LoyaltyProgramService {
       return null;
     }
   }
+
+  /**
+   * Check if a customer is enrolled in a specific loyalty program
+   * @param customerId ID of the customer
+   * @param programId ID of the program
+   * @returns Object indicating enrollment status
+   */
+  static async checkEnrollment(
+    customerId: string, 
+    programId: string
+  ): Promise<{ isEnrolled: boolean; points?: number }> {
+    try {
+      const result = await sql`
+        SELECT current_points FROM customer_programs
+        WHERE customer_id = ${parseInt(customerId)}
+        AND program_id = ${parseInt(programId)}
+        AND status = 'ACTIVE'
+      `;
+
+      if (result.length > 0) {
+        return { 
+          isEnrolled: true, 
+          points: result[0].current_points || 0
+        };
+      }
+      
+      return { isEnrolled: false };
+    } catch (error) {
+      console.error('Error checking enrollment:', error);
+      return { isEnrolled: false };
+    }
+  }
+  
+  /**
+   * Check if a customer is enrolled in any loyalty program for a business
+   * @param customerId ID of the customer
+   * @param businessId ID of the business
+   * @returns Object indicating enrollment status
+   */
+  static async checkCustomerEnrollment(
+    customerId: string,
+    businessId: string
+  ): Promise<{ isEnrolled: boolean; programIds?: string[] }> {
+    try {
+      // Get all programs for this business
+      const programs = await this.getBusinessPrograms(businessId);
+      
+      if (!programs || programs.length === 0) {
+        return { isEnrolled: false };
+      }
+      
+      // Check if customer is enrolled in any of these programs
+      const enrolledPrograms = [];
+      
+      for (const program of programs) {
+        const enrollment = await this.checkEnrollment(customerId, program.id);
+        if (enrollment.isEnrolled) {
+          enrolledPrograms.push(program.id);
+        }
+      }
+      
+      return {
+        isEnrolled: enrolledPrograms.length > 0,
+        programIds: enrolledPrograms.length > 0 ? enrolledPrograms : undefined
+      };
+    } catch (error) {
+      console.error('Error checking customer enrollment:', error);
+      return { isEnrolled: false };
+    }
+  }
 } 
