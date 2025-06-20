@@ -174,22 +174,6 @@ interface ScannerConfig {
 }
 
 /**
- * Html5Qrcode configuration interface
- */
-interface Html5QrcodeConfig {
-  fps: number;
-  qrbox: {
-    width: number;
-    height: number;
-  };
-  aspectRatio: number;
-  disableFlip: boolean;
-  experimentalFeatures: {
-    useBarCodeDetectorIfSupported: boolean;
-  };
-}
-
-/**
  * Result interface for QR code scanning
  */
 interface Html5QrcodeResult {
@@ -414,80 +398,65 @@ const defaultScannerConfig: ScannerConfig = {
   focusMode: 'continuous'
 };
 
-/**
- * QRScanner Component
- * 
- * A versatile QR code scanner component that supports multiple QR code types
- * and provides comprehensive error handling and UI feedback.
- * 
- * Features:
- * - Scans and processes customer, loyalty card, and promo code QR codes
- * - Provides visual feedback during scanning
- * - Handles camera permissions
- * - Supports multiple cameras
- * - Debounces scans to prevent duplicates
- * - Maintains scan history
- * - Provides configurable scanner settings
- * 
- * @example Basic usage:
- * ```tsx
- * <QRScanner 
- *   businessId="123"
- *   onScan={(result) => console.log('Scanned:', result)}
- * />
- * ```
- * 
- * @example With program ID and custom points:
- * ```tsx
- * <QRScanner 
- *   businessId="123"
- *   programId="456"
- *   pointsToAward={15}
- *   onScan={(result) => console.log('Scanned:', result)}
- * />
- * ```
- */
 export const QRScanner: React.FC<QRScannerProps> = ({ 
   onScan, 
   businessId,
   programId,
   pointsToAward = 10
 }) => {
-  // State for the QR scanner
-  const [html5QrCode, setHtml5QrCode] = useState<Html5Qrcode | null>(null);
+  const { t } = useTranslation();
   const [isScanning, setIsScanning] = useState(false);
-  const [availableCameras, setAvailableCameras] = useState<CameraDevice[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [successScan, setSuccessScan] = useState<string | null>(null);
-  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerDivId = 'qr-scanner-container';
   const [lastResult, setLastResult] = useState<UnifiedScanResult | null>(null);
-  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
-  const [showScanHistory, setShowScanHistory] = useState(false);
-  const [showCameraSelector, setShowCameraSelector] = useState(false);
-  const [showScannerConfig, setShowScannerConfig] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
-  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
-  const [successNotificationMessage, setSuccessNotificationMessage] = useState('');
-  const [notificationType, setNotificationType] = useState<'success' | 'error' | 'info'>('success');
+  const [processingCard, setProcessingCard] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showProgramsModal, setShowProgramsModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
+  const [scanAnimation, setScanAnimation] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const animationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [domReady, setDomReady] = useState(false);
   const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
+  const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error' | 'pending'>('success');
   const [transactionDetails, setTransactionDetails] = useState<TransactionDetails | null>(null);
-  const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error' | 'info'>('success');
-  
-  // Refs
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const scannerDivId = 'qr-scanner-container';
-  const scanTimeoutRef = useRef<number | null>(null);
-  
-  // i18n
-  const { t } = useTranslation();
+  const [rateLimited, setRateLimited] = useState(false);
+  const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
+  const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastScanRef = useRef<string>(''); // Store the last scanned text to prevent duplicates
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<CameraDevice[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string>('');
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [showScanHistory, setShowScanHistory] = useState(false);
+  const [showScannerConfig, setShowScannerConfig] = useState(false);
+  const [scannerConfig, setScannerConfig] = useState<ScannerConfig>(defaultScannerConfig);
+  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
 
+  const lastScanTimeRef = useRef<number>(0);
+  const lastScannedCodeRef = useRef<string>('');
+  const scanQueueRef = useRef<string[]>([]);
+  const SCAN_DEBOUNCE_MS = 300; // Minimum time between processing scans
+
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [successNotificationMessage, setSuccessNotificationMessage] = useState('');
+  const [notificationType, setNotificationType] = useState<'success' | 'error' | 'info'>('success');
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setSuccessNotificationMessage(message);
+    setNotificationType(type);
+    setShowSuccessNotification(true);
+    
+    // Auto hide after 3 seconds
+    setTimeout(() => {
+      setShowSuccessNotification(false);
+    }, 3000);
+  };
+  
   useEffect(() => {
     const checkDomReady = () => {
       if (document.getElementById('qr-scanner-container')) {
@@ -525,18 +494,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           console.error("Exception during scanner cleanup:", err);
         }
       }
-      scannerRef.current = null;
     }
     
     setIsScanning(false);
   };
-
+  
   const initializeScanner = async (): Promise<boolean> => {
     try {
       // Add a small delay to ensure DOM is fully loaded
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const scannerElement = document.getElementById('qr-scanner-container');
+      const scannerElement = document.getElementById(scannerDivId);
       if (!scannerElement) {
         console.error("Scanner DOM element not found");
         setError("Scanner initialization failed: Scanner element not found on page");
@@ -551,7 +519,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               console.warn("Error stopping existing scanner:", e);
             });
           }
-          scannerRef.current = null;
         } catch (stopError) {
           console.warn("Error stopping existing scanner:", stopError);
         }
@@ -652,7 +619,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  // Update the startScanning function to include this workaround
   const startScanning = async () => {
     if (isScanning || isInitializing) {
       return;
@@ -662,31 +628,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     setError(null);
     
     try {
-      // Add extra debug logging
       console.log("Starting scanner initialization process");
-      
-      // Force camera refresh to help with initialization in Chrome
       await forceCameraRefresh();
       
-      // Check browser compatibility first
       if (!isCameraSupported()) {
         setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
         setIsInitializing(false);
         return;
       }
       
-      // Ensure DOM is ready before proceeding
-      if (!document.getElementById('qr-scanner-container')) {
+      if (!document.getElementById(scannerDivId)) {
         console.error("Scanner DOM element not ready");
         setError("Scanner element not ready. Please refresh the page.");
         setIsInitializing(false);
         return;
       }
       
-      // Add a small delay before checking camera access to ensure browser is ready
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      // Check camera status with fallback for permission issues
       try {
         const cameraStatus = await checkCameraAvailability();
         if (!cameraStatus.available) {
@@ -695,18 +654,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           setIsInitializing(false);
           return;
         }
-        
-        // Update permission status
         setPermissionGranted(cameraStatus.permissionGranted);
       } catch (permissionError) {
-        // Fallback if permission check fails
         console.error("Permission check error:", permissionError);
-        // Try direct camera access as a fallback
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'environment' } 
           });
-          stream.getTracks().forEach(track => track.stop()); // Release camera
+          stream.getTracks().forEach(track => track.stop());
           setPermissionGranted(true);
         } catch (directPermissionError) {
           console.error("Direct camera access failed:", directPermissionError);
@@ -717,7 +672,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       }
       
-      // Initialize scanner if not already initialized
       if (!scannerRef.current) {
         console.log("Initializing scanner...");
         const success = await initializeScanner();
@@ -728,8 +682,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       }
       
-      // Make sure the scanner element exists in the DOM
-      const scannerElement = document.getElementById('qr-scanner-container');
+      const scannerElement = document.getElementById(scannerDivId);
       if (!scannerElement) {
         console.error("Scanner DOM element not found during start");
         setError('Scanner element not found. Please refresh the page.');
@@ -748,12 +701,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           },
           aspectRatio: scannerConfig.aspectRatio,
           disableFlip: scannerConfig.disableFlip,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Use native API if available
-          }
         };
         
-        // Use selected camera if available
         let cameraId = selectedCamera;
         
         // If no camera is selected yet, try to use the back camera or fall back to default
@@ -810,7 +759,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               {
                 fps: 10,
                 qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0
+                aspectRatio: 1.0,
+                disableFlip: false
               },
               handleQrCodeScanDebounced,
               () => {}
@@ -829,7 +779,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                 console.log('Final retry with first available camera');
                 await scannerRef.current.start(
                   availableCameras[0].id,
-                  { fps: 10, qrbox: 250 },
+                  { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    disableFlip: false
+                  },
                   handleQrCodeScanDebounced,
                   () => {}
                 );
@@ -918,7 +873,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   };
 
   // Optimized, debounced QR code handler with better performance
-  const handleQrCodeScanDebounced = (decodedText: string, result: Html5QrcodeResult) => {
+  const handleQrCodeScanDebounced = (decodedText: string) => {
     const now = Date.now();
     
     // Skip processing if this exact code was scanned in the last 100ms (duplicate detection)
@@ -1337,8 +1292,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   };
 
   const playSound = (type: 'success' | 'error' | 'scan') => {
-    // Sound functionality disabled as per customer request
-    // Previously played beep-success.mp3
+    try {
+      // Use local sound files instead of external URLs
+      const soundPath = '/assets/sounds/beep-success.mp3';
+      
+      const audio = new Audio(soundPath);
+      audio.volume = 0.5;
+      
+      // Only play if the audio can be loaded
+      audio.oncanplaythrough = () => {
+        audio.play().catch(() => {
+          // Silently fail - audio is non-critical
+        });
+      };
+      
+      // Handle errors silently
+      audio.onerror = () => {
+        // Silently fail - audio is non-critical
+      };
+    } catch (error) {
+      // Silently fail - audio is non-critical
+    }
   };
 
   const handleRewardsModalClose = (success?: boolean, points?: number) => {
@@ -1360,8 +1334,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         // Show green notification
         showNotification(`${points || 0} points awarded to ${custData.name}`, 'success');
       }
-    } else {
-      startScanning();
+    } else if (!success) {
+        // Only restart scanning if the operation was cancelled, not if it succeeded
+        startScanning();
     }
   };
   
@@ -1380,12 +1355,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         });
         setTransactionConfirmationType('success');
         setShowTransactionConfirmation(true);
-        
-        // Show green notification
         showNotification(`${custData.name} enrolled in ${programName}`, 'success');
       }
-    } else {
-      startScanning();
+    } else if (!success) {
+        startScanning();
     }
   };
   
@@ -1404,12 +1377,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         });
         setTransactionConfirmationType('success');
         setShowTransactionConfirmation(true);
-        
-        // Show green notification
         showNotification(`Reward redeemed for ${custData.name}`, 'success');
       }
-    } else {
-      startScanning();
+    } else if (!success) {
+        startScanning();
     }
   };
 
@@ -2047,202 +2018,412 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   }, [isScanning]);
 
   return (
-    <div className="relative" data-testid="qr-scanner-container">
-      {/* Success notification popup */}
-      {showSuccessNotification && (
-        <div className={`fixed top-16 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center space-x-2 transform transition-all animate-fade-in ${
-          notificationType === 'success' ? 'bg-green-500 text-white' :
-          notificationType === 'error' ? 'bg-red-500 text-white' : 
-          'bg-blue-500 text-white'
-        }`}>
-          {notificationType === 'success' && <Check className="w-5 h-5 text-white" />}
-          {notificationType === 'error' && <AlertCircle className="w-5 h-5 text-white" />}
-          {notificationType === 'info' && <Info className="w-5 h-5 text-white" />}
-          <span>{successNotificationMessage}</span>
+    <div className="relative">
+      {successScan && (
+        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-r from-green-400 to-green-600 text-white px-4 py-3 rounded-md shadow-lg flex items-center animate-slideDown">
+          <Check className="h-5 w-5 mr-2 text-white" />
+          <span className="font-medium">{successScan}</span>
         </div>
       )}
       
-      {/* Scanner loading state */}
-      {isProcessing && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20 rounded-lg">
-          <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
-            <p className="text-gray-700 font-medium">{t('Processing QR code...')}</p>
+      {error && (
+        <div className="bg-gradient-to-r from-red-400 to-red-600 text-white px-4 py-3 rounded-md mb-4 flex items-center animate-shake">
+          <AlertCircle className="h-5 w-5 mr-2 text-white" />
+          <div>
+            <span className="font-medium block">{error}</span>
+            {error.includes('Unrecognized QR code type') && (
+              <span className="text-sm mt-1 block opacity-90">
+                This QR code format is not supported. Make sure you're scanning a valid QR code for this app.
+              </span>
+            )}
+            {error.includes('Invalid QR code format') && (
+              <span className="text-sm mt-1 block opacity-90">
+                Try scanning more slowly and ensure the entire QR code is visible.
+              </span>
+            )}
           </div>
+          {error.includes('Unrecognized QR code type: customer') && (
+            <button 
+              onClick={() => {
+                // Log debug info
+                const debugInfo = {
+                  time: new Date().toISOString(),
+                  lastScan: lastScannedCodeRef.current?.substring(0, 50) || '',
+                  scanHistory: scanHistory.slice(-3)
+                };
+                console.log('QR Scanner Debug Info:', debugInfo);
+                
+                // Clear error
+                setError(null);
+              }}
+              className="ml-auto bg-white text-red-500 text-xs px-2 py-1 rounded"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
-
-      {/* Main scanner UI */}
-      <div className={`w-full max-w-lg mx-auto relative ${
-        permissionGranted === false ? 'opacity-50 pointer-events-none' : ''
-      }`}>
-        {/* Error display */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            <div className="flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
-              <div className="flex-1">{error}</div>
-              <button
-                onClick={() => setError(null)}
-                className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      
+      <div className="flex flex-col items-center">
+        <div className="relative w-full max-w-md bg-gradient-to-b from-indigo-900 to-blue-900 rounded-xl overflow-hidden shadow-2xl p-1.5">
+          {/* Add QR scanning guide tooltip */}
+          <div className="absolute top-2 left-2 z-30">
+            <button 
+              className="bg-white/20 backdrop-blur-sm text-white rounded-full p-1.5"
+              onClick={() => {
+                // Show QR scanning tips
+                setError(null); // Clear any current errors
+                setSuccessScan("Position QR code within the scanner frame and hold steady");
+                setTimeout(() => setSuccessScan(null), 3000);
+              }}
+              aria-label="Scanning Tips"
+            >
+              <AlertTriangle className="h-4 w-4" />
+            </button>
           </div>
-        )}
-
-        {/* Scanner Container */}
-        <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg mb-4">
-          <div className="relative">
-            {/* Camera Feed Container */}
-            <div
-              id="qr-scanner-container"
-              className="w-full h-64 md:h-80 bg-black relative overflow-hidden"
+          
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <div className="absolute top-0 left-0 w-16 h-16 border-l-4 border-t-4 border-blue-400 rounded-tl-lg"></div>
+            <div className="absolute top-0 right-0 w-16 h-16 border-r-4 border-t-4 border-blue-400 rounded-tr-lg"></div>
+            <div className="absolute bottom-0 left-0 w-16 h-16 border-l-4 border-b-4 border-blue-400 rounded-bl-lg"></div>
+            <div className="absolute bottom-0 right-0 w-16 h-16 border-r-4 border-b-4 border-blue-400 rounded-br-lg"></div>
+          </div>
+          
+          <div className="w-full h-72 bg-black rounded-lg overflow-hidden relative">
+            <div 
+              id={scannerDivId} 
+              className="w-full h-full"
             ></div>
-
-            {/* Scanner Animation */}
+            
             {isScanning && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-64 h-64 border-2 border-blue-400 rounded-lg relative">
-                  <div className="absolute top-0 left-0 w-full border-t-2 border-blue-500 animate-scanline"></div>
+              <div className={`absolute inset-x-0 h-0.5 bg-blue-500 z-20 opacity-80 ${scanAnimation ? 'animate-scanDown' : 'animate-scanUp'}`}></div>
+            )}
+            
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div className="w-64 h-64 border-2 border-dashed border-blue-400 opacity-60 rounded-lg"></div>
+            </div>
+            
+            {!isScanning && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white z-20">
+                {!permissionGranted && error && error.includes('Camera access denied') ? (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-red-500/50 flex items-center justify-center mb-4">
+                      <Camera className="h-10 w-10 text-red-100" />
+                    </div>
+                    <h3 className="text-lg font-medium text-red-100 mb-2">Camera Access Denied</h3>
+                    <p className="text-center max-w-xs mb-4 text-red-100">Please allow camera access in your browser settings</p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                      <ol className="list-decimal text-xs text-white space-y-2 ml-4">
+                        <li>Check for camera permission prompts in your browser</li>
+                        <li>Make sure the camera is not being used by another app</li>
+                        <li>Try refreshing the page to trigger the permission prompt again</li>
+                      </ol>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        startScanning();
+                      }}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : error && error.includes('Failed to start scanner') ? (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-amber-500/50 flex items-center justify-center mb-4">
+                      <AlertTriangle className="h-10 w-10 text-amber-100" />
+                    </div>
+                    <h3 className="text-lg font-medium text-amber-100 mb-2">Scanner Error</h3>
+                    <p className="text-center max-w-xs mb-4 text-amber-100">{error}</p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                      <ul className="list-disc text-xs text-white space-y-2 ml-4">
+                        <li>Make sure your device has a working camera</li>
+                        <li>Check that no other apps are using your camera</li>
+                        <li>Try refreshing the page</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        startScanning();
+                      }}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-blue-900/50 flex items-center justify-center mb-4 animate-pulse">
+                      <Camera className="h-10 w-10 text-blue-400" />
+                    </div>
+                    <p className="text-center max-w-xs mb-4 text-blue-100">{t('Camera access is needed to scan QR codes')}</p>
+                    <button
+                      onClick={startScanning}
+                      disabled={isInitializing || !domReady}
+                      className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${(isInitializing || !domReady) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                    >
+                      {isInitializing ? (
+                        <span className="flex items-center">
+                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                          {t('Initializing...')}
+                        </span>
+                      ) : (
+                        permissionGranted ? t('Resume Scanner') : t('Start Scanner')
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            
+            {isScanning && (
+              <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center z-20">
+                <div className="flex items-center bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></div>
+                  <span>{t('Scanner active')}</span>
+                </div>
+                <div className="bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center">
+                  <Target className="w-3 h-3 mr-1" />
+                  <span>{t('Center QR code')}</span>
                 </div>
               </div>
             )}
-
-            {/* Permission Denied */}
-            {permissionGranted === false && (
-              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white p-6 text-center">
-                <AlertCircle className="w-12 h-12 mb-3 text-red-500" />
-                <h3 className="text-lg font-medium mb-2">{t('Camera Access Denied')}</h3>
-                <p className="mb-4 text-white/80">
-                  {t('Please allow camera access in your browser settings to use the QR scanner.')}
-                </p>
-              </div>
-            )}
-            
           </div>
-
-          {/* Scanner Controls */}
-          <div className="p-4 bg-gray-700">
+          
+          {/* Add camera switch button when scanning */}
+          {isScanning && availableCameras.length > 1 && (
             <button
-              onClick={toggleScanner}
-              disabled={!permissionGranted}
-              className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center transition-colors ${
-                isScanning
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              } ${!permissionGranted ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={switchCamera}
+              className="absolute top-3 right-3 z-30 bg-black/60 backdrop-blur-sm text-white rounded-full p-2"
+              aria-label={t('Switch Camera')}
             >
-              {isScanning ? (
-                <>
-                  <X className="w-5 h-5 mr-2" />
-                  {t('Stop Scanner')}
-                </>
-              ) : (
-                <>
-                  <Scan className="w-5 h-5 mr-2" />
-                  {t('Start Scanner')}
-                </>
-              )}
+              <SwitchCamera className="h-5 w-5" />
             </button>
-            
-            {renderControlButtons()}
-            {renderCameraSelector()}
-            {renderScannerConfig()}
-          </div>
+          )}
         </div>
-
-        {/* Action Buttons (only shown when a result is selected) */}
-        {lastResult?.type === 'customer' && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <button
-              onClick={handleGiveReward}
-              className="py-2 px-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex flex-col items-center transition-colors"
-            >
-              <Award className="h-5 w-5 mb-1" />
-              <span className="text-xs">{t('Give Points')}</span>
-            </button>
-            
-            <button
-              onClick={handleJoinProgram}
-              className="py-2 px-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex flex-col items-center transition-colors"
-            >
-              <Users className="h-5 w-5 mb-1" />
-              <span className="text-xs">{t('Join Program')}</span>
-            </button>
-            
-            <button
-              onClick={handleRedeemCode}
-              className="py-2 px-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex flex-col items-center transition-colors"
-            >
-              <KeyRound className="h-5 w-5 mb-1" />
-              <span className="text-xs">{t('Redeem Code')}</span>
-            </button>
-          </div>
-        )}
-
-        {/* Scan History Button */}
-        <div className="mb-4">
+        
+        <div className="mt-4 w-full">
           <button
-            onClick={() => setShowScanHistory(true)}
-            className="w-full py-2 px-4 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center"
+            onClick={toggleScanner}
+            disabled={isInitializing || !domReady}
+            className={`w-full py-3 px-6 rounded-lg text-white text-sm font-medium flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
+              isInitializing || !domReady
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : isScanning 
+                  ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+            }`}
           >
-            <History className="w-4 h-4 mr-2" />
-            {t('View Scan History')} ({scanHistory.length})
+            {isInitializing ? (
+              <span className="flex items-center">
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                {t('Initializing...')}
+              </span>
+            ) : isScanning ? (
+              <>
+                <Shield className="w-4 h-4 mr-2" />
+                {t('Stop Scanner')}
+              </>
+            ) : (
+              <>
+                <Scan className="w-4 h-4 mr-2" />
+                {t('Start Scanner')}
+              </>
+            )}
           </button>
+          
+          {/* Add control buttons row */}
+          {renderControlButtons()}
+          
+          {/* Show camera selector */}
+          {renderCameraSelector()}
+          
+          {/* Show scanner configuration */}
+          {renderScannerConfig()}
+          
+          {/* Show scan history */}
+          {renderScanHistory()}
+          
+          <p className="text-sm text-gray-500 text-center mt-2 flex items-center justify-center">
+            {isScanning ? (
+              <>
+                <Target className="w-4 h-4 mr-1 text-blue-500" />
+                {t('Position the QR code in the scanner window')}
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 mr-1 text-amber-500" />
+                {t('Click start to activate the QR scanner')}
+              </>
+            )}
+          </p>
         </div>
       </div>
+      
+      {lastResult && !error && (
+        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-800 px-5 py-4 rounded-xl animate-fadeIn shadow-md">
+          <p className="font-medium flex items-center">
+            <Check className="w-5 h-5 mr-2 text-green-500" />
+            {t('QR Code Scanned')}:
+          </p>
+          <p className="text-sm mt-2 bg-white/60 backdrop-blur-sm p-2 rounded-md">
+            {lastResult.type === 'customer' 
+              ? `Customer: ${(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}` 
+              : lastResult.type === 'promoCode' 
+                ? `Promo code: ${(lastResult.data as any).code || ''}` 
+                : `Data: ${JSON.stringify(lastResult.data).substring(0, 50)}...`}
+          </p>
+          {processingCard && (
+            <p className="text-sm mt-1 flex items-center">
+              <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>
+              Processing card...
+            </p>
+          )}
+          
+          {lastResult.type === 'customer' && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-indigo-700 mb-3 flex items-center">
+                <Zap className="w-4 h-4 mr-1 text-amber-500" />
+                {t('Quick Actions')}:
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <button
+                  onClick={() => setShowCustomerDetailsModal(true)}
+                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  {t('Show Customer Details')}
+                </button>
+                <button
+                  onClick={handleGiveReward}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                >
+                  <Award className="w-4 h-4 mr-2" />
+                  {t('Give Reward')}
+                </button>
+                <button
+                  onClick={handleJoinProgram}
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  {t('Join Program')}
+                </button>
+                <button
+                  onClick={handleRedeemCode}
+                  className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  {t('Redeem Code')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {lastResult && lastResult.data && businessId && (
+        <>
+          <RewardModal
+            isOpen={showRewardsModal}
+            onClose={handleRewardsModalClose}
+            customerId={ensureId((lastResult.data as any).customerId)}
+            businessId={ensureId(businessId)}
+            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+          />
+          
+          <ProgramEnrollmentModal
+            isOpen={showProgramsModal}
+            onClose={handleProgramsModalClose}
+            customerId={ensureId((lastResult.data as any).customerId)}
+            businessId={ensureId(businessId)}
+            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+          />
+          
+          <RedemptionModal
+            isOpen={showRedeemModal}
+            onClose={handleRedeemModalClose}
+            customerId={ensureId((lastResult.data as any).customerId)}
+            businessId={ensureId(businessId)}
+            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+          />
 
-      {/* Transaction Confirmation Modal */}
+          <CustomerDetailsModal
+            isOpen={showCustomerDetailsModal}
+            onClose={() => {
+              logScanProcess('CustomerDetailsModal closed');
+              setShowCustomerDetailsModal(false);
+            }}
+            customerId={ensureId((lastResult.data as any).customerId)}
+            businessId={ensureId(businessId)}
+            initialData={{
+              ...lastResult.data,
+              name: (lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer',
+              customerId: ensureId((lastResult.data as any).customerId)
+            }}
+          />
+        </>
+      )}
+      
+      {/* Show modals if we have selectedCustomerId but no lastResult */}
+      {!lastResult && selectedCustomerId && businessId && (
+        <CustomerDetailsModal
+          isOpen={showCustomerDetailsModal}
+          onClose={() => {
+            logScanProcess('CustomerDetailsModal closed');
+            setShowCustomerDetailsModal(false);
+          }}
+          customerId={ensureId(selectedCustomerId)}
+          businessId={ensureId(businessId)}
+          initialData={{
+            customerId: ensureId(selectedCustomerId),
+            name: 'Customer'
+          }}
+        />
+      )}
+      
+      {/* Transaction confirmation */}
       {showTransactionConfirmation && transactionDetails && (
         <TransactionConfirmation
           type={transactionConfirmationType}
-          details={transactionDetails}
+          transactionType={transactionDetails.type}
+          message={transactionDetails.message}
+          details={transactionDetails.details}
+          customerName={transactionDetails.customerName}
+          businessName={transactionDetails.businessName}
+          points={transactionDetails.points}
+          amount={transactionDetails.amount}
           onClose={handleTransactionConfirmationClose}
-          onSubmitFeedback={handleFeedbackSubmit}
+          onFeedback={handleFeedbackSubmit}
         />
       )}
       
-      {/* Customer Details Modal */}
-      {showCustomerDetailsModal && lastResult?.type === 'customer' && (
-        <CustomerDetailsModal
-          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
-          onClose={() => setShowCustomerDetailsModal(false)}
-        />
+      {rateLimited && rateLimitResetTime && (
+        <div className="mt-2 p-2 bg-yellow-100 border border-yellow-400 rounded flex items-center text-yellow-800">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          <span className="text-sm">
+            Rate limit reached. Please wait {Math.ceil((rateLimitResetTime - Date.now()) / 1000)} seconds.
+          </span>
+        </div>
       )}
       
-      {/* Rewards Modal */}
-      {showRewardsModal && lastResult?.type === 'customer' && (
-        <RewardModal
-          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
-          businessId={businessId?.toString() || ''}
-          onClose={handleRewardsModalClose}
-          initialPoints={pointsToAward}
-        />
+      {/* Add scanning tips panel that shows when there's an error */}
+      {error && error.includes('Unrecognized QR code type: customer') && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 animate-fadeIn w-full max-w-md">
+          <h3 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+            <Target className="h-4 w-4 mr-1" />
+            QR Code Scanning Tips
+          </h3>
+          <ul className="text-xs text-blue-700 space-y-1 ml-5 list-disc">
+            <li>Make sure the QR code is fully visible and well-lit</li>
+            <li>Hold the device steady and at the right distance</li>
+            <li>Keep the QR code centered in the scanning frame</li>
+            <li>Clean your camera lens if the image appears blurry</li>
+            <li>Try scanning more slowly to ensure accurate reading</li>
+          </ul>
+        </div>
       )}
-      
-      {/* Program Enrollment Modal */}
-      {showProgramsModal && lastResult?.type === 'customer' && (
-        <ProgramEnrollmentModal
-          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
-          businessId={businessId?.toString() || ''}
-          onClose={handleProgramsModalClose}
-          preSelectedProgramId={programId?.toString()}
-        />
-      )}
-      
-      {/* Redemption Modal */}
-      {showRedeemModal && lastResult?.type === 'customer' && (
-        <RedemptionModal
-          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
-          businessId={businessId?.toString() || ''}
-          onClose={handleRedeemModalClose}
-        />
-      )}
-      
-      {/* Scan History Modal */}
-      {renderScanHistory()}
     </div>
   );
 };
