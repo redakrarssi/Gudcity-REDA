@@ -287,20 +287,27 @@ class QrScanMonitor {
   }
   
   /**
-   * Track a scanning attempt and update rate limiting
+   * Track a scanning attempt (for analytics only)
+   * Does NOT update lastScanTime; that is handled in isRateLimited so we
+   * don't immediately rate-limit the very first scan.
    */
   trackScan() {
-    this.lastScanTime = Date.now();
     this.scanCount++;
   }
   
   /**
-   * Check if scanning is currently rate limited
+   * Determine whether we should throttle the next scan.
+   * If the window has passed, we reset lastScanTime to now and allow the scan.
    */
   isRateLimited() {
     const currentTime = Date.now();
     const timeSinceLastScan = currentTime - this.lastScanTime;
-    return timeSinceLastScan < this.rateLimitWindowMs;
+    if (timeSinceLastScan < this.rateLimitWindowMs) {
+      return true; // Still within cooldown period
+    }
+    // Cool-down passed → update timestamp and allow scan
+    this.lastScanTime = currentTime;
+    return false;
   }
   
   /**
