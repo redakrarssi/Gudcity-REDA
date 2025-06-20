@@ -4,42 +4,36 @@
  * Provides comprehensive validation for all QR code types
  * with consistent error handling and standardized messages.
  */
-import { StandardQrCodeData } from './standardQrCodeGenerator';
-import { QrValidationError, QrErrorCategory } from './qrCodeErrorHandler';
+import { 
+  QrCodeType, 
+  QrCodeData, 
+  CustomerQrCodeData, 
+  LoyaltyCardQrCodeData, 
+  PromoCodeQrCodeData, 
+  UnknownQrCodeData,
+  isCustomerQrCodeData,
+  isLoyaltyCardQrCodeData,
+  isPromoCodeQrCodeData
+} from '../types/qrCode';
+import { QrValidationError } from './qrCodeErrorHandler';
 
 /**
  * Schema definitions for different QR code types
  */
 const schemas = {
   // Common required fields for all QR codes
-  common: ['type', 'qrUniqueId', 'timestamp', 'version'],
+  common: ['type', 'timestamp'],
   
   // Type-specific required fields
-  CUSTOMER_CARD: ['customerId'],
-  LOYALTY_CARD: ['customerId', 'programId', 'cardId', 'businessId'],
-  PROMO_CODE: ['promoCode', 'businessId'],
+  customer: ['customerId'],
+  loyaltyCard: ['customerId', 'programId', 'cardId', 'businessId'],
+  promoCode: ['code', 'businessId'],
   
   // Type-specific optional fields
-  CUSTOMER_CARD_optional: ['customerName', 'businessId'],
-  LOYALTY_CARD_optional: [],
-  PROMO_CODE_optional: []
+  customer_optional: ['name', 'email', 'businessId'],
+  loyaltyCard_optional: ['points'],
+  promoCode_optional: ['discount', 'expiryDate']
 };
-
-/**
- * Type guards for QR code data
- */
-export function isStandardQrCodeData(data: any): data is StandardQrCodeData {
-  return (
-    data &&
-    typeof data === 'object' &&
-    (data.type === 'CUSTOMER_CARD' || 
-     data.type === 'LOYALTY_CARD' || 
-     data.type === 'PROMO_CODE') &&
-    typeof data.qrUniqueId === 'string' &&
-    typeof data.timestamp === 'number' &&
-    typeof data.version === 'string'
-  );
-}
 
 /**
  * Validates QR code data against the required schema
@@ -48,14 +42,14 @@ export function isStandardQrCodeData(data: any): data is StandardQrCodeData {
  * @returns Validated and normalized QR code data
  * @throws QrValidationError if validation fails
  */
-export function validateQrCodeData(data: unknown): StandardQrCodeData {
+export function validateQrCodeData(data: unknown): QrCodeData {
   // Ensure data is not null or undefined
   if (!data) {
     throw new QrValidationError('QR code data is missing', { data });
   }
   
   // Parse string data if necessary
-  let parsedData: any;
+  let parsedData: unknown;
   if (typeof data === 'string') {
     try {
       parsedData = JSON.parse(data);
@@ -77,149 +71,308 @@ export function validateQrCodeData(data: unknown): StandardQrCodeData {
     });
   }
   
-  // Check common required fields
-  for (const field of schemas.common) {
-    if (parsedData[field] === undefined || parsedData[field] === null) {
-      throw new QrValidationError(`Required field missing: ${field}`, {
-        data: parsedData,
-        missingField: field
-      });
-    }
-  }
-  
-  // Validate type-specific fields
-  const type = parsedData.type as string;
-  if (!['CUSTOMER_CARD', 'LOYALTY_CARD', 'PROMO_CODE'].includes(type)) {
-    throw new QrValidationError(`Invalid QR code type: ${type}`, {
-      data: parsedData,
-      invalidType: type
+  // Check if data has a type property
+  if (!('type' in parsedData)) {
+    throw new QrValidationError('QR code data must have a type property', {
+      data: parsedData
     });
   }
   
-  // Check required fields for the specific type
-  const requiredFields = schemas[type as keyof typeof schemas] || [];
-  for (const field of requiredFields) {
-    if (parsedData[field] === undefined || parsedData[field] === null) {
-      throw new QrValidationError(`Required field missing for ${type}: ${field}`, {
-        data: parsedData,
-        qrType: type,
-        missingField: field
-      });
-    }
+  // Get the type
+  const qrType = (parsedData as { type: unknown }).type;
+  
+  // Validate type is a valid QrCodeType
+  if (!isValidQrCodeType(qrType)) {
+    throw new QrValidationError(`Invalid QR code type: ${String(qrType)}`, {
+      data: parsedData,
+      invalidType: qrType
+    });
   }
   
   // Type-specific validations
-  switch (type) {
-    case 'CUSTOMER_CARD':
-      validateCustomerCard(parsedData);
-      break;
-    case 'LOYALTY_CARD':
-      validateLoyaltyCard(parsedData);
-      break;
-    case 'PROMO_CODE':
-      validatePromoCode(parsedData);
-      break;
+  switch (qrType) {
+    case 'customer':
+      return validateCustomerCard(parsedData);
+    case 'loyaltyCard':
+      return validateLoyaltyCard(parsedData);
+    case 'promoCode':
+      return validatePromoCode(parsedData);
+    default:
+      return validateUnknownData(parsedData);
   }
-  
-  // Return validated data
-  return parsedData as StandardQrCodeData;
 }
 
 /**
- * Validate customer card specific fields
+ * Check if a value is a valid QrCodeType
  */
-function validateCustomerCard(data: any): void {
+function isValidQrCodeType(type: unknown): type is QrCodeType {
+  return typeof type === 'string' && 
+    ['customer', 'loyaltyCard', 'promoCode', 'unknown'].includes(type);
+}
+
+/**
+ * Validate customer card data
+ * @param data The data to validate
+ * @returns Validated CustomerQrCodeData
+ * @throws QrValidationError if validation fails
+ */
+function validateCustomerCard(data: unknown): CustomerQrCodeData {
+  // Check if data is already a valid CustomerQrCodeData
+  if (isCustomerQrCodeData(data)) {
+    return data;
+  }
+  
+  // If we got here, the data needs further validation
+  if (typeof data !== 'object' || data === null) {
+    throw new QrValidationError('Customer card data must be an object', { data });
+  }
+  
+  // Check required fields
+  const requiredFields = schemas.customer;
+  for (const field of requiredFields) {
+    if (!(field in data)) {
+      throw new QrValidationError(`Required field missing for customer: ${field}`, {
+        data,
+        missingField: field
+      });
+    }
+  }
+  
+  // Cast to a partial CustomerQrCodeData to check properties
+  const partialData = data as Partial<CustomerQrCodeData>;
+  
   // Validate customerId
-  if (typeof data.customerId !== 'string' && typeof data.customerId !== 'number') {
+  if (typeof partialData.customerId !== 'string' && typeof partialData.customerId !== 'number') {
     throw new QrValidationError('Customer ID must be a string or number', {
       data,
-      customerId: data.customerId,
-      customerIdType: typeof data.customerId
+      customerId: partialData.customerId,
+      customerIdType: typeof partialData.customerId
     });
   }
   
-  // Validate optional fields if present
-  if (data.customerName !== undefined && typeof data.customerName !== 'string') {
+  // Validate name if present
+  if (partialData.name !== undefined && typeof partialData.name !== 'string') {
     throw new QrValidationError('Customer name must be a string', {
       data,
-      customerName: data.customerName,
-      customerNameType: typeof data.customerName
+      name: partialData.name,
+      nameType: typeof partialData.name
     });
   }
   
-  if (data.businessId !== undefined && 
-      typeof data.businessId !== 'string' && 
-      typeof data.businessId !== 'number') {
-    throw new QrValidationError('Business ID must be a string or number', {
+  // Validate email if present
+  if (partialData.email !== undefined && typeof partialData.email !== 'string') {
+    throw new QrValidationError('Customer email must be a string', {
       data,
-      businessId: data.businessId,
-      businessIdType: typeof data.businessId
+      email: partialData.email,
+      emailType: typeof partialData.email
     });
   }
+  
+  // Validate businessId if present
+  if (partialData.businessId !== undefined && 
+      typeof partialData.businessId !== 'string' && 
+      typeof partialData.businessId !== 'number') {
+    throw new QrValidationError('Business ID must be a string or number', {
+      data,
+      businessId: partialData.businessId,
+      businessIdType: typeof partialData.businessId
+    });
+  }
+  
+  // Construct a valid CustomerQrCodeData
+  return {
+    type: 'customer',
+    customerId: partialData.customerId!,
+    name: partialData.name,
+    email: partialData.email,
+    businessId: partialData.businessId,
+    timestamp: partialData.timestamp || Date.now(),
+    signature: partialData.signature
+  };
 }
 
 /**
- * Validate loyalty card specific fields
+ * Validate loyalty card data
+ * @param data The data to validate
+ * @returns Validated LoyaltyCardQrCodeData
+ * @throws QrValidationError if validation fails
  */
-function validateLoyaltyCard(data: any): void {
+function validateLoyaltyCard(data: unknown): LoyaltyCardQrCodeData {
+  // Check if data is already a valid LoyaltyCardQrCodeData
+  if (isLoyaltyCardQrCodeData(data)) {
+    return data;
+  }
+  
+  // If we got here, the data needs further validation
+  if (typeof data !== 'object' || data === null) {
+    throw new QrValidationError('Loyalty card data must be an object', { data });
+  }
+  
+  // Check required fields
+  const requiredFields = schemas.loyaltyCard;
+  for (const field of requiredFields) {
+    if (!(field in data)) {
+      throw new QrValidationError(`Required field missing for loyalty card: ${field}`, {
+        data,
+        missingField: field
+      });
+    }
+  }
+  
+  // Cast to a partial LoyaltyCardQrCodeData to check properties
+  const partialData = data as Partial<LoyaltyCardQrCodeData>;
+  
   // Validate customerId
-  if (typeof data.customerId !== 'string' && typeof data.customerId !== 'number') {
+  if (typeof partialData.customerId !== 'string' && typeof partialData.customerId !== 'number') {
     throw new QrValidationError('Customer ID must be a string or number', {
       data,
-      customerId: data.customerId,
-      customerIdType: typeof data.customerId
+      customerId: partialData.customerId,
+      customerIdType: typeof partialData.customerId
     });
   }
   
   // Validate programId
-  if (typeof data.programId !== 'string' && typeof data.programId !== 'number') {
+  if (typeof partialData.programId !== 'string' && typeof partialData.programId !== 'number') {
     throw new QrValidationError('Program ID must be a string or number', {
       data,
-      programId: data.programId,
-      programIdType: typeof data.programId
+      programId: partialData.programId,
+      programIdType: typeof partialData.programId
     });
   }
   
   // Validate cardId
-  if (typeof data.cardId !== 'string' && typeof data.cardId !== 'number') {
+  if (typeof partialData.cardId !== 'string' && typeof partialData.cardId !== 'number') {
     throw new QrValidationError('Card ID must be a string or number', {
       data,
-      cardId: data.cardId,
-      cardIdType: typeof data.cardId
+      cardId: partialData.cardId,
+      cardIdType: typeof partialData.cardId
     });
   }
   
   // Validate businessId
-  if (typeof data.businessId !== 'string' && typeof data.businessId !== 'number') {
+  if (typeof partialData.businessId !== 'string' && typeof partialData.businessId !== 'number') {
     throw new QrValidationError('Business ID must be a string or number', {
       data,
-      businessId: data.businessId,
-      businessIdType: typeof data.businessId
+      businessId: partialData.businessId,
+      businessIdType: typeof partialData.businessId
     });
   }
+  
+  // Validate points if present
+  if (partialData.points !== undefined && typeof partialData.points !== 'number') {
+    throw new QrValidationError('Points must be a number', {
+      data,
+      points: partialData.points,
+      pointsType: typeof partialData.points
+    });
+  }
+  
+  // Construct a valid LoyaltyCardQrCodeData
+  return {
+    type: 'loyaltyCard',
+    cardId: partialData.cardId!,
+    customerId: partialData.customerId!,
+    programId: partialData.programId!,
+    businessId: partialData.businessId!,
+    points: partialData.points,
+    timestamp: partialData.timestamp || Date.now(),
+    signature: partialData.signature
+  };
 }
 
 /**
- * Validate promo code specific fields
+ * Validate promo code data
+ * @param data The data to validate
+ * @returns Validated PromoCodeQrCodeData
+ * @throws QrValidationError if validation fails
  */
-function validatePromoCode(data: any): void {
-  // Validate promoCode
-  if (typeof data.promoCode !== 'string') {
+function validatePromoCode(data: unknown): PromoCodeQrCodeData {
+  // Check if data is already a valid PromoCodeQrCodeData
+  if (isPromoCodeQrCodeData(data)) {
+    return data;
+  }
+  
+  // If we got here, the data needs further validation
+  if (typeof data !== 'object' || data === null) {
+    throw new QrValidationError('Promo code data must be an object', { data });
+  }
+  
+  // Check required fields
+  const requiredFields = schemas.promoCode;
+  for (const field of requiredFields) {
+    if (!(field in data)) {
+      throw new QrValidationError(`Required field missing for promo code: ${field}`, {
+        data,
+        missingField: field
+      });
+    }
+  }
+  
+  // Cast to a partial PromoCodeQrCodeData to check properties
+  const partialData = data as Partial<PromoCodeQrCodeData>;
+  
+  // Validate code
+  if (typeof partialData.code !== 'string') {
     throw new QrValidationError('Promo code must be a string', {
       data,
-      promoCode: data.promoCode,
-      promoCodeType: typeof data.promoCode
+      code: partialData.code,
+      codeType: typeof partialData.code
     });
   }
   
   // Validate businessId
-  if (typeof data.businessId !== 'string' && typeof data.businessId !== 'number') {
+  if (typeof partialData.businessId !== 'string' && typeof partialData.businessId !== 'number') {
     throw new QrValidationError('Business ID must be a string or number', {
       data,
-      businessId: data.businessId,
-      businessIdType: typeof data.businessId
+      businessId: partialData.businessId,
+      businessIdType: typeof partialData.businessId
     });
   }
+  
+  // Validate discount if present
+  if (partialData.discount !== undefined && typeof partialData.discount !== 'number') {
+    throw new QrValidationError('Discount must be a number', {
+      data,
+      discount: partialData.discount,
+      discountType: typeof partialData.discount
+    });
+  }
+  
+  // Validate expiryDate if present
+  if (partialData.expiryDate !== undefined && typeof partialData.expiryDate !== 'string') {
+    throw new QrValidationError('Expiry date must be a string', {
+      data,
+      expiryDate: partialData.expiryDate,
+      expiryDateType: typeof partialData.expiryDate
+    });
+  }
+  
+  // Construct a valid PromoCodeQrCodeData
+  return {
+    type: 'promoCode',
+    code: partialData.code!,
+    businessId: partialData.businessId!,
+    discount: partialData.discount,
+    expiryDate: partialData.expiryDate,
+    timestamp: partialData.timestamp || Date.now(),
+    signature: partialData.signature
+  };
+}
+
+/**
+ * Validate unknown data
+ * @param data The data to validate
+ * @returns Validated UnknownQrCodeData
+ */
+function validateUnknownData(data: unknown): UnknownQrCodeData {
+  // Convert any data to UnknownQrCodeData
+  const rawData = typeof data === 'string' ? data : JSON.stringify(data);
+  
+  return {
+    type: 'unknown',
+    rawData,
+    timestamp: Date.now()
+  };
 }
 
 /**
@@ -230,7 +383,7 @@ function validatePromoCode(data: any): void {
  */
 export function safeValidateQrCode(data: unknown): { 
   valid: boolean; 
-  data?: StandardQrCodeData; 
+  data?: QrCodeData; 
   error?: QrValidationError;
 } {
   try {

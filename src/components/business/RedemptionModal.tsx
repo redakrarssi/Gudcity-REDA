@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { PromoService } from '../../services/promoService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { Confetti } from '../ui/Confetti';
+import { ensureId } from '../../types/qrCode';
 
 interface RedemptionModalProps {
   isOpen: boolean;
@@ -11,6 +12,12 @@ interface RedemptionModalProps {
   customerId: string;
   businessId: string;
   customerName?: string;
+}
+
+interface RedemptionDetails {
+  value: string | number;
+  currency?: string;
+  promotionName?: string;
 }
 
 export const RedemptionModal: React.FC<RedemptionModalProps> = ({
@@ -25,11 +32,7 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [redemptionDetails, setRedemptionDetails] = useState<{
-    value: string | number;
-    currency?: string;
-    promotionName?: string;
-  } | null>(null);
+  const [redemptionDetails, setRedemptionDetails] = useState<RedemptionDetails | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState<boolean>(false);
   const [checkingEnrollment, setCheckingEnrollment] = useState(false);
@@ -57,7 +60,7 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
       
       // Check if customer is enrolled in any of the business programs
       const enrollmentPromises = programs.map(program => 
-        LoyaltyProgramService.checkEnrollment(customerId, program.id)
+        LoyaltyProgramService.checkEnrollment(ensureId(customerId), ensureId(program.id))
       );
       
       const enrollmentResults = await Promise.all(enrollmentPromises);
@@ -93,7 +96,7 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
     try {
       const result = await PromoService.redeemCode(
         promoCode.trim(),
-        customerId
+        ensureId(customerId)
       );
 
       if (result.success) {
@@ -132,11 +135,22 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
   
   const playErrorSound = () => {
     try {
-      const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3');
+      const audio = new Audio('/assets/sounds/beep-success.mp3');
       audio.volume = 0.5;
-      audio.play();
+      
+      // Only play if the audio can be played
+      audio.oncanplaythrough = () => {
+        audio.play().catch(error => {
+          // Silently fail - audio is non-critical
+        });
+      };
+      
+      // Set error handler
+      audio.onerror = () => {
+        // Silently fail - audio is non-critical
+      };
     } catch (error) {
-      console.error('Error playing error sound:', error);
+      // Silently fail - audio is non-critical
     }
   };
 
@@ -235,37 +249,39 @@ export const RedemptionModal: React.FC<RedemptionModalProps> = ({
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent shadow-sm transition-shadow"
               placeholder="Enter code (e.g. SUMMER25)"
               disabled={isProcessing || !isEnrolled || checkingEnrollment}
-              onKeyPress={(e) => e.key === 'Enter' && handleRedeemCode()}
+              onKeyDown={(e) => e.key === 'Enter' && handleRedeemCode()}
             />
           </div>
-          <p className="mt-2 text-sm text-gray-500">
-            {t('Enter the promotion code provided by the customer')}
-          </p>
         </div>
 
-        <div className="flex justify-between space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors shadow-sm"
-            disabled={isProcessing}
-          >
-            {t('Cancel')}
-          </button>
+        <div className="flex space-x-3">
           <button
             onClick={handleRedeemCode}
-            className={`px-4 py-2 bg-amber-500 text-white rounded-lg transition-colors flex items-center shadow-sm ${
-              isEnrolled && !checkingEnrollment && !isProcessing 
-                ? 'hover:bg-amber-600 hover:shadow-md'
-                : 'opacity-50 cursor-not-allowed'
+            disabled={isProcessing || !promoCode.trim() || !isEnrolled || checkingEnrollment}
+            className={`flex-1 py-3 px-4 flex items-center justify-center rounded-lg font-medium transition-all ${
+              isProcessing || !promoCode.trim() || !isEnrolled || checkingEnrollment
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-md hover:shadow-lg'
             }`}
-            disabled={isProcessing || !isEnrolled || checkingEnrollment}
           >
             {isProcessing ? (
-              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                {t('Processing...')}
+              </>
             ) : (
-              <KeyRound className="w-4 h-4 mr-2" />
+              <>
+                <KeyRound className="w-5 h-5 mr-2" />
+                {t('Redeem Code')}
+              </>
             )}
-            {t('Redeem Code')}
+          </button>
+          
+          <button
+            onClick={onClose}
+            className="py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          >
+            {t('Cancel')}
           </button>
         </div>
       </div>

@@ -6,51 +6,16 @@ import { Gift, Star, QrCode, Wallet } from 'lucide-react';
 const LandingPage = () => {
   const { t, i18n } = useTranslation();
   
-  // Add diagnostic logging for production debugging
-  useEffect(() => {
-    console.log('LandingPage mounted');
-    console.log('Current i18n language:', i18n.language);
-    console.log('i18n resources loaded:', i18n.hasResourceBundle(i18n.language, 'translation'));
-    
-    // Check if Lucide icons are available
-    try {
-      console.log('Lucide icons available:', typeof Gift === 'function');
-    } catch (err) {
-      console.error('Error checking Lucide:', err);
-    }
-    
-    // Report any uncaught errors
-    window.addEventListener('error', (event) => {
-      console.error('Global error caught:', event.error);
-    });
-  }, [i18n]);
-
   // Create safe translation function with fallbacks
   const safeT = (key: string, fallback: string) => {
     try {
       const translated = t(key);
       return translated === key ? fallback : translated;
     } catch (err) {
-      console.error(`Translation error for key "${key}":`, err);
+      // Silent fail with fallback
       return fallback;
     }
   };
-  
-  // Manually trigger error report
-  useEffect(() => {
-    console.log("LandingPage rendering at:", new Date().toISOString());
-    // Force report any uncaught errors
-    window.addEventListener('error', (event) => {
-      console.error('Global error:', event.error);
-    });
-    
-    // Check for Lucide icons
-    try {
-      console.log('Gift icon available:', Gift !== undefined);
-    } catch (err) {
-      console.error('Lucide icons error:', err);
-    }
-  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -104,7 +69,7 @@ const LandingPage = () => {
                 &copy; {new Date().getFullYear()} GudCity. {safeT('All rights reserved.', 'All rights reserved.')}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                gudcity 14
+                gudcity 15
               </p>
             </div>
             <div className="flex space-x-6">
