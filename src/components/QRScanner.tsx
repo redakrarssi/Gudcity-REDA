@@ -464,43 +464,29 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [lastResult, setLastResult] = useState<UnifiedScanResult | null>(null);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
-  const [isRateLimited, setRateLimited] = useState(false);
-  const [isProcessing, setProcessing] = useState(false);
-  const [processingCard, setProcessingCard] = useState(false);
-  const { t } = useTranslation();
-  const scannerRef = useRef<HTMLDivElement>(null);
-  const rateLimitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showScanHistory, setShowScanHistory] = useState(false);
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
+  const [showScannerConfig, setShowScannerConfig] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [successNotificationMessage, setSuccessNotificationMessage] = useState('');
   const [notificationType, setNotificationType] = useState<'success' | 'error' | 'info'>('success');
-  
-  // Modal states
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showProgramsModal, setShowProgramsModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
   const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
-  const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error'>('success');
   const [transactionDetails, setTransactionDetails] = useState<TransactionDetails | null>(null);
-  const [scannerConfig, setScannerConfig] = useState<ScannerConfig>({
-    fps: 10,
-    qrboxSize: 250,
-    disableFlip: false,
-    aspectRatio: 1.0,
-    focusMode: 'continuous'
-  });
+  const [transactionConfirmationType, setTransactionConfirmationType] = useState<'success' | 'error' | 'info'>('success');
   
-  // Function to show a green notification for successful operations
-  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setSuccessNotificationMessage(message);
-    setNotificationType(type);
-    setShowSuccessNotification(true);
-    
-    // Auto hide after 3 seconds
-    setTimeout(() => {
-      setShowSuccessNotification(false);
-    }, 3000);
-  };
+  // Refs
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerDivId = 'qr-scanner-container';
+  const scanTimeoutRef = useRef<number | null>(null);
+  
+  // i18n
+  const { t } = useTranslation();
 
   useEffect(() => {
     const checkDomReady = () => {
@@ -548,7 +534,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const initializeScanner = async (): Promise<boolean> => {
     try {
       // Add a small delay to ensure DOM is fully loaded
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const scannerElement = document.getElementById('qr-scanner-container');
       if (!scannerElement) {
@@ -561,18 +547,20 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       if (scannerRef.current) {
         try {
           if (isScanning) {
-            await scannerRef.current.stop();
+            await scannerRef.current.stop().catch(e => {
+              console.warn("Error stopping existing scanner:", e);
+            });
           }
           scannerRef.current = null;
         } catch (stopError) {
-          console.error("Error stopping existing scanner:", stopError);
+          console.warn("Error stopping existing scanner:", stopError);
         }
       }
 
       // Make sure the scanner element is empty
       scannerElement.innerHTML = '';
       
-      // Verify HTML5QrCode is available
+      // Verify HTML5Qrcode is available
       if (typeof Html5Qrcode !== 'function') {
         console.error("HTML5QrCode library not found");
         setError("Scanner initialization failed: Required library not available");
@@ -582,7 +570,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Create a fresh scanner instance with verbose error handling
       try {
         console.log("Creating new scanner instance");
-        scannerRef.current = new Html5Qrcode(scannerDivId);
+        
+        // Use a try/catch with timeout to prevent infinite errors
+        const createScannerWithTimeout = () => {
+          return new Promise<Html5Qrcode | null>((resolve, reject) => {
+            // Set timeout to prevent hanging
+            const timeoutId = setTimeout(() => {
+              reject(new Error("Scanner initialization timed out"));
+            }, 5000);
+            
+            try {
+              const scanner = new Html5Qrcode(scannerDivId);
+              clearTimeout(timeoutId);
+              resolve(scanner);
+            } catch (err) {
+              clearTimeout(timeoutId);
+              reject(err);
+            }
+          });
+        };
+        
+        scannerRef.current = await createScannerWithTimeout();
         
         // Verify the scanner was initialized
         if (!scannerRef.current) {
@@ -594,13 +602,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         console.error("Error creating HTML5QrCode instance:", initError);
         // Try with a small delay and different approach if first attempt fails
         try {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 800));
           console.log("Retrying scanner initialization with delay");
-          scannerRef.current = new Html5Qrcode(scannerDivId);
-          return !!scannerRef.current;
+          
+          // Try a different approach on retry
+          const scannerDiv = document.getElementById(scannerDivId);
+          if (scannerDiv) {
+            // Make sure it's empty
+            scannerDiv.innerHTML = '';
+            // Try to create with a more defensive approach
+            scannerRef.current = new Html5Qrcode(scannerDivId, { verbose: false });
+            return !!scannerRef.current;
+          }
+          return false;
         } catch (retryError) {
           console.error("Retry failed:", retryError);
-          throw retryError;
+          setError("Camera initialization failed. Please try refreshing the page.");
+          return false;
         }
       }
     } catch (err) {
@@ -2058,8 +2076,173 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       <div className={`w-full max-w-lg mx-auto relative ${
         permissionGranted === false ? 'opacity-50 pointer-events-none' : ''
       }`}>
-        
-      {/* ... rest of the existing code ... */}
+        {/* Error display */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
+              <div className="flex-1">{error}</div>
+              <button
+                onClick={() => setError(null)}
+                className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Scanner Container */}
+        <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg mb-4">
+          <div className="relative">
+            {/* Camera Feed Container */}
+            <div
+              id="qr-scanner-container"
+              className="w-full h-64 md:h-80 bg-black relative overflow-hidden"
+            ></div>
+
+            {/* Scanner Animation */}
+            {isScanning && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-64 h-64 border-2 border-blue-400 rounded-lg relative">
+                  <div className="absolute top-0 left-0 w-full border-t-2 border-blue-500 animate-scanline"></div>
+                </div>
+              </div>
+            )}
+
+            {/* Permission Denied */}
+            {permissionGranted === false && (
+              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white p-6 text-center">
+                <AlertCircle className="w-12 h-12 mb-3 text-red-500" />
+                <h3 className="text-lg font-medium mb-2">{t('Camera Access Denied')}</h3>
+                <p className="mb-4 text-white/80">
+                  {t('Please allow camera access in your browser settings to use the QR scanner.')}
+                </p>
+              </div>
+            )}
+            
+          </div>
+
+          {/* Scanner Controls */}
+          <div className="p-4 bg-gray-700">
+            <button
+              onClick={toggleScanner}
+              disabled={!permissionGranted}
+              className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center transition-colors ${
+                isScanning
+                  ? 'bg-red-500 hover:bg-red-600 text-white'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              } ${!permissionGranted ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isScanning ? (
+                <>
+                  <X className="w-5 h-5 mr-2" />
+                  {t('Stop Scanner')}
+                </>
+              ) : (
+                <>
+                  <Scan className="w-5 h-5 mr-2" />
+                  {t('Start Scanner')}
+                </>
+              )}
+            </button>
+            
+            {renderControlButtons()}
+            {renderCameraSelector()}
+            {renderScannerConfig()}
+          </div>
+        </div>
+
+        {/* Action Buttons (only shown when a result is selected) */}
+        {lastResult?.type === 'customer' && (
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <button
+              onClick={handleGiveReward}
+              className="py-2 px-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex flex-col items-center transition-colors"
+            >
+              <Award className="h-5 w-5 mb-1" />
+              <span className="text-xs">{t('Give Points')}</span>
+            </button>
+            
+            <button
+              onClick={handleJoinProgram}
+              className="py-2 px-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex flex-col items-center transition-colors"
+            >
+              <Users className="h-5 w-5 mb-1" />
+              <span className="text-xs">{t('Join Program')}</span>
+            </button>
+            
+            <button
+              onClick={handleRedeemCode}
+              className="py-2 px-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex flex-col items-center transition-colors"
+            >
+              <KeyRound className="h-5 w-5 mb-1" />
+              <span className="text-xs">{t('Redeem Code')}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Scan History Button */}
+        <div className="mb-4">
+          <button
+            onClick={() => setShowScanHistory(true)}
+            className="w-full py-2 px-4 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center"
+          >
+            <History className="w-4 h-4 mr-2" />
+            {t('View Scan History')} ({scanHistory.length})
+          </button>
+        </div>
+      </div>
+
+      {/* Transaction Confirmation Modal */}
+      {showTransactionConfirmation && transactionDetails && (
+        <TransactionConfirmation
+          type={transactionConfirmationType}
+          details={transactionDetails}
+          onClose={handleTransactionConfirmationClose}
+          onSubmitFeedback={handleFeedbackSubmit}
+        />
+      )}
+      
+      {/* Customer Details Modal */}
+      {showCustomerDetailsModal && lastResult?.type === 'customer' && (
+        <CustomerDetailsModal
+          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
+          onClose={() => setShowCustomerDetailsModal(false)}
+        />
+      )}
+      
+      {/* Rewards Modal */}
+      {showRewardsModal && lastResult?.type === 'customer' && (
+        <RewardModal
+          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
+          businessId={businessId?.toString() || ''}
+          onClose={handleRewardsModalClose}
+          initialPoints={pointsToAward}
+        />
+      )}
+      
+      {/* Program Enrollment Modal */}
+      {showProgramsModal && lastResult?.type === 'customer' && (
+        <ProgramEnrollmentModal
+          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
+          businessId={businessId?.toString() || ''}
+          onClose={handleProgramsModalClose}
+          preSelectedProgramId={programId?.toString()}
+        />
+      )}
+      
+      {/* Redemption Modal */}
+      {showRedeemModal && lastResult?.type === 'customer' && (
+        <RedemptionModal
+          customerId={(lastResult.data as CustomerQrCodeData).customerId?.toString() || ''}
+          businessId={businessId?.toString() || ''}
+          onClose={handleRedeemModalClose}
+        />
+      )}
+      
+      {/* Scan History Modal */}
+      {renderScanHistory()}
     </div>
   );
 };
