@@ -6,6 +6,7 @@ import { Plus, Award, Calendar, Tag, Clock, ChevronRight, X } from 'lucide-react
 import type { LoyaltyProgram } from '../../types/loyalty';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { useAuth } from '../../contexts/AuthContext';
+import sql, { verifyConnection } from '../../utils/db';
 
 const Programs = () => {
   const { t } = useTranslation();
@@ -15,6 +16,46 @@ const Programs = () => {
   const [showProgramBuilder, setShowProgramBuilder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Add this useEffect to ensure browser object is defined for this page
+  useEffect(() => {
+    // Ensure browser is defined to prevent "browser is not defined" errors
+    if (typeof window !== 'undefined' && !window.browser) {
+      console.log('Applying browser polyfill in Programs component');
+      window.browser = window.browser || {
+        runtime: { 
+          sendMessage: function() { return Promise.resolve(); }, 
+          onMessage: { addListener: function() {}, removeListener: function() {} },
+          getManifest: function() { return {}; },
+          getURL: function(path) { return path; }
+        },
+        storage: { 
+          local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } },
+          sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } }
+        },
+        tabs: {
+          query: function() { return Promise.resolve([]); }
+        }
+      };
+    }
+    
+    // Detect and disable extension scripts causing errors
+    const disableErrorScripts = () => {
+      const scripts = document.querySelectorAll('script');
+      for (const script of Array.from(scripts)) {
+        if (script.src && (
+          script.src.includes('content.js') || 
+          script.src.includes('checkPageManual.js') || 
+          script.src.includes('overlays.js')
+        )) {
+          console.log('Removing problematic script:', script.src);
+          script.remove();
+        }
+      }
+    };
+    
+    disableErrorScripts();
+  }, []);
 
   useEffect(() => {
     const loadPrograms = async () => {
@@ -73,12 +114,39 @@ const Programs = () => {
           setPrograms(programs.map((p) => 
             p.id === selectedProgram.id ? updatedProgram : p
           ));
+          setShowProgramBuilder(false);
+          setSelectedProgram(null);
         } else {
           setError(t('Failed to update program. Please try again.'));
         }
       } else {
         // Create new program
-        const businessId = user?.id.toString() || '';
+        // Validate business ID is available
+        const businessId = user?.id?.toString();
+        
+        if (!businessId) {
+          console.error('No business ID available for program creation');
+          setError(t('Could not create program: Missing business information'));
+          return;
+        }
+        
+        console.log('Creating program with business ID:', businessId);
+        
+        // Test database connection first
+        const isConnected = await verifyConnection();
+        console.log('Database connection status:', isConnected);
+        
+        if (!isConnected) {
+          setError('Could not connect to database. Please try again later.');
+          return;
+        }
+        
+        try {
+          // Test basic query
+          const testResult = await sql`SELECT 1 as test`;
+          console.log('Database test query result:', testResult);
+          
+          // Create new program with validated business ID
         const newProgram = await LoyaltyProgramService.createProgram({
           ...program,
           businessId,
@@ -87,16 +155,21 @@ const Programs = () => {
         
         if (newProgram) {
           setPrograms([...programs, newProgram]);
+            setShowProgramBuilder(false);
+            setSelectedProgram(null);
         } else {
-          setError(t('Failed to create program. Please try again.'));
+            // Show a more specific error from the service layer
+            setError('Program creation failed - check console for details');
+          }
+        } catch (createErr: any) {
+          // Display the actual error message directly
+          console.error('Detailed program creation error:', createErr);
+          setError(`Error creating program: ${createErr?.message || JSON.stringify(createErr)}`);
         }
       }
-      
-      setShowProgramBuilder(false);
-      setSelectedProgram(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting program:', err);
-      setError(t('An error occurred. Please try again.'));
+      setError(`${t('An error occurred')}: ${err?.message || JSON.stringify(err)}`);
     }
   };
 

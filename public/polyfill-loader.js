@@ -1,9 +1,35 @@
 // Polyfill loader to handle errors gracefully
 (function() {
+  console.log('Polyfill loader started');
+
+  // Set browser polyfill immediately to prevent errors
+  if (typeof window !== 'undefined' && !window.browser) {
+    window.browser = {
+      runtime: { 
+        sendMessage: function() { return Promise.resolve(); }, 
+        onMessage: { addListener: function() {}, removeListener: function() {} },
+        getManifest: function() { return {}; },
+        getURL: function(path) { return path; }
+      },
+      storage: { 
+        local: { 
+          get: function() { return Promise.resolve({}); }, 
+          set: function() { return Promise.resolve(); }, 
+          remove: function() { return Promise.resolve(); } 
+        }
+      },
+      tabs: {
+        query: function() { return Promise.resolve([]); }
+      }
+    };
+    console.log('Emergency browser polyfill applied');
+  }
+
+  // Order matters - load browser-related polyfills first
   const requiredPolyfills = [
-    'charts-fix-latest.js',
-    'fix-browser-global.js',
+    'fix-browser-global.js',  // This should always be first
     'browser-polyfill.js',
+    'charts-fix-latest.js',
     'lodash-preload.js',
     'charts-lodash-fix.js'
   ];
@@ -12,7 +38,11 @@
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src;
-      script.onload = () => resolve();
+      script.async = false; // Ensure scripts load in order
+      script.onload = () => {
+        console.log(`Loaded ${src} successfully`);
+        resolve();
+      };
       script.onerror = () => {
         console.warn(`Failed to load ${src}, applying fallback`);
         
@@ -40,5 +70,6 @@
     console.log('Polyfill loading completed');
   }
 
+  // Start loading immediately
   loadAllPolyfills();
 })(); 

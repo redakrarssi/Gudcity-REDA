@@ -18,6 +18,54 @@ import {
 import { QrValidationError } from './qrCodeErrorHandler';
 
 /**
+ * Interface for standard QR code data format
+ */
+export interface StandardQrCodeData {
+  type?: string;
+  qrUniqueId?: string;
+  timestamp?: number;
+  version?: string;
+  customerId?: string | number;
+  customerName?: string;
+  businessId?: string | number;
+  programId?: string | number;
+  cardId?: string | number;
+  promoCode?: string;
+  cardNumber?: string;
+  cardType?: string;
+  signature?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Checks if the provided data matches the standard QR code format
+ * @param data The data to check
+ * @returns A type guard indicating if the data is a StandardQrCodeData
+ */
+export function isStandardQrCodeData(data: unknown): data is StandardQrCodeData {
+  if (!data || typeof data !== 'object') return false;
+  
+  const obj = data as Record<string, unknown>;
+  
+  const type = String(obj.type).toUpperCase();
+
+  return (
+    'type' in obj &&
+    typeof obj.type === 'string' &&
+    (
+      // Customer QR code (supports different casings and snake-case)
+      ((type === 'CUSTOMER_CARD' || type === 'CUSTOMER') && 'customerId' in obj) ||
+      // Loyalty card QR code
+      (type === 'LOYALTY_CARD' && 'cardId' in obj) ||
+      // Promo code QR code
+      (type === 'PROMO_CODE' && 'promoCode' in obj) ||
+      // Generic check for any standard QR code
+      ('qrUniqueId' in obj || 'timestamp' in obj || 'version' in obj)
+    )
+  );
+}
+
+/**
  * Schema definitions for different QR code types
  */
 const schemas = {
@@ -106,8 +154,31 @@ export function validateQrCodeData(data: unknown): QrCodeData {
  * Check if a value is a valid QrCodeType
  */
 function isValidQrCodeType(type: unknown): type is QrCodeType {
-  return typeof type === 'string' && 
-    ['customer', 'loyaltyCard', 'promoCode', 'unknown'].includes(type);
+  if (typeof type !== 'string') return false;
+  
+  // Normalize the type string for more flexible validation
+  const normalizedType = normalizeQrCodeType(type);
+  
+  return ['customer', 'loyaltycard', 'promocode', 'unknown'].includes(normalizedType);
+}
+
+/**
+ * Normalize QR code type for flexible validation
+ * Handles variations in format, spacing, and capitalization
+ */
+function normalizeQrCodeType(type: string): string {
+  // Convert to lowercase
+  let normalized = type.toLowerCase();
+  
+  // Remove spaces, underscores, hyphens
+  normalized = normalized.replace(/[\s_-]/g, '');
+  
+  // Handle common variations
+  if (normalized.includes('customer')) return 'customer';
+  if (normalized.includes('loyalty')) return 'loyaltycard';
+  if (normalized.includes('promo')) return 'promocode';
+  
+  return normalized;
 }
 
 /**
@@ -401,5 +472,67 @@ export function safeValidateQrCode(data: unknown): {
         { originalError: error }
       ) 
     };
+  }
+}
+
+/**
+ * Creates a fallback customer QR code data from potentially malformed data
+ * This helps with handling less-standard QR codes that are still meant to be customer codes
+ */
+export function createFallbackCustomerQrCode(data: unknown): CustomerQrCodeData | null {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+  
+  const obj = data as Record<string, unknown>;
+  
+  // Check if it has anything resembling a customer ID
+  const potentialCustomerId = obj.customerId || obj.id || obj.userId || obj.user_id;
+  
+  if (!potentialCustomerId) {
+    return null;
+  }
+  
+  // Create a valid customer QR code data structure
+  return {
+    type: 'customer',
+    customerId: String(potentialCustomerId),
+    name: typeof obj.name === 'string' ? obj.name : 
+          typeof obj.customerName === 'string' ? obj.customerName : 
+          typeof obj.userName === 'string' ? obj.userName : '',
+    email: typeof obj.email === 'string' ? obj.email : '',
+    businessId: obj.businessId !== undefined ? String(obj.businessId) : undefined,
+    timestamp: typeof obj.timestamp === 'number' ? obj.timestamp : Date.now(),
+    signature: typeof obj.signature === 'string' ? obj.signature : undefined,
+    text: JSON.stringify(data)
+  };
+}
+
+/**
+ * Safe validation with fallback for customer QR codes
+ * This is a more lenient version that attempts recovery of customer QR codes
+ */
+export function safeValidateWithFallback(data: unknown): QrCodeData | null {
+  try {
+    // Try standard validation first
+    return validateQrCodeData(data);
+  } catch (error) {
+    // If validation failed, check if this might be a customer QR code
+    if (typeof data === 'object' && data !== null && 'type' in data) {
+      const type = (data as any).type;
+      
+      if (typeof type === 'string' && 
+          (type.toLowerCase() === 'customer' || 
+           type.toUpperCase() === 'CUSTOMER' ||
+           type.includes('customer') ||
+           type.includes('CUSTOMER'))) {
+        
+        // Try to create a fallback customer QR code
+        return createFallbackCustomerQrCode(data);
+      }
+    }
+    
+    // Otherwise, validation genuinely failed
+    return null;
   }
 }

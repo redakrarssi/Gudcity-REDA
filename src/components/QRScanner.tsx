@@ -12,7 +12,12 @@ import { feedbackService } from '../services/feedbackService';
 import { FEATURES } from '../env';
 import { NotificationService } from '../services/notificationService';
 import qrScanMonitor from '../utils/qrScanMonitor';
-import { safeValidateQrCode, isStandardQrCodeData } from '../utils/qrCodeValidator';
+import { 
+  safeValidateQrCode, 
+  isStandardQrCodeData, 
+  safeValidateWithFallback,
+  createFallbackCustomerQrCode
+} from '../utils/qrCodeValidator';
 import { validateQrCodeData, isQrCodeData, isCustomerQrCodeData, isLoyaltyCardQrCodeData, isPromoCodeQrCodeData, monitorTypeViolation } from '../utils/runtimeTypeValidator';
 import type { NotificationType } from '../types/notification';
 import {
@@ -24,6 +29,13 @@ import {
   UnknownQrCodeData,
   UnifiedScanResult
 } from '../types/qrCode';
+import { 
+  isCameraSupported, 
+  isQrScanningSupported, 
+  checkCameraAvailability, 
+  getBrowserInfo,
+  isBrowserSupportedForQrScanning
+} from '../utils/browserSupport';
 
 // Define our own version of StandardQrCodeData to avoid import issues
 interface StandardQrCodeData {
@@ -318,6 +330,17 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
       return null;
     }
 
+    // Try the enhanced fallback validation first - more lenient with customer QR codes
+    const fallbackValidatedData = safeValidateWithFallback(parsedData);
+    if (fallbackValidatedData) {
+      extendedQrScanMonitor.recordSuccessfulScan(
+        fallbackValidatedData.type, 
+        fallbackValidatedData as unknown as Record<string, unknown>
+      );
+      debugLog('Validated with fallback mechanism', fallbackValidatedData);
+      return fallbackValidatedData;
+    }
+
     // Validate using runtime type validator (gracefully handle errors)
     let validatedData: QrCodeData | null = null;
     try {
@@ -340,6 +363,22 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
       // Record successful scan with monitoring
       extendedQrScanMonitor.recordSuccessfulScan(validatedData.type, validatedData as unknown as Record<string, unknown>);
       return validatedData;
+    }
+    
+    // Last attempt: try fallback for customer QR code with more relaxed rules
+    if (typeof parsedData === 'object' && parsedData !== null && 
+        ('type' in parsedData || 'customerId' in parsedData || 'id' in parsedData)) {
+      
+      // Check if it has any indication of being a customer QR code
+      const typeValue = (parsedData as any).type;
+      if (typeof typeValue === 'string' && typeValue.toLowerCase().includes('customer')) {
+        const customerData = createFallbackCustomerQrCode(parsedData);
+        if (customerData) {
+          debugLog('Created customer QR code from malformed data', customerData);
+          extendedQrScanMonitor.recordSuccessfulScan('customer', customerData as unknown as Record<string, unknown>);
+          return customerData;
+        }
+      }
     }
     
     // If not validated through our new system, try legacy validation
@@ -498,6 +537,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
   const initializeScanner = async (): Promise<boolean> => {
     try {
+      // Add a small delay to ensure DOM is fully loaded
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const scannerElement = document.getElementById(scannerDivId);
       if (!scannerElement) {
         console.error("Scanner DOM element not found");
@@ -505,10 +547,52 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         return false;
       }
 
-      cleanupScanner();
+      // Clean up any existing scanner instance
+      if (scannerRef.current) {
+        try {
+          if (isScanning) {
+            await scannerRef.current.stop();
+          }
+          scannerRef.current = null;
+        } catch (stopError) {
+          console.error("Error stopping existing scanner:", stopError);
+        }
+      }
 
-      scannerRef.current = new Html5Qrcode(scannerDivId);
-      return true;
+      // Make sure the scanner element is empty
+      scannerElement.innerHTML = '';
+      
+      // Verify HTML5QrCode is available
+      if (typeof Html5Qrcode !== 'function') {
+        console.error("HTML5QrCode library not found");
+        setError("Scanner initialization failed: Required library not available");
+        return false;
+      }
+
+      // Create a fresh scanner instance with verbose error handling
+      try {
+        console.log("Creating new scanner instance");
+        scannerRef.current = new Html5Qrcode(scannerDivId);
+        
+        // Verify the scanner was initialized
+        if (!scannerRef.current) {
+          throw new Error("Failed to create scanner instance");
+        }
+        
+        return true;
+      } catch (initError) {
+        console.error("Error creating HTML5QrCode instance:", initError);
+        // Try with a small delay and different approach if first attempt fails
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log("Retrying scanner initialization with delay");
+          scannerRef.current = new Html5Qrcode(scannerDivId);
+          return !!scannerRef.current;
+        } catch (retryError) {
+          console.error("Retry failed:", retryError);
+          throw retryError;
+        }
+      }
     } catch (err) {
       console.error("Failed to initialize scanner:", err);
       setError(`Scanner initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -516,6 +600,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
   };
   
+  // Add this workaround function to detect issues with camera access in specific browsers
+  const forceCameraRefresh = async (): Promise<boolean> => {
+    try {
+      // Some browsers (especially Chrome) need a camera access test before the scanner will work properly
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      // Keep the stream active for a moment to fully initialize
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Then release all tracks
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err) {
+      console.error("Force camera refresh failed:", err);
+      return false;
+    }
+  };
+
+  // Update the startScanning function to include this workaround
   const startScanning = async () => {
     if (isScanning || isInitializing) {
       return;
@@ -525,19 +634,84 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     setError(null);
     
     try {
-      // Initialize scanner if not already initialized
-      if (!scannerRef.current) {
-        const success = await initializeScanner();
-        if (!success) {
-          setError('Failed to initialize QR scanner');
+      // Add extra debug logging
+      console.log("Starting scanner initialization process");
+      
+      // Force camera refresh to help with initialization in Chrome
+      await forceCameraRefresh();
+      
+      // Check browser compatibility first
+      if (!isCameraSupported()) {
+        setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+        setIsInitializing(false);
+        return;
+      }
+      
+      // Ensure DOM is ready before proceeding
+      if (!document.getElementById(scannerDivId)) {
+        console.error("Scanner DOM element not ready");
+        setError("Scanner element not ready. Please refresh the page.");
+        setIsInitializing(false);
+        return;
+      }
+      
+      // Add a small delay before checking camera access to ensure browser is ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check camera status with fallback for permission issues
+      try {
+        const cameraStatus = await checkCameraAvailability();
+        if (!cameraStatus.available) {
+          setError(cameraStatus.errorMessage || 'Camera not available');
+          setPermissionGranted(cameraStatus.permissionGranted);
+          setIsInitializing(false);
+          return;
+        }
+        
+        // Update permission status
+        setPermissionGranted(cameraStatus.permissionGranted);
+      } catch (permissionError) {
+        // Fallback if permission check fails
+        console.error("Permission check error:", permissionError);
+        // Try direct camera access as a fallback
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' } 
+          });
+          stream.getTracks().forEach(track => track.stop()); // Release camera
+          setPermissionGranted(true);
+        } catch (directPermissionError) {
+          console.error("Direct camera access failed:", directPermissionError);
+          setError('Camera access denied or not available. Please check your camera permissions.');
+          setPermissionGranted(false);
           setIsInitializing(false);
           return;
         }
       }
       
+      // Initialize scanner if not already initialized
+      if (!scannerRef.current) {
+        console.log("Initializing scanner...");
+        const success = await initializeScanner();
+        if (!success) {
+          setError('Failed to initialize QR scanner. Please refresh the page and try again.');
+          setIsInitializing(false);
+          return;
+        }
+      }
+      
+      // Make sure the scanner element exists in the DOM
+      const scannerElement = document.getElementById(scannerDivId);
+      if (!scannerElement) {
+        console.error("Scanner DOM element not found during start");
+        setError('Scanner element not found. Please refresh the page.');
+        setIsInitializing(false);
+        return;
+      }
+      
       // Start QR scanning
       if (scannerRef.current) {
-        // Configure camera with optimal settings for speed
+        // Configure camera with optimal settings for speed and reliability
         const config = {
           fps: scannerConfig.fps,
           qrbox: {
@@ -546,34 +720,133 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           },
           aspectRatio: scannerConfig.aspectRatio,
           disableFlip: scannerConfig.disableFlip,
-          // Remove dependency on FORMATS which might not exist
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true // Use native API if available
           }
         };
         
-        // Use selected camera if available, otherwise use environment-facing camera
-        const cameraId = selectedCamera || 'environment'; // Just use string ID
+        // Use selected camera if available
+        let cameraId = selectedCamera;
         
-        // Start scanner with optimized configuration
-        await scannerRef.current.start(
-          cameraId,
-          config,
-          handleQrCodeScanDebounced,
-          () => {} // Ignore on-going scanning
-        );
+        // If no camera is selected yet, try to use the back camera or fall back to default
+        if (!cameraId && availableCameras.length > 0) {
+          // Try to find a back camera
+          const backCamera = availableCameras.find(camera => 
+            camera.label.toLowerCase().includes('back') || 
+            camera.label.toLowerCase().includes('rear')
+          );
+          
+          if (backCamera) {
+            cameraId = backCamera.id;
+            setSelectedCamera(backCamera.id);
+          } else {
+            // Fall back to the first camera
+            cameraId = availableCameras[0].id;
+            setSelectedCamera(availableCameras[0].id);
+          }
+        }
         
-        setIsScanning(true);
-        startScanAnimation();
-        setError(null);
+        // If still no camera available, use environment-facing camera
+        if (!cameraId) {
+          cameraId = 'environment';
+        }
+        
+        // Debug log for camera
+        console.log(`Starting scanner with camera:`, cameraId, {
+          availableCameras: availableCameras.length,
+          config
+        });
+        
+        try {
+          // Start scanner with optimized configuration
+          await scannerRef.current.start(
+            cameraId,
+            config,
+            handleQrCodeScanDebounced,
+            () => {} // Ignore on-going scanning
+          );
+          
+          setIsScanning(true);
+          startScanAnimation();
+          setError(null);
+        } catch (startError) {
+          // Handle start error specifically
+          console.error('Error starting scanner:', startError);
+          
+          // Try with different camera configuration if possible
+          try {
+            console.log('Retrying with environment facing camera');
+            // Try with a more generic configuration
+            await scannerRef.current.start(
+              'environment',
+              {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+              },
+              handleQrCodeScanDebounced,
+              () => {}
+            );
+            
+            setIsScanning(true);
+            startScanAnimation();
+            setError(null);
+            return;
+          } catch (retryError) {
+            console.error('Retry with environment camera failed:', retryError);
+            
+            // Last attempt with any available camera
+            if (availableCameras.length > 0) {
+              try {
+                console.log('Final retry with first available camera');
+                await scannerRef.current.start(
+                  availableCameras[0].id,
+                  { fps: 10, qrbox: 250 },
+                  handleQrCodeScanDebounced,
+                  () => {}
+                );
+                
+                setIsScanning(true);
+                startScanAnimation();
+                setError(null);
+                return;
+              } catch (finalError) {
+                console.error('Final retry failed:', finalError);
+              }
+            }
+          }
+          
+          // If we get here, all attempts failed
+          const errorMsg = startError instanceof Error ? startError.message : "Unknown error";
+          throw new Error("Failed to start camera: " + errorMsg);
+        }
       }
     } catch (err) {
       console.error('Error starting QR scanner:', err);
-      setError(
-        err instanceof Error 
-          ? err.message
-          : 'Failed to start scanner'
-      );
+      
+      // Get a more helpful error message
+      let errorMessage = 'Failed to start scanner';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Camera access is denied')) {
+          errorMessage = 'Camera access denied. Please allow camera access in your browser settings.';
+        } else if (err.message.includes('requested device not found')) {
+          errorMessage = 'No camera found. Please make sure your device has a camera.';
+        } else if (err.message.includes('Permission denied')) {
+          errorMessage = 'Camera permission denied. Please allow camera access and refresh the page.';
+        } else if (err.message.includes('NotFoundError')) {
+          errorMessage = 'Camera not found or not accessible.';
+        } else if (err.message.includes('NotAllowedError')) {
+          errorMessage = 'Camera access denied by browser.';
+        } else if (err.message.includes('NotReadableError')) {
+          errorMessage = 'Camera is in use by another application.';
+        } else {
+          errorMessage = `Scanner error: ${err.message}`;
+        }
+      }
+      
+      setError(errorMessage);
+      setIsScanning(false);
     } finally {
       setIsInitializing(false);
     }
@@ -670,6 +943,70 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         return;
       }
 
+      // First try to parse the data as JSON
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(decodedText);
+      } catch (e) {
+        debugLog('Failed to parse QR code as JSON', e);
+        setError('Invalid QR code format (not valid JSON)');
+        playSound('error');
+        return;
+      }
+
+      // Enhanced validation for customer type
+      // Directly handle the case where type is "customer" even if structure isn't perfect
+      if (typeof parsedData === 'object' && parsedData !== null && 'type' in parsedData) {
+        const typeValue = (parsedData as any).type;
+        
+        // Normalize the type value (handle case sensitivity and variations)
+        const normalizedType = typeof typeValue === 'string' 
+          ? typeValue.toLowerCase().replace(/[-_]/g, '').replace('card', '') 
+          : '';
+        
+        // Handle customer type explicitly - making this more forgiving
+        if (normalizedType === 'customer') {
+          // Check if we have a customer ID - either as customerId or id
+          const customerId = (parsedData as any).customerId || (parsedData as any).id;
+          
+          if (customerId) {
+            // Force the type to be correct in case of capitalization or format differences
+            const customerData: CustomerQrCodeData = {
+              type: 'customer',
+              customerId: String(customerId),
+              name: (parsedData as any).name || (parsedData as any).customerName || '',
+              email: (parsedData as any).email || '',
+              businessId: (parsedData as any).businessId || undefined,
+              text: decodedText
+            };
+            
+            // Process this customer data
+            await handleCustomerQrCode(customerData);
+            
+            // Create scan result for history and callback
+            const scanResult = createScanResult('customer', customerData, decodedText);
+            addToScanHistory(scanResult, true);
+            
+            // Call onScan callback if provided
+            if (onScan) {
+              onScan(scanResult);
+            }
+            
+            // Play success sound
+            playSound('success');
+            
+            // Show success message
+            setSuccessScan(`Customer QR code scanned successfully${customerData.name ? ` for ${customerData.name}` : ''}`);
+            setTimeout(() => {
+              setSuccessScan('');
+            }, 2000);
+            
+            return;
+          }
+        }
+      }
+
+      // If not handled by the enhanced customer validation, continue with standard flow
       // Use the enhanced parseQrCodeData with runtime validation
       const qrCodeData = parseQrCodeData(decodedText);
       
@@ -711,7 +1048,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       playSound('success');
       
       // Show success message briefly
-      setSuccessScan('QR code scanned successfully');
+      if (qrCodeData.type === 'customer') {
+        setSuccessScan(`Customer QR code scanned successfully${qrCodeData.name ? ` for ${qrCodeData.name}` : ''}`);
+      } else if (qrCodeData.type === 'loyaltyCard') {
+        setSuccessScan('Loyalty card scanned successfully');
+      } else if (qrCodeData.type === 'promoCode') {
+        setSuccessScan('Promo code scanned successfully');
+      } else {
+        setSuccessScan('QR code scanned successfully');
+      }
+      
       setTimeout(() => {
         setSuccessScan('');
       }, 2000);
@@ -1081,25 +1427,59 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     };
   }, []);
 
+  // Add the loadCameras function as a separate function in the component
+  const loadCameras = async () => {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      setAvailableCameras(devices);
+      
+      // Set default camera - prefer back camera
+      const backCamera = devices.find(camera => 
+        camera.label.toLowerCase().includes('back') || 
+        camera.label.toLowerCase().includes('rear')
+      );
+      setSelectedCamera(backCamera ? backCamera.id : devices[0]?.id || '');
+    } catch (err) {
+      console.error("Failed to get cameras:", err);
+      if (err instanceof Error && err.message.includes('Permission denied')) {
+        setError('Camera access denied. Please allow camera access in your browser settings.');
+      } else {
+        setError('Failed to detect cameras. Please make sure your device has a camera.');
+      }
+    }
+  };
+
   useEffect(() => {
-    // Get available cameras on component mount
-    const loadCameras = async () => {
-      try {
-        const devices = await Html5Qrcode.getCameras();
-        setAvailableCameras(devices);
+    // Check browser compatibility on component mount
+    const checkDeviceCompatibility = async () => {
+      // First check if browser is supported for QR scanning
+      if (!isBrowserSupportedForQrScanning()) {
+        const { name, version } = getBrowserInfo();
+        setError(`Your browser (${name} ${version}) may not fully support QR scanning. For best results, use Chrome, Firefox, or Safari.`);
+        return;
+      }
+      
+      // Check if camera access is supported
+      if (!isCameraSupported()) {
+        setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+        return;
+      }
+      
+      // Check camera availability and permissions
+      const cameraStatus = await checkCameraAvailability();
+      
+      if (!cameraStatus.available) {
+        setError(cameraStatus.errorMessage || 'Camera not available');
+        setPermissionGranted(cameraStatus.permissionGranted);
+      } else {
+        setPermissionGranted(true);
         
-        // Set default camera - prefer back camera
-        const backCamera = devices.find(camera => 
-          camera.label.toLowerCase().includes('back') || 
-          camera.label.toLowerCase().includes('rear')
-        );
-        setSelectedCamera(backCamera ? backCamera.id : devices[0]?.id || '');
-      } catch (err) {
-        console.error("Failed to get cameras:", err);
+        // Only load cameras if we have permission and availability
+        await loadCameras();
       }
     };
     
-    loadCameras();
+    checkDeviceCompatibility();
   }, []);
 
   // Effect to apply scanner config changes
@@ -1633,6 +2013,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     </div>
   );
 
+  // Add a new useEffect for browser-specific workarounds
+  useEffect(() => {
+    // Workaround for Chrome and other browsers that may need cleanup on unmount
+    return () => {
+      // Ensure camera is released on component unmount
+      if (scannerRef.current && isScanning) {
+        try {
+          scannerRef.current.stop().catch(e => console.error("Error stopping scanner on unmount:", e));
+        } catch (e) {
+          console.error("Exception stopping scanner on unmount:", e);
+        }
+      }
+    };
+  }, [isScanning]);
+
   return (
     <div className="relative">
       {successScan && (
@@ -1645,12 +2040,59 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       {error && (
         <div className="bg-gradient-to-r from-red-400 to-red-600 text-white px-4 py-3 rounded-md mb-4 flex items-center animate-shake">
           <AlertCircle className="h-5 w-5 mr-2 text-white" />
-          <span>{error}</span>
+          <div>
+            <span className="font-medium block">{error}</span>
+            {error.includes('Unrecognized QR code type') && (
+              <span className="text-sm mt-1 block opacity-90">
+                This QR code format is not supported. Make sure you're scanning a valid QR code for this app.
+              </span>
+            )}
+            {error.includes('Invalid QR code format') && (
+              <span className="text-sm mt-1 block opacity-90">
+                Try scanning more slowly and ensure the entire QR code is visible.
+              </span>
+            )}
+          </div>
+          {error.includes('Unrecognized QR code type: customer') && (
+            <button 
+              onClick={() => {
+                // Log debug info
+                const debugInfo = {
+                  time: new Date().toISOString(),
+                  lastScan: lastScannedCodeRef.current.substring(0, 50) + '...',
+                  scanHistory: scanHistory.slice(-3)
+                };
+                console.log('QR Scanner Debug Info:', debugInfo);
+                
+                // Clear error
+                setError(null);
+              }}
+              className="ml-auto bg-white text-red-500 text-xs px-2 py-1 rounded"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
       
       <div className="flex flex-col items-center">
         <div className="relative w-full max-w-md bg-gradient-to-b from-indigo-900 to-blue-900 rounded-xl overflow-hidden shadow-2xl p-1.5">
+          {/* Add QR scanning guide tooltip */}
+          <div className="absolute top-2 left-2 z-30">
+            <button 
+              className="bg-white/20 backdrop-blur-sm text-white rounded-full p-1.5"
+              onClick={() => {
+                // Show QR scanning tips
+                setError(null); // Clear any current errors
+                setSuccessScan("Position QR code within the scanner frame and hold steady");
+                setTimeout(() => setSuccessScan(null), 3000);
+              }}
+              aria-label="Scanning Tips"
+            >
+              <AlertTriangle className="h-4 w-4" />
+            </button>
+          </div>
+          
           <div className="absolute inset-0 z-10 pointer-events-none">
             <div className="absolute top-0 left-0 w-16 h-16 border-l-4 border-t-4 border-blue-400 rounded-tl-lg"></div>
             <div className="absolute top-0 right-0 w-16 h-16 border-r-4 border-t-4 border-blue-400 rounded-tr-lg"></div>
@@ -1674,24 +2116,76 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             
             {!isScanning && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white z-20">
-                <div className="w-20 h-20 rounded-full bg-blue-900/50 flex items-center justify-center mb-4 animate-pulse">
-                  <Camera className="h-10 w-10 text-blue-400" />
-                </div>
-                <p className="text-center max-w-xs mb-4 text-blue-100">{t('Camera access is needed to scan QR codes')}</p>
-                <button
-                  onClick={startScanning}
-                  disabled={isInitializing || !domReady}
-                  className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${(isInitializing || !domReady) ? 'opacity-75 cursor-not-allowed' : ''}`}
-                >
-                  {isInitializing ? (
-                    <span className="flex items-center">
-                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                      {t('Initializing...')}
-                    </span>
-                  ) : (
-                    permissionGranted ? t('Resume Scanner') : t('Start Scanner')
-                  )}
-                </button>
+                {!permissionGranted && error && error.includes('Camera access denied') ? (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-red-500/50 flex items-center justify-center mb-4">
+                      <Camera className="h-10 w-10 text-red-100" />
+                    </div>
+                    <h3 className="text-lg font-medium text-red-100 mb-2">Camera Access Denied</h3>
+                    <p className="text-center max-w-xs mb-4 text-red-100">Please allow camera access in your browser settings</p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                      <ol className="list-decimal text-xs text-white space-y-2 ml-4">
+                        <li>Check for camera permission prompts in your browser</li>
+                        <li>Make sure the camera is not being used by another app</li>
+                        <li>Try refreshing the page to trigger the permission prompt again</li>
+                      </ol>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        startScanning();
+                      }}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : error && error.includes('Failed to start scanner') ? (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-amber-500/50 flex items-center justify-center mb-4">
+                      <AlertTriangle className="h-10 w-10 text-amber-100" />
+                    </div>
+                    <h3 className="text-lg font-medium text-amber-100 mb-2">Scanner Error</h3>
+                    <p className="text-center max-w-xs mb-4 text-amber-100">{error}</p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                      <ul className="list-disc text-xs text-white space-y-2 ml-4">
+                        <li>Make sure your device has a working camera</li>
+                        <li>Check that no other apps are using your camera</li>
+                        <li>Try refreshing the page</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        startScanning();
+                      }}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-blue-900/50 flex items-center justify-center mb-4 animate-pulse">
+                      <Camera className="h-10 w-10 text-blue-400" />
+                    </div>
+                    <p className="text-center max-w-xs mb-4 text-blue-100">{t('Camera access is needed to scan QR codes')}</p>
+                    <button
+                      onClick={startScanning}
+                      disabled={isInitializing || !domReady}
+                      className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${(isInitializing || !domReady) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                    >
+                      {isInitializing ? (
+                        <span className="flex items-center">
+                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                          {t('Initializing...')}
+                        </span>
+                      ) : (
+                        permissionGranted ? t('Resume Scanner') : t('Start Scanner')
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             )}
             
@@ -1922,6 +2416,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           <span className="text-sm">
             Rate limit reached. Please wait {Math.ceil((rateLimitResetTime - Date.now()) / 1000)} seconds.
           </span>
+        </div>
+      )}
+      
+      {/* Add scanning tips panel that shows when there's an error */}
+      {error && error.includes('Unrecognized QR code type: customer') && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 animate-fadeIn w-full max-w-md">
+          <h3 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+            <Target className="h-4 w-4 mr-1" />
+            QR Code Scanning Tips
+          </h3>
+          <ul className="text-xs text-blue-700 space-y-1 ml-5 list-disc">
+            <li>Make sure the QR code is fully visible and well-lit</li>
+            <li>Hold the device steady and at the right distance</li>
+            <li>Keep the QR code centered in the scanning frame</li>
+            <li>Clean your camera lens if the image appears blurry</li>
+            <li>Try scanning more slowly to ensure accurate reading</li>
+          </ul>
         </div>
       )}
     </div>

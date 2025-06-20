@@ -1,6 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- CRITICAL: Browser polyfill to prevent "browser is not defined" errors -->
+    <script>
+      // This must be defined before ANY script loads
+      console.log('Applying critical browser polyfill');
+      window.browser = {
+        runtime: { 
+          sendMessage: function() { return Promise.resolve(); }, 
+          onMessage: { addListener: function() {}, removeListener: function() {} },
+          getManifest: function() { return {}; },
+          getURL: function(path) { return path; }
+        },
+        storage: { 
+          local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } },
+          sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } }
+        },
+        tabs: {
+          query: function() { return Promise.resolve([]); }, 
+          create: function() { return Promise.resolve({}); }, 
+          update: function() { return Promise.resolve(); }
+        },
+        webRequest: {
+          onBeforeRequest: { addListener: function() {} },
+          onCompleted: { addListener: function() {} },
+          onErrorOccurred: { addListener: function() {} }
+        },
+        extension: {
+          getURL: function(path) { return path; }
+        }
+      };
+    </script>
+
     <!-- AGGRESSIVE LODASH FIX -->
     <script>
       // CRITICAL: Lodash preinitialization before ANYTHING else
@@ -35,25 +66,6 @@
             }
           }
           return result;
-        }
-      };
-      
-      // Browser polyfill to prevent "browser is not defined" errors
-      window.browser = window.browser || {
-        runtime: { 
-          sendMessage: function(){}, 
-          onMessage: { addListener: function(){}, removeListener: function(){} },
-          getManifest: function() { return {}; },
-          getURL: function(path) { return path; }
-        },
-        storage: { 
-          local: { get: function(){}, set: function(){}, remove: function(){} },
-          sync: { get: function(){}, set: function(){}, remove: function(){} }
-        },
-        tabs: {
-          query: function(){}, 
-          create: function(){}, 
-          update: function(){}
         }
       };
       

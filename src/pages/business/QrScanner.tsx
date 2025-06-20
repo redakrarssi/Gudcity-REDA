@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
-import { QRScanner } from '../../components/QRScanner';
+import { QRScanner, type ScanResult as ComponentScanResult } from '../../components/QRScanner';
 import { useAuth } from '../../contexts/AuthContext';
+import { 
+  QrCodeType, 
+  QrCodeData,
+  CustomerQrCodeData, 
+  UnknownQrCodeData,
+  UnifiedScanResult,
+  fromComponentScanResult,
+  isCustomerQrCodeData,
+  ensureId
+} from '../../types/qrCode';
 import { 
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
@@ -16,19 +26,17 @@ import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollm
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
 
-interface ScanResult {
-  type: string; 
-  data: any;
-  timestamp: string;
-  raw: string;
+// Define the interface for the component's scan result handling
+interface QrScannerPageProps {
+  onScan?: (result: UnifiedScanResult) => void;
 }
 
-const QrScannerPage = () => {
+const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'scanner' | 'manual'>('scanner');
-  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
-  const [selectedResult, setSelectedResult] = useState<ScanResult | null>(null);
+  const [scanResults, setScanResults] = useState<UnifiedScanResult[]>([]);
+  const [selectedResult, setSelectedResult] = useState<UnifiedScanResult | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
@@ -37,6 +45,7 @@ const QrScannerPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [scanCount, setScanCount] = useState<number>(0);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
   
   // Modal states
   const [showRedeemModal, setShowRedeemModal] = useState(false);
@@ -71,7 +80,7 @@ const QrScannerPage = () => {
       if (user?.id) {
         setIsLoading(true);
         try {
-          const businessId = String(user.id); // Convert to string
+          const businessId = ensureId(user.id);
           const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
           setPrograms(businessPrograms);
           
@@ -101,13 +110,16 @@ const QrScannerPage = () => {
     }
   }, [scanResults]);
 
-  const handleScan = (result: ScanResult) => {
+  const handleScan = (result: ComponentScanResult) => {
     if (!result) return;
     
+    // Convert the component scan result to our unified format
+    const unifiedResult = fromComponentScanResult(result);
+    
     // Add the new scan to the results
-    const updatedResults = [result, ...scanResults.slice(0, 9)];
+    const updatedResults = [unifiedResult, ...scanResults.slice(0, 9)];
     setScanResults(updatedResults);
-    setSelectedResult(result);
+    setSelectedResult(unifiedResult);
     
     // Update scan count and save to localStorage
     const newCount = scanCount + 1;
@@ -123,10 +135,15 @@ const QrScannerPage = () => {
     // Play success sound
     playSuccessSound();
     
-    // If it's a customer card scan, show the customer details modal
-    if (result.type === 'customer_card' && result.data && result.data.customerId) {
+    // If it's a customer scan, show the customer details modal
+    if (result.type === 'customer' && result.data && isCustomerQrCodeData(result.data)) {
       console.log('Opening customer details modal for customer:', result.data.customerId);
       setShowCustomerDetailsModal(true);
+    }
+    
+    // Call the onScan prop if provided
+    if (onScan) {
+      onScan(unifiedResult);
     }
   };
 
@@ -134,9 +151,23 @@ const QrScannerPage = () => {
     try {
       const audio = new Audio('/assets/sounds/beep-success.mp3');
       audio.volume = 0.5;
-      audio.play().catch(console.error); // Catch and log errors but don't stop execution
+      
+      // Only play if the audio can be played
+      audio.oncanplaythrough = () => {
+        audio.play().catch(error => {
+          // Silently fail - audio is non-critical
+          console.error('Error playing sound:', error);
+        });
+      };
+      
+      // Set error handler
+      audio.onerror = () => {
+        // Silently fail - audio is non-critical
+        console.error('Error loading sound');
+      };
     } catch (error) {
-      console.error('Error playing sound:', error);
+      // Silently fail - audio is non-critical
+      console.error('Error creating audio:', error);
     }
   };
 
@@ -155,24 +186,53 @@ const QrScannerPage = () => {
         parsedData = JSON.parse(manualInput);
       } catch (e) {
         // If not JSON, just use the raw text
-        parsedData = { text: manualInput };
+        parsedData = manualInput;
       }
       
-      const now = new Date().toISOString();
+      const timestamp = Date.now();
       
-      // Create result object
-      const result: ScanResult = {
-        type: manualInput.length === 9 && !isNaN(Number(manualInput)) ? 'customer_card' : 'unknown',
-        data: parsedData,
-        timestamp: now,
-        raw: manualInput
+      // Determine if this is likely a customer ID
+      const isCustomerId = manualInput.length === 9 && !isNaN(Number(manualInput));
+      
+      // Create appropriate QR code data based on input
+      const qrData: CustomerQrCodeData | UnknownQrCodeData = isCustomerId 
+        ? { 
+            type: 'customer', 
+            customerId: manualInput,
+            name: `Customer ${manualInput}`,
+            timestamp
+          }
+        : { 
+            type: 'unknown', 
+            rawData: manualInput,
+            timestamp
+          };
+      
+      // Create result object using the unified format
+      const result: UnifiedScanResult = {
+        type: isCustomerId ? 'customer' : 'unknown',
+        data: qrData,
+        timestamp: new Date(timestamp).toISOString(),
+        rawData: manualInput,
+        success: true
       };
       
       // Add to scan results
-      handleScan(result);
+      setScanResults([result, ...scanResults.slice(0, 9)]);
+      setSelectedResult(result);
+      
+      // Update scan count
+      const newCount = scanCount + 1;
+      setScanCount(newCount);
+      localStorage.setItem('qr_scan_count', newCount.toString());
       
       // Clear input
       setManualInput('');
+      
+      // Call the onScan prop if provided
+      if (onScan) {
+        onScan(result);
+      }
     } catch (error) {
       console.error('Error processing manual input:', error);
       setInputError('Invalid input format');
@@ -195,13 +255,13 @@ const QrScannerPage = () => {
   };
 
   // Function to get the icon based on the QR code type
-  const getIconForType = (type: string) => {
+  const getIconForType = (type: QrCodeType) => {
     switch (type) {
-      case 'customer_card':
+      case 'customer':
         return <User className="w-5 h-5 text-blue-500" />;
-      case 'promo_code':
+      case 'promoCode':
         return <Badge className="w-5 h-5 text-amber-500" />;
-      case 'loyalty_card':
+      case 'loyaltyCard':
         return <Coffee className="w-5 h-5 text-green-500" />;
       default:
         return <QrCode className="w-5 h-5 text-gray-500" />;
@@ -219,6 +279,75 @@ const QrScannerPage = () => {
       next: nextMilestone,
       remaining: nextMilestone - scanCount
     };
+  };
+
+  // Function to safely get customer ID from selected result
+  const getSelectedCustomerId = (): string | null => {
+    if (!selectedResult || selectedResult.type !== 'customer' || !selectedResult.data) {
+      return null;
+    }
+    
+    if (isCustomerQrCodeData(selectedResult.data)) {
+      return selectedResult.data.customerId.toString();
+    }
+    
+    return null;
+  };
+  
+  // Function to safely get data from QR code based on type
+  const getQrCodeDisplayData = (data: QrCodeData | undefined): { title: string, subtitle: string } => {
+    if (!data) {
+      return { title: 'Unknown', subtitle: 'No data available' };
+    }
+    
+    if (isCustomerQrCodeData(data)) {
+      return { 
+        title: data.name || `Customer ${data.customerId}`,
+        subtitle: `ID: ${data.customerId}`
+      };
+    }
+    
+    switch (data.type) {
+      case 'promoCode':
+        return {
+          title: `Promo: ${(data as any).code || 'Unknown'}`,
+          subtitle: `Business ID: ${(data as any).businessId || 'N/A'}`
+        };
+        
+      case 'loyaltyCard':
+        return {
+          title: `Card: ${(data as any).cardId || 'Unknown'}`,
+          subtitle: `Customer: ${(data as any).customerId || 'N/A'}`
+        };
+        
+      default:
+        return {
+          title: 'Unknown QR Code',
+          subtitle: 'Unrecognized format'
+        };
+    }
+  };
+
+  // Add error boundary for QRScanner component
+  const SafeScanner = () => {
+    try {
+      return (
+        <QRScanner 
+          onScan={handleScan}
+          businessId={user?.id}
+          programId={selectedProgramId || undefined}
+          pointsToAward={pointsToAward}
+        />
+      );
+    } catch (err: any) {
+      console.error('QRScanner initialization failed:', err);
+      setScannerError(err?.message || 'Scanner failed to initialize');
+      return (
+        <div className="p-6 text-center text-red-600">
+          {t('Scanner failed to initialize. Please refresh the page or contact support.')}
+        </div>
+      );
+    }
   };
 
   return (
@@ -402,12 +531,7 @@ const QrScannerPage = () => {
                   </div>
                 )}
                 
-                <QRScanner 
-                  onScan={handleScan} 
-                  businessId={user?.id}
-                  programId={selectedProgramId || undefined}
-                  pointsToAward={pointsToAward}
-                />
+                <SafeScanner />
               </div>
             )}
             
@@ -519,13 +643,13 @@ const QrScannerPage = () => {
                       <h3 className="text-sm font-medium text-gray-500">{t('Data')}:</h3>
                     </div>
                     <div className="mt-1 bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg text-sm text-gray-800 font-mono overflow-x-auto border border-gray-200 shadow-inner">
-                      {selectedResult.type === 'customer_card' && (
+                      {selectedResult.type === 'customer' && (
                         <div>
                           <p><span className="text-blue-500">name:</span> {selectedResult.data.name || 'Customer'}</p>
                         </div>
                       )}
                       
-                      {selectedResult.type === 'promo_code' && (
+                      {selectedResult.type === 'promoCode' && (
                         <p><span className="text-amber-500">code:</span> {selectedResult.data.code}</p>
                       )}
                       
@@ -544,7 +668,7 @@ const QrScannerPage = () => {
                       {t('Actions')}:
                     </h3>
                     
-                    {selectedResult.type === 'customer_card' && (
+                    {selectedResult.type === 'customer' && (
                       <div className="grid grid-cols-1 gap-2">
                         <button 
                           onClick={() => setShowCustomerDetailsModal(true)}
@@ -579,7 +703,7 @@ const QrScannerPage = () => {
                       </div>
                     )}
                     
-                    {selectedResult.type === 'promo_code' && (
+                    {selectedResult.type === 'promoCode' && (
                       <button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all">
                         <Badge className="w-4 h-4 mr-2" />
                         {t('Apply Promotion')}
@@ -635,10 +759,10 @@ const QrScannerPage = () => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-2 truncate">
-                      {result.type === 'customer_card' ? `Customer: ${result.data.name || 'Customer'}` :
-                       result.type === 'promo_code' ? `Code: ${result.data.code}` :
-                       result.type === 'loyalty_card' ? `Card: ${result.data.cardId}` :
-                       `Text: ${typeof result.data.text === 'string' ? result.data.text.substring(0, 20) + (result.data.text.length > 20 ? '...' : '') : 'Unknown'}`}
+                      {result.type === 'customer' ? `Customer: ${result.data.name || 'Customer'}` :
+                       result.type === 'promoCode' ? `Code: ${result.data.code}` :
+                       result.type === 'loyaltyCard' ? `Card: ${result.data.cardId}` :
+                       `Text: ${result.type === 'unknown' && result.data.rawData ? result.data.rawData.substring(0, 20) + (result.data.rawData.length > 20 ? '...' : '') : 'Unknown'}`}
                     </p>
                   </div>
                 ))}
@@ -698,7 +822,7 @@ const QrScannerPage = () => {
       </div>
 
       {/* Modal Components */}
-      {selectedResult && selectedResult.type === 'customer_card' && (
+      {selectedResult && selectedResult.type === 'customer' && (
         <>
           {/* Redemption Modal */}
           <RedemptionModal
@@ -731,9 +855,9 @@ const QrScannerPage = () => {
           <CustomerDetailsModal
             isOpen={showCustomerDetailsModal}
             onClose={() => setShowCustomerDetailsModal(false)}
-            customerId={selectedResult?.data?.customerId ? String(selectedResult.data.customerId) : ''}
+            customerId={String(selectedResult.data.customerId || '')}
             businessId={user?.id ? String(user.id) : ''}
-            initialData={selectedResult?.data}
+            initialData={selectedResult.data}
           />
         </>
       )}

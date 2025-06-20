@@ -17,13 +17,17 @@ import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import sql from '../utils/db';
 
-// Define Permission interface
+/**
+ * Permission interface for role-based access control
+ */
 interface Permission {
   id: string;
   name: string;
 }
 
-// Define role-based permissions
+/**
+ * Role-based permissions mapping
+ */
 const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: [
     'users.view', 'users.create', 'users.edit', 'users.delete',
@@ -49,7 +53,9 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ]
 };
 
-// Define User interface
+/**
+ * User interface for application state
+ */
 interface User {
   id: number;
   name: string;
@@ -62,7 +68,39 @@ interface User {
   status?: 'active' | 'banned' | 'restricted';
 }
 
-// Registration data interface
+/**
+ * Authentication error types
+ */
+export enum AuthErrorType {
+  INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
+  USER_BANNED = 'USER_BANNED',
+  USER_RESTRICTED = 'USER_RESTRICTED',
+  SERVER_ERROR = 'SERVER_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+}
+
+/**
+ * Authentication error interface
+ */
+export interface AuthError {
+  type: AuthErrorType;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/**
+ * Authentication result interface
+ */
+export interface AuthResult {
+  success: boolean;
+  user?: User;
+  error?: AuthError;
+}
+
+/**
+ * Registration data interface
+ */
 export interface RegisterData {
   name: string;
   email: string;
@@ -72,26 +110,45 @@ export interface RegisterData {
   businessPhone?: string;
 }
 
-// Define Auth Context interface
+/**
+ * Registration result interface
+ */
+export interface RegisterResult {
+  success: boolean;
+  user?: User;
+  error?: AuthError;
+}
+
+/**
+ * Auth Context interface
+ */
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (data: RegisterData) => Promise<boolean>;
+  error: AuthError | null;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  register: (data: RegisterData) => Promise<RegisterResult>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
+  clearError: () => void;
 }
 
 // Create Auth Context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth Provider Props
+/**
+ * Auth Provider Props
+ */
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Convert database user to application user
+/**
+ * Convert database user to application user
+ * @param dbUser Database user object
+ * @returns Normalized User object
+ */
 function convertDbUserToUser(dbUser: DbUser): User {
   console.log('Converting DB user to app user:', dbUser);
   
@@ -113,10 +170,13 @@ function convertDbUserToUser(dbUser: DbUser): User {
   };
 }
 
-// Auth Provider Component
+/**
+ * Auth Provider Component
+ */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<AuthError | null>(null);
   const navigate = useNavigate();
 
   // Check if user is already logged in (from localStorage)
@@ -181,9 +241,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Login function
-  const login = async (email: string, password: string): Promise<boolean> => {
+  /**
+   * Login function
+   * @param email User email
+   * @param password User password
+   * @returns Authentication result
+   */
+  const login = async (email: string, password: string): Promise<AuthResult> => {
     setIsLoading(true);
+    setError(null);
     
     try {
       // Normalize email to avoid case sensitivity issues
@@ -196,187 +262,260 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Check if the user is banned
         if (dbUser.status === 'banned') {
           console.error('Login attempt by banned user:', normalizedEmail);
+          const authError: AuthError = {
+            type: AuthErrorType.USER_BANNED,
+            message: 'Your account has been banned. Please contact support.'
+          };
+          setError(authError);
           setIsLoading(false);
-          return false;
+          return { success: false, error: authError };
         }
         
+        // Check if the user is restricted
+        if (dbUser.status === 'restricted') {
+          console.warn('Login by restricted user:', normalizedEmail);
+          // Allow login but with limited permissions
+        }
+        
+        // Convert DB user to app user
         const appUser = convertDbUserToUser(dbUser);
+        
+        // Store user in state
         setUser(appUser);
+        
+        // Store user ID in localStorage
         localStorage.setItem('authUserId', String(dbUser.id));
         
-        // If this is a business user, record the login for analytics
-        if (dbUser.user_type === 'business' && dbUser.id) {
+        // Record business login if applicable
+        if (dbUser.user_type === 'business' && dbUser.business_id) {
           try {
-            // Get the user's IP address and device info (in a real app)
-            const ipAddress = '127.0.0.1'; // Mock IP for demo
-            const device = navigator.userAgent;
-            
-            // Record the login
-            await recordBusinessLogin(dbUser.id, dbUser.id, ipAddress, device);
-          } catch (loginTrackingError) {
-            console.error('Error recording business login:', loginTrackingError);
-            // Don't fail the login if tracking fails
+            await recordBusinessLogin(dbUser.business_id);
+          } catch (error) {
+            console.error('Failed to record business login:', error);
+            // Non-critical error, continue with login
           }
         }
         
+        console.log('Login successful for:', normalizedEmail);
         setIsLoading(false);
-        return true;
+        return { success: true, user: appUser };
+      } else {
+        console.error('Login failed for:', normalizedEmail);
+        const authError: AuthError = {
+          type: AuthErrorType.INVALID_CREDENTIALS,
+          message: 'Invalid email or password'
+        };
+        setError(authError);
+        setIsLoading(false);
+        return { success: false, error: authError };
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      let authError: AuthError;
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('connection')) {
+          authError = {
+            type: AuthErrorType.NETWORK_ERROR,
+            message: 'Network error. Please check your connection and try again.'
+          };
+        } else if (error.message.includes('server')) {
+          authError = {
+            type: AuthErrorType.SERVER_ERROR,
+            message: 'Server error. Please try again later.'
+          };
+        } else {
+          authError = {
+            type: AuthErrorType.UNKNOWN_ERROR,
+            message: 'An error occurred during login. Please try again.',
+            details: { originalError: error.message }
+          };
+        }
+      } else {
+        authError = {
+          type: AuthErrorType.UNKNOWN_ERROR,
+          message: 'An unknown error occurred during login. Please try again.'
+        };
       }
       
-      console.log('Login failed: Invalid credentials');
+      setError(authError);
       setIsLoading(false);
-      return false;
-    } catch (error) {
-      console.error('Login failed with exception:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-      }
-      setIsLoading(false);
-      return false;
+      return { success: false, error: authError };
     }
   };
 
-  // Register function
-  const register = async (data: RegisterData): Promise<boolean> => {
+  /**
+   * Register function
+   * @param data Registration data
+   * @returns Registration result
+   */
+  const register = async (data: RegisterData): Promise<RegisterResult> => {
     setIsLoading(true);
+    setError(null);
     
     try {
-      // First check if the email already exists
-      const existingUser = await getUserByEmail(data.email);
+      // Normalize email to avoid case sensitivity issues
+      const normalizedEmail = data.email.trim().toLowerCase();
+      
+      // Check if user already exists
+      const existingUser = await getUserByEmail(normalizedEmail);
       if (existingUser) {
-        console.error('Registration failed: Email already exists', data.email);
+        const authError: AuthError = {
+          type: AuthErrorType.INVALID_CREDENTIALS,
+          message: 'Email is already registered'
+        };
+        setError(authError);
         setIsLoading(false);
-        return false;
+        return { success: false, error: authError };
       }
       
-      // Convert RegisterData to database User format
-      const newUser: Omit<DbUser, 'id' | 'created_at'> = {
+      // Create user in database
+      const dbUser = await createDbUser({
         name: data.name,
-        email: data.email.trim(), // Ensure email is trimmed
+        email: normalizedEmail,
         password: data.password,
-        // Set default role based on user type
-        role: data.userType === 'business' ? 'business' : 'customer',
         user_type: data.userType,
+        role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
         business_name: data.businessName,
-        business_phone: data.businessPhone
-      };
+        business_phone: data.businessPhone,
+        status: 'active'
+      });
       
-      // Create the user in the database
-      const createdUser = await createDbUser(newUser);
-      
-      if (createdUser && createdUser.id) {
-        try {
-          // Generate a QR code for the customer if it's a customer account
-          if (createdUser.user_type === 'customer') {
-            console.log('Generating QR code for new customer');
-            await UserQrCodeService.generateCustomerQrCode(createdUser);
-            
-            // Automatically enroll the customer in available loyalty programs
-            try {
-              console.log('Enrolling new customer in available loyalty programs');
-              
-              // Find businesses with active loyalty programs
-              const businesses = await sql`
-                SELECT DISTINCT u.id, u.name, u.business_name 
-                FROM users u
-                JOIN loyalty_programs lp ON u.id::text = lp.business_id
-                WHERE u.user_type = 'business'
-                AND u.status = 'active'
-                AND lp.status = 'ACTIVE'
-                LIMIT 5 -- Limit to 5 businesses for initial enrollment
-              `;
-              
-              // For each business, find their default program and create a loyalty card
-              if (businesses && businesses.length > 0) {
-                for (const business of businesses) {
-                  try {
-                    // Get default program for this business
-                    const defaultProgram = await LoyaltyProgramService.getDefaultBusinessProgram(business.id);
-                    
-                    if (defaultProgram) {
-                      // Enroll customer in program
-                      await LoyaltyProgramService.enrollCustomer(
-                        createdUser.id.toString(), 
-                        defaultProgram.id
-                      );
-                      
-                      // Create loyalty card
-                      await LoyaltyCardService.enrollCustomerInProgram(
-                        createdUser.id.toString(),
-                        business.id,
-                        defaultProgram.id
-                      );
-                      
-                      console.log(`Enrolled customer in program: ${defaultProgram.name}`);
-                    }
-                  } catch (enrollError) {
-                    console.error('Error enrolling in business program:', enrollError);
-                    // Don't fail registration if enrollment fails
-                  }
-                }
-              }
-            } catch (enrollError) {
-              console.error('Error during automatic loyalty program enrollment:', enrollError);
-              // Don't fail registration if enrollment fails
-            }
-          }
-        } catch (qrError) {
-          console.error('Error generating QR code during registration:', qrError);
-          // Don't fail registration if QR code generation fails
-        }
-
-        // Log the user in automatically
-        const appUser = convertDbUserToUser(createdUser);
+      if (dbUser && dbUser.id) {
+        // Convert DB user to app user
+        const appUser = convertDbUserToUser(dbUser);
+        
+        // Store user in state
         setUser(appUser);
-        localStorage.setItem('authUserId', String(createdUser.id));
+        
+        // Store user ID in localStorage
+        localStorage.setItem('authUserId', String(dbUser.id));
+        
+        // Create initial QR code for customer
+        if (data.userType === 'customer') {
+          try {
+            await UserQrCodeService.createInitialQrCodeForCustomer(dbUser.id);
+          } catch (error) {
+            console.error('Failed to create initial QR code:', error);
+            // Non-critical error, continue with registration
+          }
+        }
+        
+        // Create default loyalty program for business
+        if (data.userType === 'business') {
+          try {
+            const programId = await LoyaltyProgramService.createDefaultProgram(dbUser.id);
+            if (programId) {
+              await LoyaltyCardService.createDefaultCardTemplate(dbUser.id, programId);
+            }
+          } catch (error) {
+            console.error('Failed to create default loyalty program:', error);
+            // Non-critical error, continue with registration
+          }
+        }
+        
+        console.log('Registration successful for:', normalizedEmail);
         setIsLoading(false);
-        return true;
+        return { success: true, user: appUser };
+      } else {
+        console.error('Registration failed for:', normalizedEmail);
+        const authError: AuthError = {
+          type: AuthErrorType.SERVER_ERROR,
+          message: 'Failed to create user account'
+        };
+        setError(authError);
+        setIsLoading(false);
+        return { success: false, error: authError };
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      let authError: AuthError;
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('connection')) {
+          authError = {
+            type: AuthErrorType.NETWORK_ERROR,
+            message: 'Network error. Please check your connection and try again.'
+          };
+        } else if (error.message.includes('server')) {
+          authError = {
+            type: AuthErrorType.SERVER_ERROR,
+            message: 'Server error. Please try again later.'
+          };
+        } else {
+          authError = {
+            type: AuthErrorType.UNKNOWN_ERROR,
+            message: 'An error occurred during registration. Please try again.',
+            details: { originalError: error.message }
+          };
+        }
+      } else {
+        authError = {
+          type: AuthErrorType.UNKNOWN_ERROR,
+          message: 'An unknown error occurred during registration. Please try again.'
+        };
       }
       
-      console.error('Registration failed: User creation returned null');
+      setError(authError);
       setIsLoading(false);
-      return false;
-    } catch (error) {
-      console.error('Registration failed with exception:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-      }
-      setIsLoading(false);
-      return false;
+      return { success: false, error: authError };
     }
   };
 
-  // Logout function
+  /**
+   * Logout function
+   */
   const logout = () => {
-    setUser(null);
     localStorage.removeItem('authUserId');
+    setUser(null);
     navigate('/login');
   };
 
-  // Check if user has a specific permission
+  /**
+   * Check if user has a specific permission
+   * @param permission Permission to check
+   * @returns Whether the user has the permission
+   */
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     
-    const userPermissions = ROLE_PERMISSIONS[user.role];
-    return userPermissions.includes(permission);
+    const userRole = user.role;
+    const permissions = ROLE_PERMISSIONS[userRole] || [];
+    
+    return permissions.includes(permission);
+  };
+  
+  /**
+   * Clear authentication error
+   */
+  const clearError = () => {
+    setError(null);
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      loading: isLoading,
-      isAuthenticated: !!user,
-      login,
-      register,
-      logout,
-      hasPermission
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading: isLoading,
+        isAuthenticated: !!user,
+        error,
+        login,
+        register,
+        logout,
+        hasPermission,
+        clearError
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use Auth Context
+/**
+ * Hook to use the auth context
+ * @returns Auth context
+ * @throws Error if used outside of AuthProvider
+ */
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -385,27 +524,32 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// Props interface for ProtectedRoute component
+/**
+ * Protected route component props
+ */
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredPermission?: string;
 }
 
-// Protected Route Component
+/**
+ * Protected route component
+ * Redirects to login if user is not authenticated or doesn't have required permission
+ */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requiredPermission 
 }) => {
-  const { isAuthenticated, loading, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, loading } = useAuth();
   const navigate = useNavigate();
   
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      navigate('/login', { state: { from: location } });
-    } else if (!loading && requiredPermission && !hasPermission(requiredPermission)) {
+      navigate('/login');
+    } else if (!loading && isAuthenticated && requiredPermission && !hasPermission(requiredPermission)) {
       navigate('/unauthorized');
     }
-  }, [loading, isAuthenticated, requiredPermission, hasPermission, navigate]);
+  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission]);
   
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -422,31 +566,36 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   return <>{children}</>;
 };
 
-// Props interface for AdminProtectedRoute component
+/**
+ * Admin protected route component props
+ */
 interface AdminProtectedRouteProps {
   children: ReactNode;
 }
 
-// Admin Protected Route Component - Only accessible by users with admin role
+/**
+ * Admin protected route component
+ * Redirects to login if user is not authenticated or is not an admin
+ */
 export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({ 
   children
 }) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      navigate('/admin-access', { state: { from: location } });
-    } else if (!loading && isAuthenticated && user?.role !== 'admin') {
+      navigate('/login');
+    } else if (!loading && isAuthenticated && (!user || user.role !== 'admin')) {
       navigate('/unauthorized');
     }
-  }, [loading, isAuthenticated, user, navigate]);
+  }, [user, isAuthenticated, loading, navigate]);
   
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
   
-  if (!isAuthenticated || user?.role !== 'admin') {
+  if (!isAuthenticated || !user || user.role !== 'admin') {
     return null;
   }
   

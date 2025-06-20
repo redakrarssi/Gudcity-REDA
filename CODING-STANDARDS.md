@@ -1,203 +1,394 @@
-# Coding Standards and Best Practices
+# TypeScript Coding Standards for GudCity REDA
 
-## Database Connections
+This document outlines the coding standards and best practices for TypeScript development in the GudCity REDA application. Following these standards ensures type safety, maintainability, and consistent code quality across the codebase.
 
-All database connections should use the standardized DatabaseConnector utility:
+## Type System Principles
 
-```typescript
-import db from '../utils/databaseConnector';
+### 1. Avoid `any` Types
 
-// Standard pattern for executing database queries
-const result = await db.executeQuery(
-  'SELECT * FROM users WHERE id = $1',
-  [userId],
-  {
-    cache: {
-      enabled: true,
-      ttl: 5 * 60 * 1000, // 5 minutes
-      tags: ['users', `user-${userId}`]
-    }
-  }
-);
-```
-
-Benefits:
-- Consistent error handling and logging
-- Built-in support for caching and retry
-- Standardized parameterized queries
-- Type safety and SQL injection protection
-
-## Database Monitoring and Telemetry
-
-All database operations are automatically monitored through the telemetry system:
+- **NEVER** use `any` type unless absolutely necessary
+- Replace `any` with proper type definitions or use `unknown` as a safer alternative
+- Use type narrowing to handle unknown types safely
 
 ```typescript
-import telemetry from '../utils/telemetry';
-import db from '../utils/databaseConnector';
+// ❌ Bad
+function processData(data: any) {
+  return data.value;
+}
 
-// Get current database status
-const dbStatus = db.getDatabaseStatus();
-console.log(`Database status: ${dbStatus.status}`);
-
-// For custom monitoring
-telemetry.recordMetric('db.custom.metric', value, {
-  operation: 'my-custom-operation'
-});
-
-// For custom events
-telemetry.recordEvent('db.custom.event', {
-  details: 'Something important happened'
-}, 'info');
-
-// Subscribe to database status changes
-const unsubscribe = telemetry.subscribeToConnectionStatus((status, timestamp) => {
-  console.log(`Database status changed to ${status} at ${new Date(timestamp)}`);
-});
-
-// Later: unsubscribe when component unmounts
-unsubscribe();
-```
-
-Benefits:
-- Real-time connection status monitoring
-- Automatic tracking of query performance
-- Detection of slow queries and connection issues
-- Centralized diagnostics dashboard for administrators
-- Historical metrics for performance analysis
-
-## Data Loading in React Components
-
-All components that fetch data should use the DataLoader pattern:
-
-```tsx
-import { useDataLoader } from '../hooks/useDataLoader';
-import { DataLoader } from '../components/common/DataLoader';
-
-// In your component
-const myDataQuery = useDataLoader(
-  ['resource', 'identifier'],
-  async () => {
-    // Data fetching logic
-    return await fetchData();
-  },
-  {
-    fallbackData: [], // Fallback data if the query fails
-    loadingDelay: 400, // Delay before showing loading state
+// ✅ Good
+function processData(data: unknown) {
+  if (typeof data === 'object' && data !== null && 'value' in data) {
+    return data.value;
   }
-);
-
-// In your JSX
-return (
-  <DataLoader
-    data={myDataQuery.data}
-    isLoading={myDataQuery.isLoading}
-    isError={myDataQuery.isError}
-    error={myDataQuery.error}
-    refetch={myDataQuery.refetch}
-  >
-    {(data) => (
-      // Render your data here
-      <div>{data.map(item => <div key={item.id}>{item.name}</div>)}</div>
-    )}
-  </DataLoader>
-);
+  throw new Error('Invalid data format');
+}
 ```
 
-Benefits:
-- Consistent loading and error states
-- Standardized stale data indicators
-- Optimized performance with delayed loading
-- Built-in retry functionality
+### 2. Use Discriminated Unions
 
-## Logging
-
-Use the centralized logger instead of console.log:
+- Use discriminated unions for data that can take multiple forms
+- Include a common field (usually `type`) to discriminate between different types
+- Use type narrowing with discriminated unions
 
 ```typescript
-import logger from '../utils/logger';
+// ✅ Good example
+type CustomerData = {
+  type: 'customer';
+  customerId: string;
+  name: string;
+};
 
-// Instead of console.log
-logger.info('This is an informational message');
+type LoyaltyCardData = {
+  type: 'loyaltyCard';
+  cardId: string;
+  customerId: string;
+};
 
-// Instead of console.error
-logger.error('An error occurred', error);
+type PromoCodeData = {
+  type: 'promoCode';
+  code: string;
+};
 
-// Instead of console.warn
-logger.warn('This is a warning');
+type ScanData = CustomerData | LoyaltyCardData | PromoCodeData;
 
-// For debugging only (not shown in production)
-logger.debug('Debug information');
-
-// For verbose tracing (development only)
-logger.trace('Detailed trace information');
-
-// Create a logger for a specific module
-const moduleLogger = logger.createLogger('MyComponent');
-moduleLogger.info('This will be prefixed with [MyComponent]');
+function processData(data: ScanData) {
+  switch (data.type) {
+    case 'customer':
+      // TypeScript knows data is CustomerData here
+      return processCustomer(data.customerId);
+    case 'loyaltyCard':
+      // TypeScript knows data is LoyaltyCardData here
+      return processCard(data.cardId);
+    case 'promoCode':
+      // TypeScript knows data is PromoCodeData here
+      return processPromo(data.code);
+  }
+}
 ```
 
-Benefits:
-- Environment-based log filtering (no debug logs in production)
-- Consistent formatting and prefixing
-- Easier to find and remove debug statements
-- Potential for remote logging integration
+### 3. Use Enums and String Literal Types
 
-## Batch Queries
-
-For fetching multiple related entities, use batch queries:
+- Use string literal types for values that have a fixed set of possible values
+- Export these types to ensure consistency across the codebase
+- Consider using TypeScript enums for complex cases
 
 ```typescript
-import db from '../utils/databaseConnector';
+// ✅ Good
+export type QrCodeType = 'customer' | 'loyaltyCard' | 'promoCode' | 'unknown';
 
-// Instead of multiple separate queries
-const batchResults = await db.executeBatch([
-  {
-    id: 'users',
-    query: 'SELECT * FROM users WHERE id = ANY($1)',
-    params: [userIds]
-  },
-  {
-    id: 'posts',
-    query: 'SELECT * FROM posts WHERE user_id = ANY($1)',
-    params: [userIds]
+// Usage
+function getIconForType(type: QrCodeType) {
+  switch (type) {
+    case 'customer':
+      return <CustomerIcon />;
+    case 'loyaltyCard':
+      return <CardIcon />;
+    case 'promoCode':
+      return <PromoIcon />;
+    default:
+      return <UnknownIcon />;
   }
-], {
-  cache: {
-    enabled: true,
-    ttl: 5 * 60 * 1000
-  }
-});
-
-const users = batchResults.users.data;
-const posts = batchResults.posts.data;
+}
 ```
 
-Benefits:
-- Reduced database connection overhead
-- Optimized caching
-- Parallel execution
-- Simplified error handling
+### 4. Use Interface Inheritance
 
-## Database Connection Monitoring
+- Use interface inheritance to model relationships between types
+- Create base interfaces for common properties
+- Extend base interfaces for specific implementations
 
-- Always use the telemetry utilities for tracking database connection events
-- Log appropriate warnings for disconnection events
-- Implement proper reconnection logic with exponential backoff
-- Use the DatabaseStatus component for real-time status information in admin views
-- When implementing database-related features, ensure you have proper error boundaries
+```typescript
+// ✅ Good
+interface BaseQrCodeData {
+  type: QrCodeType;
+  timestamp?: number;
+}
 
-## Fallback Behavior Guidelines
+interface CustomerQrCodeData extends BaseQrCodeData {
+  type: 'customer';
+  customerId: string | number;
+  name?: string;
+}
+```
 
-- All data-fetching components must gracefully handle database unavailability
-- Always implement fallback behavior using the environment configuration settings
-- Use the FallbackIndicator component to provide clear visual feedback when in fallback mode
-- Implement local fallback at the component level where specific behavior is needed
-- Use the global fallback context for application-wide fallback status
-- For critical paths, always provide mock data alternatives that can be used when real data is unavailable
-- Test both normal and fallback behavior paths during development
-- All mockData should be realistic but clearly distinguishable from real data
-- When using fallback behavior, log appropriate telemetry events
+## Null Safety
 
-## Hooks and API Patterns
+### 1. Enable Strict Null Checks
 
-// ... rest of the file ... 
+- Always enable `strictNullChecks` in TypeScript configuration
+- Use optional chaining (`?.`) and nullish coalescing (`??`) operators
+- Implement defensive programming patterns
+
+```typescript
+// ✅ Good
+const userName = user?.name ?? 'Guest';
+```
+
+### 2. Default Values and Type Guards
+
+- Provide default values for potentially undefined parameters
+- Use type guards to narrow types
+- Implement utility functions for common operations
+
+```typescript
+// ✅ Good
+function ensureId(id: string | number | undefined): string {
+  if (id === undefined || id === null) {
+    return '0';
+  }
+  return String(id);
+}
+```
+
+### 3. Avoid Non-Null Assertions
+
+- Avoid non-null assertions (`!`) whenever possible
+- Use proper null checks instead
+- Provide meaningful error messages when assertions fail
+
+```typescript
+// ❌ Bad
+function getName(user?: User): string {
+  return user!.name; // Might crash at runtime
+}
+
+// ✅ Good
+function getName(user?: User): string {
+  if (!user) {
+    throw new Error('User is required');
+  }
+  return user.name;
+}
+
+// ✅ Also good (with default)
+function getName(user?: User): string {
+  return user?.name ?? 'Guest';
+}
+```
+
+## Error Handling
+
+### 1. Structured Error Handling
+
+- Use structured error handling with try/catch blocks
+- Provide specific error types for different error scenarios
+- Log errors appropriately based on severity
+
+```typescript
+// ✅ Good
+try {
+  await processQrCode(data);
+} catch (error) {
+  if (error instanceof ValidationError) {
+    // Handle validation error
+    setError('Invalid QR code format');
+  } else if (error instanceof NetworkError) {
+    // Handle network error
+    setError('Network error, please try again');
+  } else {
+    // Handle unknown errors
+    setError('An unexpected error occurred');
+    // Log for debugging
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+### 2. Error Recovery
+
+- Implement graceful degradation on errors
+- Provide fallback behavior when operations fail
+- Maintain application state consistency after errors
+
+```typescript
+// ✅ Good
+const playSound = (type: 'success' | 'error') => {
+  try {
+    const audio = new Audio(`/assets/sounds/${type}.mp3`);
+    audio.volume = 0.5;
+    
+    // Handle errors during playback
+    audio.oncanplaythrough = () => {
+      audio.play().catch(() => {
+        // Silently fail - audio is non-critical
+      });
+    };
+    
+    // Set error handler
+    audio.onerror = () => {
+      // Silently fail - audio is non-critical
+    };
+  } catch (error) {
+    // Silently fail - audio is non-critical
+  }
+};
+```
+
+## Performance Considerations
+
+### 1. Optimize Debug Logging
+
+- Use conditional compilation for debug logs
+- Eliminate debug code in production builds
+- Use environment variables to control logging behavior
+
+```typescript
+// ✅ Good
+const DEBUG_ENABLED = process.env.NODE_ENV === 'development';
+
+const debugLog = DEBUG_ENABLED 
+  ? (...args: unknown[]): void => { console.log('[Debug]', ...args); }
+  : (..._args: unknown[]): void => { /* No-op in production */ };
+```
+
+### 2. Debounce User Interactions
+
+- Debounce rapidly firing events like QR scanning
+- Implement proper cleanup for event listeners
+- Use timeouts and callbacks carefully
+
+```typescript
+// ✅ Good
+const DEBOUNCE_MS = 300;
+const lastTimeRef = useRef<number>(0);
+
+const handleQrScanDebounced = (text: string) => {
+  const now = Date.now();
+  if (now - lastTimeRef.current < DEBOUNCE_MS) {
+    return;
+  }
+  
+  lastTimeRef.current = now;
+  handleQrScan(text);
+};
+```
+
+### 3. Memoize Expensive Computations
+
+- Use React's `useMemo` and `useCallback` for expensive operations
+- Implement custom caching for frequently accessed data
+- Optimize rendering performance
+
+```typescript
+// ✅ Good
+const filteredData = useMemo(() => {
+  return data.filter(item => item.active);
+}, [data]);
+```
+
+## Documentation Standards
+
+### 1. JSDoc Comments
+
+- Add JSDoc comments for all exported functions, interfaces, and types
+- Include parameter descriptions, return values, and examples
+- Document error conditions and edge cases
+
+```typescript
+/**
+ * Processes a QR code scan and extracts relevant data
+ * 
+ * @param scanData - The raw QR code data
+ * @returns Processed scan result with type information
+ * @throws {ValidationError} If the QR code format is invalid
+ * 
+ * @example
+ * ```typescript
+ * const result = processQrCode('{"type":"customer","id":"123"}');
+ * ```
+ */
+function processQrCode(scanData: string): ScanResult {
+  // Implementation
+}
+```
+
+### 2. Component Documentation
+
+- Document React components with JSDoc
+- Include props description and examples
+- Add notes about component lifecycle and side effects
+
+```typescript
+/**
+ * QRScanner Component
+ * 
+ * A versatile QR code scanner component that supports multiple QR code types
+ * and provides comprehensive error handling and UI feedback.
+ * 
+ * @example
+ * ```tsx
+ * <QRScanner 
+ *   businessId="123"
+ *   onScan={(result) => console.log('Scanned:', result)}
+ * />
+ * ```
+ */
+export const QRScanner: React.FC<QRScannerProps> = (props) => {
+  // Implementation
+};
+```
+
+## File Organization
+
+### 1. Type Definitions
+
+- Place shared type definitions in dedicated files under `src/types/`
+- Export type definitions for reuse across components
+- Group related types together
+
+### 2. Utility Functions
+
+- Create reusable utility functions for common operations
+- Place utilities in a dedicated `src/utils/` directory
+- Export and import utilities as needed
+
+### 3. Service Organization
+
+- Organize services by functionality
+- Use consistent naming conventions for service methods
+- Document service methods with JSDoc
+
+## Testing Standards
+
+### 1. Type Testing
+
+- Test type definitions with TypeScript's `expectType` utility
+- Verify that functions reject invalid inputs
+- Ensure type narrowing works correctly
+
+### 2. Component Testing
+
+- Test React components with proper types
+- Mock dependencies with typed mocks
+- Test error handling and edge cases
+
+## Linting and Enforcement
+
+### 1. ESLint Rules
+
+- Enable TypeScript-specific ESLint rules
+- Enforce no-any rule with rare exceptions
+- Configure pre-commit hooks to catch type errors
+
+### 2. Naming Conventions
+
+- Use consistent naming for interfaces, types, and variables
+- Follow React component naming conventions
+- Use meaningful names that reflect purpose
+
+## Integration with External Libraries
+
+### 1. Type Definitions
+
+- Use DefinitelyTyped (@types/*) packages when available
+- Create custom type definitions for untyped libraries
+- Document workarounds for library limitations
+
+### 2. API Integration
+
+- Define strong types for API requests and responses
+- Use TypeScript's utility types for API transformations
+- Handle API errors with proper typing
+
+By following these standards, we can maintain a high level of type safety and code quality throughout the GudCity REDA application.

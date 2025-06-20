@@ -4,12 +4,17 @@
  * This script creates a global browser object to prevent those errors.
  */
 (function() {
+  // Execute this immediately
+  console.log('Browser global fix executing immediately');
+  
   // Make sure browser is defined globally
   if (typeof window !== 'undefined') {
-    // Create comprehensive browser WebExtension API mock
-    window.browser = window.browser || {};
+    // First, define a minimal browser object
+    if (!window.browser) {
+      window.browser = {};
+    }
     
-    // Core APIs
+    // Create comprehensive browser WebExtension API mock
     window.browser.runtime = window.browser.runtime || {
       sendMessage: function() { return Promise.resolve(); },
       onMessage: { 

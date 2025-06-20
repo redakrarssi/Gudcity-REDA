@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
+import { queryClient, queryKeys } from '../utils/queryClient';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -338,6 +339,16 @@ export class LoyaltyCardService {
           }
         }
         
+        // Broadcast update to customer's cards
+        try {
+          const storageKey = `cards_update_${customerId}`;
+          localStorage.setItem(storageKey, Date.now().toString());
+          setTimeout(() => localStorage.removeItem(storageKey), 5000);
+        } catch (_) {}
+        // Invalidate react-query caches
+        queryClient.invalidateQueries({ queryKey: queryKeys.customers.byId(customerId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.customerSummary(customerId) });
+        
         return this.formatCard(card[0]);
       }
       
@@ -535,6 +546,16 @@ export class LoyaltyCardService {
       const finalCard = await sql`
         SELECT * FROM loyalty_cards WHERE id = ${cardId}
       `;
+      
+      // Broadcast update to customer's cards
+      try {
+        const storageKey = `cards_update_${card.customer_id || ''}`;
+        localStorage.setItem(storageKey, Date.now().toString());
+        setTimeout(() => localStorage.removeItem(storageKey), 5000);
+      } catch (_) {}
+      if (card.customer_id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.customerSummary(card.customer_id) });
+      }
       
       return this.formatCard(finalCard[0]);
     } catch (error) {

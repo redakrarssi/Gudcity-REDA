@@ -105,6 +105,22 @@ export class TransactionService {
         actualProgramName
       );
 
+      // Broadcast a localStorage event so other tabs (e.g., customer dashboard) can refresh loyalty cards
+      try {
+        const storageKey = `cards_update_${customerId}`;
+        localStorage.setItem(storageKey, Date.now().toString());
+        // Optionally clean up to avoid quota issues
+        setTimeout(() => {
+          try {
+            localStorage.removeItem(storageKey);
+          } catch (_) {
+            /* ignore */
+          }
+        }, 5000);
+      } catch (e) {
+        // localStorage might be unavailable (SSR), ignore silently
+      }
+
       return {
         success: true,
         points: points

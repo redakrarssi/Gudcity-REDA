@@ -3,7 +3,7 @@
 -- Check if the loyalty_programs table exists, create if not
 CREATE TABLE IF NOT EXISTS loyalty_programs (
   id SERIAL PRIMARY KEY,
-  business_id VARCHAR(255) NOT NULL,
+  business_id INTEGER NOT NULL,
   name VARCHAR(255) NOT NULL,
   description TEXT,
   type VARCHAR(50) NOT NULL, -- POINTS, STAMPS, CASHBACK

@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import type { LoyaltyProgram, RewardTier, ProgramType } from '../types/loyalty';
+import { CustomerService } from './customerService';
 
 /**
  * Service for managing loyalty programs with database integration
@@ -21,11 +22,11 @@ export class LoyaltyProgramService {
         businessId: program.business_id.toString(),
         name: program.name,
         description: program.description || '',
-        type: program.type,
-        pointValue: parseFloat(program.point_value || 0),
+        type: program.type || 'POINTS',
+        pointValue: parseFloat(program.points_per_dollar || 1),
         rewardTiers: program.reward_tiers || [],
-        expirationDays: program.expiration_days,
-        status: program.status,
+        expirationDays: program.points_expiry_days,
+        status: program.status || 'ACTIVE',
         createdAt: program.created_at,
         updatedAt: program.updated_at
       }));
@@ -57,10 +58,10 @@ export class LoyaltyProgramService {
         businessId: program.business_id,
         name: program.name,
         description: program.description,
-        type: program.type as ProgramType,
-        pointValue: program.point_value,
-        expirationDays: program.expiration_days,
-        status: program.status,
+        type: program.type as ProgramType || 'POINTS',
+        pointValue: program.points_per_dollar || 1,
+        expirationDays: program.points_expiry_days,
+        status: program.status || 'ACTIVE',
         createdAt: program.created_at,
         updatedAt: program.updated_at,
         rewardTiers
@@ -99,62 +100,113 @@ export class LoyaltyProgramService {
    */
   static async createProgram(program: Omit<LoyaltyProgram, 'id' | 'createdAt' | 'updatedAt'>): Promise<LoyaltyProgram | null> {
     try {
-      // Insert the program
+      console.log('Creating program with data:', JSON.stringify(program, null, 2));
+      
+      // Ensure we have valid data
+      if (!program.businessId || !program.name || !program.type) {
+        console.error('Missing required program fields:', { 
+          businessId: program.businessId, 
+          name: program.name, 
+          type: program.type 
+        });
+        return null;
+      }
+      
+      // Parse businessId to ensure it's a number
+      const businessId = parseInt(program.businessId);
+      
+      if (isNaN(businessId)) {
+        console.error(`Invalid business ID: ${program.businessId}`);
+        return null;
+      }
+      
+      console.log('Parsed business ID:', businessId);
+      
+      try {
+        // Insert the program with explicit type checking
+        console.log('Executing program insert query...');
       const result = await sql`
         INSERT INTO loyalty_programs (
           business_id,
           name,
           description,
           type,
-          point_value,
-          expiration_days,
-          status,
-          created_at,
-          updated_at
+            points_per_dollar,
+            points_expiry_days,
+            status
         )
         VALUES (
-          ${program.businessId},
-          ${program.name},
-          ${program.description || ''},
-          ${program.type},
-          ${program.pointValue},
-          ${program.expirationDays || null},
-          ${program.status || 'ACTIVE'},
-          NOW(),
-          NOW()
+            ${businessId},
+            ${String(program.name)},
+            ${program.description ? String(program.description) : ''},
+            ${String(program.type)},
+            ${Number(program.pointValue || 1)},
+            ${program.expirationDays === null ? null : Number(program.expirationDays || 0)},
+            ${program.status ? String(program.status) : 'ACTIVE'}
         )
-        RETURNING *
+          RETURNING id
       `;
+        
+        console.log('Program insert query result:', result);
       
       if (!result.length) {
+          console.error('No result returned from program insertion');
         return null;
       }
       
-      const newProgram = result[0];
+        const programId = result[0].id;
+        console.log('Created new program with ID:', programId);
       
       // Insert reward tiers if provided
       if (program.rewardTiers && program.rewardTiers.length > 0) {
-        await Promise.all(program.rewardTiers.map((tier: RewardTier) =>
-          sql`
+          try {
+            console.log(`Adding ${program.rewardTiers.length} reward tiers`);
+            for (const tier of program.rewardTiers) {
+              if (!tier.reward || tier.pointsRequired === undefined) {
+                console.warn('Skipping invalid reward tier:', tier);
+                continue;
+              }
+              
+              console.log('Adding reward tier:', { 
+                programId: programId, 
+                pointsRequired: Number(tier.pointsRequired), 
+                reward: String(tier.reward)
+              });
+              
+              await sql`
             INSERT INTO reward_tiers (
               program_id,
               points_required,
               reward
             )
             VALUES (
-              ${newProgram.id},
-              ${tier.pointsRequired},
-              ${tier.reward}
+                  ${programId},
+                  ${Number(tier.pointsRequired)},
+                  ${String(tier.reward)}
             )
-          `
-        ));
+              `;
+            }
+            console.log('All reward tiers created successfully');
+          } catch (tierError) {
+            console.error('Error inserting reward tiers:', tierError);
+            // Continue execution to return the program even if tiers failed
+          }
       }
       
       // Return the created program with reward tiers
-      return await this.getProgramById(newProgram.id);
+        console.log('Fetching complete program data...');
+        const completeProgram = await this.getProgramById(String(programId));
+        console.log('Complete program data:', completeProgram);
+        return completeProgram;
+      } catch (queryError: any) {
+        console.error('Database query error during program creation:', queryError);
+        throw new Error(`Database query failed: ${queryError.message || JSON.stringify(queryError)}`);
+      }
     } catch (error) {
       console.error('Error creating loyalty program:', error);
-      return null;
+      // Log more details about the program data for debugging
+      console.error('Program data:', JSON.stringify(program, null, 2));
+      throw error; // Re-throw the error to be handled by the caller
     }
   }
 
@@ -182,11 +234,11 @@ export class LoyaltyProgramService {
       }
       
       if (programData.pointValue !== undefined) {
-        updateFields.push(sql`point_value = ${programData.pointValue}`);
+        updateFields.push(sql`points_per_dollar = ${programData.pointValue}`);
       }
       
       if (programData.expirationDays !== undefined) {
-        updateFields.push(sql`expiration_days = ${programData.expirationDays}`);
+        updateFields.push(sql`points_expiry_days = ${programData.expirationDays}`);
       }
       
       if (programData.status !== undefined) {
@@ -212,11 +264,11 @@ export class LoyaltyProgramService {
         }
         
         if (programData.pointValue !== undefined) {
-          await sql`UPDATE loyalty_programs SET point_value = ${programData.pointValue} WHERE id = ${programId}`;
+          await sql`UPDATE loyalty_programs SET points_per_dollar = ${programData.pointValue} WHERE id = ${programId}`;
         }
         
         if (programData.expirationDays !== undefined) {
-          await sql`UPDATE loyalty_programs SET expiration_days = ${programData.expirationDays} WHERE id = ${programId}`;
+          await sql`UPDATE loyalty_programs SET points_expiry_days = ${programData.expirationDays} WHERE id = ${programId}`;
         }
         
         if (programData.status !== undefined) {
@@ -307,10 +359,28 @@ export class LoyaltyProgramService {
             WHERE customer_id = ${parseInt(customerId)}
             AND program_id = ${parseInt(programId)}
           `;
-          return { success: true };
         }
-        
-        return { success: false, error: 'Customer is already enrolled in this program' };
+
+        // Ensure the customer is linked to the business even if the enrollment already existed
+        try {
+          const programInfo = await sql`
+            SELECT business_id FROM loyalty_programs WHERE id = ${parseInt(programId)}
+          `;
+          if (programInfo.length > 0) {
+            const businessId = String(programInfo[0].business_id ?? '');
+            if (businessId) {
+              await CustomerService.associateCustomerWithBusiness(
+                customerId,
+                businessId,
+                programId
+              );
+            }
+          }
+        } catch (assocErr) {
+          console.error('Error ensuring customer-business association:', assocErr);
+        }
+
+        return { success: true };
       }
 
       // Verify program exists
@@ -341,11 +411,25 @@ export class LoyaltyProgramService {
         )
       `;
 
+      // Automatically associate the customer with the business so they appear in the business dashboard
+      try {
+        const businessId = String(programResult[0].business_id ?? '');
+        if (businessId) {
+          await CustomerService.associateCustomerWithBusiness(
+            customerId,
+            businessId,
+            programId
+          );
+        }
+      } catch (assocErr) {
+        console.error('Error associating customer with business after enrollment:', assocErr);
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Error enrolling customer:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }

@@ -13,19 +13,31 @@ import { ProgramBuilder } from '../../components/business/ProgramBuilder';
 import { Link } from 'react-router-dom';
 import { QrCodeService } from '../../services/qrCodeService';
 import { NotificationService } from '../../services/notificationService';
+import { ScanResult, QrCodeType } from '../../types/qrCode';
 
-// Use the same interface as in QRScanner component
-interface ScanResult {
-  type: string;
-  data: any;
-  timestamp: string;
-  raw: string;
+// Define business analytics data interface
+interface BusinessAnalyticsData {
+  totalCustomers: number;
+  totalSales: number;
+  totalTransactions: number;
+  activePrograms: number;
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    timestamp: string;
+    details: string;
+  }>;
+  salesByDay: Array<{
+    date: string;
+    amount: number;
+  }>;
+  [key: string]: any; // Allow for additional properties
 }
 
 const BusinessDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [businessData, setBusinessData] = useState<any>(null);
+  const [businessData, setBusinessData] = useState<BusinessAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
@@ -125,8 +137,8 @@ const BusinessDashboard = () => {
   };
 
   const handleScan = async (result: ScanResult) => {
-    // TODO: Process QR code data
-    setScannerMessage(`Scanned: ${result.raw}`);
+    // Process QR code data
+    setScannerMessage(`Scanned: ${result.rawData || 'unknown'}`);
     
     if (!user?.id) {
       setScannerMessage('Error: Business ID not available');
@@ -138,18 +150,20 @@ const BusinessDashboard = () => {
       // Show processing message
       setScannerMessage('Processing scan...');
       
-      // Determine QR code type
-      let scanType: 'CUSTOMER_CARD' | 'PROMO_CODE' | 'LOYALTY_CARD' = 'CUSTOMER_CARD';
-      
-      if (result.type === 'PROMO_CODE') {
-        scanType = 'PROMO_CODE';
-      } else if (result.type === 'LOYALTY_CARD') {
-        scanType = 'LOYALTY_CARD';
-      }
+      // Map QrCodeType to scan type expected by service
+      let scanType: QrCodeType = result.type;
       
       // Get default program if available
       const defaultProgram = programs.length > 0 ? programs[0] : null;
       const programId = defaultProgram?.id;
+      
+      // Extract customer ID based on QR code type
+      let customerId: string | undefined;
+      if (result.type === 'customer' && 'customerId' in result.data) {
+        customerId = String(result.data.customerId);
+      } else if (result.type === 'loyaltyCard' && 'customerId' in result.data) {
+        customerId = String(result.data.customerId);
+      }
       
       // Process the QR code scan
       const scanResult = await QrCodeService.processQrCodeScan(
@@ -157,8 +171,8 @@ const BusinessDashboard = () => {
         user.id,
         result.data,
         {
-          customerId: result.data.customerId,
-          programId: programId || result.data.programId,
+          customerId,
+          programId: programId || (result.type === 'loyaltyCard' && 'programId' in result.data ? String(result.data.programId) : undefined),
           pointsToAward: 10 // Default points to award
         }
       );
@@ -207,9 +221,9 @@ const BusinessDashboard = () => {
     }
   };
 
-  const handleScanError = (err: any) => {
-    console.error(err);
-    setScannerMessage('Error scanning QR code');
+  const handleScanError = (error: Error): void => {
+    console.error('Scan error:', error);
+    setScannerMessage(`Error scanning QR code: ${error.message}`);
     setShowScanner(false);
   };
 
@@ -248,12 +262,12 @@ const BusinessDashboard = () => {
       <BusinessLayout>
         <div className="flex items-center justify-center h-full">
           <div className="text-center p-6 max-w-md">
-            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('Error')}</h3>
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">{t('Error Loading Dashboard')}</h2>
             <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
               {t('Retry')}
             </button>
@@ -263,249 +277,299 @@ const BusinessDashboard = () => {
     );
   }
 
-  if (!businessData) {
-    return (
-      <BusinessLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center p-6 max-w-md">
-            <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('No Data Available')}</h3>
-            <p className="text-gray-600 mb-4">{t('We couldn\'t find any analytics data for your business.')}</p>
-          </div>
-        </div>
-      </BusinessLayout>
-    );
-  }
-
   return (
     <BusinessLayout>
-      {showScanner && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-xl font-bold mb-4">{t('Scan Customer QR Code')}</h3>
-            <QRScanner onScan={handleScan} />
-            <p className="mt-4 text-center text-gray-600">{scannerMessage}</p>
+      {/* Dashboard Header */}
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{t('Welcome to your Dashboard')}</h1>
+            <p className="text-gray-600 mt-1">{businessName}</p>
+          </div>
+          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
             <button
-              onClick={() => setShowScanner(false)}
-              className="mt-4 w-full py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              onClick={() => setShowScanner(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors"
             >
-              {t('Cancel')}
+              <QrCode className="h-5 w-5 mr-2" />
+              {t('Scan QR')}
+            </button>
+            <button
+              onClick={() => { setShowProgramBuilder(true); setSelectedProgram(null); }}
+              className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700 transition-colors"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              {t('New Program')}
             </button>
           </div>
         </div>
-      )}
-
-      {showProgramBuilder && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
-            <h3 className="text-xl font-bold mb-4">
-              {selectedProgram ? t('Edit Loyalty Program') : t('Create New Loyalty Program')}
-            </h3>
-            <ProgramBuilder 
-              initialProgram={selectedProgram || undefined} 
-              onSubmit={handleProgramSubmit} 
-              onCancel={() => {
-                setShowProgramBuilder(false);
-                setSelectedProgram(null);
-              }} 
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="p-6">
-        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('Business Dashboard')}</h1>
-            <p className="text-gray-600">{t('Analytics and insights for your business')}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-gray-700">{t('Period')}:</span>
-            <select
-              value={period}
-              onChange={(e) => handlePeriodChange(e.target.value as any)}
-              className="bg-white border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="day">{t('Today')}</option>
-              <option value="week">{t('This Week')}</option>
-              <option value="month">{t('This Month')}</option>
-              <option value="year">{t('This Year')}</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Settings Configuration Alert */}
+        
         {businessHasIncompleteSettings && (
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-6">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <Settings className="h-5 w-5 text-blue-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3 flex-1 md:flex md:justify-between md:items-center">
-                <p className="text-sm text-blue-700">
-                  {t('Complete your business profile and settings to fully utilize your dashboard.')}
-                </p>
-                <div className="mt-3 text-sm md:mt-0 md:ml-6">
-                  <Link
-                    to="/business/settings"
-                    className="whitespace-nowrap bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
-                  >
-                    <span>{t('Update Settings')}</span>
-                    <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
+          <div className="mt-4 bg-amber-50 border-l-4 border-amber-400 p-4 rounded-md">
+            <div className="flex">
+              <AlertTriangle className="h-6 w-6 text-amber-500 mr-3 flex-shrink-0" />
+              <div>
+                <p className="text-amber-800 font-medium">{t('Your business profile is incomplete')}</p>
+                <p className="text-amber-700 text-sm mt-1">{t('Complete your profile to unlock all features')}</p>
+                <Link 
+                  to="/business/settings" 
+                  className="mt-2 inline-flex items-center text-sm font-medium text-amber-600 hover:text-amber-800"
+                >
+                  {t('Complete Profile')}
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
               </div>
             </div>
           </div>
         )}
-
-        {/* Analytics Dashboard */}
-        <BusinessAnalyticsDashboard analytics={businessData} currency={currency} />
-
-        {/* Programs Section */}
-        <div className="mt-10">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900">{t('Loyalty Programs')}</h2>
-            <button
-              onClick={() => {
-                setSelectedProgram(null);
-                setShowProgramBuilder(true);
-              }}
-              className="flex items-center text-sm font-medium px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              {t('New Program')}
-            </button>
+      </div>
+      
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 transition-all duration-500 ${animateStats ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">{t('Total Customers')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{businessData?.totalCustomers || 0}</p>
+            </div>
+            <div className="bg-blue-100 p-2 rounded-md">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
           </div>
-
-          {programs.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
-              <Gift className="w-12 h-12 text-blue-500 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('No Loyalty Programs')}</h3>
-              <p className="text-gray-600 mb-4">{t('Create your first loyalty program to start rewarding your customers.')}</p>
-              <button
-                onClick={() => {
-                  setSelectedProgram(null);
-                  setShowProgramBuilder(true);
-                }}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                {t('Create Program')}
-              </button>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {programs.map(program => (
-                <div key={program.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      {program.type === 'POINTS' ? (
-                        <Award className="w-6 h-6 text-blue-600" />
-                      ) : program.name.toLowerCase().includes('coffee') ? (
-                        <Coffee className="w-6 h-6 text-blue-600" />
-                      ) : (
-                        <Gift className="w-6 h-6 text-blue-600" />
-                      )}
-                    </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      program.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {program.status}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{program.name}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{program.description}</p>
-                  
-                  <div className="border-t border-gray-200 pt-3 mt-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">{t('Reward Tiers')}</span>
-                      <span className="font-medium text-gray-900">{program.rewardTiers.length}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500">{t('Expiration')}</span>
-                      <span className="font-medium text-gray-900">{program.expirationDays} {t('days')}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 flex justify-end gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedProgram(program);
-                        setShowProgramBuilder(true);
-                      }}
-                      className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      {t('Edit')}
-                    </button>
-                    <button
-                      onClick={() => setShowScanner(true)}
-                      className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
-                    >
-                      <QrCode className="w-3 h-3 mr-1" />
-                      {t('Scan')}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center mt-4">
+            <span className="text-green-500 flex items-center text-sm font-medium">
+              <ArrowUp className="h-4 w-4 mr-1" />
+              12%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t('vs last period')}</span>
+          </div>
         </div>
-
-        {/* Quick Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-          <Link 
-            to="/business/programs" 
-            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-800">{t('My Programs')}</h3>
-              <div className="bg-blue-50 p-3 rounded-full">
-                <CreditCard className="w-6 h-6 text-blue-600" />
-              </div>
+        
+        <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-green-500 transition-all duration-500 delay-100 ${animateStats ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">{t('Total Sales')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{currency} {(businessData?.totalSales || 0).toLocaleString()}</p>
             </div>
-            <p className="text-gray-600">{t('Manage your loyalty programs and offers')}</p>
-            <div className="mt-4 flex items-center text-blue-600">
-              <span className="text-sm font-medium">{t('View Programs')}</span>
-              <ChevronRight className="ml-1 w-4 h-4" />
+            <div className="bg-green-100 p-2 rounded-md">
+              <DollarSign className="h-6 w-6 text-green-600" />
             </div>
-          </Link>
-
-          <Link 
-            to="/business/customers" 
-            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-800">{t('Customers')}</h3>
-              <div className="bg-purple-50 p-3 rounded-full">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
+          </div>
+          <div className="flex items-center mt-4">
+            <span className="text-green-500 flex items-center text-sm font-medium">
+              <ArrowUp className="h-4 w-4 mr-1" />
+              8.2%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t('vs last period')}</span>
+          </div>
+        </div>
+        
+        <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 transition-all duration-500 delay-200 ${animateStats ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">{t('Transactions')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{businessData?.totalTransactions || 0}</p>
             </div>
-            <p className="text-gray-600">{t('View and manage your customer relationships')}</p>
-            <div className="mt-4 flex items-center text-blue-600">
-              <span className="text-sm font-medium">{t('View Customers')}</span>
-              <ChevronRight className="ml-1 w-4 h-4" />
+            <div className="bg-purple-100 p-2 rounded-md">
+              <CreditCard className="h-6 w-6 text-purple-600" />
             </div>
-          </Link>
-
-          <Link 
-            to="/business/settings" 
-            className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-800">{t('Settings')}</h3>
-              <div className="bg-green-50 p-3 rounded-full">
-                <Settings className="w-6 h-6 text-green-600" />
-              </div>
+          </div>
+          <div className="flex items-center mt-4">
+            <span className="text-red-500 flex items-center text-sm font-medium">
+              <ArrowDown className="h-4 w-4 mr-1" />
+              3.1%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t('vs last period')}</span>
+          </div>
+        </div>
+        
+        <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-amber-500 transition-all duration-500 delay-300 ${animateStats ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">{t('Active Programs')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{businessData?.activePrograms || programs.length}</p>
             </div>
-            <p className="text-gray-600">{t('Configure your business profile and preferences')}</p>
-            <div className="mt-4 flex items-center text-blue-600">
-              <span className="text-sm font-medium">{t('Update Settings')}</span>
-              <ChevronRight className="ml-1 w-4 h-4" />
+            <div className="bg-amber-100 p-2 rounded-md">
+              <Award className="h-6 w-6 text-amber-600" />
             </div>
-          </Link>
+          </div>
+          <div className="flex items-center mt-4">
+            <span className="text-green-500 flex items-center text-sm font-medium">
+              <TrendingUp className="h-4 w-4 mr-1" />
+              {t('Active')}
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t('All programs running')}</span>
+          </div>
         </div>
       </div>
+      
+      {/* Main Dashboard Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Analytics Chart */}
+        <div className="lg:col-span-2 bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">{t('Business Analytics')}</h2>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => handlePeriodChange('day')}
+                  className={`px-3 py-1 text-sm rounded-md ${period === 'day' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {t('Day')}
+                </button>
+                <button 
+                  onClick={() => handlePeriodChange('week')}
+                  className={`px-3 py-1 text-sm rounded-md ${period === 'week' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {t('Week')}
+                </button>
+                <button 
+                  onClick={() => handlePeriodChange('month')}
+                  className={`px-3 py-1 text-sm rounded-md ${period === 'month' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {t('Month')}
+                </button>
+                <button 
+                  onClick={() => handlePeriodChange('year')}
+                  className={`px-3 py-1 text-sm rounded-md ${period === 'year' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {t('Year')}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <BusinessAnalyticsDashboard 
+              businessId={user?.id?.toString() || ''}
+              currency={currency}
+              period={period}
+            />
+          </div>
+        </div>
+        
+        {/* Recent Activity */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold text-gray-800">{t('Recent Activity')}</h2>
+          </div>
+          <div className="p-6">
+            {businessData && businessData.recentActivity && businessData.recentActivity.length > 0 ? (
+              <div className="space-y-4">
+                {businessData.recentActivity.map((activity, index) => (
+                  <div key={activity.id || index} className="flex items-start">
+                    <div className="flex-shrink-0 mr-3">
+                      {activity.type === 'POINTS_AWARDED' && (
+                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                          <Gift className="h-4 w-4 text-green-600" />
+                        </div>
+                      )}
+                      {activity.type === 'REWARD_REDEEMED' && (
+                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                          <Coffee className="h-4 w-4 text-purple-600" />
+                        </div>
+                      )}
+                      {activity.type === 'NEW_CUSTOMER' && (
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <Users className="h-4 w-4 text-blue-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{activity.details}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(activity.timestamp).toLocaleTimeString()} - {new Date(activity.timestamp).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <BarChart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">{t('No recent activity to display')}</p>
+                <p className="text-sm text-gray-400 mt-1">{t('Activity will appear here as you use the system')}</p>
+              </div>
+            )}
+          </div>
+          <div className="border-t p-4">
+            <Link to="/business/analytics" className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center justify-center">
+              {t('View All Activity')}
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Link>
+          </div>
+        </div>
+      </div>
+      
+      {/* QR Scanner Modal */}
+      {showScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">{t('Scan Customer QR Code')}</h2>
+                <button 
+                  onClick={() => setShowScanner(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <QRScanner 
+                onScan={handleScan} 
+                onError={handleScanError}
+                businessId={user?.id}
+              />
+              {scannerMessage && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800">
+                  {scannerMessage}
+                </div>
+              )}
+            </div>
+            <div className="bg-gray-50 p-4 rounded-b-lg">
+              <button 
+                onClick={() => setShowScanner(false)}
+                className="w-full py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                {t('Close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Program Builder Modal */}
+      {showProgramBuilder && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  {selectedProgram ? t('Edit Loyalty Program') : t('Create New Loyalty Program')}
+                </h2>
+                <button 
+                  onClick={() => setShowProgramBuilder(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <ProgramBuilder 
+                initialProgram={selectedProgram || undefined}
+                onSubmit={handleProgramSubmit}
+                onCancel={() => setShowProgramBuilder(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </BusinessLayout>
   );
 };

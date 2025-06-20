@@ -40,7 +40,28 @@ const CustomerCards = () => {
         // Get loyalty cards for this customer
         const cards = await LoyaltyCardService.getCustomerCards(customerId);
         console.log('Loaded loyalty cards:', cards);
-        setLoyaltyCards(cards);
+        
+        // If no cards were found for this customer, try to create them
+        if (!cards || cards.length === 0) {
+          console.log('No cards found for customer, attempting to create default cards...');
+          try {
+            // Create standard card if doesn't exist (via enrollment API)
+            await LoyaltyCardService.enrollCustomerInProgram(customerId, "1", "1");
+            
+            // Create fitness card if doesn't exist
+            await LoyaltyCardService.enrollCustomerInProgram(customerId, "10", "10");
+            
+            // Fetch cards again after creation
+            const updatedCards = await LoyaltyCardService.getCustomerCards(customerId);
+            setLoyaltyCards(updatedCards);
+            console.log('Created and loaded default cards:', updatedCards);
+          } catch (createError) {
+            console.error('Error creating default cards:', createError);
+            setLoyaltyCards([]); // Still set empty array to avoid undefined
+          }
+        } else {
+          setLoyaltyCards(cards);
+        }
         
         // Get activities for each card
         const activities: Record<string, CardActivity[]> = {};
@@ -52,12 +73,13 @@ const CustomerCards = () => {
         
         setCardActivities(activities);
       } else {
+        console.error('No customer account found for user ID:', userId);
         setLoyaltyCards([]);
-        setError('No customer account associated with this user');
+        setError('No customer account associated with this user. Please contact support.');
       }
     } catch (err) {
       console.error('Error loading loyalty cards:', err);
-      setError('Failed to load your loyalty cards');
+      setError('Failed to load your loyalty cards. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -66,6 +88,18 @@ const CustomerCards = () => {
   useEffect(() => {
     fetchCards();
   }, [fetchCards]);
+
+  useEffect(() => {
+    if (!user) return;
+    const storageKey = `cards_update_${user.id}`;
+    const handler = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        fetchCards();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [user, fetchCards]);
 
   useEffect(() => {
     // Trigger animation after a short delay

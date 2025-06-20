@@ -1,6 +1,10 @@
 // Pre-initialize lodash to prevent "Cannot access '_' before initialization" errors
 import './utils/lodash-init';
 
+// Apply browser extension error suppression early
+import { suppressBrowserExtensionErrors } from './utils/browserSupport';
+suppressBrowserExtensionErrors();
+
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
