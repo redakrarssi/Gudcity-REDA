@@ -132,9 +132,6 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setTimeout(() => setShowConfetti(false), 3000);
     }
     
-    // Play success sound
-    playSuccessSound();
-    
     // If it's a customer scan, show the customer details modal
     if (result.type === 'customer' && result.data && isCustomerQrCodeData(result.data)) {
       console.log('Opening customer details modal for customer:', result.data.customerId);
@@ -148,27 +145,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   };
 
   const playSuccessSound = () => {
-    try {
-      const audio = new Audio('/assets/sounds/beep-success.mp3');
-      audio.volume = 0.5;
-      
-      // Only play if the audio can be played
-      audio.oncanplaythrough = () => {
-        audio.play().catch(error => {
-          // Silently fail - audio is non-critical
-          console.error('Error playing sound:', error);
-        });
-      };
-      
-      // Set error handler
-      audio.onerror = () => {
-        // Silently fail - audio is non-critical
-        console.error('Error loading sound');
-      };
-    } catch (error) {
-      // Silently fail - audio is non-critical
-      console.error('Error creating audio:', error);
-    }
+    // Sound functionality disabled as per customer request
+    // Previously played beep-success.mp3
   };
 
   const handleManualEntry = () => {

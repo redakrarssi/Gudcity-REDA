@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info } from 'lucide-react';
 import { QRCard } from '../../components/QRCard';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Local interface for card UI notifications
+interface CardNotification {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
+  timestamp: Date;
+}
 
 const CustomerCards = () => {
   const { t } = useTranslation();
@@ -19,6 +27,8 @@ const CustomerCards = () => {
   const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([]);
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [selectedCardForQR, setSelectedCardForQR] = useState<LoyaltyCard | null>(null);
+  const [notifications, setNotifications] = useState<CardNotification[]>([]);
+  const previousCards = React.useRef<LoyaltyCard[]>([]);
 
   // Load loyalty cards from database
   const fetchCards = useCallback(async () => {
@@ -86,8 +96,77 @@ const CustomerCards = () => {
   }, [user]);
 
   useEffect(() => {
-    fetchCards();
-  }, [fetchCards]);
+    async function loadCards() {
+      setLoading(true);
+      try {
+        if (user?.id) {
+          const response = await LoyaltyCardService.getCustomerCards(user.id.toString());
+          setLoyaltyCards(response);
+          
+          // Check for newly added cards or point changes
+          if (previousCards.current && response.length > previousCards.current.length) {
+            // New card was added
+            const newCards = response.filter(card => 
+              !previousCards.current.some(prevCard => prevCard.id === card.id)
+            );
+            
+            if (newCards.length > 0) {
+              // Show notification for new cards
+              setNotifications(prev => [
+                ...prev, 
+                { 
+                  id: Date.now().toString(),
+                  type: 'success',
+                  message: `New card added: ${newCards[0].businessName}`,
+                  timestamp: new Date(),
+                }
+              ]);
+            }
+          } else if (previousCards.current) {
+            // Check for point changes on existing cards
+            const cardsWithUpdatedPoints = response.filter(card => {
+              const prevCard = previousCards.current.find(p => p.id === card.id);
+              return prevCard && prevCard.points !== card.points;
+            });
+            
+            if (cardsWithUpdatedPoints.length > 0) {
+              const updatedCard = cardsWithUpdatedPoints[0];
+              const prevCard = previousCards.current.find(p => p.id === updatedCard.id);
+              const pointDiff = updatedCard.points - (prevCard?.points || 0);
+              
+              if (pointDiff > 0) {
+                setNotifications(prev => [
+                  ...prev,
+                  {
+                    id: Date.now().toString(),
+                    type: 'success',
+                    message: `You earned ${pointDiff} points on your ${updatedCard.businessName} card!`,
+                    timestamp: new Date()
+                  }
+                ]);
+              }
+            }
+          }
+          
+          // Store current cards for comparison next time
+          previousCards.current = response;
+        }
+      } catch (error) {
+        console.error('Failed to load loyalty cards:', error);
+        setError(t('Failed to load your loyalty cards. Please try again later.'));
+      } finally {
+        setLoading(false);
+        setTimeout(() => setAnimateIn(true), 100);
+      }
+    }
+    loadCards();
+    
+    // Set up polling to check for card updates every 30 seconds
+    const intervalId = setInterval(loadCards, 30000);
+    
+    // Clear interval on unmount
+    return () => clearInterval(intervalId);
+  }, [user?.id, t]);
 
   useEffect(() => {
     if (!user) return;
@@ -188,6 +267,28 @@ const CustomerCards = () => {
   return (
     <CustomerLayout>
       <div className="space-y-6 pb-20">
+        {/* Notifications */}
+        <div className="fixed top-16 right-4 z-50">
+          {notifications.map((notification) => (
+            <div 
+              key={notification.id}
+              className={`mb-3 p-4 rounded-lg shadow-lg flex items-center space-x-2 transform transition-all animate-fade-in ${
+                notification.type === 'success' ? 'bg-green-500 text-white' :
+                notification.type === 'error' ? 'bg-red-500 text-white' : 
+                'bg-blue-500 text-white'
+              }`}
+              style={{
+                animation: 'slideIn 0.5s ease-out forwards, fadeOut 0.5s ease-in forwards 5s'
+              }}
+            >
+              {notification.type === 'success' && <Check className="w-5 h-5 text-white" />}
+              {notification.type === 'error' && <AlertCircle className="w-5 h-5 text-white" />}
+              {notification.type === 'info' && <Info className="w-5 h-5 text-white" />}
+              <span>{notification.message}</span>
+            </div>
+          ))}
+        </div>
+        
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">

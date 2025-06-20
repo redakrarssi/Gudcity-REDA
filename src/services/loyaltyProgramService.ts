@@ -335,8 +335,6 @@ export class LoyaltyProgramService {
 
   /**
    * Enroll a customer in a loyalty program
-   * @param customerId ID of the customer to enroll
-   * @param programId ID of the program to enroll in
    */
   static async enrollCustomer(
     customerId: string,
@@ -369,11 +367,34 @@ export class LoyaltyProgramService {
           if (programInfo.length > 0) {
             const businessId = String(programInfo[0].business_id ?? '');
             if (businessId) {
+              // Make sure the customer appears in the business dashboard
               await CustomerService.associateCustomerWithBusiness(
                 customerId,
                 businessId,
                 programId
               );
+              
+              // Send a notification to the customer about the enrollment 
+              try {
+                const programDetails = await this.getProgramById(programId);
+                const programName = programDetails?.name || 'loyalty program';
+                
+                await import('../services/notificationService').then(({ NotificationService }) => {
+                  NotificationService.createNotification(
+                    customerId,
+                    'PROGRAM_ENROLLED',
+                    'Program Enrollment',
+                    `You have been enrolled in ${programName}`,
+                    {
+                      programId,
+                      programName,
+                      businessId
+                    }
+                  );
+                });
+              } catch (notifErr) {
+                console.error('Error sending enrollment notification:', notifErr);
+              }
             }
           }
         } catch (assocErr) {
@@ -420,6 +441,34 @@ export class LoyaltyProgramService {
             businessId,
             programId
           );
+          
+          // Force refresh of the business customers list by clearing cache
+          // This ensures the customer shows up immediately in /business/customers
+          try {
+            const { queryClient, queryKeys } = await import('../utils/queryClient');
+            queryClient.invalidateQueries([queryKeys.BUSINESS_CUSTOMERS, businessId]);
+          } catch (cacheErr) {
+            console.error('Error invalidating business customers cache:', cacheErr);
+          }
+          
+          // Send a notification to the customer about the enrollment
+          try {
+            await import('../services/notificationService').then(({ NotificationService }) => {
+              NotificationService.createNotification(
+                customerId,
+                'PROGRAM_ENROLLED',
+                'Program Enrollment Successful',
+                `You have been enrolled in ${programResult[0].name || 'a loyalty program'}`,
+                {
+                  programId,
+                  programName: programResult[0].name,
+                  businessId
+                }
+              );
+            });
+          } catch (notifErr) {
+            console.error('Error sending enrollment notification:', notifErr);
+          }
         }
       } catch (assocErr) {
         console.error('Error associating customer with business after enrollment:', assocErr);
