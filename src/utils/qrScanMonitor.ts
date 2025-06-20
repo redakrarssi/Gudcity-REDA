@@ -304,10 +304,13 @@ class QrScanMonitor {
   }
   
   /**
-   * Get the timestamp when rate limiting will reset
+   * Get remaining seconds until rate limiting resets
    */
   getResetTime() {
-    return this.lastScanTime + this.rateLimitWindowMs;
+    const resetTimestamp = this.lastScanTime + this.rateLimitWindowMs;
+    const remainingMs = resetTimestamp - Date.now();
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    return remainingSec > 0 ? remainingSec : 0;
   }
 }
 
