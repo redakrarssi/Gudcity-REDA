@@ -328,6 +328,15 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
     }
 
     if (validatedData) {
+      // Normalise legacy field names for customer data
+      if (
+        validatedData.type === 'customer' &&
+        !(validatedData as any).customerId &&
+        (validatedData as any).id
+      ) {
+        (validatedData as any).customerId = (validatedData as any).id;
+      }
+
       // Record successful scan with monitoring
       extendedQrScanMonitor.recordSuccessfulScan(validatedData.type, validatedData as unknown as Record<string, unknown>);
       return validatedData;
@@ -736,7 +745,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           businessId ? ensureId(businessId) : '0',
           qrCodeData,
           true,
-          { customerId: customerId, businessId: businessId ? ensureId(businessId) : '0' }
+          { customerId: customerId, businessId: businessId ? ensureId(businessId) : '0' } as any
         );
       } catch (logError) {
         // Silently handle logging errors - non-critical
@@ -797,7 +806,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             customerId: ensureId(qrCodeData.customerId),
             businessId: businessId ? ensureId(businessId) : '0',
             errorMessage: error instanceof Error ? error.message : 'Unknown error'
-          }
+          } as any
         );
       } catch (logError) {
         // Silently handle logging errors - non-critical
