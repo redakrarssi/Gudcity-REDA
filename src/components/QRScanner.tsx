@@ -268,6 +268,7 @@ const convertToScanData = (data: StandardQrCodeData | null | undefined): ScanDat
       return {
         type: 'customer',
         customerId: data.customerId || '0',
+        businessId: data.businessId || '0',
         name: data.customerName,
         customerName: data.customerName,
         text: JSON.stringify(data)
@@ -735,7 +736,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           businessId ? ensureId(businessId) : '0',
           qrCodeData,
           true,
-          { customerId: customerId }
+          { customerId: customerId, businessId: businessId ? ensureId(businessId) : '0' }
         );
       } catch (logError) {
         // Silently handle logging errors - non-critical
@@ -765,6 +766,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         data: {
           type: 'customer',
           customerId: customerId,
+          businessId: businessId ? ensureId(businessId) : '0',
           name: qrCodeData.name || qrCodeData.customerName || '',
           customerName: qrCodeData.name || qrCodeData.customerName || '',
           email: qrCodeData.email,
@@ -793,6 +795,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           false,
           { 
             customerId: ensureId(qrCodeData.customerId),
+            businessId: businessId ? ensureId(businessId) : '0',
             errorMessage: error instanceof Error ? error.message : 'Unknown error'
           }
         );
