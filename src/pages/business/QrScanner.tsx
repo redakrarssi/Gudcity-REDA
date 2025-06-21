@@ -318,31 +318,53 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   };
   
   const getQrCodeDisplayData = (data: QrCodeData | undefined): { title: string, subtitle: string } => {
-    if (!data) return { title: 'Unknown', subtitle: 'No data available' };
-
-    if (isCustomerQrCodeData(data)) {
-      return {
-        title: data.name || 'Customer',
-        subtitle: `ID: ${data.customerId}`,
-      };
+    if (!data) return { title: t('Unknown QR Code'), subtitle: t('No data available') };
+    
+    // Safely check if data is an object before using properties
+    const isObject = typeof data === 'object' && data !== null;
+    
+    switch (data.type) {
+      case 'customer': {
+        const customerData = data as Partial<CustomerQrCodeData>;
+        const customerName = customerData.customerName || customerData.name || customerData.customerId || 'Unknown';
+        const customerId = customerData.customerId || 'Unknown';
+        return {
+          title: `${t('Customer')}: ${customerName}`,
+          subtitle: `ID: ${customerId}`
+        };
+      }
+        
+      case 'loyaltyCard': {
+        const cardData = data as Partial<LoyaltyCardQrCodeData>;
+        const cardId = cardData.cardId || 'Unknown';
+        const loyaltyCustomerId = cardData.customerId || 'Unknown';
+        return {
+          title: `${t('Loyalty Card')}: ${cardId}`,
+          subtitle: `${t('Customer')}: ${loyaltyCustomerId}`
+        };
+      }
+        
+      case 'promoCode': {
+        const promoData = data as Partial<PromoCodeQrCodeData>;
+        const code = promoData.code || 'Unknown';
+        const discount = promoData.discount !== undefined ? promoData.discount : t('N/A');
+        return {
+          title: `${t('Promo Code')}: ${code}`,
+          subtitle: `${t('Value')}: ${discount}`
+        };
+      }
+        
+      case 'unknown':
+      default: {
+        // Safely check for rawData property
+        const unknownData = data as Partial<UnknownQrCodeData>;
+        const rawData = unknownData.rawData ? String(unknownData.rawData).substring(0, 30) : 'N/A';
+        return {
+          title: t('Unknown QR Code'),
+          subtitle: `${t('Raw data')}: ${rawData}${rawData !== 'N/A' && rawData.length > 30 ? '...' : ''}`
+        };
+      }
     }
-    if (isPromoCodeQrCodeData(data)) {
-      return {
-        title: 'Promo Code',
-        subtitle: `Code: ${data.code}`,
-      };
-    }
-    if (isLoyaltyCardQrCodeData(data)) {
-      return {
-        title: 'Loyalty Card',
-        subtitle: `Card ID: ${data.cardId}`,
-      };
-    }
-    // Fallback for unknown
-    return {
-      title: 'Unknown QR Code',
-      subtitle: `Raw data: ${'rawData' in data ? (data as any).rawData : 'N/A'}`
-    };
   };
 
   const SafeScanner = () => (
