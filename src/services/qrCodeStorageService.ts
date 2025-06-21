@@ -345,21 +345,21 @@ export class QrCodeStorageService {
       const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
 
       // Get the primary QR code for this customer and type
-      const result = await sql.query(`
+      const result = await sql`
         SELECT * FROM customer_qrcodes
-        WHERE customer_id = $1 AND qr_type = $2 AND is_primary = TRUE AND status = 'ACTIVE'
+        WHERE customer_id = ${custId} AND qr_type = ${qrType} AND is_primary = TRUE AND status = 'ACTIVE'
         ORDER BY created_at DESC
         LIMIT 1
-      `, [custId, qrType]);
+      `;
 
       // If no primary QR code exists, look for any active QR code
       if (result.length === 0) {
-        const fallbackResult = await sql.query(`
+        const fallbackResult = await sql`
           SELECT * FROM customer_qrcodes
-          WHERE customer_id = $1 AND qr_type = $2 AND status = 'ACTIVE'
+          WHERE customer_id = ${custId} AND qr_type = ${qrType} AND status = 'ACTIVE'
           ORDER BY created_at DESC
           LIMIT 1
-        `, [custId, qrType]);
+        `;
 
         return fallbackResult.length > 0 ? fallbackResult[0] as unknown as CustomerQrCode : null;
       }
@@ -392,7 +392,7 @@ export class QrCodeStorageService {
       const tableExists = await sql.tableExists('qr_code_scans');
       if (!tableExists) {
         // Create the table if it doesn't exist
-        await sql.query(`
+        await sql`
           CREATE TABLE IF NOT EXISTS qr_code_scans (
             id SERIAL PRIMARY KEY,
             qrcode_id INTEGER NOT NULL,
@@ -404,7 +404,7 @@ export class QrCodeStorageService {
             scan_result JSONB,
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
           )
-        `);
+        `;
       }
 
       // Convert string IDs to numbers if needed
@@ -412,7 +412,16 @@ export class QrCodeStorageService {
       const scannerId = typeof scannedBy === 'string' ? parseInt(scannedBy) : scannedBy;
 
       // Record the scan
-      const result = await sql.query(`
+      const scanLocation = details.location ? JSON.stringify(details.location) : null;
+      const deviceInfo = details.deviceInfo ? JSON.stringify(details.deviceInfo) : JSON.stringify({
+        ip: details.ipAddress || null,
+        userAgent: details.userAgent || null
+      });
+      const status = isValid ? 'VALID' : 'INVALID';
+      const pointsAwarded = details.pointsAwarded || 0;
+      const scanResult = details.scanResult ? JSON.stringify(details.scanResult) : null;
+      
+      const result = await sql`
         INSERT INTO qr_code_scans (
           qrcode_id,
           scanned_by,
@@ -423,21 +432,11 @@ export class QrCodeStorageService {
           scan_result,
           created_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, NOW()
+          ${codeId}, ${scannerId}, ${scanLocation}, ${deviceInfo}, 
+          ${status}, ${pointsAwarded}, ${scanResult}, NOW()
         )
         RETURNING *
-      `, [
-        codeId,
-        scannerId,
-        details.location ? JSON.stringify(details.location) : null,
-        details.deviceInfo ? JSON.stringify(details.deviceInfo) : JSON.stringify({
-          ip: details.ipAddress || null,
-          userAgent: details.userAgent || null
-        }),
-        isValid ? 'VALID' : 'INVALID',
-        details.pointsAwarded || 0,
-        details.scanResult ? JSON.stringify(details.scanResult) : null
-      ]);
+      `;
 
       if (result.length === 0) {
         return null;
@@ -445,11 +444,11 @@ export class QrCodeStorageService {
 
       // If the scan is valid, update the QR code usage count and last used date
       if (isValid) {
-        await sql.query(`
+        await sql`
           UPDATE customer_qrcodes
           SET uses_count = uses_count + 1, last_used_at = NOW(), updated_at = NOW()
-          WHERE id = $1
-        `, [codeId]);
+          WHERE id = ${codeId}
+        `;
       }
 
       return result[0] as unknown as QrCodeScan;
@@ -476,15 +475,14 @@ export class QrCodeStorageService {
 
       if (existingCode) {
         // Update the existing QR code with new data if needed
-        await sql.query(`
+        const formattedQrData = typeof qrData === 'string' ? qrData : JSON.stringify(qrData);
+        const imageUrl = qrImageUrl || existingCode.qr_image_url;
+        
+        await sql`
           UPDATE customer_qrcodes
-          SET qr_data = $1, qr_image_url = $2, updated_at = NOW()
-          WHERE id = $3
-        `, [
-          typeof qrData === 'string' ? qrData : JSON.stringify(qrData),
-          qrImageUrl || existingCode.qr_image_url,
-          existingCode.id
-        ]);
+          SET qr_data = ${formattedQrData}, qr_image_url = ${imageUrl}, updated_at = NOW()
+          WHERE id = ${existingCode.id}
+        `;
 
         // Return the updated record
         return {
@@ -527,10 +525,10 @@ export class QrCodeStorageService {
       
       try {
         // First check if the QR code exists and is active
-        const qrCodeCheck = await sql.query(`
+        const qrCodeCheck = await sql`
           SELECT id, status FROM customer_qrcodes
-          WHERE id = $1
-        `, [qrCodeIdNum]);
+          WHERE id = ${qrCodeIdNum}
+        `;
         
         if (!qrCodeCheck.length) {
           console.error(`QR code not found: ${qrCodeIdNum}`);

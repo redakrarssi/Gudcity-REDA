@@ -3,6 +3,7 @@ import { CustomerProgram, LoyaltyProgram, Business, RewardTier } from '../types/
 import { useDataLoader } from './useDataLoader';
 import db from '../utils/databaseConnector';
 import logger from '../utils/logger';
+import sql from '../utils/db';
 
 // Combined data structure for enrolled programs
 export interface EnrolledProgramData extends CustomerProgram {
@@ -30,8 +31,8 @@ export function useEnrolledPrograms() {
       const userIdNumber = parseInt(userId, 10);
       
       try {
-        // Fetch enrolled programs with related program and business details using tagged template
-        const result = await db.executeQuery(`
+        // Create the SQL query using tagged template literals
+        const query = sql`
           SELECT 
             cp.id, 
             cp.customer_id AS "customerId", 
@@ -62,13 +63,10 @@ export function useEnrolledPrograms() {
           WHERE cp.customer_id = ${userIdNumber}
           AND lp.status = 'ACTIVE'
           ORDER BY cp.current_points DESC
-        `, [], {
-          cache: {
-            enabled: true,
-            ttl: 5 * 60 * 1000, // 5 minutes
-            tags: ['customer', 'programs', `customer-${userIdNumber}`]
-          }
-        });
+        `;
+        
+        // Execute the query
+        const result = await query;
         
         if (!result || result.length === 0) {
           return [];
@@ -145,8 +143,8 @@ async function batchFetchRewardTiers(programIds: number[]): Promise<Map<number, 
   const rewardTiersMap = new Map<number, RewardTier[]>();
   
   try {
-    // Use tagged template literals instead of parameterized query
-    const rewards = await db.executeQuery(`
+    // Create the SQL query using tagged template literals
+    const query = sql`
       SELECT 
         id, 
         program_id AS "programId", 
@@ -155,13 +153,10 @@ async function batchFetchRewardTiers(programIds: number[]): Promise<Map<number, 
       FROM loyalty_program_rewards
       WHERE program_id = ANY(${programIds})
       ORDER BY program_id, points_required ASC
-    `, [], {
-      cache: {
-        enabled: true,
-        ttl: 10 * 60 * 1000, // 10 minutes
-        tags: ['reward-tiers']
-      }
-    });
+    `;
+    
+    // Execute the query directly
+    const rewards = await query;
     
     // Group rewards by program ID
     rewards.forEach(reward => {

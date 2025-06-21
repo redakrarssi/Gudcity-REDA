@@ -198,9 +198,22 @@ export async function executeQuery<T extends SqlRow[] = SqlRow[]>(
       let result: T;
       
       if (typeof query === 'string') {
-        // For plain string queries, use the conventional function-call style via sql.query.
-        // This correctly handles `$1`, `$2`, … placeholders without resorting to brittle string-splitting.
-        result = await sql.query(query, params) as T;
+        // For plain string queries, use the tagged template literal style
+        // Convert to tagged template literal format
+        const sqlParams = params.map((_, i) => `$${i + 1}`).join(', ');
+        const taggedQuery = query.replace(/\$\d+/g, () => '?');
+        
+        // Create template array with parameter placeholders
+        const templateParts = taggedQuery.split('?');
+        const template = Array(templateParts.length).fill('').map((_, i) => 
+          i < templateParts.length - 1 ? templateParts[i] + '${p' + i + '}' : templateParts[i]
+        ).join('');
+        
+        // Create a tagged template function
+        const taggedTemplate = new Function('sql', 'p', `return sql\`${template}\`;`);
+        
+        // Execute with the parameters
+        result = await taggedTemplate(sql, ...params) as T;
       } else {
         // For template literals, use tagged template syntax as is
         result = await sql(query, ...params) as T;
@@ -249,45 +262,16 @@ export async function executeQuery<T extends SqlRow[] = SqlRow[]>(
         }
       }
       
+      // Log error if enabled
       if (mergedOptions.logging?.enabled && mergedOptions.logging?.logErrors) {
-        // In production, we don't want to expose details in logs
-        if (process.env.NODE_ENV === 'production') {
-          // Only log that an error occurred, not the details
-          // This prevents sensitive information in logs
-          logger.error('Database query error occurred');
-        } else {
-          // In non-production, log more details for debugging
-          logger.error('Database query error:', error);
-          if (typeof query === 'string') {
-            logger.error('Query:', query);
-          } else {
-            logger.error('Query:', query.join('?'));
-          }
-          logger.error('Params:', params);
-        }
-      }
-      
-      // If fallback is enabled and this is a connection error, try to use mock data as a last resort
-      if (mergedOptions.fallback?.enabled && isConnectionError(error)) {
-        const queryStr = typeof query === 'string' ? query : query.join('?');
-        const mockResult = getMockDataForQuery(
-          queryStr, 
-          params, 
-          mergedOptions.fallback?.mockDataKey
-        );
+        logger.error('Database query error:', error);
         
-        if (mockResult) {
-          logger.warn(`Using fallback mock data due to connection error for query: ${queryStr.substring(0, 100)}...`);
-          
-          // Record telemetry for fallback usage
-          if (mergedOptions.telemetry?.enabled && mergedOptions.telemetry?.recordEvents) {
-            telemetry.recordEvent('db.fallback.used', {
-              query: queryName,
-              error: error instanceof Error ? error.message : String(error)
-            }, 'warning');
-          }
-          
-          return mockResult as T;
+        if (mergedOptions.logging?.logQuery) {
+          logger.error('Query:', query);
+        }
+        
+        if (mergedOptions.logging?.logParams) {
+          logger.error('Params:', params);
         }
       }
       
