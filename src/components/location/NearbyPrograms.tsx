@@ -36,7 +36,7 @@ export const NearbyPrograms: React.FC<NearbyProgramsProps> = ({
           }
           
           // Set access token
-          mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+          (mapboxgl as any).accessToken = MAPBOX_ACCESS_TOKEN;
           
           // Check if the map container exists
           const mapContainer = document.getElementById('map');
@@ -96,21 +96,45 @@ export const NearbyPrograms: React.FC<NearbyProgramsProps> = ({
     if (!currentLocation && !userLocation) {
       // Get user's current location if not provided
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setCurrentLocation({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude
-            });
-          },
-          (error) => {
-            console.error('Geolocation error:', error);
-            setError(t('Could not get your location. Please enable location services.'));
-          },
-          { timeout: 10000, enableHighAccuracy: true }
-        );
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setCurrentLocation({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+              });
+            },
+            (error) => {
+              console.error('Geolocation error:', error);
+              // Use a default location if geolocation fails (e.g., New York City)
+              setCurrentLocation({
+                latitude: 40.7128,
+                longitude: -74.0060
+              });
+              setError(t('Could not get your precise location. Using default location instead.'));
+            },
+            { 
+              timeout: 10000, 
+              enableHighAccuracy: false, // Set to false to prevent high accuracy errors
+              maximumAge: 60000 // Accept positions up to 1 minute old
+            }
+          );
+        } catch (err) {
+          console.error('Geolocation exception:', err);
+          // Fallback to default location
+          setCurrentLocation({
+            latitude: 40.7128,
+            longitude: -74.0060
+          });
+          setError(t('Location services error. Using default location instead.'));
+        }
       } else {
         setError(t('Geolocation is not supported by your browser.'));
+        // Fallback to default location
+        setCurrentLocation({
+          latitude: 40.7128,
+          longitude: -74.0060
+        });
       }
     }
   }, [userLocation, t]);

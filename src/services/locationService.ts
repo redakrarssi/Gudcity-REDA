@@ -193,7 +193,7 @@ export class LocationService {
         JOIN 
           users u ON l.business_id = u.id
         JOIN 
-          loyalty_programs lp ON lp.business_id = CAST(l.business_id AS VARCHAR)
+          loyalty_programs lp ON CAST(lp.business_id AS INTEGER) = l.business_id
         WHERE 
           l.is_active = true
           AND (lp.status = 'ACTIVE' OR (
