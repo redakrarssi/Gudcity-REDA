@@ -367,20 +367,21 @@ export class PromoService {
   // Helper method to convert database promo code to our interface
   private static dbPromoCodeToPromoCode(dbCode: any): PromoCode {
     return {
-      id: dbCode.id.toString(),
-      businessId: dbCode.business_id.toString(),
-      code: dbCode.code,
-      type: dbCode.type,
-      value: parseFloat(dbCode.value),
-      currency: dbCode.currency,
-      maxUses: dbCode.max_uses !== null ? parseInt(dbCode.max_uses) : null,
-      usedCount: parseInt(dbCode.used_count),
-      expiresAt: dbCode.expires_at,
-      status: dbCode.status,
-      name: dbCode.name || '',
-      description: dbCode.description || '',
-      createdAt: dbCode.created_at,
-      updatedAt: dbCode.updated_at
+      id: String(dbCode.id),
+      businessId: String(dbCode.business_id),
+      businessName: String(dbCode.business_name || ''),
+      code: String(dbCode.code),
+      type: dbCode.type as PromoCode['type'],
+      value: Number(dbCode.value),
+      currency: dbCode.currency as CurrencyCode | undefined,
+      maxUses: dbCode.max_uses ? Number(dbCode.max_uses) : null,
+      usedCount: Number(dbCode.used_count || 0),
+      expiresAt: dbCode.expires_at ? new Date(dbCode.expires_at).toISOString() : null,
+      status: dbCode.status as PromoCode['status'],
+      name: String(dbCode.name || ''),
+      description: String(dbCode.description || ''),
+      createdAt: new Date(dbCode.created_at).toISOString(),
+      updatedAt: new Date(dbCode.updated_at).toISOString(),
     };
   }
   
@@ -458,6 +459,38 @@ export class PromoService {
     } catch (error) {
       console.error('Error fetching business promotions:', error);
       return [];
+    }
+  }
+
+  static async getCustomerCodes(
+    customerId: string
+  ): Promise<{ codes: PromoCode[]; error?: string }> {
+    try {
+      const customerIdInt = parseInt(customerId, 10);
+      if (isNaN(customerIdInt)) {
+        return { codes: [], error: 'Invalid customer ID' };
+      }
+
+      // This query is speculative and assumes a customer_promo_codes table exists.
+      const codesResult = await sql`
+        SELECT pc.*, b.name as business_name
+        FROM promo_codes pc
+        LEFT JOIN customer_promo_codes cpc ON pc.id = cpc.promo_code_id
+        LEFT JOIN businesses b ON pc.business_id = b.id
+        WHERE cpc.customer_id = ${customerIdInt}
+          AND pc.status = 'ACTIVE'
+          AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+        ORDER BY pc.created_at DESC
+      `;
+      
+      const codes = codesResult.map(this.dbPromoCodeToPromoCode);
+      return { codes };
+    } catch (error) {
+      console.error('Error getting customer codes:', error);
+      return {
+        codes: [],
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 } 

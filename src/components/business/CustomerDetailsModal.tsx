@@ -39,7 +39,18 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   initialData
 }) => {
   const { t } = useTranslation();
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(initialData ? {
+    id: customerId,
+    name: initialData.name || 'Customer',
+    email: initialData.email || '',
+    phone: initialData.phone || '',
+    tier: initialData.tier || 'STANDARD',
+    loyaltyPoints: initialData.points || 0,
+    totalSpent: initialData.totalSpent || 0,
+    visits: initialData.visits || 0,
+    joinedAt: initialData.joinedAt || new Date().toISOString(),
+    favoriteItems: initialData.favoriteItems || [],
+  } : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
@@ -59,56 +70,13 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setLoading(true);
+      setLoading(!initialData); // Don't show loading screen if we have initial data
       setError(null);
       setSuccess(null);
       setActiveAction(null);
       setLoadAttempts(0);
       
-      // Show Join Program action by default if customer not enrolled
-      if (initialData && initialData.isEnrolled !== undefined && initialData.isEnrolled === false) {
-        setActiveAction('join');
-      }
-      
-      // Add timeout to prevent endless loading
-      const loadingTimeout = setTimeout(() => {
-        // If still loading after 5 seconds, stop loading and use initial data
-        if (loading && initialData) {
-          console.log('CustomerDetailsModal: Loading timed out, using initial data');
-          setLoading(false);
-        }
-      }, 5000);
-      
-      return () => clearTimeout(loadingTimeout);
-    }
-  }, [isOpen, initialData, loading]);
-
-  // Load customer data when modal opens
-  useEffect(() => {
-    if (isOpen && customerId) {
-      console.log('CustomerDetailsModal: Loading data for customer', customerId);
-      loadCustomerData();
-      loadPrograms();
-      loadSecretPromos();
-    }
-  }, [isOpen, customerId, businessId]);
-
-  const loadCustomerData = async () => {
-    if (!customerId || customerId === '') {
-      setError('Invalid customer ID');
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log('CustomerDetailsModal: Loading customer data for ID:', customerId);
-      
-      // If we have initial data from the scan, use it immediately as a fallback
-      if (initialData && initialData.name) {
-        console.log('CustomerDetailsModal: Using initial data:', initialData);
+      if (initialData) {
         setCustomer({
           id: customerId,
           name: initialData.name || 'Customer',
@@ -121,30 +89,44 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
           joinedAt: initialData.joinedAt || new Date().toISOString(),
           favoriteItems: initialData.favoriteItems || [],
         });
-        
-        // Show data immediately but continue loading in background
-        setLoading(false);
       }
+      
+      // Show Join Program action by default if customer not enrolled
+      if (initialData && initialData.isEnrolled !== undefined && initialData.isEnrolled === false) {
+        setActiveAction('join');
+      }
+    }
+  }, [isOpen, initialData, customerId]);
 
-      // Set maximum time for loading
-      const loadingPromise = CustomerService.getCustomerById(customerId);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Loading timed out')), 3000)
-      );
-      
-      // Race between the actual loading and the timeout
-      const customerData = await Promise.race([loadingPromise, timeoutPromise])
-        .catch(err => {
-          console.log('CustomerDetailsModal: Loading timed out or failed');
-          return null;
-        });
-      
-      console.log('CustomerDetailsModal: Customer data loaded:', customerData);
+  // Load customer data when modal opens
+  useEffect(() => {
+    if (isOpen && customerId) {
+      console.log('CustomerDetailsModal: Loading data for customer', customerId);
+      loadCustomerData();
+      loadPrograms();
+      loadSecretPromos();
+    }
+  }, [isOpen, customerId, businessId]);
+
+  const loadCustomerData = async () => {
+    if (!customerId) {
+      setError('Invalid customer ID');
+      setLoading(false);
+      return;
+    }
+    
+    // If we don't have a customer object yet, show loader
+    if (!customer) {
+      setLoading(true);
+    }
+    setError(null);
+    
+    try {
+      const customerData = await CustomerService.getCustomerById(customerId);
       
       if (customerData) {
         setCustomer(customerData);
-      } else if (!initialData || !initialData.name) {
-        // Only show error if we don't have initial data
+      } else if (!initialData) {
         setError('Customer not found');
       }
     } catch (err) {
@@ -152,7 +134,6 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       if (!customer) {
         setError('Error loading customer data');
       }
-      // Don't retry, already using initialData as fallback
     } finally {
       setLoading(false);
     }

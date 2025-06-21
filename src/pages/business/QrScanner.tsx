@@ -1,23 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
-import { QRScanner, type ScanResult as ComponentScanResult } from '../../components/QRScanner';
+import { QRScanner } from '../../components/QRScanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   QrCodeType, 
   QrCodeData,
   CustomerQrCodeData, 
+  LoyaltyCardQrCodeData,
+  PromoCodeQrCodeData,
   UnknownQrCodeData,
   UnifiedScanResult,
   fromComponentScanResult,
   isCustomerQrCodeData,
+  isLoyaltyCardQrCodeData,
+  isPromoCodeQrCodeData,
   ensureId
 } from '../../types/qrCode';
 import { 
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
   Keyboard, KeyRound, ArrowRight, Settings, Award, Users,
-  Trophy, Zap, Sparkles, PartyPopper, Star, Target
+  Trophy, Zap, Sparkles, PartyPopper, Star, Target, CheckCircle, Gift
 } from 'lucide-react';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyProgram } from '../../types/loyalty';
@@ -52,6 +56,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
+  const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerQrCodeData | null>(null);
 
   // Load previous scan results from localStorage
   useEffect(() => {
@@ -110,7 +115,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     }
   }, [scanResults]);
 
-  const handleScan = (result: ComponentScanResult) => {
+  const handleScan = useCallback((result: ComponentScanResult) => {
     if (!result) return;
     
     // Convert the component scan result to our unified format
@@ -133,8 +138,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     }
     
     // If it's a customer scan, show the customer details modal
-    if (result.type === 'customer' && result.data && isCustomerQrCodeData(result.data)) {
-      console.log('Opening customer details modal for customer:', result.data.customerId);
+    if (unifiedResult.type === 'customer' && isCustomerQrCodeData(unifiedResult.data)) {
+      console.log('Opening customer details modal for customer:', unifiedResult.data.customerId);
+      setSelectedCustomerData(unifiedResult.data);
       setShowCustomerDetailsModal(true);
     }
     
@@ -142,7 +148,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     if (onScan) {
       onScan(unifiedResult);
     }
-  };
+  }, [scanResults, scanCount, onScan]);
 
   const playSuccessSound = () => {
     // Sound functionality disabled as per customer request
@@ -248,85 +254,77 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   
   // Function to determine milestone achievements
   const getMilestoneStatus = () => {
-    const nextMilestone = Math.ceil(scanCount / 5) * 5;
-    const progress = ((scanCount % 5) / 5) * 100;
-    
+    if (scanCount === 0) {
+      return {
+        current: 0,
+        next: 1,
+        last: 0,
+        progress: 0,
+        remaining: 1,
+      };
+    }
+
+    const milestones = [1, 5, 10, 25, 50, 100, 200, 500];
+    const nextMilestone = milestones.find(m => m > scanCount);
+    const lastMilestone = milestones.slice().reverse().find(m => m <= scanCount) || 0;
+
+    if (!nextMilestone) {
+      return {
+        current: scanCount,
+        next: 'Max',
+        last: lastMilestone,
+        progress: 100,
+        remaining: 0,
+      };
+    }
+
     return {
-      progress,
       current: scanCount,
       next: nextMilestone,
-      remaining: nextMilestone - scanCount
+      last: lastMilestone,
+      progress: (scanCount / nextMilestone) * 100,
+      remaining: nextMilestone - scanCount,
     };
   };
 
-  // Function to safely get customer ID from selected result
   const getSelectedCustomerId = (): string | null => {
-    if (!selectedResult || selectedResult.type !== 'customer' || !selectedResult.data) {
-      return null;
+    if (selectedResult && isCustomerQrCodeData(selectedResult.data)) {
+      return selectedResult.data.customerId;
     }
-    
-    if (isCustomerQrCodeData(selectedResult.data)) {
-      return selectedResult.data.customerId.toString();
-    }
-    
     return null;
   };
   
-  // Function to safely get data from QR code based on type
   const getQrCodeDisplayData = (data: QrCodeData | undefined): { title: string, subtitle: string } => {
-    if (!data) {
-      return { title: 'Unknown', subtitle: 'No data available' };
-    }
-    
+    if (!data) return { title: 'Unknown', subtitle: 'No data available' };
+
     if (isCustomerQrCodeData(data)) {
-      return { 
-        title: data.name || `Customer ${data.customerId}`,
-        subtitle: `ID: ${data.customerId}`
+      return {
+        title: data.name || 'Customer',
+        subtitle: `ID: ${data.customerId}`,
       };
     }
-    
-    switch (data.type) {
-      case 'promoCode':
-        return {
-          title: `Promo: ${(data as any).code || 'Unknown'}`,
-          subtitle: `Business ID: ${(data as any).businessId || 'N/A'}`
-        };
-        
-      case 'loyaltyCard':
-        return {
-          title: `Card: ${(data as any).cardId || 'Unknown'}`,
-          subtitle: `Customer: ${(data as any).customerId || 'N/A'}`
-        };
-        
-      default:
-        return {
-          title: 'Unknown QR Code',
-          subtitle: 'Unrecognized format'
-        };
+    if (isPromoCodeQrCodeData(data)) {
+      return {
+        title: 'Promo Code',
+        subtitle: `Code: ${data.code}`,
+      };
     }
+    if (isLoyaltyCardQrCodeData(data)) {
+      return {
+        title: 'Loyalty Card',
+        subtitle: `Card ID: ${data.cardId}`,
+      };
+    }
+    // Fallback for unknown
+    return {
+      title: 'Unknown QR Code',
+      subtitle: `Raw data: ${'rawData' in data ? (data as any).rawData : 'N/A'}`
+    };
   };
 
-  // Add error boundary for QRScanner component
-  const SafeScanner = () => {
-    try {
-      return (
-        <QRScanner 
-          onScan={handleScan}
-          businessId={user?.id}
-          programId={selectedProgramId || undefined}
-          pointsToAward={pointsToAward}
-        />
-      );
-    } catch (err: any) {
-      console.error('QRScanner initialization failed:', err);
-      setScannerError(err?.message || 'Scanner failed to initialize');
-      return (
-        <div className="p-6 text-center text-red-600">
-          {t('Scanner failed to initialize. Please refresh the page or contact support.')}
-        </div>
-      );
-    }
-  };
+  const SafeScanner = () => (
+    <QRScanner onScan={handleScan} onError={(err) => setScannerError(err.message)} />
+  );
 
   return (
     <BusinessLayout>
@@ -394,21 +392,21 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
               <div 
                 className="bg-gradient-to-r from-blue-500 to-indigo-600 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                style={{ width: `${getMilestoneStatus().progress}%` }}
+                style={{ width: `${getMilestoneStatus()?.progress || 0}%` }}
               >
-                {getMilestoneStatus().progress > 20 && (
-                  <span className="text-white text-xs font-bold animate-pulse">{Math.round(getMilestoneStatus().progress)}%</span>
+                {getMilestoneStatus()?.progress > 20 && (
+                  <span className="text-white text-xs font-bold animate-pulse">{Math.round(getMilestoneStatus()?.progress || 0)}%</span>
                 )}
               </div>
             </div>
             
             <div className="flex justify-between items-center text-sm">
               <div className="text-gray-600">
-                {getMilestoneStatus().remaining} more to next reward
+                {getMilestoneStatus()?.remaining} more to next reward
               </div>
               <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full flex items-center">
                 <Target className="w-4 h-4 mr-1" />
-                Next: {getMilestoneStatus().next} scans
+                Next: {getMilestoneStatus()?.next} scans
               </div>
             </div>
           </div>
@@ -509,7 +507,10 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   </div>
                 )}
                 
-                <SafeScanner />
+                <div className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600">
+                  <SafeScanner />
+                </div>
+                {scannerError && <p className="text-red-500 mt-2">{scannerError}</p>}
               </div>
             )}
             
@@ -740,7 +741,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                       {result.type === 'customer' ? `Customer: ${result.data.name || 'Customer'}` :
                        result.type === 'promoCode' ? `Code: ${result.data.code}` :
                        result.type === 'loyaltyCard' ? `Card: ${result.data.cardId}` :
-                       `Text: ${result.type === 'unknown' && result.data.rawData ? result.data.rawData.substring(0, 20) + (result.data.rawData.length > 20 ? '...' : '') : 'Unknown'}`}
+                       `Text: ${result.type === 'unknown' && 'rawData' in result.data ? result.data.rawData.substring(0, 20) + (result.data.rawData.length > 20 ? '...' : '') : 'Unknown'}`}
                     </p>
                   </div>
                 ))}
@@ -835,7 +836,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             onClose={() => setShowCustomerDetailsModal(false)}
             customerId={String(selectedResult.data.customerId || '')}
             businessId={user?.id ? String(user.id) : ''}
-            initialData={selectedResult.data}
+            initialData={selectedCustomerData}
           />
         </>
       )}

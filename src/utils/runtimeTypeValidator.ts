@@ -9,7 +9,7 @@
 import { QrCodeType, QrCodeData, CustomerQrCodeData, LoyaltyCardQrCodeData, PromoCodeQrCodeData } from '../types/qrCode';
 
 // Type guard result cache to improve performance for repeated validations
-const validationCache = new WeakMap<object, Record<string, boolean>>();
+let validationCache = new WeakMap<object, Record<string, boolean>>();
 
 /**
  * Clears the validation cache
