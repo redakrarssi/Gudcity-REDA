@@ -446,6 +446,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const [successNotificationMessage, setSuccessNotificationMessage] = useState('');
   const [notificationType, setNotificationType] = useState<'success' | 'error' | 'info'>('success');
 
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setSuccessNotificationMessage(message);
     setNotificationType(type);
@@ -591,8 +593,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     } catch (err) {
       console.error("Failed to initialize scanner:", err);
       setError(`Scanner initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setErrorMessage('Camera access failed. Please check permissions or try another device.');
       return false;
     }
+    return true;
   };
   
   // Add this workaround function to detect issues with camera access in specific browsers
@@ -2018,411 +2022,421 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   }, [isScanning]);
 
   return (
-    <div className="relative">
-      {successScan && (
-        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-r from-green-400 to-green-600 text-white px-4 py-3 rounded-md shadow-lg flex items-center animate-slideDown">
-          <Check className="h-5 w-5 mr-2 text-white" />
-          <span className="font-medium">{successScan}</span>
+    <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: 'white' }}>
+      {errorMessage ? (
+        <div style={{ color: 'red', textAlign: 'center' }}>
+          <AlertTriangle size={24} />
+          {errorMessage}
+          <button onClick={() => setErrorMessage('')}>Retry</button>
         </div>
-      )}
-      
-      {error && (
-        <div className="bg-gradient-to-r from-red-400 to-red-600 text-white px-4 py-3 rounded-md mb-4 flex items-center animate-shake">
-          <AlertCircle className="h-5 w-5 mr-2 text-white" />
-          <div>
-            <span className="font-medium block">{error}</span>
-            {error.includes('Unrecognized QR code type') && (
-              <span className="text-sm mt-1 block opacity-90">
-                This QR code format is not supported. Make sure you're scanning a valid QR code for this app.
-              </span>
-            )}
-            {error.includes('Invalid QR code format') && (
-              <span className="text-sm mt-1 block opacity-90">
-                Try scanning more slowly and ensure the entire QR code is visible.
-              </span>
-            )}
-          </div>
-          {error.includes('Unrecognized QR code type: customer') && (
-            <button 
-              onClick={() => {
-                // Log debug info
-                const debugInfo = {
-                  time: new Date().toISOString(),
-                  lastScan: lastScannedCodeRef.current?.substring(0, 50) || '',
-                  scanHistory: scanHistory.slice(-3)
-                };
-                console.log('QR Scanner Debug Info:', debugInfo);
-                
-                // Clear error
-                setError(null);
-              }}
-              className="ml-auto bg-white text-red-500 text-xs px-2 py-1 rounded"
-            >
-              Retry
-            </button>
+      ) : (
+        <React.Fragment>
+          {successScan && (
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-r from-green-400 to-green-600 text-white px-4 py-3 rounded-md shadow-lg flex items-center animate-slideDown">
+              <Check className="h-5 w-5 mr-2 text-white" />
+              <span className="font-medium">{successScan}</span>
+            </div>
           )}
-        </div>
-      )}
-      
-      <div className="flex flex-col items-center">
-        <div className="relative w-full max-w-md bg-gradient-to-b from-indigo-900 to-blue-900 rounded-xl overflow-hidden shadow-2xl p-1.5">
-          {/* Add QR scanning guide tooltip */}
-          <div className="absolute top-2 left-2 z-30">
-            <button 
-              className="bg-white/20 backdrop-blur-sm text-white rounded-full p-1.5"
-              onClick={() => {
-                // Show QR scanning tips
-                setError(null); // Clear any current errors
-                setSuccessScan("Position QR code within the scanner frame and hold steady");
-                setTimeout(() => setSuccessScan(null), 3000);
-              }}
-              aria-label="Scanning Tips"
-            >
-              <AlertTriangle className="h-4 w-4" />
-            </button>
-          </div>
           
-          <div className="absolute inset-0 z-10 pointer-events-none">
-            <div className="absolute top-0 left-0 w-16 h-16 border-l-4 border-t-4 border-blue-400 rounded-tl-lg"></div>
-            <div className="absolute top-0 right-0 w-16 h-16 border-r-4 border-t-4 border-blue-400 rounded-tr-lg"></div>
-            <div className="absolute bottom-0 left-0 w-16 h-16 border-l-4 border-b-4 border-blue-400 rounded-bl-lg"></div>
-            <div className="absolute bottom-0 right-0 w-16 h-16 border-r-4 border-b-4 border-blue-400 rounded-br-lg"></div>
-          </div>
+          {error && (
+            <div className="bg-gradient-to-r from-red-400 to-red-600 text-white px-4 py-3 rounded-md mb-4 flex items-center animate-shake">
+              <AlertCircle className="h-5 w-5 mr-2 text-white" />
+              <div>
+                <span className="font-medium block">{error}</span>
+                {error.includes('Unrecognized QR code type') && (
+                  <span className="text-sm mt-1 block opacity-90">
+                    This QR code format is not supported. Make sure you're scanning a valid QR code for this app.
+                  </span>
+                )}
+                {error.includes('Invalid QR code format') && (
+                  <span className="text-sm mt-1 block opacity-90">
+                    Try scanning more slowly and ensure the entire QR code is visible.
+                  </span>
+                )}
+              </div>
+              {error.includes('Unrecognized QR code type: customer') && (
+                <button 
+                  onClick={() => {
+                    // Log debug info
+                    const debugInfo = {
+                      time: new Date().toISOString(),
+                      lastScan: lastScannedCodeRef.current?.substring(0, 50) || '',
+                      scanHistory: scanHistory.slice(-3)
+                    };
+                    console.log('QR Scanner Debug Info:', debugInfo);
+                    
+                    // Clear error
+                    setError(null);
+                  }}
+                  className="ml-auto bg-white text-red-500 text-xs px-2 py-1 rounded"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
           
-          <div className="w-full h-72 bg-black rounded-lg overflow-hidden relative">
-            <div 
-              id={scannerDivId} 
-              className="w-full h-full"
-            ></div>
-            
-            {isScanning && (
-              <div className={`absolute inset-x-0 h-0.5 bg-blue-500 z-20 opacity-80 ${scanAnimation ? 'animate-scanDown' : 'animate-scanUp'}`}></div>
-            )}
-            
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-              <div className="w-64 h-64 border-2 border-dashed border-blue-400 opacity-60 rounded-lg"></div>
+          <div className="flex flex-col items-center">
+            <div className="relative w-full max-w-md bg-gradient-to-b from-indigo-900 to-blue-900 rounded-xl overflow-hidden shadow-2xl p-1.5">
+              {/* Add QR scanning guide tooltip */}
+              <div className="absolute top-2 left-2 z-30">
+                <button 
+                  className="bg-white/20 backdrop-blur-sm text-white rounded-full p-1.5"
+                  onClick={() => {
+                    // Show QR scanning tips
+                    setError(null); // Clear any current errors
+                    setSuccessScan("Position QR code within the scanner frame and hold steady");
+                    setTimeout(() => setSuccessScan(null), 3000);
+                  }}
+                  aria-label="Scanning Tips"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="absolute inset-0 z-10 pointer-events-none">
+                <div className="absolute top-0 left-0 w-16 h-16 border-l-4 border-t-4 border-blue-400 rounded-tl-lg"></div>
+                <div className="absolute top-0 right-0 w-16 h-16 border-r-4 border-t-4 border-blue-400 rounded-tr-lg"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 border-l-4 border-b-4 border-blue-400 rounded-bl-lg"></div>
+                <div className="absolute bottom-0 right-0 w-16 h-16 border-r-4 border-b-4 border-blue-400 rounded-br-lg"></div>
+              </div>
+              
+              <div className="w-full h-72 bg-black rounded-lg overflow-hidden relative">
+                <div 
+                  id={scannerDivId} 
+                  className="w-full h-full"
+                ></div>
+                
+                {isScanning && (
+                  <div className={`absolute inset-x-0 h-0.5 bg-blue-500 z-20 opacity-80 ${scanAnimation ? 'animate-scanDown' : 'animate-scanUp'}`}></div>
+                )}
+                
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                  <div className="w-64 h-64 border-2 border-dashed border-blue-400 opacity-60 rounded-lg"></div>
+                </div>
+                
+                {!isScanning && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white z-20">
+                    {!permissionGranted && error && error.includes('Camera access denied') ? (
+                      <>
+                        <div className="w-20 h-20 rounded-full bg-red-500/50 flex items-center justify-center mb-4">
+                          <Camera className="h-10 w-10 text-red-100" />
+                        </div>
+                        <h3 className="text-lg font-medium text-red-100 mb-2">Camera Access Denied</h3>
+                        <p className="text-center max-w-xs mb-4 text-red-100">Please allow camera access in your browser settings</p>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                          <ol className="list-decimal text-xs text-white space-y-2 ml-4">
+                            <li>Check for camera permission prompts in your browser</li>
+                            <li>Make sure the camera is not being used by another app</li>
+                            <li>Try refreshing the page to trigger the permission prompt again</li>
+                          </ol>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setError(null);
+                            startScanning();
+                          }}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                        >
+                          Try Again
+                        </button>
+                      </>
+                    ) : error && error.includes('Failed to start scanner') ? (
+                      <>
+                        <div className="w-20 h-20 rounded-full bg-amber-500/50 flex items-center justify-center mb-4">
+                          <AlertTriangle className="h-10 w-10 text-amber-100" />
+                        </div>
+                        <h3 className="text-lg font-medium text-amber-100 mb-2">Scanner Error</h3>
+                        <p className="text-center max-w-xs mb-4 text-amber-100">{error}</p>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
+                          <ul className="list-disc text-xs text-white space-y-2 ml-4">
+                            <li>Make sure your device has a working camera</li>
+                            <li>Check that no other apps are using your camera</li>
+                            <li>Try refreshing the page</li>
+                          </ul>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setError(null);
+                            startScanning();
+                          }}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                        >
+                          Try Again
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-20 h-20 rounded-full bg-blue-900/50 flex items-center justify-center mb-4 animate-pulse">
+                          <Camera className="h-10 w-10 text-blue-400" />
+                        </div>
+                        <p className="text-center max-w-xs mb-4 text-blue-100">{t('Camera access is needed to scan QR codes')}</p>
+                        <button
+                          onClick={startScanning}
+                          disabled={isInitializing || !domReady}
+                          className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${(isInitializing || !domReady) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        >
+                          {isInitializing ? (
+                            <span className="flex items-center">
+                              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                              {t('Initializing...')}
+                            </span>
+                          ) : (
+                            permissionGranted ? t('Resume Scanner') : t('Start Scanner')
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+                
+                {isScanning && (
+                  <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center z-20">
+                    <div className="flex items-center bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></div>
+                      <span>{t('Scanner active')}</span>
+                    </div>
+                    <div className="bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center">
+                      <Target className="w-3 h-3 mr-1" />
+                      <span>{t('Center QR code')}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Add camera switch button when scanning */}
+              {isScanning && availableCameras.length > 1 && (
+                <button
+                  onClick={switchCamera}
+                  className="absolute top-3 right-3 z-30 bg-black/60 backdrop-blur-sm text-white rounded-full p-2"
+                  aria-label={t('Switch Camera')}
+                >
+                  <SwitchCamera className="h-5 w-5" />
+                </button>
+              )}
             </div>
             
-            {!isScanning && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white z-20">
-                {!permissionGranted && error && error.includes('Camera access denied') ? (
+            <div className="mt-4 w-full">
+              <button
+                onClick={toggleScanner}
+                disabled={isInitializing || !domReady}
+                className={`w-full py-3 px-6 rounded-lg text-white text-sm font-medium flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
+                  isInitializing || !domReady
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : isScanning 
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
+                      : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+                }`}
+              >
+                {isInitializing ? (
+                  <span className="flex items-center">
+                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                    {t('Initializing...')}
+                  </span>
+                ) : isScanning ? (
                   <>
-                    <div className="w-20 h-20 rounded-full bg-red-500/50 flex items-center justify-center mb-4">
-                      <Camera className="h-10 w-10 text-red-100" />
-                    </div>
-                    <h3 className="text-lg font-medium text-red-100 mb-2">Camera Access Denied</h3>
-                    <p className="text-center max-w-xs mb-4 text-red-100">Please allow camera access in your browser settings</p>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
-                      <ol className="list-decimal text-xs text-white space-y-2 ml-4">
-                        <li>Check for camera permission prompts in your browser</li>
-                        <li>Make sure the camera is not being used by another app</li>
-                        <li>Try refreshing the page to trigger the permission prompt again</li>
-                      </ol>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setError(null);
-                        startScanning();
-                      }}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-                    >
-                      Try Again
-                    </button>
-                  </>
-                ) : error && error.includes('Failed to start scanner') ? (
-                  <>
-                    <div className="w-20 h-20 rounded-full bg-amber-500/50 flex items-center justify-center mb-4">
-                      <AlertTriangle className="h-10 w-10 text-amber-100" />
-                    </div>
-                    <h3 className="text-lg font-medium text-amber-100 mb-2">Scanner Error</h3>
-                    <p className="text-center max-w-xs mb-4 text-amber-100">{error}</p>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 max-w-xs">
-                      <ul className="list-disc text-xs text-white space-y-2 ml-4">
-                        <li>Make sure your device has a working camera</li>
-                        <li>Check that no other apps are using your camera</li>
-                        <li>Try refreshing the page</li>
-                      </ul>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setError(null);
-                        startScanning();
-                      }}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-                    >
-                      Try Again
-                    </button>
+                    <Shield className="w-4 h-4 mr-2" />
+                    {t('Stop Scanner')}
                   </>
                 ) : (
                   <>
-                    <div className="w-20 h-20 rounded-full bg-blue-900/50 flex items-center justify-center mb-4 animate-pulse">
-                      <Camera className="h-10 w-10 text-blue-400" />
-                    </div>
-                    <p className="text-center max-w-xs mb-4 text-blue-100">{t('Camera access is needed to scan QR codes')}</p>
-                    <button
-                      onClick={startScanning}
-                      disabled={isInitializing || !domReady}
-                      className={`bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 ${(isInitializing || !domReady) ? 'opacity-75 cursor-not-allowed' : ''}`}
-                    >
-                      {isInitializing ? (
-                        <span className="flex items-center">
-                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                          {t('Initializing...')}
-                        </span>
-                      ) : (
-                        permissionGranted ? t('Resume Scanner') : t('Start Scanner')
-                      )}
-                    </button>
+                    <Scan className="w-4 h-4 mr-2" />
+                    {t('Start Scanner')}
                   </>
                 )}
-              </div>
-            )}
-            
-            {isScanning && (
-              <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center z-20">
-                <div className="flex items-center bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></div>
-                  <span>{t('Scanner active')}</span>
-                </div>
-                <div className="bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center">
-                  <Target className="w-3 h-3 mr-1" />
-                  <span>{t('Center QR code')}</span>
-                </div>
-              </div>
-            )}
+              </button>
+              
+              {/* Add control buttons row */}
+              {renderControlButtons()}
+              
+              {/* Show camera selector */}
+              {renderCameraSelector()}
+              
+              {/* Show scanner configuration */}
+              {renderScannerConfig()}
+              
+              {/* Show scan history */}
+              {renderScanHistory()}
+              
+              <p className="text-sm text-gray-500 text-center mt-2 flex items-center justify-center">
+                {isScanning ? (
+                  <>
+                    <Target className="w-4 h-4 mr-1 text-blue-500" />
+                    {t('Position the QR code in the scanner window')}
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 mr-1 text-amber-500" />
+                    {t('Click start to activate the QR scanner')}
+                  </>
+                )}
+              </p>
+            </div>
           </div>
           
-          {/* Add camera switch button when scanning */}
-          {isScanning && availableCameras.length > 1 && (
-            <button
-              onClick={switchCamera}
-              className="absolute top-3 right-3 z-30 bg-black/60 backdrop-blur-sm text-white rounded-full p-2"
-              aria-label={t('Switch Camera')}
-            >
-              <SwitchCamera className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-        
-        <div className="mt-4 w-full">
-          <button
-            onClick={toggleScanner}
-            disabled={isInitializing || !domReady}
-            className={`w-full py-3 px-6 rounded-lg text-white text-sm font-medium flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
-              isInitializing || !domReady
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : isScanning 
-                  ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
-                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
-            }`}
-          >
-            {isInitializing ? (
-              <span className="flex items-center">
-                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                {t('Initializing...')}
-              </span>
-            ) : isScanning ? (
-              <>
-                <Shield className="w-4 h-4 mr-2" />
-                {t('Stop Scanner')}
-              </>
-            ) : (
-              <>
-                <Scan className="w-4 h-4 mr-2" />
-                {t('Start Scanner')}
-              </>
-            )}
-          </button>
-          
-          {/* Add control buttons row */}
-          {renderControlButtons()}
-          
-          {/* Show camera selector */}
-          {renderCameraSelector()}
-          
-          {/* Show scanner configuration */}
-          {renderScannerConfig()}
-          
-          {/* Show scan history */}
-          {renderScanHistory()}
-          
-          <p className="text-sm text-gray-500 text-center mt-2 flex items-center justify-center">
-            {isScanning ? (
-              <>
-                <Target className="w-4 h-4 mr-1 text-blue-500" />
-                {t('Position the QR code in the scanner window')}
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4 mr-1 text-amber-500" />
-                {t('Click start to activate the QR scanner')}
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-      
-      {lastResult && !error && (
-        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-800 px-5 py-4 rounded-xl animate-fadeIn shadow-md">
-          <p className="font-medium flex items-center">
-            <Check className="w-5 h-5 mr-2 text-green-500" />
-            {t('QR Code Scanned')}:
-          </p>
-          <p className="text-sm mt-2 bg-white/60 backdrop-blur-sm p-2 rounded-md">
-            {lastResult.type === 'customer' 
-              ? `Customer: ${(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}` 
-              : lastResult.type === 'promoCode' 
-                ? `Promo code: ${(lastResult.data as any).code || ''}` 
-                : `Data: ${JSON.stringify(lastResult.data).substring(0, 50)}...`}
-          </p>
-          {processingCard && (
-            <p className="text-sm mt-1 flex items-center">
-              <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>
-              Processing card...
-            </p>
-          )}
-          
-          {lastResult.type === 'customer' && (
-            <div className="mt-4">
-              <h3 className="text-sm font-medium text-indigo-700 mb-3 flex items-center">
-                <Zap className="w-4 h-4 mr-1 text-amber-500" />
-                {t('Quick Actions')}:
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <button
-                  onClick={() => setShowCustomerDetailsModal(true)}
-                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
-                >
-                  <User className="w-4 h-4 mr-2" />
-                  {t('Show Customer Details')}
-                </button>
-                <button
-                  onClick={handleGiveReward}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
-                >
-                  <Award className="w-4 h-4 mr-2" />
-                  {t('Give Reward')}
-                </button>
-                <button
-                  onClick={handleJoinProgram}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  {t('Join Program')}
-                </button>
-                <button
-                  onClick={handleRedeemCode}
-                  className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
-                >
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  {t('Redeem Code')}
-                </button>
-              </div>
+          {lastResult && !error && (
+            <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-800 px-5 py-4 rounded-xl animate-fadeIn shadow-md">
+              <p className="font-medium flex items-center">
+                <Check className="w-5 h-5 mr-2 text-green-500" />
+                {t('QR Code Scanned')}:
+              </p>
+              <p className="text-sm mt-2 bg-white/60 backdrop-blur-sm p-2 rounded-md">
+                {lastResult.type === 'customer' 
+                  ? `Customer: ${(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}` 
+                  : lastResult.type === 'promoCode' 
+                    ? `Promo code: ${(lastResult.data as any).code || ''}` 
+                    : `Data: ${JSON.stringify(lastResult.data).substring(0, 50)}...`}
+              </p>
+              {processingCard && (
+                <p className="text-sm mt-1 flex items-center">
+                  <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>
+                  Processing card...
+                </p>
+              )}
+              
+              {lastResult.type === 'customer' && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium text-indigo-700 mb-3 flex items-center">
+                    <Zap className="w-4 h-4 mr-1 text-amber-500" />
+                    {t('Quick Actions')}:
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <button
+                      onClick={() => setShowCustomerDetailsModal(true)}
+                      className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      {t('Show Customer Details')}
+                    </button>
+                    <button
+                      onClick={handleGiveReward}
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                    >
+                      <Award className="w-4 h-4 mr-2" />
+                      {t('Give Reward')}
+                    </button>
+                    <button
+                      onClick={handleJoinProgram}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      {t('Join Program')}
+                    </button>
+                    <button
+                      onClick={handleRedeemCode}
+                      className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 px-3 rounded-lg text-sm flex items-center justify-center shadow-md hover:shadow-lg transition-all transform hover:scale-[1.02]"
+                    >
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      {t('Redeem Code')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
-      
-      {lastResult && lastResult.data && businessId && (
-        <>
-          <RewardModal
-            isOpen={showRewardsModal}
-            onClose={handleRewardsModalClose}
-            customerId={ensureId((lastResult.data as any).customerId)}
-            businessId={ensureId(businessId)}
-            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
-          />
           
-          <ProgramEnrollmentModal
-            isOpen={showProgramsModal}
-            onClose={handleProgramsModalClose}
-            customerId={ensureId((lastResult.data as any).customerId)}
-            businessId={ensureId(businessId)}
-            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
-          />
-          
-          <RedemptionModal
-            isOpen={showRedeemModal}
-            onClose={handleRedeemModalClose}
-            customerId={ensureId((lastResult.data as any).customerId)}
-            businessId={ensureId(businessId)}
-            customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
-          />
+          {lastResult && lastResult.data && businessId && (
+            <>
+              <RewardModal
+                isOpen={showRewardsModal}
+                onClose={handleRewardsModalClose}
+                customerId={ensureId((lastResult.data as any).customerId)}
+                businessId={ensureId(businessId)}
+                customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+              />
+              
+              <ProgramEnrollmentModal
+                isOpen={showProgramsModal}
+                onClose={handleProgramsModalClose}
+                customerId={ensureId((lastResult.data as any).customerId)}
+                businessId={ensureId(businessId)}
+                customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+              />
+              
+              <RedemptionModal
+                isOpen={showRedeemModal}
+                onClose={handleRedeemModalClose}
+                customerId={ensureId((lastResult.data as any).customerId)}
+                businessId={ensureId(businessId)}
+                customerName={(lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer'}
+              />
 
-          <CustomerDetailsModal
-            isOpen={showCustomerDetailsModal}
-            onClose={() => {
-              logScanProcess('CustomerDetailsModal closed');
-              setShowCustomerDetailsModal(false);
-            }}
-            customerId={ensureId((lastResult.data as any).customerId)}
-            businessId={ensureId(businessId)}
-            initialData={{
-              ...lastResult.data,
-              name: (lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer',
-              customerId: ensureId((lastResult.data as any).customerId)
-            }}
-          />
-        </>
-      )}
-      
-      {/* Show modals if we have selectedCustomerId but no lastResult */}
-      {!lastResult && selectedCustomerId && businessId && (
-        <CustomerDetailsModal
-          isOpen={showCustomerDetailsModal}
-          onClose={() => {
-            logScanProcess('CustomerDetailsModal closed');
-            setShowCustomerDetailsModal(false);
-          }}
-          customerId={ensureId(selectedCustomerId)}
-          businessId={ensureId(businessId)}
-          initialData={{
-            customerId: ensureId(selectedCustomerId),
-            name: 'Customer'
-          }}
-        />
-      )}
-      
-      {/* Transaction confirmation */}
-      {showTransactionConfirmation && transactionDetails && (
-        <TransactionConfirmation
-          type={transactionConfirmationType}
-          transactionType={transactionDetails.type}
-          message={transactionDetails.message}
-          details={transactionDetails.details}
-          customerName={transactionDetails.customerName}
-          businessName={transactionDetails.businessName}
-          points={transactionDetails.points}
-          amount={transactionDetails.amount}
-          onClose={handleTransactionConfirmationClose}
-          onFeedback={handleFeedbackSubmit}
-        />
-      )}
-      
-      {rateLimited && rateLimitResetTime && (
-        <div className="mt-2 p-2 bg-yellow-100 border border-yellow-400 rounded flex items-center text-yellow-800">
-          <AlertTriangle className="h-4 w-4 mr-2" />
-          <span className="text-sm">
-            Rate limit reached. Please wait {Math.ceil((rateLimitResetTime - Date.now()) / 1000)} seconds.
-          </span>
-        </div>
-      )}
-      
-      {/* Add scanning tips panel that shows when there's an error */}
-      {error && error.includes('Unrecognized QR code type: customer') && (
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 animate-fadeIn w-full max-w-md">
-          <h3 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
-            <Target className="h-4 w-4 mr-1" />
-            QR Code Scanning Tips
-          </h3>
-          <ul className="text-xs text-blue-700 space-y-1 ml-5 list-disc">
-            <li>Make sure the QR code is fully visible and well-lit</li>
-            <li>Hold the device steady and at the right distance</li>
-            <li>Keep the QR code centered in the scanning frame</li>
-            <li>Clean your camera lens if the image appears blurry</li>
-            <li>Try scanning more slowly to ensure accurate reading</li>
-          </ul>
-        </div>
+              <CustomerDetailsModal
+                isOpen={showCustomerDetailsModal}
+                onClose={() => {
+                  logScanProcess('CustomerDetailsModal closed');
+                  setShowCustomerDetailsModal(false);
+                }}
+                customerId={ensureId((lastResult.data as any).customerId)}
+                businessId={ensureId(businessId)}
+                initialData={{
+                  ...lastResult.data,
+                  name: (lastResult.data as any).customerName || (lastResult.data as any).name || 'Customer',
+                  customerId: ensureId((lastResult.data as any).customerId)
+                }}
+              />
+            </>
+          )}
+          
+          {/* Show modals if we have selectedCustomerId but no lastResult */}
+          {!lastResult && selectedCustomerId && businessId && (
+            <CustomerDetailsModal
+              isOpen={showCustomerDetailsModal}
+              onClose={() => {
+                logScanProcess('CustomerDetailsModal closed');
+                setShowCustomerDetailsModal(false);
+              }}
+              customerId={ensureId(selectedCustomerId)}
+              businessId={ensureId(businessId)}
+              initialData={{
+                customerId: ensureId(selectedCustomerId),
+                name: 'Customer'
+              }}
+            />
+          )}
+          
+          {/* Transaction confirmation */}
+          {showTransactionConfirmation && transactionDetails && (
+            <TransactionConfirmation
+              type={transactionConfirmationType}
+              transactionType={transactionDetails.type}
+              message={transactionDetails.message}
+              details={transactionDetails.details}
+              customerName={transactionDetails.customerName}
+              businessName={transactionDetails.businessName}
+              points={transactionDetails.points}
+              amount={transactionDetails.amount}
+              onClose={handleTransactionConfirmationClose}
+              onFeedback={handleFeedbackSubmit}
+            />
+          )}
+          
+          {rateLimited && rateLimitResetTime && (
+            <div className="mt-2 p-2 bg-yellow-100 border border-yellow-400 rounded flex items-center text-yellow-800">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              <span className="text-sm">
+                Rate limit reached. Please wait {Math.ceil((rateLimitResetTime - Date.now()) / 1000)} seconds.
+              </span>
+            </div>
+          )}
+          
+          {/* Add scanning tips panel that shows when there's an error */}
+          {error && error.includes('Unrecognized QR code type: customer') && (
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 animate-fadeIn w-full max-w-md">
+              <h3 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+                <Target className="h-4 w-4 mr-1" />
+                QR Code Scanning Tips
+              </h3>
+              <ul className="text-xs text-blue-700 space-y-1 ml-5 list-disc">
+                <li>Make sure the QR code is fully visible and well-lit</li>
+                <li>Hold the device steady and at the right distance</li>
+                <li>Keep the QR code centered in the scanning frame</li>
+                <li>Clean your camera lens if the image appears blurry</li>
+                <li>Try scanning more slowly to ensure accurate reading</li>
+              </ul>
+            </div>
+          )}
+        </React.Fragment>
       )}
     </div>
   );
