@@ -198,42 +198,9 @@ export async function executeQuery<T extends SqlRow[] = SqlRow[]>(
       let result: T;
       
       if (typeof query === 'string') {
-        // For string queries, convert to tagged template
-        // This is the key change: Instead of using sql.query, we'll convert the query to use tagged template literals
-        
-        // Check for parameterized query pattern ($1, $2, etc.) and replace with tagged template
-        if (params.length > 0 && /\$\d+/.test(query)) {
-          // Parse the query string and replace $1, $2, etc. with parameters
-          const parts = query.split(/\$\d+/);
-          
-          // Build the query using tagged template literals
-          if (parts.length === 1) {
-            // No parameters in the query
-            result = await sql`${query}` as T;
-          } else if (parts.length === 2) {
-            // One parameter in the query
-            result = await sql`${parts[0]}${params[0]}${parts[1]}` as T;
-          } else if (parts.length === 3) {
-            // Two parameters in the query
-            result = await sql`${parts[0]}${params[0]}${parts[1]}${params[1]}${parts[2]}` as T;
-          } else if (parts.length === 4) {
-            // Three parameters in the query
-            result = await sql`${parts[0]}${params[0]}${parts[1]}${params[1]}${parts[2]}${params[2]}${parts[3]}` as T;
-          } else if (parts.length === 5) {
-            // Four parameters in the query
-            result = await sql`${parts[0]}${params[0]}${parts[1]}${params[1]}${parts[2]}${params[2]}${parts[3]}${params[3]}${parts[4]}` as T;
-          } else {
-            // More than four parameters - dynamically construct the query
-            let queryString = sql`${parts[0]}`;
-            for (let i = 1; i < parts.length; i++) {
-              queryString = sql`${queryString}${params[i-1]}${parts[i]}`;
-            }
-            result = await queryString as T;
-          }
-        } else {
-          // No parameters or not using $1 style - use simple tagged template
-          result = await sql`${query}` as T;
-        }
+        // For plain string queries, use the conventional function-call style via sql.query.
+        // This correctly handles `$1`, `$2`, … placeholders without resorting to brittle string-splitting.
+        result = await sql.query(query, params) as T;
       } else {
         // For template literals, use tagged template syntax as is
         result = await sql(query, ...params) as T;
