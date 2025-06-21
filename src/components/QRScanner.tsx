@@ -125,6 +125,7 @@ export interface ScanResult {
  */
 interface QRScannerProps {
   onScan?: (result: UnifiedScanResult) => void;
+  onError?: (error: Error) => void;
   businessId?: number | string;
   programId?: number | string;
   pointsToAward?: number;
@@ -400,13 +401,14 @@ const defaultScannerConfig: ScannerConfig = {
 
 export const QRScanner: React.FC<QRScannerProps> = ({ 
   onScan, 
+  onError,
   businessId,
   programId,
   pointsToAward = 10
 }) => {
   const { t } = useTranslation();
   const [isScanning, setIsScanning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
   const [successScan, setSuccessScan] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerDivId = 'qr-scanner-container';
@@ -509,7 +511,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const scannerElement = document.getElementById(scannerDivId);
       if (!scannerElement) {
         console.error("Scanner DOM element not found");
-        setError("Scanner initialization failed: Scanner element not found on page");
+        setErrorState("Scanner initialization failed: Scanner element not found on page");
         return false;
       }
 
@@ -532,7 +534,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Verify HTML5Qrcode is available
       if (typeof Html5Qrcode !== 'function') {
         console.error("HTML5QrCode library not found");
-        setError("Scanner initialization failed: Required library not available");
+        setErrorState("Scanner initialization failed: Required library not available");
         return false;
       }
 
@@ -586,13 +588,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           return false;
         } catch (retryError) {
           console.error("Retry failed:", retryError);
-          setError("Camera initialization failed. Please try refreshing the page.");
+          setErrorState("Camera initialization failed. Please try refreshing the page.");
           return false;
         }
       }
     } catch (err) {
       console.error("Failed to initialize scanner:", err);
-      setError(`Scanner initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setErrorState(`Scanner initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setErrorMessage('Camera access failed. Please check permissions or try another device.');
       return false;
     }
@@ -629,21 +631,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
     
     setIsInitializing(true);
-    setError(null);
+    setErrorState(null);
     
     try {
       console.log("Starting scanner initialization process");
       await forceCameraRefresh();
       
       if (!isCameraSupported()) {
-        setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+        setErrorState('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
         setIsInitializing(false);
         return;
       }
       
       if (!document.getElementById(scannerDivId)) {
         console.error("Scanner DOM element not ready");
-        setError("Scanner element not ready. Please refresh the page.");
+        setErrorState("Scanner element not ready. Please refresh the page.");
         setIsInitializing(false);
         return;
       }
@@ -653,7 +655,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       try {
         const cameraStatus = await checkCameraAvailability();
         if (!cameraStatus.available) {
-          setError(cameraStatus.errorMessage || 'Camera not available');
+          setErrorState(cameraStatus.errorMessage || 'Camera not available');
           setPermissionGranted(cameraStatus.permissionGranted);
           setIsInitializing(false);
           return;
@@ -669,7 +671,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           setPermissionGranted(true);
         } catch (directPermissionError) {
           console.error("Direct camera access failed:", directPermissionError);
-          setError('Camera access denied or not available. Please check your camera permissions.');
+          setErrorState('Camera access denied or not available. Please check your camera permissions.');
           setPermissionGranted(false);
           setIsInitializing(false);
           return;
@@ -680,7 +682,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         console.log("Initializing scanner...");
         const success = await initializeScanner();
         if (!success) {
-          setError('Failed to initialize QR scanner. Please refresh the page and try again.');
+          setErrorState('Failed to initialize QR scanner. Please refresh the page and try again.');
           setIsInitializing(false);
           return;
         }
@@ -689,7 +691,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const scannerElement = document.getElementById(scannerDivId);
       if (!scannerElement) {
         console.error("Scanner DOM element not found during start");
-        setError('Scanner element not found. Please refresh the page.');
+        setErrorState('Scanner element not found. Please refresh the page.');
         setIsInitializing(false);
         return;
       }
@@ -749,7 +751,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           
           setIsScanning(true);
           startScanAnimation();
-          setError(null);
+          setErrorState(null);
         } catch (startError) {
           // Handle start error specifically
           console.error('Error starting scanner:', startError);
@@ -772,7 +774,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
             
             setIsScanning(true);
             startScanAnimation();
-            setError(null);
+            setErrorState(null);
             return;
           } catch (retryError) {
             console.error('Retry with environment camera failed:', retryError);
@@ -795,7 +797,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                 
                 setIsScanning(true);
                 startScanAnimation();
-                setError(null);
+                setErrorState(null);
                 return;
               } catch (finalError) {
                 console.error('Final retry failed:', finalError);
@@ -832,7 +834,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       }
       
-      setError(errorMessage);
+      setErrorState(errorMessage);
       setIsScanning(false);
     } finally {
       setIsInitializing(false);
@@ -925,7 +927,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Check rate limiting
       if (extendedQrScanMonitor.isRateLimited()) {
         const resetTime = extendedQrScanMonitor.getResetTime();
-        setError(`Scanning too quickly. Please wait ${resetTime} seconds.`);
+        setErrorState(`Scanning too quickly. Please wait ${resetTime} seconds.`);
         playSound('error');
         return;
       }
@@ -936,7 +938,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         parsedData = JSON.parse(decodedText);
       } catch (e) {
         debugLog('Failed to parse QR code as JSON', e);
-        setError('Invalid QR code format (not valid JSON)');
+        setErrorState('Invalid QR code format (not valid JSON)');
         playSound('error');
         return;
       }
@@ -998,7 +1000,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const qrCodeData = parseQrCodeData(decodedText);
       
       if (!qrCodeData) {
-        setError('Invalid QR code format');
+        setErrorState('Invalid QR code format');
         playSound('error');
         return;
       }
@@ -1018,7 +1020,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         await handlePromoCodeQrCode(qrCodeData);
       } else {
         // Unknown QR code type
-        setError(`Unrecognized QR code type: ${qrCodeData.type}`);
+        setErrorState(`Unrecognized QR code type: ${qrCodeData.type}`);
         playSound('error');
         
         // Monitor this unknown type for analytics
@@ -1051,7 +1053,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       
     } catch (error) {
       console.error('Error handling QR code scan:', error);
-      setError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErrorState(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       playSound('error');
       
       // Record failed scan
@@ -1124,7 +1126,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         customerId
       };
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Error processing customer QR code');
+      setErrorState(error instanceof Error ? error.message : 'Error processing customer QR code');
       playSound('error');
       setProcessingCard(false);
       
@@ -1178,7 +1180,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         playSound('success');
         
         // Clear any previous errors and reset rate limiting state
-        setError(null);
+        setErrorState(null);
         setRateLimited(false);
         
         // Set scan result details for UI
@@ -1201,11 +1203,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       } else {
         // Error - play error sound and show error message
         playSound('error');
-        setError(result.message || 'Failed to process loyalty card');
+        setErrorState(result.message || 'Failed to process loyalty card');
       }
     } catch (error) {
       playSound('error');
-      setError('Failed to process loyalty card QR code');
+      setErrorState('Failed to process loyalty card QR code');
     } finally {
       setIsScanning(false);
     }
@@ -1235,7 +1237,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         playSound('success');
         
         // Clear any previous errors and reset rate limiting state
-        setError(null);
+        setErrorState(null);
         setRateLimited(false);
         
         // Set scan result details for UI
@@ -1255,11 +1257,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       } else {
         // Error - play error sound and show error message
         playSound('error');
-        setError(result.message || 'Invalid promotion code');
+        setErrorState(result.message || 'Invalid promotion code');
       }
     } catch (error) {
       playSound('error');
-      setError('Failed to process promotion code');
+      setErrorState('Failed to process promotion code');
     } finally {
       setIsScanning(false);
     }
@@ -1435,9 +1437,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     } catch (err) {
       console.error("Failed to get cameras:", err);
       if (err instanceof Error && err.message.includes('Permission denied')) {
-        setError('Camera access denied. Please allow camera access in your browser settings.');
+        setErrorState('Camera access denied. Please allow camera access in your browser settings.');
       } else {
-        setError('Failed to detect cameras. Please make sure your device has a camera.');
+        setErrorState('Failed to detect cameras. Please make sure your device has a camera.');
       }
     }
   };
@@ -1448,13 +1450,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // First check if browser is supported for QR scanning
       if (!isBrowserSupportedForQrScanning()) {
         const { name, version } = getBrowserInfo();
-        setError(`Your browser (${name} ${version}) may not fully support QR scanning. For best results, use Chrome, Firefox, or Safari.`);
+        setErrorState(`Your browser (${name} ${version}) may not fully support QR scanning. For best results, use Chrome, Firefox, or Safari.`);
         return;
       }
       
       // Check if camera access is supported
       if (!isCameraSupported()) {
-        setError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+        setErrorState('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
         return;
       }
       
@@ -1462,7 +1464,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       const cameraStatus = await checkCameraAvailability();
       
       if (!cameraStatus.available) {
-        setError(cameraStatus.errorMessage || 'Camera not available');
+        setErrorState(cameraStatus.errorMessage || 'Camera not available');
         setPermissionGranted(cameraStatus.permissionGranted);
       } else {
         setPermissionGranted(true);
@@ -2020,6 +2022,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       }
     };
   }, [isScanning]);
+
+  // Replace setError with a function that also calls onError
+  const setError = (errorMessage: string | null) => {
+    setErrorState(errorMessage);
+    if (errorMessage && onError) {
+      onError(new Error(errorMessage));
+    }
+    if (errorMessage) {
+      setErrorMessage(errorMessage);
+    }
+  };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: 'white' }}>

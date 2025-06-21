@@ -11,7 +11,6 @@ import {
   PromoCodeQrCodeData,
   UnknownQrCodeData,
   UnifiedScanResult,
-  fromComponentScanResult,
   isCustomerQrCodeData,
   isLoyaltyCardQrCodeData,
   isPromoCodeQrCodeData,
@@ -21,7 +20,8 @@ import {
   QrCode, Check, AlertCircle, RotateCcw, 
   Layers, Badge, User, Coffee, ClipboardList, Info,
   Keyboard, KeyRound, ArrowRight, Settings, Award, Users,
-  Trophy, Zap, Sparkles, PartyPopper, Star, Target, CheckCircle, Gift
+  Trophy, Zap, Sparkles, PartyPopper, Star, Target, CheckCircle, Gift,
+  Camera, AlertTriangle
 } from 'lucide-react';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyProgram } from '../../types/loyalty';
@@ -29,6 +29,7 @@ import { RedemptionModal } from '../../components/business/RedemptionModal';
 import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollmentModal';
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
+import { isCameraSupported, isQrScanningSupported } from '../../utils/browserSupport';
 
 // Define the interface for the component's scan result handling
 interface QrScannerPageProps {
@@ -50,6 +51,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [scanCount, setScanCount] = useState<number>(0);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
+  const [isHttps, setIsHttps] = useState<boolean>(false);
+  const [browserSupported, setBrowserSupported] = useState<boolean>(true);
   
   // Modal states
   const [showRedeemModal, setShowRedeemModal] = useState(false);
@@ -58,8 +61,26 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerQrCodeData | null>(null);
 
-  // Load previous scan results from localStorage
+  // Check for HTTPS and browser support on mount
   useEffect(() => {
+    // Check if we're on HTTPS
+    const isHttpsProtocol = window.location.protocol === 'https:';
+    setIsHttps(isHttpsProtocol);
+    
+    // Check browser compatibility
+    const cameraSupport = isCameraSupported();
+    const qrScanningSupport = isQrScanningSupported();
+    setBrowserSupported(cameraSupport && qrScanningSupport);
+    
+    if (!cameraSupport) {
+      setScannerError('Your browser does not support camera access');
+    } else if (!qrScanningSupport) {
+      setScannerError('Your browser does not support QR code scanning');
+    } else if (!isHttpsProtocol && process.env.NODE_ENV === 'production') {
+      setScannerError('Camera access requires HTTPS. Please use a secure connection.');
+    }
+    
+    // Load previous scan results from localStorage
     try {
       const savedResults = localStorage.getItem('qr_scan_results');
       if (savedResults) {
@@ -115,16 +136,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     }
   }, [scanResults]);
 
-  const handleScan = useCallback((result: ComponentScanResult) => {
+  // Handle scan result from the QR scanner component
+  const handleScan = useCallback((result: UnifiedScanResult) => {
     if (!result) return;
     
-    // Convert the component scan result to our unified format
-    const unifiedResult = fromComponentScanResult(result);
-    
     // Add the new scan to the results
-    const updatedResults = [unifiedResult, ...scanResults.slice(0, 9)];
+    const updatedResults = [result, ...scanResults.slice(0, 9)];
     setScanResults(updatedResults);
-    setSelectedResult(unifiedResult);
+    setSelectedResult(result);
     
     // Update scan count and save to localStorage
     const newCount = scanCount + 1;
@@ -138,17 +157,21 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     }
     
     // If it's a customer scan, show the customer details modal
-    if (unifiedResult.type === 'customer' && isCustomerQrCodeData(unifiedResult.data)) {
-      console.log('Opening customer details modal for customer:', unifiedResult.data.customerId);
-      setSelectedCustomerData(unifiedResult.data);
+    if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
+      setSelectedCustomerData(result.data);
       setShowCustomerDetailsModal(true);
     }
     
     // Call the onScan prop if provided
     if (onScan) {
-      onScan(unifiedResult);
+      onScan(result);
     }
   }, [scanResults, scanCount, onScan]);
+
+  // Handle QR scanner errors
+  const handleScannerError = useCallback((error: Error) => {
+    setScannerError(error.message);
+  }, []);
 
   const playSuccessSound = () => {
     // Sound functionality disabled as per customer request
@@ -323,8 +346,31 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   };
 
   const SafeScanner = () => (
-    <QRScanner onScan={handleScan} onError={(err) => setScannerError(err.message)} />
+    <QRScanner onScan={handleScan} onError={handleScannerError} />
   );
+
+  // Render a fallback UI for unsupported browsers or non-HTTPS connections
+  const renderFallbackUI = () => {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-md">
+        <AlertTriangle size={48} className="text-yellow-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">QR Scanner Unavailable</h2>
+        <p className="text-center mb-4">{scannerError || 'The QR scanner could not be initialized'}</p>
+        {!isHttps && process.env.NODE_ENV === 'production' && (
+          <p className="text-sm text-gray-600 mb-4">
+            Try accessing this page using HTTPS instead of HTTP
+          </p>
+        )}
+        <button
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          onClick={() => setActiveTab('manual')}
+        >
+          <Keyboard className="inline-block mr-2" size={16} />
+          Switch to Manual Entry
+        </button>
+      </div>
+    );
+  };
 
   return (
     <BusinessLayout>
@@ -362,7 +408,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               }`}
               onClick={() => setActiveTab('scanner')}
             >
-              <QrCode className="w-4 h-4" />
+              <Camera className="w-4 h-4" />
               <span>{t('Scanner')}</span>
             </button>
             
@@ -508,7 +554,20 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 )}
                 
                 <div className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  <SafeScanner />
+                  {browserSupported ? (
+                    <>
+                      {user?.id && selectedProgramId && (
+                        <QRScanner
+                          onScan={handleScan}
+                          businessId={user.id}
+                          programId={selectedProgramId}
+                          pointsToAward={pointsToAward}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    renderFallbackUI()
+                  )}
                 </div>
                 {scannerError && <p className="text-red-500 mt-2">{scannerError}</p>}
               </div>
