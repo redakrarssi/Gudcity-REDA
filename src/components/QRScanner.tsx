@@ -1516,15 +1516,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
   // Save scan to history
   const addToScanHistory = (result: UnifiedScanResult, success: boolean) => {
+    const isObject = (val: any): val is Record<string, any> => 
+      val !== null && typeof val === 'object';
+    
+    // Safe property access - handles non-objects and missing properties
+    const safeGetProperty = (data: any, prop: string): string | undefined => {
+      if (!isObject(data)) return undefined;
+      try {
+        return prop in data && data[prop] != null ? String(data[prop]) : undefined;
+      } catch (error) {
+        console.warn(`Error accessing property ${prop}:`, error);
+        return undefined;
+      }
+    };
+      
+    // Safely extract properties from potentially non-object data
     const historyItem: ScanHistoryItem = {
       id: Math.random().toString(36).substring(2, 9),
       type: result.type,
       data: {
-        customerId: (result.data as any).customerId ? String((result.data as any).customerId) : undefined,
-        customerName: 'customerName' in result.data ? String((result.data as any).customerName) : undefined,
-        code: 'code' in result.data ? String((result.data as any).code) : undefined,
+        customerId: safeGetProperty(result.data, 'customerId'),
+        customerName: safeGetProperty(result.data, 'customerName'),
+        code: safeGetProperty(result.data, 'code'),
         type: result.type,
-        text: 'text' in result.data ? String((result.data as any).text) : JSON.stringify(result.data)
+        text: safeGetProperty(result.data, 'text') || 
+              (isObject(result.data) ? JSON.stringify(result.data) : String(result.data || ''))
       },
       timestamp: result.timestamp,
       success
