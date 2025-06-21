@@ -1,100 +1,107 @@
-// Special fix for charts vendor script
-// This script ensures that the lodash library is properly initialized
-// before any chart-related code tries to access it
+/**
+ * Charts-Lodash Integration Fix
+ * Provides integration fixes between chart libraries and lodash
+ */
 
 (function() {
-  // Define these functions directly on the global _ object
-  // These are the specific functions used by charts libraries
-  const _ = window._ = window._ || {};
-
-  // Core functions
-  _.forEach = _.each = function(collection, iteratee) {
-    if (Array.isArray(collection)) {
-      for (let i = 0; i < collection.length; i++) {
-        iteratee(collection[i], i, collection);
+  console.log('Loading charts-lodash integration fix');
+  
+  // Ensure we have bare minimum objects defined globally
+  if (!window._) {
+    console.warn('Lodash not detected, creating minimal implementation');
+    window._ = {
+      noop: function() {},
+      identity: function(value) { return value; },
+      isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
+      isFunction: function(f) { return typeof f === 'function'; },
+      isArray: Array.isArray,
+      get: function(obj, path, defaultValue) {
+        if (obj == null) return defaultValue;
+        
+        // Handle array path ['a', 'b'] or string path 'a.b'
+        var keys = Array.isArray(path) ? path : 
+                  typeof path === 'string' ? path.split('.') : [path];
+        
+        var result = obj;
+        for (var i = 0; i < keys.length; i++) {
+          if (result == null) return defaultValue;
+          result = result[keys[i]];
+        }
+        
+        return result === undefined ? defaultValue : result;
+      },
+      forEach: function(collection, iteratee) {
+        if (Array.isArray(collection)) {
+          for (var i = 0; i < collection.length; i++) {
+            iteratee(collection[i], i, collection);
+          }
+        } else if (collection && typeof collection === 'object') {
+          for (var key in collection) {
+            if (Object.prototype.hasOwnProperty.call(collection, key)) {
+              iteratee(collection[key], key, collection);
+            }
+          }
+        }
+        return collection;
       }
-    } else if (typeof collection === 'object' && collection !== null) {
-      for (const key in collection) {
-        if (Object.prototype.hasOwnProperty.call(collection, key)) {
-          iteratee(collection[key], key, collection);
+    };
+  }
+  
+  // Ensure Chart exists
+  if (!window.Chart) {
+    console.warn('Chart library not detected');
+    window.Chart = window.Chart || function() {
+      return {
+        update: function() {},
+        destroy: function() {}
+      };
+    };
+  }
+  
+  // Fix for specific lodash functions used in charts
+  var lodashFunctionsForCharts = {
+    isObjectLike: function(value) {
+      return typeof value === 'object' && value !== null;
+    },
+    keys: function(obj) {
+      return Object.keys(obj || {});
+    },
+    isNil: function(value) {
+      return value == null;
+    },
+    find: function(collection, predicate) {
+      if (Array.isArray(collection)) {
+        return collection.find(function(item) {
+          return predicate(item);
+        });
+      }
+      return undefined;
+    },
+    merge: function() {
+      var result = {};
+      for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i];
+        for (var key in source) {
+          if (Object.prototype.hasOwnProperty.call(source, key)) {
+            result[key] = source[key];
+          }
         }
       }
+      return result;
     }
-    return collection;
-  };
-
-  // Object manipulation
-  _.assign = _.extend = Object.assign;
-  _.pick = function(object, ...paths) {
-    const result = {};
-    if (object == null) return result;
-    const props = [].concat(...paths.map(p => Array.isArray(p) ? p : [p]));
-    props.forEach(key => {
-      if (key in object) result[key] = object[key];
-    });
-    return result;
   };
   
-  // Array functions
-  _.map = function(collection, iteratee) {
-    if (Array.isArray(collection)) {
-      return collection.map(iteratee);
+  // Add missing functions to lodash if they don't exist
+  for (var funcName in lodashFunctionsForCharts) {
+    if (lodashFunctionsForCharts.hasOwnProperty(funcName) && !window._[funcName]) {
+      window._[funcName] = lodashFunctionsForCharts[funcName];
     }
-    const result = [];
-    for (const key in collection) {
-      if (Object.prototype.hasOwnProperty.call(collection, key)) {
-        result.push(iteratee(collection[key], key, collection));
-      }
-    }
-    return result;
-  };
-  _.filter = function(collection, predicate) {
-    return Array.isArray(collection) ? collection.filter(predicate) : 
-      Object.keys(collection).filter(key => predicate(collection[key], key, collection))
-        .map(key => collection[key]);
-  };
-  _.find = function(collection, predicate) {
-    if (Array.isArray(collection)) {
-      return collection.find(predicate);
-    }
-    const key = Object.keys(collection).find(key => predicate(collection[key], key, collection));
-    return key !== undefined ? collection[key] : undefined;
-  };
-  _.findIndex = function(array, predicate) {
-    return Array.isArray(array) ? array.findIndex(predicate) : -1;
-  };
+  }
   
-  // More chart-specific functions
-  _.sortBy = function(collection, iteratee) {
-    const isFunction = typeof iteratee === 'function';
-    const isString = typeof iteratee === 'string';
-    
-    return [].concat(collection).sort((a, b) => {
-      const valA = isFunction ? iteratee(a) : isString ? a[iteratee] : a;
-      const valB = isFunction ? iteratee(b) : isString ? b[iteratee] : b;
-      return valA < valB ? -1 : valA > valB ? 1 : 0;
-    });
-  };
+  // Ensure window._.each exists as an alias for forEach
+  if (!window._.each && window._.forEach) {
+    window._.each = window._.forEach;
+  }
   
-  // Mathematical functions often used in charts
-  _.sum = function(array) {
-    return array.reduce((sum, n) => sum + n, 0);
-  };
-  _.max = function(array) {
-    return array.length ? Math.max(...array) : undefined;
-  };
-  _.min = function(array) {
-    return array.length ? Math.min(...array) : undefined;
-  };
-  
-  // Common utility
-  _.identity = function(value) { return value; };
-  _.isFunction = function(value) { return typeof value === 'function'; };
-  _.isArray = Array.isArray;
-  _.isObject = function(value) { return value !== null && typeof value === 'object'; };
-  _.isNumber = function(value) { return typeof value === 'number' && !isNaN(value); };
-  _.isString = function(value) { return typeof value === 'string'; };
-  _.isUndefined = function(value) { return value === undefined; };
-  
-  console.log("Charts Lodash compatibility layer loaded");
+  console.log('Charts-lodash integration fix applied');
 })(); 

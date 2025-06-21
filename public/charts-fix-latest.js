@@ -90,5 +90,88 @@
   console.log('Charts emergency fix complete - Lodash available:', typeof window._ === 'object');
 })();
 
+/**
+ * Charts Compatibility Fix
+ * This script provides compatibility fixes for chart libraries used in the application
+ */
+
+(function() {
+  console.log('Loading charts compatibility fix');
+  
+  // Ensure global objects are defined
+  window.Chart = window.Chart || {};
+  window.chartjs = window.chartjs || {};
+  
+  // Fix for ApexCharts if used
+  window.ApexCharts = window.ApexCharts || function() {
+    return {
+      render: function() { return Promise.resolve(); },
+      updateOptions: function() { return Promise.resolve(); },
+      updateSeries: function() { return Promise.resolve(); },
+      destroy: function() {}
+    };
+  };
+  
+  // Fix for Chart.js prototype methods if Chart.js is missing
+  if (typeof window.Chart === 'object' && !window.Chart.prototype) {
+    window.Chart.prototype = {
+      update: function() {},
+      destroy: function() {},
+      render: function() {},
+      resize: function() {}
+    };
+  }
+  
+  // Fix for Chart namespace
+  if (typeof window.Chart === 'function') {
+    // Chart.js v2/v3 compatibility
+    window.Chart.defaults = window.Chart.defaults || {
+      global: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    };
+    
+    // Make sure helpers are defined
+    window.Chart.helpers = window.Chart.helpers || {
+      merge: function(target) {
+        for (var i = 1; i < arguments.length; i++) {
+          var source = arguments[i];
+          if (source) {
+            Object.keys(source).forEach(function(key) {
+              target[key] = source[key];
+            });
+          }
+        }
+        return target;
+      }
+    };
+  }
+  
+  // Provides compatibility with libraries that expect Moment.js
+  if (!window.moment) {
+    window.moment = function(date) {
+      const dateObj = date ? new Date(date) : new Date();
+      return {
+        format: function(fmt) {
+          // Simple formatter that returns ISO string for common formats
+          if (fmt === 'YYYY-MM-DD') {
+            return dateObj.toISOString().split('T')[0];
+          }
+          return dateObj.toISOString();
+        },
+        valueOf: function() {
+          return dateObj.getTime();
+        },
+        toDate: function() {
+          return dateObj;
+        }
+      };
+    };
+  }
+  
+  console.log('Charts compatibility fix applied');
+})();
+
 // Polyfill for charts compatibility
 console.log('charts-fix-latest.js loaded'); 

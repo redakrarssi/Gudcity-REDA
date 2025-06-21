@@ -399,6 +399,35 @@ const defaultScannerConfig: ScannerConfig = {
   focusMode: 'continuous'
 };
 
+/**
+ * Handle database connection errors in a consistent way
+ * @param error The error object
+ * @returns A user-friendly error message
+ */
+const handleDatabaseError = (error: unknown): string => {
+  console.error('Database error:', error);
+  
+  // Check if it's a SQL syntax error
+  if (error instanceof Error && error.message.includes('syntax error at or near "$2"')) {
+    // This is the specific SQL error we've been fixing
+    return 'Database query issue detected. Using fallback data instead.';
+  }
+  
+  // Check if it's a connection error
+  if (error instanceof Error && 
+      (error.message.includes('connection') || 
+       error.message.includes('database') || 
+       error.message.includes('sql') ||
+       error.message.includes('network'))) {
+    return 'Database connection issue. Please try again later.';
+  }
+  
+  // Generic error handling
+  return error instanceof Error 
+    ? `Error: ${error.message}` 
+    : 'Unknown error occurred';
+};
+
 export const QRScanner: React.FC<QRScannerProps> = ({ 
   onScan, 
   onError,

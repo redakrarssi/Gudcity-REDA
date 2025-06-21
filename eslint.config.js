@@ -1,10 +1,10 @@
 // @ts-check
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import reactPlugin from 'eslint-plugin-react';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import importPlugin from 'eslint-plugin-import';
-import a11y from 'eslint-plugin-jsx-a11y';
+import * as reactPlugin from 'eslint-plugin-react';
+import * as reactHooksPlugin from 'eslint-plugin-react-hooks';
+import * as importPlugin from 'eslint-plugin-import';
+import * as a11y from 'eslint-plugin-jsx-a11y';
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -13,10 +13,13 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
+      parser: tseslint.parser,
       parserOptions: {
         ecmaFeatures: {
           jsx: true,
         },
+        project: './tsconfig.json',
+        tsconfigRootDir: process.cwd(),
       },
     },
     plugins: {

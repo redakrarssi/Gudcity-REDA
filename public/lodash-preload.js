@@ -1,101 +1,107 @@
-// This script must be loaded before any other script
-// It creates a global _ variable to prevent Temporal Dead Zone errors
+/**
+ * Lodash Preload
+ * Minimal implementation of lodash to prevent errors in scripts that depend on it
+ */
 
-// Create lodash placeholder with essential functions
-window._ = {
-  // Core functions commonly used early in lodash initialization
-  noop: function() {},
-  identity: function(value) { return value; },
-  constant: function(value) { return function() { return value; }; },
-  isObject: function(obj) { return obj !== null && typeof obj === 'object'; },
-  isFunction: function(f) { return typeof f === 'function'; },
-  isArray: Array.isArray,
-  isString: function(value) { return typeof value === 'string'; },
-  isNumber: function(value) { return typeof value === 'number'; },
-  isUndefined: function(value) { return value === undefined; },
-  isNil: function(value) { return value == null; },
-  isNaN: isNaN,
-  isFinite: isFinite,
+(function() {
+  console.log('Initializing Lodash preload');
+  
+  // Create lodash global reference if it doesn't exist
+  var _ = window._ = window._ || {};
+  
+  // Basic utility functions often used
+  _.noop = function() {};
+  _.identity = function(value) { return value; };
+  
+  // Type checking functions
+  _.isObject = function(obj) { return obj !== null && typeof obj === 'object'; };
+  _.isFunction = function(f) { return typeof f === 'function'; };
+  _.isArray = Array.isArray;
+  _.isString = function(s) { return typeof s === 'string'; };
+  _.isNumber = function(n) { return typeof n === 'number'; };
+  _.isBoolean = function(b) { return typeof b === 'boolean'; };
+  _.isUndefined = function(val) { return val === undefined; };
+  _.isNull = function(val) { return val === null; };
   
   // Collection functions
-  each: function(collection, iteratee) {
+  _.forEach = function(collection, iteratee) {
     if (Array.isArray(collection)) {
-      for (let i = 0; i < collection.length; i++) {
+      for (var i = 0; i < collection.length; i++) {
         iteratee(collection[i], i, collection);
       }
-    } else if (typeof collection === 'object' && collection !== null) {
-      for (const key in collection) {
+    } else if (collection && typeof collection === 'object') {
+      for (var key in collection) {
         if (Object.prototype.hasOwnProperty.call(collection, key)) {
           iteratee(collection[key], key, collection);
         }
       }
     }
     return collection;
-  },
+  };
+  
+  _.map = function(collection, iteratee) {
+    var result = [];
+    
+    if (Array.isArray(collection)) {
+      for (var i = 0; i < collection.length; i++) {
+        result.push(iteratee(collection[i], i, collection));
+      }
+    } else if (collection && typeof collection === 'object') {
+      for (var key in collection) {
+        if (Object.prototype.hasOwnProperty.call(collection, key)) {
+          result.push(iteratee(collection[key], key, collection));
+        }
+      }
+    }
+    
+    return result;
+  };
   
   // Object functions
-  get: function(obj, path, defaultValue) {
-    if (!obj) return defaultValue;
-    const keys = Array.isArray(path) ? path : path.split('.');
-    let result = obj;
-    for (let i = 0; i < keys.length; i++) {
-      result = result[keys[i]];
-      if (result === undefined || result === null) return defaultValue;
-    }
-    return result;
-  },
-  has: function(obj, path) {
-    if (!obj) return false;
-    const keys = Array.isArray(path) ? path : path.split('.');
-    let result = obj;
-    for (let i = 0; i < keys.length; i++) {
-      if (result === undefined || result === null || !Object.prototype.hasOwnProperty.call(result, keys[i])) {
-        return false;
-      }
+  _.get = function(obj, path, defaultValue) {
+    if (obj == null) return defaultValue;
+    
+    // Handle array path ['a', 'b'] or string path 'a.b'
+    var keys = Array.isArray(path) ? path : 
+               typeof path === 'string' ? path.split('.') : [path];
+    
+    var result = obj;
+    for (var i = 0; i < keys.length; i++) {
+      if (result == null) return defaultValue;
       result = result[keys[i]];
     }
-    return true;
-  },
+    
+    return result === undefined ? defaultValue : result;
+  };
   
-  // Utility functions
-  debounce: function(func, wait) {
-    let timeout;
-    return function() {
-      const context = this;
-      const args = arguments;
-      clearTimeout(timeout);
-      timeout = setTimeout(function() {
-        func.apply(context, args);
-      }, wait);
-    };
-  },
-  throttle: function(func, wait) {
-    let lastCall = 0;
-    return function() {
-      const now = Date.now();
-      if (now - lastCall >= wait) {
-        func.apply(this, arguments);
-        lastCall = now;
+  _.set = function(obj, path, value) {
+    if (obj == null) return obj;
+    
+    var keys = Array.isArray(path) ? path : 
+               typeof path === 'string' ? path.split('.') : [path];
+    
+    var current = obj;
+    for (var i = 0; i < keys.length - 1; i++) {
+      var key = keys[i];
+      if (current[key] == null) {
+        // Determine if next key is an integer, create array if so
+        current[key] = /^\d+$/.test(keys[i+1]) ? [] : {};
       }
-    };
-  }
-};
-
-// Add commonly used lodash functions by recharts
-_.map = function(collection, iteratee) {
-  if (Array.isArray(collection)) {
-    return collection.map(iteratee);
-  }
-  const result = [];
-  for (const key in collection) {
-    if (Object.prototype.hasOwnProperty.call(collection, key)) {
-      result.push(iteratee(collection[key], key, collection));
+      current = current[key];
     }
-  }
-  return result;
-};
-
-_.forEach = _.each;
-
-// This will help with debugging
-console.log("Lodash pre-initialization complete"); 
+    
+    current[keys[keys.length - 1]] = value;
+    return obj;
+  };
+  
+  // Array functions
+  _.first = function(array) {
+    return array && array.length ? array[0] : undefined;
+  };
+  
+  _.last = function(array) {
+    return array && array.length ? array[array.length - 1] : undefined;
+  };
+  
+  console.log('Lodash preload initialized');
+})(); 

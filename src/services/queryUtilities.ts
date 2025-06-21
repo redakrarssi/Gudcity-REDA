@@ -92,15 +92,27 @@ export async function fetchBusinessMetrics<T extends SqlRow>(
   orderBy: string = 'period_start DESC',
   limit: number = 1
 ): Promise<T[]> {
-  // Create dynamic query using tagged template and interpolated values
-  return sql<T[]>`
-    SELECT ${fields.join(', ')}
-    FROM ${table}
-    WHERE business_id = ${businessId}
-    AND period_type = ${period}
-    ORDER BY ${orderBy}
-    ${limit > 0 ? `LIMIT ${limit}` : ''}
-  `;
+  // Create dynamic query with proper handling of the LIMIT clause
+  // This fixes the syntax error with $2 parameter
+  if (limit > 0) {
+    return sql<T[]>`
+      SELECT ${fields.join(', ')}
+      FROM ${table}
+      WHERE business_id = ${businessId}
+      AND period_type = ${period}
+      ORDER BY ${orderBy}
+      LIMIT ${limit}
+    `;
+  } else {
+    // When limit is 0 or negative, don't include the LIMIT clause at all
+    return sql<T[]>`
+      SELECT ${fields.join(', ')}
+      FROM ${table}
+      WHERE business_id = ${businessId}
+      AND period_type = ${period}
+      ORDER BY ${orderBy}
+    `;
+  }
 }
 
 /**
@@ -113,14 +125,25 @@ export async function fetchPlatformMetrics<T extends SqlRow>(
   orderBy: string = 'period_start DESC',
   limit: number = 1
 ): Promise<T[]> {
-  // Create dynamic query using tagged template and interpolated values
-  return sql<T[]>`
-    SELECT ${fields.join(', ')}
-    FROM ${table}
-    WHERE period_type = ${period}
-    ORDER BY ${orderBy}
-    ${limit > 0 ? `LIMIT ${limit}` : ''}
-  `;
+  // Create dynamic query with proper handling of the LIMIT clause
+  // Apply the same fix as in fetchBusinessMetrics
+  if (limit > 0) {
+    return sql<T[]>`
+      SELECT ${fields.join(', ')}
+      FROM ${table}
+      WHERE period_type = ${period}
+      ORDER BY ${orderBy}
+      LIMIT ${limit}
+    `;
+  } else {
+    // When limit is 0 or negative, don't include the LIMIT clause at all
+    return sql<T[]>`
+      SELECT ${fields.join(', ')}
+      FROM ${table}
+      WHERE period_type = ${period}
+      ORDER BY ${orderBy}
+    `;
+  }
 }
 
 /**
