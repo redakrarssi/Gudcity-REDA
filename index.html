@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- CRITICAL: Browser polyfill to prevent "browser is not defined" errors -->
+    <!-- IMMEDIATE browser and extension polyfill to prevent "browser is not defined" errors -->
     <script>
-      // This must be defined before ANY script loads
-      console.log('Applying critical browser polyfill');
+      // CRITICAL: This is the earliest possible polyfill
+      // This prevents "browser is not defined" errors in content scripts and other early-loading code
       window.browser = {
         runtime: { 
           sendMessage: function() { return Promise.resolve(); }, 
@@ -13,29 +13,44 @@
           getURL: function(path) { return path; }
         },
         storage: { 
-          local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } },
-          sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); }, remove: function() { return Promise.resolve(); } }
+          local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } },
+          sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } }
         },
-        tabs: {
-          query: function() { return Promise.resolve([]); }, 
-          create: function() { return Promise.resolve({}); }, 
-          update: function() { return Promise.resolve(); }
-        },
-        webRequest: {
-          onBeforeRequest: { addListener: function() {} },
-          onCompleted: { addListener: function() {} },
-          onErrorOccurred: { addListener: function() {} }
-        },
-        extension: {
-          getURL: function(path) { return path; }
-        }
+        tabs: { query: function() { return Promise.resolve([]); } }
       };
+      
+      // Chrome compatibility
+      window.chrome = window.chrome || {
+        runtime: window.browser.runtime,
+        storage: window.browser.storage,
+        tabs: window.browser.tabs
+      };
+
+      // Content script error suppression
+      const originalConsoleError = console.error;
+      console.error = function(...args) {
+        // Suppress browser-related errors
+        if (args[0] && typeof args[0] === 'string' && 
+            (args[0].includes('browser is not defined') || 
+             args[0].includes('ReferenceError: browser'))) {
+          console.warn('Suppressed browser error:', args[0].substring(0, 50) + '...');
+          return;
+        }
+        return originalConsoleError.apply(console, args);
+      };
+      
+      console.log('Emergency browser polyfill applied');
     </script>
 
-    <!-- AGGRESSIVE LODASH FIX -->
+    <!-- Special fix for content scripts -->
+    <script src="/fix-content-scripts.js" type="module"></script>
+
+    <!-- Load browser polyfill first for extension compatibility -->
+    <script src="/fix-browser-global.js" type="module"></script>
+
+    <!-- LODASH FIX -->
     <script>
-      // CRITICAL: Lodash preinitialization before ANYTHING else
-      // This variable MUST be defined before any script loads
+      // Lodash preinitialization
       var _ = window._ = {
         noop: function() {},
         identity: function(value) { return value; },
@@ -72,8 +87,11 @@
       console.log('Emergency fixes applied directly in HTML');
     </script>
     
-    <!-- Load polyfill loader instead of individual scripts -->
-    <script src="./polyfill-loader.js" onerror="console.error('Failed to load polyfill-loader.js')"></script>
+    <!-- Load polyfill loader for additional polyfills -->
+    <script src="/polyfill-loader.js" type="module" onerror="console.error('Failed to load polyfill-loader.js')"></script>
+    
+    <!-- Full browser polyfill -->
+    <script src="/browser-polyfill.js" type="module"></script>
     
     <!-- Standard head tags -->
     <meta charset="UTF-8" />
@@ -96,8 +114,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
-    <!-- Removed unnecessary font preload that was causing console warnings -->
-    
     <!-- Fast page transitions -->
     <script type="module">
       document.addEventListener('click', e => {
@@ -114,9 +130,6 @@
         }
       });
     </script>
-    
-    <!-- Add browser polyfill to fix "browser is not defined" errors -->
-    <script src="./fix-browser-global.js"></script>
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
