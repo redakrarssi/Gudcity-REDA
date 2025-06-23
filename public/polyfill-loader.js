@@ -2,27 +2,42 @@
 (function() {
   console.log('Polyfill loader started');
 
-  // Set browser polyfill immediately to prevent errors
-  if (typeof window !== 'undefined' && !window.browser) {
-    window.browser = {
-      runtime: { 
-        sendMessage: function() { return Promise.resolve(); }, 
-        onMessage: { addListener: function() {}, removeListener: function() {} },
-        getManifest: function() { return {}; },
-        getURL: function(path) { return path; }
-      },
-      storage: { 
-        local: { 
-          get: function() { return Promise.resolve({}); }, 
-          set: function() { return Promise.resolve(); }, 
-          remove: function() { return Promise.resolve(); } 
+  // Set browser polyfill immediately if not already set
+  if (typeof window !== 'undefined') {
+    if (!window.browser) {
+      window.browser = {
+        runtime: { 
+          sendMessage: function() { return Promise.resolve(); }, 
+          onMessage: { addListener: function() {}, removeListener: function() {} },
+          getManifest: function() { return {}; },
+          getURL: function(path) { return path; }
+        },
+        storage: { 
+          local: { 
+            get: function() { return Promise.resolve({}); }, 
+            set: function() { return Promise.resolve(); }, 
+            remove: function() { return Promise.resolve(); } 
+          }
+        },
+        tabs: {
+          query: function() { return Promise.resolve([]); }
         }
-      },
-      tabs: {
-        query: function() { return Promise.resolve([]); }
-      }
-    };
-    console.log('Emergency browser polyfill applied');
+      };
+    }
+    
+    // Chrome compatibility
+    if (!window.chrome) {
+      window.chrome = {
+        runtime: window.browser.runtime,
+        storage: window.browser.storage,
+        tabs: window.browser.tabs
+      };
+    }
+    
+    // Flag to indicate polyfill is loaded
+    window.__POLYFILL_LOADER_EXECUTED__ = true;
+    
+    console.log('Emergency browser polyfill applied in loader');
   }
 
   // Order matters - load browser-related polyfills first
@@ -36,10 +51,19 @@
 
   function loadPolyfill(src) {
     return new Promise((resolve, reject) => {
+      // Skip if already loaded
+      const existingScript = document.querySelector(`script[src="${src}"]`);
+      if (existingScript) {
+        console.log(`Polyfill ${src} already loaded, skipping`);
+        resolve();
+        return;
+      }
+      
       const script = document.createElement('script');
       
       // Ensure we have leading slash for root-based paths
       script.src = src.startsWith('/') ? src : `/${src}`;
+      script.type = 'module'; // Use module type for better error handling
       
       script.async = false; // Ensure scripts load in order
       script.onload = () => {
@@ -62,12 +86,7 @@
         
         // For browser polyfill failures
         if (src.includes('browser')) {
-          window.browser = window.browser || {
-            runtime: { 
-              sendMessage: function() { return Promise.resolve(); },
-              onMessage: { addListener: function() {} }
-            }
-          };
+          // Already handled in the top of this file
         }
         
         resolve(); // Resolve anyway to continue loading
@@ -85,6 +104,12 @@
         // Continue with next polyfill despite errors
       }
     }
+    
+    // Dispatch event when all polyfills are loaded
+    if (typeof window.CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('polyfills-loaded'));
+    }
+    
     console.log('Polyfill loading completed');
   }
 

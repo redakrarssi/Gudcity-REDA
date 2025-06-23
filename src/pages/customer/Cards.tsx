@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { subscribeToEvents, Event } from '../../utils/telemetry';
+import { queryClient } from '../../utils/queryClient';
+import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
+import NotificationList from '../../components/customer/NotificationList';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -13,6 +17,15 @@ interface CardNotification {
   type: 'success' | 'error' | 'info';
   message: string;
   timestamp: Date;
+}
+
+// Interface for promo code modal
+interface PromoCodeState {
+  isOpen: boolean;
+  cardId: string | null;
+  promoCode: string | null;
+  businessName: string | null;
+  isLoading: boolean;
 }
 
 const CustomerCards = () => {
@@ -23,6 +36,30 @@ const CustomerCards = () => {
   const [rotateCard, setRotateCard] = useState('');
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
+  const [promoCodeState, setPromoCodeState] = useState<PromoCodeState>({
+    isOpen: false,
+    cardId: null,
+    promoCode: null,
+    businessName: null,
+    isLoading: false
+  });
+  
+  // Function to add notification
+  const addNotification = useCallback((type: 'success' | 'error' | 'info', message: string) => {
+    const newNotification = {
+      id: `notification-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      type,
+      message,
+      timestamp: new Date()
+    };
+    
+    setNotifications(prev => [...prev, newNotification]);
+    
+    // Auto-remove notification after 5 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+    }, 5000);
+  }, []);
   
   const { data: loyaltyCards = [], isLoading: loading, error } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
@@ -40,6 +77,63 @@ const CustomerCards = () => {
     enabled: !!user?.id,
     refetchInterval: 5000, // Refetch every 5 seconds
   });
+
+  // Subscribe to real-time events 
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Listen for database events that might affect loyalty cards
+    const unsubscribe = subscribeToEvents((event: Event) => {
+      // Check if the event is relevant to this customer's cards
+      if (event.name === 'error' && 
+          event.data && 
+          event.data.type === LOYALTY_EVENT.POINTS_ADDED && 
+          event.data.customerId === user.id) {
+        // Points were added to a card
+        addNotification('success', `${event.data.points} points added to your ${event.data.businessName || 'loyalty'} card!`);
+        
+        // Refresh card data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+      
+      if (event.name === 'error' && 
+          event.data && 
+          event.data.type === LOYALTY_EVENT.POINTS_REDEEMED && 
+          event.data.customerId === user.id) {
+        // Points were redeemed
+        addNotification('info', `${event.data.points} points redeemed from your ${event.data.businessName || 'loyalty'} card.`);
+        
+        // Refresh card data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+      
+      if (event.name === 'error' && 
+          event.data && 
+          event.data.type === LOYALTY_EVENT.ENROLLMENT_NEW && 
+          event.data.customerId === user.id) {
+        // Customer enrolled in a new loyalty program
+        addNotification('success', `You've joined the ${event.data.programName || 'loyalty'} program!`);
+        
+        // Refresh card data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+      
+      if (event.name === 'error' && 
+          event.data && 
+          event.data.type === LOYALTY_EVENT.PROMO_CODE_GENERATED && 
+          event.data.customerId === user.id) {
+        // Business granted a promo code
+        addNotification('success', `${event.data.businessName || 'A business'} has granted you a promo code!`);
+        
+        // Refresh card data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id, addNotification]);
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -59,6 +153,46 @@ const CustomerCards = () => {
     e.stopPropagation();
     const cardIdString = cardId.toString();
     setRotateCard(cardIdString === rotateCard ? '' : cardIdString);
+  };
+  
+  // Handle promo code button click to view (not generate) a promo code
+  const handlePromoCodeClick = (e: React.MouseEvent, card: LoyaltyCard) => {
+    e.stopPropagation(); // Prevent card expansion
+    
+    if (!card.promoCode) {
+      // No promo code assigned yet
+      addNotification('info', 'No promo code has been assigned to this card yet.');
+      return;
+    }
+    
+    setPromoCodeState({
+      isOpen: true,
+      cardId: card.id,
+      promoCode: card.promoCode,
+      businessName: card.businessName || 'Business',
+      isLoading: false
+    });
+  };
+  
+  // Close promo code modal
+  const closePromoCodeModal = () => {
+    setPromoCodeState(prev => ({
+      ...prev,
+      isOpen: false
+    }));
+  };
+  
+  // Copy promo code to clipboard
+  const copyPromoCode = () => {
+    if (promoCodeState.promoCode) {
+      navigator.clipboard.writeText(promoCodeState.promoCode)
+        .then(() => {
+          addNotification('success', 'Promo code copied to clipboard');
+        })
+        .catch(() => {
+          addNotification('error', 'Failed to copy promo code');
+        });
+    }
   };
   
   const getIconForCard = (card: LoyaltyCard) => {
@@ -117,6 +251,16 @@ const CustomerCards = () => {
   return (
     <CustomerLayout>
       <div className="p-4 md:p-6 lg:p-8 space-y-8">
+        {/* Total Enrollment Count */}
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4">
+          <div className="flex items-center">
+            <Info className="h-5 w-5 text-blue-500 mr-2" />
+            <p className="text-blue-700">
+              You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
+            </p>
+          </div>
+        </div>
+      
         {/* Notifications */}
         <AnimatePresence>
           {notifications.map(note => (
@@ -125,13 +269,28 @@ const CustomerCards = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -100 }}
-              className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-lg"
+              className={`p-4 rounded-md shadow-lg mb-2 ${
+                note.type === 'success' ? 'bg-green-100 border-l-4 border-green-500 text-green-700' :
+                note.type === 'error' ? 'bg-red-100 border-l-4 border-red-500 text-red-700' :
+                'bg-blue-100 border-l-4 border-blue-500 text-blue-700'
+              }`}
               role="alert"
             >
-              <p className="font-bold">{note.message}</p>
+              <div className="flex justify-between items-center">
+                <p className="font-medium">{note.message}</p>
+                <button 
+                  onClick={() => setNotifications(prev => prev.filter(n => n.id !== note.id))}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>
+
+        {/* Customer Notifications and Approvals */}
+        <NotificationList />
 
         {/* Loyalty Cards Section */}
         <div>
@@ -183,6 +342,16 @@ const CustomerCards = () => {
                         
                         {/* Right Side - Actions */}
                         <div className="flex space-x-2">
+                          {/* Only show promo code button if one has been assigned */}
+                          {card.promoCode && (
+                            <button 
+                              onClick={(e) => handlePromoCodeClick(e, card)}
+                              className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+                              aria-label="View promo code"
+                            >
+                              <Tag className="w-5 h-5" />
+                            </button>
+                          )}
                           <button 
                             onClick={(e) => handleCardFlip(card.id, e)}
                             className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
@@ -337,6 +506,65 @@ const CustomerCards = () => {
           )}
         </div>
       </div>
+
+      {/* Promo Code Modal */}
+      <AnimatePresence>
+        {promoCodeState.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden"
+            >
+              <div className="border-b border-gray-200 px-5 py-4 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-800">Your Promo Code</h3>
+                <button 
+                  onClick={closePromoCodeModal}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5">
+                <div className="mb-5">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Your unique promo code for {promoCodeState.businessName}:
+                  </p>
+                  <div className="flex items-center">
+                    <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 mr-2 font-mono text-lg text-center">
+                      {promoCodeState.promoCode}
+                    </div>
+                    <button 
+                      onClick={copyPromoCode}
+                      className="p-2 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 transition-colors"
+                    >
+                      <Copy className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex">
+                  <Info className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                  <p>This is a one-time use code unique to your account. Share with friends to earn bonus points when they use it!</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-5 py-4">
+                <button
+                  onClick={closePromoCodeModal}
+                  className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </CustomerLayout>
   );
 };

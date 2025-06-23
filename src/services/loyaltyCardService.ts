@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
 import { queryClient, queryKeys } from '../utils/queryClient';
+import { emitPromoCodeGeneratedEvent, emitEnrollmentEvent, emitPointsRedeemedEvent } from '../utils/loyaltyEvents';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -324,6 +325,16 @@ export class LoyaltyCardService {
         WHERE lc.id = ${cardId}
       `;
 
+      // Get program and business name
+      const programInfo = await sql`
+        SELECT p.*, b.name as business_name 
+        FROM loyalty_programs p
+        JOIN businesses b ON p.business_id = b.id
+        WHERE p.id = ${programId} AND p.status = 'active'
+      `;
+      
+      if (!programInfo.length) return null;
+
       // Commit the transaction
       await transaction.commit();
 
@@ -348,6 +359,16 @@ export class LoyaltyCardService {
         // Invalidate react-query caches
         queryClient.invalidateQueries({ queryKey: queryKeys.customers.byId(customerId) });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.customerSummary(customerId) });
+        
+        // Emit enrollment event
+        emitEnrollmentEvent(
+          customerId,
+          businessId,
+          programInfo[0].business_name || 'Business',
+          programId,
+          programInfo[0].name || 'Loyalty Program',
+          cardId
+        );
         
         return this.formatCard(card[0]);
       }
@@ -565,77 +586,93 @@ export class LoyaltyCardService {
   }
   
   /**
-   * Redeem a reward from a loyalty card
+   * Redeem a reward
    */
   static async redeemReward(
     cardId: string,
     rewardName: string
   ): Promise<RedemptionResult> {
     try {
-      // Get card with available rewards
+      // Get card details including business name
       const cardResult = await sql`
-        SELECT * FROM loyalty_cards WHERE id = ${cardId}
+        SELECT c.*, b.name as business_name 
+        FROM loyalty_cards c
+        JOIN businesses b ON c.business_id = b.id
+        WHERE c.id = ${cardId}
       `;
       
-      if (!cardResult.length) {
+      if (cardResult.length === 0) {
         return { success: false, message: 'Card not found' };
       }
       
       const card = cardResult[0];
-      const availableRewards = card.available_rewards || [];
       
-      // Find the reward
+      // Find the reward in the card's available rewards
+      const availableRewards = card.available_rewards || [];
       const reward = availableRewards.find((r: any) => r.name === rewardName);
       
       if (!reward) {
-        return { success: false, message: 'Reward not available on this card' };
+        return { success: false, message: 'Reward not found' };
       }
       
-      // Check if enough points
-      if (reward.points > card.points) {
-        return { success: false, message: 'Not enough points to redeem this reward' };
+      if (reward.isRedeemable === false) {
+        return { success: false, message: 'This reward cannot be redeemed directly' };
       }
       
-      // Subtract points if required (some rewards may be free)
-      if (reward.points > 0) {
+      // If sufficient points, redeem the reward
+      if (card.points >= reward.points) {
+        // Deduct points from card
         await sql`
           UPDATE loyalty_cards
           SET 
             points = points - ${reward.points},
-            last_used = NOW(),
+            total_points_spent = total_points_spent + ${reward.points},
             updated_at = NOW()
           WHERE id = ${cardId}
         `;
+        
+        // Record redemption activity
+        await sql`
+          INSERT INTO card_activities (
+            card_id,
+            activity_type,
+            points,
+            description,
+            created_at
+          ) VALUES (
+            ${cardId},
+            'REDEEM_POINTS',
+            ${reward.points},
+            ${`Redeemed ${rewardName}`},
+            NOW()
+          )
+        `;
+        
+        // Emit points redeemed event
+        emitPointsRedeemedEvent(
+          card.customer_id,
+          card.business_id,
+          card.business_name || 'Business',
+          reward.points,
+          cardId,
+          rewardName
+        );
+        
+        // Get updated card
+        const updatedCard = await this.getCustomerCard(card.customer_id, card.business_id);
+        
+        return {
+          success: true,
+          message: `Successfully redeemed ${rewardName} for ${reward.points} points`,
+          updatedCard,
+          reward
+        };
+      } else {
+        return { 
+          success: false, 
+          message: `Not enough points. You need ${reward.points - card.points} more points to redeem this reward.`
+        };
       }
-      
-      // Record redemption
-      await sql`
-        INSERT INTO card_activities (
-          card_id,
-          activity_type,
-          points,
-          description,
-          created_at
-        ) VALUES (
-          ${cardId},
-          'REDEEM_REWARD',
-          ${reward.points},
-          ${`Redeemed ${rewardName} for ${reward.points} points`},
-          NOW()
-        )
-      `;
-      
-      // Get updated card
-      const updatedCard = await sql`
-        SELECT * FROM loyalty_cards WHERE id = ${cardId}
-      `;
-      
-      return {
-        success: true,
-        message: `Successfully redeemed ${rewardName}`,
-        updatedCard: this.formatCard(updatedCard[0]),
-        reward: reward
-      };
     } catch (error) {
       console.error('Error redeeming reward:', error);
       return { success: false, message: 'An error occurred while redeeming the reward' };
@@ -989,6 +1026,142 @@ export class LoyaltyCardService {
       businessName: card.business_name,
       programName: card.program_name
     };
+  }
+
+  /**
+   * Generate a promo code for a specific loyalty card
+   */
+  static async generatePromoCodeForCard(cardId: string): Promise<{ success: boolean; promoCode?: string; message: string }> {
+    try {
+      // Get card info
+      const cardResult = await sql`
+        SELECT 
+          lc.*, 
+          b.name as business_name
+        FROM loyalty_cards lc
+        JOIN businesses b ON lc.business_id = b.id
+        WHERE lc.id = ${cardId}
+      `;
+      
+      if (!cardResult.length) {
+        return { success: false, message: 'Card not found' };
+      }
+      
+      const card = cardResult[0];
+      
+      // Check if card already has a promo code
+      if (card.promo_code) {
+        return { success: true, promoCode: card.promo_code, message: 'Existing promo code retrieved' };
+      }
+      
+      // Generate new promo code
+      const promoCode = await this.generateUniquePromoCode(card.business_id, card.customer_id);
+      
+      // Update the card with the promo code
+      await sql`
+        UPDATE loyalty_cards
+        SET promo_code = ${promoCode}, updated_at = NOW()
+        WHERE id = ${cardId}
+      `;
+      
+      // Emit promo code generated event
+      emitPromoCodeGeneratedEvent(
+        card.customer_id,
+        card.business_id,
+        card.business_name || 'Business',
+        cardId,
+        promoCode
+      );
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.points(card.customer_id) });
+      
+      return { success: true, promoCode, message: 'Promo code generated successfully' };
+    } catch (error) {
+      console.error('Error generating promo code for card:', error);
+      return { success: false, message: 'An error occurred while generating the promo code' };
+    }
+  }
+
+  /**
+   * Get count of enrollments in program_id=4 for a customer
+   */
+  static async getProgram4EnrollmentCount(customerId: string): Promise<number> {
+    try {
+      // Using SQL's casting to handle both string and numeric program_id values
+      const result = await sql`
+        SELECT COUNT(*) as count
+        FROM loyalty_cards
+        WHERE customer_id = ${customerId}
+        AND (program_id = '4' OR program_id = 4)
+        AND is_active = true
+      `;
+      
+      return parseInt(result[0]?.count || '0', 10);
+    } catch (error) {
+      console.error('Error getting program 4 enrollment count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Grant a promo code to a customer's loyalty card (for business owners only)
+   */
+  static async grantPromoCodeToCustomer(
+    businessId: string,
+    cardId: string,
+    customerId: string
+  ): Promise<{ success: boolean; promoCode?: string; message: string }> {
+    try {
+      // Check if card belongs to the customer and business
+      const cardResult = await sql`
+        SELECT c.*, b.name as business_name
+        FROM loyalty_cards c
+        JOIN businesses b ON c.business_id = b.id
+        WHERE c.id = ${cardId}
+        AND c.customer_id = ${customerId}
+        AND c.business_id = ${businessId}
+        AND c.is_active = true
+      `;
+      
+      if (!cardResult.length) {
+        return { success: false, message: 'Card not found or does not belong to this customer and business' };
+      }
+      
+      const card = cardResult[0];
+      
+      // Check if card already has a promo code
+      if (card.promo_code) {
+        return { success: true, promoCode: card.promo_code, message: 'Card already has a promo code' };
+      }
+      
+      // Generate new promo code
+      const promoCode = await this.generateUniquePromoCode(businessId, customerId);
+      
+      // Update the card with the promo code
+      await sql`
+        UPDATE loyalty_cards
+        SET promo_code = ${promoCode}, updated_at = NOW()
+        WHERE id = ${cardId}
+      `;
+      
+      // Emit promo code generated event
+      emitPromoCodeGeneratedEvent(
+        customerId,
+        businessId,
+        card.business_name || 'Business',
+        cardId,
+        promoCode
+      );
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.points(customerId) });
+      
+      return { success: true, promoCode, message: 'Promo code granted successfully' };
+    } catch (error) {
+      console.error('Error granting promo code to customer:', error);
+      return { success: false, message: 'An error occurred while granting the promo code' };
+    }
   }
 }
 

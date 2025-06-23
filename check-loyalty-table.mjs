@@ -1,53 +1,76 @@
-import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
+import pg from 'pg';
 
+// Load environment variables
 dotenv.config();
 
-const DATABASE_URL = process.env.VITE_DATABASE_URL;
+console.log('Checking loyalty_programs table structure...');
 
-async function checkLoyaltyTable() {
-  console.log('Checking loyalty_programs table structure...');
-  
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.log('No DATABASE_URL found in environment variables');
+  process.exit(1);
+}
+
+const client = new pg.Client({
+  connectionString: DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+async function checkLoyaltyProgramsTable() {
   try {
-    if (!DATABASE_URL) {
-      console.error('No DATABASE_URL found in environment variables');
-      return;
-    }
-    
-    const sql = neon(DATABASE_URL);
-    
-    // Check if table exists
-    const tableExists = await sql`
+    await client.connect();
+    console.log('Connected to the database');
+
+    // Check if the table exists
+    const tableCheck = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'loyalty_programs'
       );
-    `;
+    `);
+
+    const tableExists = tableCheck.rows[0].exists;
     
-    if (!tableExists[0].exists) {
-      console.log('loyalty_programs table does not exist!');
+    if (!tableExists) {
+      console.log('Table loyalty_programs does not exist!');
       return;
     }
-    
-    console.log('loyalty_programs table exists, checking columns...');
-    
-    // Get all columns
-    const columns = await sql`
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns 
-      WHERE table_name = 'loyalty_programs'
-      ORDER BY ordinal_position
-    `;
-    
-    console.log('Columns:');
-    columns.forEach(col => {
-      console.log(`- ${col.column_name}: ${col.data_type} (${col.is_nullable === 'YES' ? 'nullable' : 'not null'})`);
+
+    console.log('Table loyalty_programs exists. Checking columns...');
+
+    // Get column information
+    const columnQuery = await client.query(`
+      SELECT column_name, data_type, character_maximum_length
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = 'loyalty_programs'
+      ORDER BY ordinal_position;
+    `);
+
+    console.log('Columns in loyalty_programs table:');
+    columnQuery.rows.forEach(column => {
+      console.log(`- ${column.column_name}: ${column.data_type}${column.character_maximum_length ? `(${column.character_maximum_length})` : ''}`);
     });
-    
+
+    // Check if points_value or point_value exists
+    const pointValueCheck = columnQuery.rows.some(col => col.column_name === 'points_value');
+    const pointValueAlternativeCheck = columnQuery.rows.some(col => col.column_name === 'point_value');
+
+    console.log('\nPoint value column check:');
+    console.log(`- points_value exists: ${pointValueCheck}`);
+    console.log(`- point_value exists: ${pointValueAlternativeCheck}`);
+
   } catch (error) {
-    console.error('Error checking loyalty table:', error);
+    console.error('Error checking database:', error);
+  } finally {
+    await client.end();
+    console.log('Database connection closed');
   }
 }
 
-checkLoyaltyTable().catch(console.error); 
+checkLoyaltyProgramsTable(); 

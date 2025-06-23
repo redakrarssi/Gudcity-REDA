@@ -1,65 +1,122 @@
-import sql from './src/utils/db.js';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import pg from 'pg';
+import { readFileSync } from 'fs';
 
 // Load environment variables
 dotenv.config();
 
-async function updateLoyaltyProgramsSchema() {
+const DATABASE_URL = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
+
+console.log('Updating loyalty_programs table schema...');
+
+if (!DATABASE_URL) {
+  console.log('No DATABASE_URL found in environment variables');
+  console.log('Please set DATABASE_URL or VITE_DATABASE_URL in your environment');
+  process.exit(1);
+}
+
+const client = new pg.Client({
+  connectionString: DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+async function updateLoyaltyProgramsTable() {
   try {
-    console.log('Checking if columns exist in loyalty_programs table...');
-    
-    // Check if is_active column exists
-    const isActiveExists = await sql`
+    await client.connect();
+    console.log('Connected to the database');
+
+    // Start transaction
+    await client.query('BEGIN');
+
+    // Check if the table exists
+    const tableCheck = await client.query(`
       SELECT EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'loyalty_programs' 
-        AND column_name = 'is_active'
-      ) as exists
-    `;
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'loyalty_programs'
+      );
+    `);
+
+    const tableExists = tableCheck.rows[0].exists;
     
-    // Check if category column exists
-    const categoryExists = await sql`
-      SELECT EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'loyalty_programs' 
-        AND column_name = 'category'
-      ) as exists
-    `;
-    
-    // Add is_active column if it doesn't exist
-    if (!isActiveExists[0].exists) {
-      console.log('Adding is_active column to loyalty_programs table...');
-      await sql`
-        ALTER TABLE loyalty_programs 
-        ADD COLUMN is_active BOOLEAN DEFAULT TRUE
-      `;
-      console.log('is_active column added successfully');
+    if (!tableExists) {
+      console.log('Table loyalty_programs does not exist! Creating it...');
+      
+      // Read the schema from file
+      try {
+        const schemaSQL = readFileSync('./db/loyalty_schema.sql', 'utf8');
+        await client.query(schemaSQL);
+        console.log('Created loyalty_programs table from schema file');
+      } catch (readError) {
+        console.error('Error reading schema file:', readError);
+        throw readError;
+      }
     } else {
-      console.log('is_active column already exists');
+      console.log('Table loyalty_programs exists. Checking for points_value column...');
+
+      // Check if the points_value column exists
+      const pointsValueCheck = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = 'public'
+          AND table_name = 'loyalty_programs'
+          AND column_name = 'points_value'
+        );
+      `);
+
+      const pointsValueExists = pointsValueCheck.rows[0].exists;
+
+      if (pointsValueExists) {
+        console.log('points_value column already exists');
+      } else {
+        // Check if point_value exists instead
+        const pointValueCheck = await client.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = 'loyalty_programs'
+            AND column_name = 'point_value'
+          );
+        `);
+
+        const pointValueExists = pointValueCheck.rows[0].exists;
+
+        if (pointValueExists) {
+          console.log('point_value column exists. Adding points_value as an alias...');
+          
+          // Add points_value as a computed column alias of point_value
+          await client.query(`
+            ALTER TABLE loyalty_programs
+            ADD COLUMN points_value NUMERIC(10, 2) GENERATED ALWAYS AS (point_value) STORED;
+          `);
+          console.log('Successfully added points_value as a computed column');
+        } else {
+          console.log('Neither point_value nor points_value exists. Adding both columns...');
+          
+          // Add both columns if neither exists
+          await client.query(`
+            ALTER TABLE loyalty_programs
+            ADD COLUMN point_value NUMERIC(10, 2) DEFAULT 1.0,
+            ADD COLUMN points_value NUMERIC(10, 2) GENERATED ALWAYS AS (point_value) STORED;
+          `);
+          console.log('Successfully added point_value and points_value columns');
+        }
+      }
     }
-    
-    // Add category column if it doesn't exist
-    if (!categoryExists[0].exists) {
-      console.log('Adding category column to loyalty_programs table...');
-      await sql`
-        ALTER TABLE loyalty_programs 
-        ADD COLUMN category VARCHAR(50) DEFAULT 'retail'
-      `;
-      console.log('category column added successfully');
-    } else {
-      console.log('category column already exists');
-    }
-    
+
+    // Commit transaction
+    await client.query('COMMIT');
     console.log('Schema update completed successfully');
+
   } catch (error) {
-    console.error('Error updating schema:', error);
+    await client.query('ROLLBACK');
+    console.error('Error updating database schema:', error);
   } finally {
-    process.exit(0);
+    await client.end();
+    console.log('Database connection closed');
   }
 }
 
-updateLoyaltyProgramsSchema(); 
+updateLoyaltyProgramsTable(); 

@@ -114,9 +114,9 @@ export const NearbyPrograms: React.FC<NearbyProgramsProps> = ({
               setError(t('Could not get your precise location. Using default location instead.'));
             },
             { 
-              timeout: 10000, 
+              timeout: 15000, // Increased timeout to 15 seconds
               enableHighAccuracy: false, // Set to false to prevent high accuracy errors
-              maximumAge: 60000 // Accept positions up to 1 minute old
+              maximumAge: 300000 // Accept positions up to 5 minutes old
             }
           );
         } catch (err) {

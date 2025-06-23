@@ -12,7 +12,7 @@ export interface QRCardProps {
   onCardReady?: (cardNumber: string) => void;
 }
 
-const QRCard: React.FC<QRCardProps> = ({
+export const QRCard: React.FC<QRCardProps> = ({
   userId,
   displayName = 'Loyalty Member',
   onCardReady
@@ -376,5 +376,3 @@ const QRCard: React.FC<QRCardProps> = ({
     </div>
   );
 };
-
-export default QRCard;

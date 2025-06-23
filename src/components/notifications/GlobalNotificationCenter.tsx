@@ -1,100 +1,34 @@
-import React, { useState, useEffect, FC } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Bell, Settings, X, Check, AlertCircle, Gift, Clock, Star, Users, Award, ThumbsUp, ThumbsDown, Tag } from 'lucide-react';
-import { NotificationService } from '../../services/notificationService';
-import type { Notification, NotificationPreferences, NotificationType } from '../../types/notification';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  X, 
+  Bell, 
+  Check, 
+  ThumbsUp, 
+  ThumbsDown, 
+  AlertCircle, 
+  Clock,
+  Gift,
+  Tag,
+  Award
+} from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 
-interface NotificationCenterProps {
-  userId: string;
-}
-
-export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
-  const { t } = useTranslation();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showPreferences, setShowPreferences] = useState(false);
-  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+/**
+ * Global notification center component that displays as a drawer/modal
+ * Shows both notifications and pending approval requests
+ */
+const GlobalNotificationCenter: React.FC = () => {
   const { 
     showNotificationCenter, 
     toggleNotificationCenter, 
+    notifications,
     approvalRequests,
     markAsRead,
     respondToApproval
   } = useNotifications();
 
-  useEffect(() => {
-    loadNotifications();
-    loadPreferences();
-  }, [userId]);
-
-  const loadNotifications = async () => {
-    try {
-      const { notifications: userNotifications } = await NotificationService.getUserNotifications(userId);
-      const { stats } = await NotificationService.getNotificationStats(userId);
-      setNotifications(userNotifications);
-      setUnreadCount(stats.totalUnread);
-    } catch (error) {
-      console.error("Failed to load notifications:", error);
-      // Display a user-friendly error message if needed
-    }
-  };
-
-  const loadPreferences = async () => {
-    try {
-      const prefs = await NotificationService.getUserPreferences(userId);
-      setPreferences(prefs);
-    } catch (error) {
-      console.error("Failed to load preferences:", error);
-    }
-  };
-
-  const handleMarkAsRead = async (notificationId: string) => {
-    try {
-      await NotificationService.markAsRead(notificationId);
-      setNotifications(prevNotifications =>
-        prevNotifications.map(n => (n.id === notificationId ? { ...n, isRead: true } : n))
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Failed to mark notification as read:", error);
-    }
-  };
-
-  const handleUpdatePreferences = async (newPreferences: NotificationPreferences) => {
-    try {
-      await NotificationService.updatePreferences(newPreferences);
-      setPreferences(newPreferences);
-      setShowPreferences(false);
-    } catch (error) {
-      console.error("Failed to update preferences:", error);
-    }
-  };
-
-  const getNotificationIcon = (type: NotificationType): React.ReactElement => {
-    switch (type) {
-      case 'POINTS_EARNED':
-        return <Gift className="h-8 w-8 text-yellow-500" />;
-      case 'REWARD_AVAILABLE':
-        return <Star className="h-8 w-8 text-yellow-400" />;
-      case 'CODE_EXPIRING':
-        return <Clock className="h-8 w-8 text-red-500" />;
-      case 'PROGRAM_ENROLLED':
-        return <Award className="h-8 w-8 text-green-500" />;
-      case 'NEW_CUSTOMER':
-        return <Users className="h-8 w-8 text-blue-500" />;
-      case 'MILESTONE_REACHED':
-        return <Award className="h-8 w-8 text-purple-500" />;
-      case 'SYSTEM_ALERT':
-      case 'SUSPICIOUS_ACTIVITY':
-      case 'NEW_BUSINESS_APPLICATION':
-        return <AlertCircle className="h-8 w-8 text-red-600" />;
-      default:
-        return <Bell className="h-8 w-8 text-gray-500" />;
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'notifications' | 'approvals'>('notifications');
 
   // Format date to relative time (e.g. "2 hours ago")
   const formatRelativeTime = (dateString: string) => {
@@ -116,6 +50,21 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
       return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
     } else {
       return date.toLocaleDateString();
+    }
+  };
+
+  // Get icon based on notification type
+  const getNotificationIcon = (type: string) => {
+    if (type.includes('POINTS_ADDED')) {
+      return <Gift className="h-5 w-5 text-green-500" />;
+    } else if (type.includes('POINTS_DEDUCTED')) {
+      return <Gift className="h-5 w-5 text-orange-500" />;
+    } else if (type.includes('ENROLLMENT')) {
+      return <Award className="h-5 w-5 text-blue-500" />;
+    } else if (type.includes('PROMO')) {
+      return <Tag className="h-5 w-5 text-purple-500" />;
+    } else {
+      return <Bell className="h-5 w-5 text-gray-500" />;
     }
   };
 
@@ -154,9 +103,9 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
             {/* Tabs */}
             <div className="flex border-b border-gray-200 dark:border-gray-700">
               <button
-                onClick={() => setShowNotifications(true)}
+                onClick={() => setActiveTab('notifications')}
                 className={`flex-1 py-2 px-4 text-center ${
-                  showNotifications
+                  activeTab === 'notifications'
                     ? 'text-blue-600 border-b-2 border-blue-600 font-medium'
                     : 'text-gray-500 dark:text-gray-400'
                 }`}
@@ -164,9 +113,9 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                 All
               </button>
               <button
-                onClick={() => setShowNotifications(false)}
+                onClick={() => setActiveTab('approvals')}
                 className={`flex-1 py-2 px-4 text-center ${
-                  !showNotifications
+                  activeTab === 'approvals'
                     ? 'text-blue-600 border-b-2 border-blue-600 font-medium'
                     : 'text-gray-500 dark:text-gray-400'
                 }`}
@@ -177,7 +126,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-2">
-              {showNotifications && (
+              {activeTab === 'notifications' && (
                 <div className="space-y-2">
                   {notifications.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 dark:text-gray-400">
@@ -229,7 +178,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                 </div>
               )}
 
-              {!showNotifications && (
+              {activeTab === 'approvals' && (
                 <div className="space-y-3">
                   {approvalRequests.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 dark:text-gray-400">
@@ -316,4 +265,6 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
       )}
     </AnimatePresence>
   );
-}; 
+};
+
+export default GlobalNotificationCenter;

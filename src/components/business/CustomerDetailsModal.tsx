@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   User,
@@ -14,14 +14,23 @@ import {
   Tag,
   BadgeCheck,
   Loader,
+  Check,
+  X,
+  Zap,
+  Shield
 } from 'lucide-react';
 import { CustomerService } from '../../services/customerService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { PromoService } from '../../services/promoService';
-import { LoyaltyCardService } from '../../services/loyaltyCardService';
+import LoyaltyCardService from '../../services/loyaltyCardService';
 import sql from '../../utils/db';
 import type { Customer } from '../../services/customerService';
 import type { LoyaltyProgram } from '../../types/loyalty';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { LoyaltyCard } from '@/types/loyalty';
+import loyaltyCardService from '@/services/loyaltyCardService';
+import { queryKeys } from '@/utils/queryKeys';
 
 interface CustomerDetailsModalProps {
   isOpen: boolean;
@@ -31,7 +40,7 @@ interface CustomerDetailsModalProps {
   initialData?: any;
 }
 
-export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
+export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
   isOpen,
   onClose,
   customerId,
@@ -66,6 +75,15 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   const [secretPromos, setSecretPromos] = useState<any[]>([]);
   const [selectedSecretPromo, setSelectedSecretPromo] = useState<string>('');
   const [loadingPromos, setLoadingPromos] = useState(false);
+  const [isGeneratingPromoCode, setIsGeneratingPromoCode] = useState(false);
+  const [promoCodeResult, setPromoCodeResult] = useState<{
+    success: boolean;
+    message: string;
+    promoCode?: string;
+    cardId?: string;
+  } | null>(null);
+  const [loyaltyCards, setLoyaltyCards] = useState<any[]>([]);
+  const [loadingCards, setLoadingCards] = useState(true);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -100,11 +118,12 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
 
   // Load customer data when modal opens
   useEffect(() => {
-    if (isOpen && customerId) {
+    if (isOpen && customerId && businessId) {
       console.log('CustomerDetailsModal: Loading data for customer', customerId);
       loadCustomerData();
       loadPrograms();
       loadSecretPromos();
+      loadCustomerLoyaltyCards();
     }
   }, [isOpen, customerId, businessId]);
 
@@ -174,6 +193,22 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
       // Don't set error state as this is not critical
     } finally {
       setLoadingPromos(false);
+    }
+  };
+
+  const loadCustomerLoyaltyCards = async () => {
+    if (!customerId || !businessId) return;
+    
+    try {
+      setLoadingCards(true);
+      const cards = await LoyaltyCardService.getCustomerCards(customerId);
+      // Filter cards to only show ones for this business
+      const businessCards = cards.filter(card => card.businessId === businessId);
+      setLoyaltyCards(businessCards);
+    } catch (err) {
+      console.error('Error loading customer loyalty cards:', err);
+    } finally {
+      setLoadingCards(false);
     }
   };
 
@@ -402,6 +437,37 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
     }
   };
 
+  const handleGrantPromoCode = async (cardId: string) => {
+    if (!customer?.id || !businessId) return;
+    
+    setIsGeneratingPromoCode(true);
+    setPromoCodeResult(null);
+    
+    try {
+      const result = await LoyaltyCardService.grantPromoCodeToCustomer(
+        businessId,
+        cardId,
+        customerId
+      );
+      
+      setPromoCodeResult({
+        ...result,
+        cardId
+      });
+      
+      // Reload the loyalty cards to show the updated promo code
+      loadCustomerLoyaltyCards();
+    } catch (error) {
+      setPromoCodeResult({
+        success: false,
+        message: 'An error occurred while granting a promo code.',
+        cardId
+      });
+    } finally {
+      setIsGeneratingPromoCode(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -478,6 +544,105 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                     <p><span className="text-gray-500">Total Spent:</span> ${(customer?.totalSpent || 0).toFixed(2)}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Loyalty Cards Section */}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-800 mb-3 flex items-center">
+                  <CreditCard className="w-5 h-5 mr-2 text-indigo-500" />
+                  {t('Loyalty Cards')}
+                </h3>
+                
+                {loadingCards ? (
+                  <div className="flex justify-center items-center py-4">
+                    <Loader className="w-6 h-6 text-indigo-500 animate-spin mr-2" />
+                    <p className="text-indigo-500">Loading cards...</p>
+                  </div>
+                ) : loyaltyCards.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-4 text-center">
+                    <p className="text-gray-500">Customer has no loyalty cards with this business.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {loyaltyCards.map(card => (
+                      <div key={card.id} className="bg-white border rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center mb-2">
+                              {card.cardType?.toLowerCase().includes('premium') ? (
+                                <div className="p-2 bg-blue-100 rounded-full mr-2">
+                                  <Shield className="w-4 h-4 text-blue-600" />
+                                </div>
+                              ) : card.cardType?.toLowerCase().includes('gold') ? (
+                                <div className="p-2 bg-amber-100 rounded-full mr-2">
+                                  <Award className="w-4 h-4 text-amber-600" />
+                                </div>
+                              ) : card.cardType?.toLowerCase().includes('fitness') ? (
+                                <div className="p-2 bg-green-100 rounded-full mr-2">
+                                  <Zap className="w-4 h-4 text-green-600" />
+                                </div>
+                              ) : (
+                                <div className="p-2 bg-purple-100 rounded-full mr-2">
+                                  <CreditCard className="w-4 h-4 text-purple-600" />
+                                </div>
+                              )}
+                              <div>
+                                <h4 className="font-medium text-gray-900">{card.programName || 'Loyalty Program'}</h4>
+                                <p className="text-sm text-gray-500">Card ID: {card.id}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4 mb-3">
+                              <div>
+                                <p className="text-xs text-gray-500">Card Type</p>
+                                <p className="font-medium text-gray-700">{card.cardType || 'Standard'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Points</p>
+                                <p className="font-medium text-gray-700">{card.points || 0}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Status</p>
+                                <p className="font-medium text-gray-700">{card.isActive ? 'Active' : 'Inactive'}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="mb-2">
+                              {card.promoCode ? (
+                                <div className="flex items-center">
+                                  <span className="text-sm font-medium mr-2">Promo Code:</span>
+                                  <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-md">{card.promoCode}</span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleGrantPromoCode(card.id)}
+                                  disabled={isGeneratingPromoCode}
+                                  className="inline-flex items-center px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded text-sm"
+                                >
+                                  <Tag className="w-3.5 h-3.5 mr-1" />
+                                  {isGeneratingPromoCode && promoCodeResult?.cardId === card.id 
+                                    ? 'Generating...' 
+                                    : 'Grant Promo Code'}
+                                </button>
+                              )}
+                            </div>
+                            
+                            {promoCodeResult && promoCodeResult.cardId === card.id && (
+                              <div className={`text-sm ${promoCodeResult.success ? 'text-green-600' : 'text-red-600'} mt-2`}>
+                                <div className="flex items-center">
+                                  {promoCodeResult.success 
+                                    ? <Check className="w-4 h-4 mr-1" /> 
+                                    : <X className="w-4 h-4 mr-1" />}
+                                  {promoCodeResult.message}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Action tabs */}

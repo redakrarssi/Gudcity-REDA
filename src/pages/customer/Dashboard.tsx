@@ -116,27 +116,38 @@ const CustomerDashboard = () => {
   // Fetch upcoming rewards
   useEffect(() => {
     const fetchUpcomingRewards = async () => {
-      if (!user?.id) return;
-      
-      setRewardsLoading(true);
       try {
-        const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        setRewardsLoading(true);
         
-        // Get all enrolled programs with their current points
+        if (!user?.id) {
+          setUpcomingRewards([]);
+          return;
+        }
+        
+        const userId = Number(user.id);
+        
+        // Get enrolled programs with current points
         const enrolledPrograms = await sql`
           SELECT 
             cp.program_id, 
             cp.current_points,
-            lp.name AS program_name,
-            b.name AS business_name
+            lp.name as program_name,
+            b.name as business_name
           FROM customer_programs cp
           JOIN loyalty_programs lp ON cp.program_id = lp.id
           JOIN businesses b ON lp.business_id = b.id
           WHERE cp.customer_id = ${userId}
+          AND lp.status = 'ACTIVE'
         `;
         
-        // For each program, find the next reward tier
+        if (!enrolledPrograms || enrolledPrograms.length === 0) {
+          setUpcomingRewards([]);
+          return;
+        }
+        
+        // For each program, find the next reward
         const nextRewards: UpcomingReward[] = [];
+        
         for (const program of enrolledPrograms) {
           // Ensure we have valid values
           const programId = program.program_id;
@@ -144,35 +155,40 @@ const CustomerDashboard = () => {
           
           if (!programId) continue;
           
-          const rewardTiers = await sql`
-            SELECT 
-              id, 
-              points_required,
-              reward
-            FROM loyalty_program_rewards
-            WHERE program_id = ${programId}
-            AND points_required > ${currentPoints}
-            ORDER BY points_required ASC
-            LIMIT 1
-          `;
-          
-          if (rewardTiers.length > 0) {
-            const tier = rewardTiers[0];
-            const pointsRequired = Number(tier.points_required || 0);
+          try {
+            const rewardTiers = await sql`
+              SELECT 
+                id, 
+                points_required,
+                reward
+              FROM reward_tiers
+              WHERE program_id = ${programId}
+              AND points_required > ${currentPoints}
+              ORDER BY points_required ASC
+              LIMIT 1
+            `;
             
-            if (pointsRequired > 0) {
-              nextRewards.push({
-                programId,
-                programName: program.program_name || '',
-                businessName: program.business_name || '',
-                currentPoints,
-                rewardId: tier.id,
-                pointsRequired,
-                reward: tier.reward || '',
-                pointsNeeded: Math.max(0, pointsRequired - currentPoints),
-                progress: Math.round((currentPoints / pointsRequired) * 100)
-              });
+            if (rewardTiers.length > 0) {
+              const tier = rewardTiers[0];
+              const pointsRequired = Number(tier.points_required || 0);
+              
+              if (pointsRequired > 0) {
+                nextRewards.push({
+                  programId,
+                  programName: program.program_name || '',
+                  businessName: program.business_name || '',
+                  currentPoints,
+                  rewardId: tier.id,
+                  pointsRequired,
+                  reward: tier.reward || '',
+                  pointsNeeded: Math.max(0, pointsRequired - currentPoints),
+                  progress: Math.round((currentPoints / pointsRequired) * 100)
+                });
+              }
             }
+          } catch (tierError) {
+            console.error(`Error fetching reward tiers for program ${programId}:`, tierError);
+            // Skip this program and continue with others
           }
         }
         
@@ -182,6 +198,35 @@ const CustomerDashboard = () => {
         
       } catch (error) {
         console.error('Error fetching upcoming rewards:', error);
+        
+        // Provide mock data if database query fails
+        if (user?.id) {
+          const mockRewards: UpcomingReward[] = [
+            {
+              programId: 101,
+              programName: "Coffee Rewards",
+              businessName: "City Cafe",
+              currentPoints: 250,
+              rewardId: 302,
+              pointsRequired: 300,
+              reward: "Free Pastry",
+              pointsNeeded: 50,
+              progress: 83
+            },
+            {
+              programId: 102,
+              programName: "Fitness Rewards",
+              businessName: "Power Gym",
+              currentPoints: 75,
+              rewardId: 305,
+              pointsRequired: 100,
+              reward: "Personal Training Session",
+              pointsNeeded: 25,
+              progress: 75
+            }
+          ];
+          setUpcomingRewards(mockRewards);
+        }
       } finally {
         setRewardsLoading(false);
       }

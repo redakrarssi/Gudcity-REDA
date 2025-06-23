@@ -341,146 +341,127 @@ export class LoyaltyProgramService {
     programId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if customer is already enrolled
-      const existingEnrollmentResult = await sql`
-        SELECT * FROM customer_programs
-        WHERE customer_id = ${parseInt(customerId)}
-        AND program_id = ${parseInt(programId)}
+      // Validate customer and program first
+      const customer = await CustomerService.getCustomerById(customerId);
+      if (!customer) {
+        return { success: false, error: 'Customer not found' };
+      }
+      
+      const program = await this.getProgramById(programId);
+      if (!program) {
+        return { success: false, error: 'Loyalty program not found' };
+      }
+      
+      // Check if the customer is already enrolled in this program
+      const existingEnrollment = await sql`
+        SELECT * FROM program_enrollments
+        WHERE customer_id = ${customerId}
+        AND program_id = ${programId}
       `;
-
-      if (existingEnrollmentResult.length > 0) {
-        // If enrollment exists but is inactive, reactivate it
-        if (existingEnrollmentResult[0].status === 'INACTIVE') {
-          await sql`
-            UPDATE customer_programs
-            SET status = 'ACTIVE', updated_at = NOW()
-            WHERE customer_id = ${parseInt(customerId)}
-            AND program_id = ${parseInt(programId)}
-          `;
-        }
-
-        // Ensure the customer is linked to the business even if the enrollment already existed
-        try {
-          const programInfo = await sql`
-            SELECT business_id FROM loyalty_programs WHERE id = ${parseInt(programId)}
-          `;
-          if (programInfo.length > 0) {
-            const businessId = String(programInfo[0].business_id ?? '');
-            if (businessId) {
-              // Make sure the customer appears in the business dashboard
-              await CustomerService.associateCustomerWithBusiness(
-                customerId,
-                businessId,
-                programId
-              );
-              
-              // Send a notification to the customer about the enrollment 
-              try {
-                const programDetails = await this.getProgramById(programId);
-                const programName = programDetails?.name || 'loyalty program';
-                
-                await import('../services/notificationService').then(({ NotificationService }) => {
-                  NotificationService.createNotification(
-                    customerId,
-                    'PROGRAM_ENROLLED',
-                    'Program Enrollment',
-                    `You have been enrolled in ${programName}`,
-                    {
-                      programId,
-                      programName,
-                      businessId
-                    }
-                  );
-                });
-              } catch (notifErr) {
-                console.error('Error sending enrollment notification:', notifErr);
-              }
-            }
+      
+      if (existingEnrollment.length > 0) {
+        return { success: false, error: 'Customer is already enrolled in this program' };
+      }
+      
+      // Get the business owner
+      const business = await sql`
+        SELECT * FROM users
+        WHERE id = ${program.businessId}
+      `;
+      
+      // Instead of directly enrolling, create an approval request
+      try {
+        // Import CustomerNotificationService in a way that prevents circular dependencies
+        const { CustomerNotificationService, ApprovalRequestType } = await import('./customerNotificationService');
+        
+        // Create an approval request for the customer
+        await CustomerNotificationService.createApprovalRequest(
+          customerId,
+          program.businessId,
+          ApprovalRequestType.ENROLLMENT,
+          programId,
+          'Program Enrollment Request',
+          `${business[0]?.name || 'A business'} wants to enroll you in their ${program.name} program`,
+          {
+            programId: program.id,
+            programName: program.name,
+            businessId: program.businessId,
+            businessName: business[0]?.name || 'Business',
+            programType: program.type,
+            programDescription: program.description
           }
-        } catch (assocErr) {
-          console.error('Error ensuring customer-business association:', assocErr);
-        }
-
+        );
+        
         return { success: true };
+      } catch (error) {
+        console.error('Failed to create approval request:', error);
+        
+        // Fallback to traditional enrollment if the notification system fails
+        // This is a temporary solution until the notification system is fully integrated
+        return await this.directEnrollCustomer(customerId, programId);
       }
-
-      // Verify program exists
-      const programResult = await sql`
-        SELECT * FROM loyalty_programs
-        WHERE id = ${parseInt(programId)}
-        AND status = 'ACTIVE'
-      `;
-
-      if (programResult.length === 0) {
-        return { success: false, error: 'Program does not exist or is not active' };
-      }
-
-      // Insert new enrollment
+    } catch (error) {
+      console.error('Error enrolling customer in loyalty program:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+  
+  /**
+   * Direct enrollment without approval process (used as fallback or after approval)
+   */
+  static async directEnrollCustomer(
+    customerId: string,
+    programId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Enroll the customer in the program
       await sql`
-        INSERT INTO customer_programs (
+        INSERT INTO program_enrollments (
           customer_id,
           program_id,
           current_points,
-          status,
+          last_activity,
           enrolled_at
-        ) VALUES (
-          ${parseInt(customerId)},
-          ${parseInt(programId)},
+        )
+        VALUES (
+          ${customerId},
+          ${programId},
           0,
-          'ACTIVE',
+          NOW(),
           NOW()
         )
       `;
-
-      // Automatically associate the customer with the business so they appear in the business dashboard
+      
+      // Get program details for event emission
+      const program = await this.getProgramById(programId);
+      const business = program ? await sql`SELECT * FROM users WHERE id = ${program.businessId}` : [];
+      
+      // Emit enrollment event if telemetry utilities are available
       try {
-        const businessId = String(programResult[0].business_id ?? '');
-        if (businessId) {
-          await CustomerService.associateCustomerWithBusiness(
+        const { emitEnrollmentEvent } = await import('../utils/loyaltyEvents');
+        
+        // Create or fetch a card for the customer if needed
+        const { LoyaltyCardService } = await import('./loyaltyCardService');
+        const card = await LoyaltyCardService.getCustomerCard(customerId, program?.businessId || '');
+        
+        if (program && card) {
+          emitEnrollmentEvent(
             customerId,
-            businessId,
-            programId
+            program.businessId,
+            business[0]?.name || 'Business',
+            programId,
+            program.name,
+            card.id
           );
-          
-          // Force refresh of the business customers list by clearing cache
-          // This ensures the customer shows up immediately in /business/customers
-          try {
-            const { queryClient, queryKeys } = await import('../utils/queryClient');
-            queryClient.invalidateQueries([queryKeys.BUSINESS_CUSTOMERS, businessId]);
-          } catch (cacheErr) {
-            console.error('Error invalidating business customers cache:', cacheErr);
-          }
-          
-          // Send a notification to the customer about the enrollment
-          try {
-            await import('../services/notificationService').then(({ NotificationService }) => {
-              NotificationService.createNotification(
-                customerId,
-                'PROGRAM_ENROLLED',
-                'Program Enrollment Successful',
-                `You have been enrolled in ${programResult[0].name || 'a loyalty program'}`,
-                {
-                  programId,
-                  programName: programResult[0].name,
-                  businessId
-                }
-              );
-            });
-          } catch (notifErr) {
-            console.error('Error sending enrollment notification:', notifErr);
-          }
         }
-      } catch (assocErr) {
-        console.error('Error associating customer with business after enrollment:', assocErr);
+      } catch (error) {
+        console.error('Failed to emit enrollment event:', error);
       }
-
+      
       return { success: true };
     } catch (error) {
-      console.error('Error enrolling customer:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error('Error directly enrolling customer:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 

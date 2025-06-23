@@ -42,6 +42,21 @@ The following can generally be modified safely:
 4. Adding comments or documentation to existing code
 5. Fixing obvious bugs that don't affect core functionality
 
+## File Size Limitations
+
+For improved maintainability and easier bug fixing:
+
+1. **New Files Size Limit** - New files should not exceed 300 lines of code
+2. **File Splitting** - If functionality requires more than 300 lines, split it into multiple files with clear responsibilities
+3. **Refactoring Large Files** - When modifying existing large files, consider refactoring into smaller modules
+4. **Documentation** - Add clear comments for file relationships when splitting functionality
+
+These limitations help with:
+- Easier code understanding and debugging
+- More focused unit testing
+- Better separation of concerns
+- Reduced merge conflicts in collaborative development
+
 ## Best Practices for AI Changes
 
 1. **Incremental Changes** - Make small, focused changes rather than large rewrites
