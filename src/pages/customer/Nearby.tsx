@@ -24,7 +24,7 @@ import {
 import { LocationService } from '../../services/locationService';
 import { NearbyProgram, Location } from '../../types/location';
 import { NearbyPrograms } from '../../components/location/NearbyPrograms';
-import { Button } from '../../components/ui/Button';
+// Import Button from correct path if needed
 
 // Category icons and colors
 const CATEGORIES = {
@@ -103,7 +103,7 @@ const CustomerNearby = () => {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
         radius,
-        categories
+        categories: selectedCategory === 'all' ? undefined : [selectedCategory]
       });
 
       if (error) {
@@ -175,48 +175,77 @@ const CustomerNearby = () => {
 
   const getUserLocation = () => {
     setLoading(true);
+    setIsLocating(true);
     setError(null);
     
     // Check if geolocation is supported
     if (!navigator.geolocation) {
       setError(t('Geolocation is not supported by your browser'));
       setLoading(false);
+      setIsLocating(false);
+      useFallbackLocation();
       return;
     }
     
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        });
+    try {
+      // Use a timeout to handle cases where geolocation hangs
+      const timeoutId = setTimeout(() => {
+        setError(t('Location request timed out. Using default location.'));
         setLoading(false);
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        
-        // Handle specific geolocation errors
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setError(t('Location access was denied. Please enable location services.'));
-            break;
-          case error.POSITION_UNAVAILABLE:
-            setError(t('Location information is unavailable. Please try again.'));
-            break;
-          case error.TIMEOUT:
-            setError(t('Location request timed out. Please try again.'));
-            break;
-          default:
-            setError(t('An unknown error occurred getting your location.'));
-        }
-        
-        setLoading(false);
-        
-        // Use fallback location
+        setIsLocating(false);
         useFallbackLocation();
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
+      }, 15000); // 15 second timeout
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timeoutId);
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+          setLoading(false);
+          setIsLocating(false);
+        },
+        (error) => {
+          clearTimeout(timeoutId);
+          console.error('Geolocation error:', error);
+          
+          // Don't show error message for permission denied - it's a normal user choice
+          if (error.code === 1) { // PERMISSION_DENIED
+            console.log('User denied geolocation permission. Using default location.');
+          } else {
+            // Handle other geolocation errors
+            switch (error.code) {
+              case error.POSITION_UNAVAILABLE:
+                setError(t('Location information is unavailable. Using default location.'));
+                break;
+              case error.TIMEOUT:
+                setError(t('Location request timed out. Using default location.'));
+                break;
+              default:
+                setError(t('An unknown error occurred getting your location. Using default location.'));
+            }
+          }
+          
+          setLoading(false);
+          setIsLocating(false);
+          
+          // Use fallback location
+          useFallbackLocation();
+        },
+        { 
+          enableHighAccuracy: false, // Use lower accuracy to prevent errors
+          timeout: 10000, // 10 seconds timeout
+          maximumAge: 300000 // Accept positions up to 5 minutes old
+        }
+      );
+    } catch (err) {
+      console.error('Geolocation exception:', err);
+      setError(t('Failed to access location services. Using default location.'));
+      setLoading(false);
+      setIsLocating(false);
+      useFallbackLocation();
+    }
   };
   
   const useFallbackLocation = async () => {

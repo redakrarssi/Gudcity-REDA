@@ -4,6 +4,10 @@ import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import sql from '../utils/db';
+import db from '../utils/databaseConnector';
+import logger from '../utils/logger';
+import { Customer } from '../types/customer';
+import { QRCodeData } from '../types/qrCode';
 
 /**
  * Service to manage user QR codes, ensuring each customer has a valid QR code
@@ -13,20 +17,29 @@ export class UserQrCodeService {
   private static readonly SECRET_KEY = process.env.QR_SECRET_KEY || 'gudcity-qr-security-key-with-additional-entropy-for-hmac-generation';
 
   /**
-   * Generate a consistent cardNumber for a user
+   * Generates a consistent card number for a user
+   * This ensures the same user always gets the same card number
    */
-  private static generateConsistentCardNumber(userId: string | number): string {
-    // Format: CUST-{userId padded to 6 digits}-{checksum digit}
-    const paddedId = userId.toString().padStart(6, '0');
+  static generateConsistentCardNumber(userId: string | number): string {
+    // Convert userId to string if it's a number
+    const userIdStr = typeof userId === 'number' ? userId.toString() : userId;
     
-    // Simple checksum calculation (sum of digits modulo 10)
+    // Create a consistent prefix
+    const prefix = 'GC';
+    
+    // Use the user ID as a seed for consistent generation
+    const idPart = userIdStr.replace(/\D/g, ''); // Remove non-digits
+    const shortId = idPart.substring(0, 6).padStart(6, '0');
+    
+    // Add a checksum digit (simple implementation)
     let sum = 0;
-    for (let i = 0; i < paddedId.length; i++) {
-      sum += parseInt(paddedId[i]);
+    for (let i = 0; i < shortId.length; i++) {
+      sum += parseInt(shortId[i]);
     }
     const checksum = sum % 10;
     
-    return `CUST-${paddedId}-${checksum}`;
+    // Format as GC-XXXXXX-C
+    return `${prefix}-${shortId}-${checksum}`;
   }
 
   /**
@@ -324,42 +337,42 @@ export class UserQrCodeService {
   /**
    * Get QR code details for a customer
    */
-  static async getQrCodeDetails(userId: string | number): Promise<{
-    expirationDate?: Date;
-    cardNumber?: string;
-    cardType?: string;
-    isActive?: boolean;
+  static async getQrCodeDetails(userId: string): Promise<{
+    userId: string;
+    createdAt: string;
+    lastUsed: string | null;
+    expirationDate: string | null;
+    usageCount: number;
   } | null> {
     try {
-      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(userId.toString(), 'CUSTOMER_CARD');
-      if (!qrCode) {
+      const result = await sql.query(
+        `SELECT 
+          u.id as user_id, 
+          q.created_at, 
+          q.last_used, 
+          q.expiration_date, 
+          q.usage_count
+        FROM users u
+        LEFT JOIN user_qrcodes q ON u.id = q.user_id
+        WHERE u.id = $1`,
+        [userId]
+      );
+
+      if (result.length === 0) {
         return null;
       }
 
-      const result: {
-        expirationDate?: Date;
-        cardNumber?: string;
-        cardType?: string;
-        isActive?: boolean;
-      } = {
-        expirationDate: qrCode.expiry_date,
-        isActive: qrCode.status === 'ACTIVE'
+      const row = result[0];
+      
+      return {
+        userId: row.user_id,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+        lastUsed: row.last_used ? new Date(row.last_used).toISOString() : null,
+        expirationDate: row.expiration_date ? new Date(row.expiration_date).toISOString() : null,
+        usageCount: row.usage_count || 0
       };
-
-      // Try to extract card details from QR data
-      if (qrCode.qr_data) {
-        try {
-          const data = JSON.parse(qrCode.qr_data);
-          result.cardNumber = data.cardNumber;
-          result.cardType = data.cardType;
-        } catch (parseError) {
-          console.error('Error parsing QR code data:', parseError);
-        }
-      }
-
-      return result;
     } catch (error) {
-      console.error('Error getting QR code details:', error);
+      logger.error('Error getting QR code details:', error);
       return null;
     }
   }
@@ -367,49 +380,26 @@ export class UserQrCodeService {
   /**
    * Get all programs a customer is enrolled in
    */
-  static async getCustomerEnrolledPrograms(
-    customerId: string | number
-  ): Promise<Array<{
-    id: number;
-    programId: number;
-    businessId: number;
-    programName: string;
-    points: number;
-    tierLevel: string;
-    joinDate: Date;
-    status: string;
-  }>> {
+  static async getCustomerEnrolledPrograms(userId: string): Promise<any[]> {
     try {
-      // Check if the table exists
-      const tableExists = await sql.tableExists('customer_program_enrollments');
-      if (!tableExists) {
-        console.warn('customer_program_enrollments table does not exist in database');
-        return [];
-      }
-
-      // Convert string ID to number if needed
-      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
-
-      // Get all enrollments with program details
-      const enrollments = await sql.query(`
+      // Use tagged template literals instead of sql.query
+      const result = await sql`
         SELECT 
-          e.id, 
-          e.program_id as "programId", 
-          e.business_id as "businessId", 
-          p.name as "programName",
-          e.points, 
-          e.tier_level as "tierLevel", 
-          e.join_date as "joinDate", 
-          e.status
-        FROM customer_program_enrollments e
-        LEFT JOIN loyalty_programs p ON e.program_id = p.id
-        WHERE e.customer_id = $1 AND e.status = 'ACTIVE'
-        ORDER BY e.join_date DESC
-      `, [custId]);
+          cp.id, 
+          cp.program_id, 
+          lp.name as program_name, 
+          lp.description, 
+          cp.current_points,
+          cp.enrolled_at
+        FROM customer_programs cp
+        JOIN loyalty_programs lp ON cp.program_id = lp.id
+        WHERE cp.customer_id = ${userId}
+      `;
 
-      return enrollments;
+      return result;
     } catch (error) {
-      console.error('Error getting customer enrolled programs:', error);
+      logger.error('Error getting customer enrolled programs:', error);
+      // Return empty array instead of null to avoid UI errors
       return [];
     }
   }
@@ -417,60 +407,28 @@ export class UserQrCodeService {
   /**
    * Get all promo codes available to a customer
    */
-  static async getCustomerAvailablePromoCodes(
-    customerId: string | number
-  ): Promise<Array<{
-    id: number;
-    code: string;
-    description: string;
-    discountType: string;
-    discountValue: number;
-    startDate: Date;
-    endDate: Date;
-    status: string;
-    claimed: boolean;
-    used: boolean;
-  }>> {
+  static async getCustomerAvailablePromoCodes(userId: string): Promise<any[]> {
     try {
-      // Check if the tables exist
-      const promoCodesTableExists = await sql.tableExists('promo_codes');
-      const customerPromoCodesTableExists = await sql.tableExists('customer_promo_codes');
-      
-      if (!promoCodesTableExists || !customerPromoCodesTableExists) {
-        console.warn('One or more required tables do not exist in database');
-        return [];
-      }
-
-      // Convert string ID to number if needed
-      const custId = typeof customerId === 'string' ? parseInt(customerId) : customerId;
-
-      // Get all available promo codes for the customer
-      const now = new Date();
-      const promoCodes = await sql.query(`
+      // Use tagged template literals instead of sql.query
+      const result = await sql`
         SELECT 
           p.id,
           p.code,
           p.description,
-          p.discount_type as "discountType",
-          p.discount_value as "discountValue",
-          p.start_date as "startDate",
-          p.end_date as "endDate",
-          p.status,
-          CASE WHEN cp.id IS NOT NULL THEN TRUE ELSE FALSE END as "claimed",
-          CASE WHEN cp.used_at IS NOT NULL THEN TRUE ELSE FALSE END as "used"
+          p.discount_amount,
+          p.start_date,
+          p.end_date
         FROM promo_codes p
-        LEFT JOIN customer_promo_codes cp ON p.id = cp.promo_code_id AND cp.customer_id = $1
-        WHERE 
-          p.status = 'ACTIVE' AND
-          p.start_date <= $2 AND
-          p.end_date >= $2 AND
-          (p.max_uses IS NULL OR p.current_uses < p.max_uses)
-        ORDER BY p.end_date ASC
-      `, [custId, now]);
+        JOIN customer_promo_codes cp ON p.id = cp.promo_id
+        WHERE cp.customer_id = ${userId}
+        AND p.end_date > NOW()
+        AND cp.is_used = FALSE
+      `;
 
-      return promoCodes;
+      return result;
     } catch (error) {
-      console.error('Error getting customer available promo codes:', error);
+      logger.error('Error getting customer available promo codes:', error);
+      // Return empty array instead of null to avoid UI errors
       return [];
     }
   }
@@ -1060,6 +1018,108 @@ export class UserQrCodeService {
           used: boolean;
         }>
       };
+    }
+  }
+
+  /**
+   * Save QR code data for a user
+   */
+  static async saveQrCodeData(userId: string, qrData: QrCodeData | string): Promise<boolean> {
+    try {
+      // Check if qrData is already an object or needs parsing
+      const qrDataObj = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+      
+      // Validate that qrDataObj has expected properties
+      if (!qrDataObj) {
+        logger.error('Invalid QR code data format');
+        return false;
+      }
+      
+      // Store as JSON string
+      const jsonData = typeof qrData === 'string' ? qrData : JSON.stringify(qrData);
+      
+      // Check if record exists
+      const existingRecord = await db.query(
+        'SELECT id FROM user_qrcodes WHERE user_id = $1',
+        [userId]
+      );
+
+      if (existingRecord.rows.length > 0) {
+        // Update existing record
+        await db.query(
+          'UPDATE user_qrcodes SET qr_data = $1, updated_at = NOW() WHERE user_id = $2',
+          [jsonData, userId]
+        );
+      } else {
+        // Insert new record
+        await db.query(
+          'INSERT INTO user_qrcodes (user_id, qr_data, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
+          [userId, jsonData]
+        );
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('Error saving QR code data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get QR code data for a user
+   */
+  static async getQrCodeData(userId: string): Promise<QrCodeData | null> {
+    try {
+      const result = await db.query(
+        'SELECT qr_data FROM user_qrcodes WHERE user_id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      // Safely parse the JSON data with error handling
+      try {
+        // Check if the data is already an object
+        if (typeof result.rows[0].qr_data === 'object' && result.rows[0].qr_data !== null) {
+          return result.rows[0].qr_data as QrCodeData;
+        }
+        
+        // Otherwise parse the string
+        return JSON.parse(result.rows[0].qr_data);
+      } catch (parseError) {
+        logger.error('Error parsing QR code data:', parseError);
+        
+        // Return a basic valid object rather than null
+        return {
+          type: 'unknown',
+          rawData: `Failed to parse data for user ${userId}`
+        };
+      }
+    } catch (error) {
+      logger.error('Error getting QR code data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update QR code usage count and last used timestamp
+   */
+  static async updateQrCodeUsage(userId: string): Promise<boolean> {
+    try {
+      const result = await db.query(
+        `UPDATE user_qrcodes 
+        SET usage_count = COALESCE(usage_count, 0) + 1, last_used = NOW() 
+        WHERE user_id = $1
+        RETURNING id`,
+        [userId]
+      );
+
+      return result.rows.length > 0;
+    } catch (error) {
+      logger.error('Error updating QR code usage:', error);
+      return false;
     }
   }
 } 

@@ -155,18 +155,38 @@ export class LocationService {
     params: LocationSearchParams
   ): Promise<{ programs: NearbyProgram[]; error?: string }> {
     try {
-      if (!params.latitude || !params.longitude) {
-        throw new Error('Latitude and longitude are required');
-      }
-      
-      const radius = params.radius || 10; // Default 10km
+      const radius = params.radius || 10; // Default 10 km
       const limit = params.limit || 20; // Default 20 results
-      
-      // Create base query using tagged template literals, with explicit type casting for joins
+
+      // First check if required tables exist
+      const [locationsExist, programsExist] = await Promise.all([
+        sql`SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'business_locations'
+        )`,
+        sql`SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'loyalty_programs'
+        )`
+      ]);
+
+      // If tables don't exist, return empty results
+      if (!locationsExist[0]?.exists || !programsExist[0]?.exists) {
+        console.warn('Required tables do not exist for nearby program search');
+        return { programs: [] };
+      }
+
+      // Start building the query with tagged template literals
       let query = sql`
         SELECT 
+          lp.id as program_id,
+          lp.business_id,
+          b.name as business_name,
+          lp.name as program_name,
+          COALESCE(lp.category, 'retail') as category,
           l.id as location_id,
-          l.business_id,
           l.name as location_name,
           l.address_line1,
           l.city,
@@ -175,10 +195,6 @@ export class LocationService {
           l.zip,
           l.latitude,
           l.longitude,
-          u.business_name,
-          lp.id as program_id,
-          lp.name as program_name,
-          COALESCE(lp.category, 'retail') as category,
           (
             6371 * acos(
               cos(radians(${params.latitude})) * 
@@ -188,37 +204,37 @@ export class LocationService {
               sin(radians(l.latitude))
             )
           ) as distance
-        FROM 
-          business_locations l
-        JOIN 
-          users u ON l.business_id = u.id
-        JOIN 
-          loyalty_programs lp ON CAST(lp.business_id AS INTEGER) = l.business_id
-        WHERE 
-          l.is_active = true
-          AND (lp.status = 'ACTIVE' OR (
-            EXISTS(
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = 'loyalty_programs' AND column_name = 'is_active'
-            ) AND lp.is_active = true
-          ))
+        FROM business_locations l
+        JOIN businesses b ON l.business_id = b.id
+        JOIN loyalty_programs lp ON lp.business_id = b.id
+        WHERE l.is_active = TRUE
+        AND lp.is_active = TRUE
       `;
       
       // Add category filter if specified
       if (params.categories && params.categories.length > 0) {
         const categoriesFilter = params.categories.filter(c => c !== 'all');
+        
         if (categoriesFilter.length > 0) {
-          // Check if category column exists before filtering
-          query = sql`
-            ${query} 
-            AND (
-              NOT EXISTS(
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'loyalty_programs' AND column_name = 'category'
-              )
-              OR COALESCE(lp.category, 'retail') = ANY(${categoriesFilter})
+          // Check if category column exists in loyalty_programs table
+          const categoryExists = await sql`
+            SELECT EXISTS (
+              SELECT FROM information_schema.columns 
+              WHERE table_name = 'loyalty_programs' 
+              AND column_name = 'category'
             )
           `;
+          
+          if (categoryExists[0]?.exists) {
+            // Convert array to PostgreSQL array format for IN clause
+            const categoryList = categoriesFilter.join(',');
+            
+            // Add category filter
+            query = sql`
+              ${query} 
+              AND lp.category IN (${sql.raw(categoryList)})
+            `;
+          }
         }
       }
       
@@ -238,12 +254,8 @@ export class LocationService {
         LIMIT ${limit}
       `;
       
-      console.log('Executing query with tagged template literals');
-      
       // Execute the query
       const result = await query;
-      
-      console.log(`Found ${result.length} nearby programs`);
       
       // Transform the results into NearbyProgram objects
       const programs: NearbyProgram[] = result.map(row => ({

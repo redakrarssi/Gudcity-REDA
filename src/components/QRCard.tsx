@@ -2,407 +2,215 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
-import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag } from 'lucide-react';
+import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
 import sql from '../utils/db';
+import { useAuth } from '../hooks/useAuth';
 
 export interface QRCardProps {
   userId: string;
-  userName: string;
-  cardNumber?: string;
-  cardType?: string;
-  cardId?: string;
-  businessId?: string;
-  points?: number;
+  displayName?: string;
   onCardReady?: (cardNumber: string) => void;
 }
 
-export const QRCard: React.FC<QRCardProps> = ({ 
-  userId, 
-  userName, 
-  cardNumber, 
-  cardType = "STANDARD",
-  cardId = "",
-  businessId = "",
-  points = 0,
-  onCardReady 
+const QRCard: React.FC<QRCardProps> = ({
+  userId,
+  displayName = 'Loyalty Member',
+  onCardReady
 }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [cardNumber, setCardNumber] = useState<string>('');
+  const [cardType, setCardType] = useState<string>('standard');
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [uniqueCode, setUniqueCode] = useState<string | null>(null);
-  const [expirationDate, setExpirationDate] = useState<string | null>(null);
-  const [isExpiringSoon, setIsExpiringSoon] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [expirationDate, setExpirationDate] = useState<string>('');
+  const [isExpiringSoon, setIsExpiringSoon] = useState<boolean>(false);
   const [enrolledPrograms, setEnrolledPrograms] = useState<any[]>([]);
-  const [availablePromos, setAvailablePromos] = useState<number>(0);
+  const [availablePromos, setAvailablePromos] = useState<any[]>([]);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [useFallback, setUseFallback] = useState<boolean>(false);
-  
+  const [copied, setCopied] = useState<boolean>(false);
+  const [animateIn, setAnimateIn] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   // Create a more user-friendly display name
-  const getDisplayName = (): string => {
-    // If we have a proper name, use it
-    if (userName && userName !== 'Customer User' && userName !== 'Customer') {
-      return userName;
-    }
-    
-    // Try to extract a name from email if username looks like an email
-    if (userName && userName.includes('@')) {
-      const emailParts = userName.split('@');
-      return emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1);
-    }
-    
-    // Last resort, use a translated generic name
-    return t('user.defaultName', 'Customer');
-  };
+  const userInitials = displayName
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+  
+  // Get the actual card number to display
+  const actualCardNumber = cardNumber || `GC-${userId.substring(0, 8)}`;
 
-  // Get user initials for avatar fallback
-  const getUserInitials = (): string => {
-    if (!userName || userName === 'Customer' || userName === 'Customer User') {
-      return 'C';
-    }
+  useEffect(() => {
+    fetchQrCode();
     
-    // If it looks like an email address
-    if (userName.includes('@')) {
-      return userName.split('@')[0].charAt(0).toUpperCase();
-    }
+    // Animation effect
+    const timer = setTimeout(() => {
+      setAnimateIn(true);
+    }, 300);
     
-    // Get initials from name parts
-    const nameParts = userName.trim().split(' ');
-    if (nameParts.length >= 2) {
-      return (
-        (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0))
-        .toUpperCase()
-      );
-    }
-    
-    // Single name
-    return userName.charAt(0).toUpperCase();
-  };
+    return () => clearTimeout(timer);
+  }, []);
 
-  const displayName = getDisplayName();
-  const userInitials = getUserInitials();
-
-  // Generate a deterministic card number based on user ID
-  // This ensures the same user always gets the same card number
-  const generateUniqueCardNumber = (id: string): string => {
-    // Format: CUST-{userId padded to 6 digits}-{checksum digit}
-    const paddedId = id.toString().padStart(6, '0');
-    
-    // Simple checksum calculation (sum of digits modulo 10)
-    let sum = 0;
-    for (let i = 0; i < paddedId.length; i++) {
-      sum += parseInt(paddedId[i]);
-    }
-    const checksum = sum % 10;
-    
-    return `CUST-${paddedId}-${checksum}`;
-  };
-
-  // Use provided card number or generate a consistent one from user ID
-  const actualCardNumber = cardNumber || generateUniqueCardNumber(userId);
-
-  // Create direct QR code from data
-  const createFallbackQrCode = () => {
-    try {
-      console.log('Creating fallback QR code');
-      const fallbackData = JSON.stringify({
-        customerId: userId,
-        cardNumber: actualCardNumber,
-        cardId: cardId || "",
-        businessId: businessId || "",
-        points: points || 0,
-        timestamp: Date.now(),
-        type: 'CUSTOMER_CARD',
-      });
-      setQrData(fallbackData);
-      setQrImageUrl(null);
-      setError(null);
-      return true;
-    } catch (error) {
-      console.error('Error creating fallback QR:', error);
-      // If even this fails, use the absolute last resort fallback
-      setUseFallback(true);
-      return false;
-    }
-  };
-
-  const fetchQrCode = async () => {
-    if (!userId) {
-      console.error('No user ID provided for QR code generation');
-      return;
-    }
-    
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const fetchCardInfo = async () => {
+      if (!userId) return;
       
-      // Try to perform a simple connection test
       try {
-        const connectionTest = await sql`SELECT 1 as connected`;
-        // If we got here, connection is working
-      } catch (connectionError) {
-        console.warn('Database connection issue detected, using fallback data');
-        // Set fallback data for all components
-        setExpirationDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString());
-        setEnrolledPrograms([{
-          id: '1',
-          program_id: '101',
-          program_name: 'Sample Loyalty Program',
-          description: 'This is a sample program for display purposes',
-          current_points: 100,
-          enrolled_at: new Date().toISOString()
-        }]);
-        setAvailablePromos(0);
+        setLoading(true);
         
-        // Still get QR code, as it might not depend on DB
+        // Get customer card info with all relevant data
         try {
-          const qrCodeUrl = await UserQrCodeService.getOrCreateCustomerQrCode(
-            { id: userId } as any,
-            { cardNumber: cardNumber }
-          );
+          const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
           
-          if (qrCodeUrl) {
-            setQrImageUrl(qrCodeUrl);
+          // Set card number from consistent generation
+          if (cardInfo.cardNumber) {
+            setCardNumber(cardInfo.cardNumber);
           }
-        } catch (qrError) {
-          console.error('Error getting QR code:', qrError);
-          setError('Failed to load your QR code');
+          
+          // Set enrolled programs and promo codes
+          setEnrolledPrograms(cardInfo.programs || []);
+          setAvailablePromos(cardInfo.promoCodes || []);
+          
+          // Set expiration date if available
+          if (cardInfo.expirationDate) {
+            const expDate = new Date(cardInfo.expirationDate);
+            setExpirationDate(expDate.toLocaleDateString());
+            
+            // Check if expiring within 30 days
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            setIsExpiringSoon(expDate <= thirtyDaysFromNow);
+          }
+        } catch (err) {
+          console.error('Error fetching card info:', err);
+          // Use fallback values
+          setEnrolledPrograms([]);
+          setAvailablePromos([]);
         }
         
         setLoading(false);
-        return; // Skip the rest of the database queries
+      } catch (err) {
+        console.error('Error in card info effect:', err);
+        setLoading(false);
       }
+    };
+    
+    fetchCardInfo();
+  }, [userId]);
+
+  const fetchQrCode = async () => {
+    if (!userId) {
+      setError('User ID is required');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
       
-      // Get or create the QR code image URL
-      try {
-        const qrCodeUrl = await UserQrCodeService.getOrCreateCustomerQrCode(
-          { id: userId } as any,
-          { cardNumber: cardNumber }
-        );
+      // Try to get the QR code from the service
+      const user = { id: userId, name: displayName };
+      const qrCode = await UserQrCodeService.getOrCreateCustomerQrCode(user);
+      
+      if (qrCode) {
+        setQrImageUrl(qrCode);
         
-        if (qrCodeUrl) {
-          setQrImageUrl(qrCodeUrl);
-        } else {
-          throw new Error('Failed to get QR code');
+        // Get consistent card number
+        const generatedCardNumber = UserQrCodeService.generateConsistentCardNumber ?
+          await UserQrCodeService.generateConsistentCardNumber(userId) :
+          `GC-${userId.substring(0, 8)}`;
+          
+        setCardNumber(generatedCardNumber);
+        
+        if (onCardReady) {
+          onCardReady(generatedCardNumber);
         }
-      } catch (qrError) {
-        console.error('Error getting QR code:', qrError);
-        setError('Failed to load your QR code');
+      } else {
+        throw new Error('Failed to generate QR code');
       }
-      
-      // Get QR code details including expiration date
-      try {
-        // Check if table exists first by querying information_schema
-        const tableCheck = await sql`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'user_qrcodes'
-          )
-        `;
-        
-        const tableExists = tableCheck[0]?.exists;
-        
-        if (tableExists) {
-          // Use proper tagged template literal
-          const qrDetails = await sql`
-            SELECT expiration_date
-            FROM user_qrcodes
-            WHERE user_id = ${userId}
-            LIMIT 1
-          `;
-          
-          // Set default expiration date
-          let expDate = new Date();
-          expDate.setDate(expDate.getDate() + 365);
-          
-          // Use result if available
-          if (qrDetails && qrDetails.length > 0 && qrDetails[0].expiration_date) {
-            const expiryDate = qrDetails[0].expiration_date;
-            // Make sure we have a valid date format
-            if (expiryDate instanceof Date || 
-                typeof expiryDate === 'string' || 
-                typeof expiryDate === 'number') {
-              expDate = new Date(expiryDate);
-            }
-          }
-          
-          setExpirationDate(expDate.toLocaleDateString());
-          
-          // Check if expiring within 7 days
-          const now = new Date();
-          const daysDifference = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          setIsExpiringSoon(daysDifference <= 7 && daysDifference > 0);
-        } else {
-          // Table doesn't exist, use default values
-          const defaultExpDate = new Date();
-          defaultExpDate.setDate(defaultExpDate.getDate() + 365);
-          setExpirationDate(defaultExpDate.toLocaleDateString());
-        }
-      } catch (detailsError) {
-        console.error('Error getting QR details:', detailsError);
-        // Set default expiration date
-        const defaultExpDate = new Date();
-        defaultExpDate.setDate(defaultExpDate.getDate() + 365);
-        setExpirationDate(defaultExpDate.toLocaleDateString());
-      }
-      
-      // Fetch enrolled programs
-      try {
-        // Check if tables exist first
-        const tableCheck = await sql`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'customer_programs'
-          ) AS customer_programs_exists,
-          EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'loyalty_programs'
-          ) AS loyalty_programs_exists
-        `;
-        
-        const tablesExist = tableCheck[0]?.customer_programs_exists && 
-                           tableCheck[0]?.loyalty_programs_exists;
-        
-        if (tablesExist) {
-          // Use proper tagged template literal
-          const programsResult = await sql`
-            SELECT 
-              cp.id, 
-              cp.program_id, 
-              lp.name as program_name, 
-              lp.description, 
-              cp.current_points,
-              cp.enrolled_at
-            FROM customer_programs cp
-            JOIN loyalty_programs lp ON cp.program_id = lp.id
-            WHERE cp.customer_id = ${userId}
-          `;
-          
-          setEnrolledPrograms(programsResult || []);
-        } else {
-          // Tables don't exist, use mock data
-          setEnrolledPrograms([{
-            id: '1',
-            program_id: '101',
-            program_name: 'Sample Loyalty Program',
-            description: 'This is a sample program for display purposes',
-            current_points: 100,
-            enrolled_at: new Date().toISOString()
-          }]);
-        }
-      } catch (programsError) {
-        console.error('Error fetching enrolled programs:', programsError);
-        // Set mock data in case of error
-        setEnrolledPrograms([{
-          id: '1',
-          program_id: '101',
-          program_name: 'Sample Loyalty Program',
-          description: 'This is a sample program for display purposes',
-          current_points: 100,
-          enrolled_at: new Date().toISOString()
-        }]);
-      }
-      
-      // Fetch available promos
-      try {
-        // Check if tables exist first
-        const tableCheck = await sql`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'promo_codes'
-          ) AS promo_codes_exists,
-          EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'customer_promo_codes'
-          ) AS customer_promo_codes_exists
-        `;
-        
-        const tablesExist = tableCheck[0]?.promo_codes_exists && 
-                           tableCheck[0]?.customer_promo_codes_exists;
-        
-        if (tablesExist) {
-          // Use proper tagged template literal
-          const promosResult = await sql`
-            SELECT 
-              p.id,
-              p.code,
-              p.description,
-              p.discount_amount,
-              p.start_date,
-              p.end_date
-            FROM promo_codes p
-            JOIN customer_promo_codes cp ON p.id = cp.promo_id
-            WHERE cp.customer_id = ${userId}
-            AND p.end_date > NOW()
-            AND cp.is_used = FALSE
-          `;
-          
-          setAvailablePromos(promosResult.length || 0);
-        } else {
-          // Tables don't exist, use mock data (0 promos)
-          setAvailablePromos(0);
-        }
-      } catch (promosError) {
-        console.error('Error fetching available promos:', promosError);
-        setAvailablePromos(0);
-      }
-      
     } catch (err) {
-      console.error('Error in fetchQrCode:', err);
-      setError('Failed to load QR code data');
+      console.error('Error generating QR code:', err);
+      setError('Could not generate your loyalty card QR code. Please try again.');
+      
+      // Create fallback card number
+      const fallbackCardNumber = `GC-${userId.substring(0, 8)}`;
+      setCardNumber(fallbackCardNumber);
+      
+      if (onCardReady) {
+        onCardReady(fallbackCardNumber);
+      }
+      
+      createFallbackQrCode();
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (userId) {
-      fetchQrCode();
-    }
-  }, [userId, userName, cardType]);
-
-  // Retry logic with exponential backoff
-  useEffect(() => {
-    if (error && retryCount < 3) {
-      const retryDelay = Math.pow(2, retryCount) * 1000; // exponential backoff
-      const timer = setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        fetchQrCode();
-      }, retryDelay);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [error, retryCount]);
-
-  // Last resort fallback: if all QR code methods fail after retries
-  useEffect(() => {
-    if (retryCount >= 3 && error) {
-      setUseFallback(true);
-    }
-  }, [retryCount, error]);
-
-  const handleRefreshQrCode = () => {
-    if (isRefreshing) return;
+  const handleRefreshQrCode = async () => {
     setIsRefreshing(true);
-    setRetryCount(0);
-    setUseFallback(false);
-    fetchQrCode();
+    await fetchQrCode();
+    setIsRefreshing(false);
+  };
+
+  const createFallbackQrCode = () => {
+    // Set fallback mode
+    setUseFallback(true);
+    
+    // Create a basic QR code with user ID
+    const fallbackData = JSON.stringify({
+      userId: userId,
+      cardNumber: `GC-${userId.substring(0, 8)}`,
+      timestamp: Date.now()
+    });
+    
+    setQrData(fallbackData);
+  };
+
+  const handleCopyId = () => {
+    if (!cardNumber) return;
+    
+    navigator.clipboard.writeText(cardNumber).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleShare = async () => {
+    if (!cardNumber) return;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My Loyalty Card',
+          text: `Scan my loyalty card (ID: ${cardNumber})`,
+        });
+      } catch (shareError) {
+        console.error('Error sharing:', shareError);
+        // Fallback to copy
+        handleCopyId();
+      }
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      handleCopyId();
+    }
   };
 
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm mx-auto">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-6 w-32 bg-gray-200 rounded mb-4"></div>
-          <div className="h-64 w-64 bg-gray-200 rounded-md"></div>
-          <div className="h-4 w-24 bg-gray-200 rounded mt-4"></div>
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-32 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
         </div>
       </div>
     );
@@ -415,7 +223,7 @@ export const QRCard: React.FC<QRCardProps> = ({
         <CreditCard className="h-4 w-4 text-blue-500 mr-1" />
         <span className="text-xs text-blue-600 font-medium">{cardType}</span>
       </div>
-      
+
       <div className="text-center mb-4">
         <div className="flex justify-center items-center mb-2">
           {/* User Avatar/Initials */}
@@ -444,7 +252,7 @@ export const QRCard: React.FC<QRCardProps> = ({
           </button>
         </div>
       )}
-      
+
       <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
         {qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL
@@ -490,7 +298,7 @@ export const QRCard: React.FC<QRCardProps> = ({
             <Shield className="text-red-500 h-12 w-12 mb-4" />
             <div className="text-red-500 text-center">
               {t('qrCard.noQrCode', 'No QR code available')}
-              <button 
+              <button
                 onClick={handleRefreshQrCode} 
                 className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md block mx-auto"
                 disabled={isRefreshing}
@@ -508,7 +316,7 @@ export const QRCard: React.FC<QRCardProps> = ({
           <span className="text-gray-500">{t('qrCard.cardNumber', 'Card Number')}:</span>
           <span className="font-medium">{actualCardNumber}</span>
         </div>
-        
+
         {/* Expiration Date */}
         <div className="flex justify-between items-center text-sm">
           <span className="text-gray-500 flex items-center">
@@ -516,7 +324,7 @@ export const QRCard: React.FC<QRCardProps> = ({
             {t('qrCard.expires', 'Expires')}:
           </span>
           <span className={`font-medium ${isExpiringSoon ? 'text-amber-600' : ''}`}>
-            {expirationDate}
+            {expirationDate || t('qrCard.noExpiration', 'No expiration')}
             {isExpiringSoon && ' (Soon)'}
           </span>
         </div>
@@ -527,16 +335,16 @@ export const QRCard: React.FC<QRCardProps> = ({
             <BadgeCheck className="h-3 w-3 inline mr-1" />
             {t('qrCard.programs', 'Programs')}:
           </span>
-          <span className="font-medium">{enrolledPrograms.length}</span>
+          <span className="font-medium">{enrolledPrograms?.length || 0}</span>
         </div>
-        
+
         {/* Available Promos */}
         <div className="flex justify-between items-center text-sm">
           <span className="text-gray-500 flex items-center">
             <Tag className="h-3 w-3 inline mr-1" />
             {t('qrCard.promos', 'Available Promos')}:
           </span>
-          <span className="font-medium">{availablePromos}</span>
+          <span className="font-medium">{availablePromos?.length || 0}</span>
         </div>
       </div>
       
@@ -563,3 +371,5 @@ export const QRCard: React.FC<QRCardProps> = ({
     </div>
   );
 };
+
+export default QRCard;
