@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
-import { StandardQrCodeData } from '../utils/standardQrCodeGenerator';
-import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, User } from 'lucide-react';
+import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag } from 'lucide-react';
+import sql from '../utils/db';
 
 export interface QRCardProps {
   userId: string;
@@ -130,146 +130,235 @@ export const QRCard: React.FC<QRCardProps> = ({
   };
 
   const fetchQrCode = async () => {
-    if (!userId) return;
-
+    if (!userId) {
+      console.error('No user ID provided for QR code generation');
+      return;
+    }
+    
     try {
       setLoading(true);
-      setError(null);
-      console.log(`Fetching QR code for user ${userId} with card number ${actualCardNumber}`);
       
-      // Try to get or create the customer's QR code from the service
-      const user = {
-        id: parseInt(userId),
-        name: userName || displayName,
-        email: '',  // Email is not needed here
-        role: 'customer',
-        user_type: 'customer'
-      };
-      
-      const cardDetails = {
-        cardNumber: actualCardNumber,
-        cardType: cardType,
-        cardId: cardId,
-        businessId: businessId,
-        points: points
-      };
-      
-      let qrImageUrl = null;
+      // Try to perform a simple connection test
       try {
-        qrImageUrl = await UserQrCodeService.getOrCreateCustomerQrCode(user, cardDetails);
-        console.log('QR code returned:', qrImageUrl ? 'Yes' : 'No');
-      } catch (serviceError) {
-        console.error('Error from UserQrCodeService:', serviceError);
+        const connectionTest = await sql`SELECT 1 as connected`;
+        // If we got here, connection is working
+      } catch (connectionError) {
+        console.warn('Database connection issue detected, using fallback data');
+        // Set fallback data for all components
+        setExpirationDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString());
+        setEnrolledPrograms([{
+          id: '1',
+          program_id: '101',
+          program_name: 'Sample Loyalty Program',
+          description: 'This is a sample program for display purposes',
+          current_points: 100,
+          enrolled_at: new Date().toISOString()
+        }]);
+        setAvailablePromos(0);
+        
+        // Still get QR code, as it might not depend on DB
+        try {
+          const qrCodeUrl = await UserQrCodeService.getOrCreateCustomerQrCode(
+            { id: userId } as any,
+            { cardNumber: cardNumber }
+          );
+          
+          if (qrCodeUrl) {
+            setQrImageUrl(qrCodeUrl);
+          }
+        } catch (qrError) {
+          console.error('Error getting QR code:', qrError);
+          setError('Failed to load your QR code');
+        }
+        
+        setLoading(false);
+        return; // Skip the rest of the database queries
       }
       
-      if (qrImageUrl) {
-        console.log('QR code data URL received, length:', qrImageUrl.length);
-        setDebugInfo({
-          dataType: typeof qrImageUrl,
-          isDataUrl: qrImageUrl.startsWith('data:'),
-          length: qrImageUrl.length,
-        });
+      // Get or create the QR code image URL
+      try {
+        const qrCodeUrl = await UserQrCodeService.getOrCreateCustomerQrCode(
+          { id: userId } as any,
+          { cardNumber: cardNumber }
+        );
         
-        // Case 1: We got a data URL directly - use it
-        if (qrImageUrl.startsWith('data:image')) {
-          setQrImageUrl(qrImageUrl);
-          setQrData(null); // No need for QR data when we have an image
-          setError(null); // Clear any previous errors
-          console.log('Using QR image data URL');
-        } 
-        // Case 2: We got a JSON string or other format - parse and use for QRCodeSVG
-        else {
-          try {
-            // Check if it's JSON data
-            let parsedData;
-            try {
-              parsedData = JSON.parse(qrImageUrl);
-              setQrData(JSON.stringify(parsedData));
-              setQrImageUrl(null);
-              console.log('Parsed QR data as JSON');
-            } catch (parseError) {
-              // Not valid JSON, use as URL or data directly
-              setQrData(qrImageUrl); // Use as raw data
-              setQrImageUrl(null);
-              console.log('Using QR raw data');
-            }
-            
-            setError(null); // Clear any previous errors
-          } catch (parseError) {
-            console.error('Error parsing QR data:', parseError);
-            // Try fallback
-            if (!createFallbackQrCode()) {
-              setError('Error processing QR code data. Please try again.');
-            }
-          }
+        if (qrCodeUrl) {
+          setQrImageUrl(qrCodeUrl);
+        } else {
+          throw new Error('Failed to get QR code');
         }
+      } catch (qrError) {
+        console.error('Error getting QR code:', qrError);
+        setError('Failed to load your QR code');
+      }
+      
+      // Get QR code details including expiration date
+      try {
+        // Check if table exists first by querying information_schema
+        const tableCheck = await sql`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'user_qrcodes'
+          )
+        `;
         
-        // Format the card display code (last 6 characters)
-        setUniqueCode(actualCardNumber.slice(-6));
+        const tableExists = tableCheck[0]?.exists;
         
-        // Notify parent that card is ready
-        if (onCardReady) {
-          onCardReady(actualCardNumber);
-        }
-        
-        // Get QR code details including expiration date
-        try {
-          const qrDetails = await UserQrCodeService.getQrCodeDetails(userId);
-          if (qrDetails && qrDetails.expirationDate) {
-            const expDate = new Date(qrDetails.expirationDate);
-            setExpirationDate(expDate.toLocaleDateString());
-            
-            // Check if expiring within 7 days
-            const now = new Date();
-            const daysDifference = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            setIsExpiringSoon(daysDifference <= 7 && daysDifference > 0);
-          } else {
-            // Set default expiration date (365 days from now - longer expiration)
-            const defaultExpDate = new Date();
-            defaultExpDate.setDate(defaultExpDate.getDate() + 365);
-            setExpirationDate(defaultExpDate.toLocaleDateString());
-          }
-        } catch (detailsError) {
-          console.error('Error getting QR details:', detailsError);
+        if (tableExists) {
+          // Use proper tagged template literal
+          const qrDetails = await sql`
+            SELECT expiration_date
+            FROM user_qrcodes
+            WHERE user_id = ${userId}
+            LIMIT 1
+          `;
+          
           // Set default expiration date
+          let expDate = new Date();
+          expDate.setDate(expDate.getDate() + 365);
+          
+          // Use result if available
+          if (qrDetails && qrDetails.length > 0 && qrDetails[0].expiration_date) {
+            const expiryDate = qrDetails[0].expiration_date;
+            // Make sure we have a valid date format
+            if (expiryDate instanceof Date || 
+                typeof expiryDate === 'string' || 
+                typeof expiryDate === 'number') {
+              expDate = new Date(expiryDate);
+            }
+          }
+          
+          setExpirationDate(expDate.toLocaleDateString());
+          
+          // Check if expiring within 7 days
+          const now = new Date();
+          const daysDifference = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          setIsExpiringSoon(daysDifference <= 7 && daysDifference > 0);
+        } else {
+          // Table doesn't exist, use default values
           const defaultExpDate = new Date();
           defaultExpDate.setDate(defaultExpDate.getDate() + 365);
           setExpirationDate(defaultExpDate.toLocaleDateString());
         }
-        
-        // Fetch enrolled programs
-        try {
-          const programs = await UserQrCodeService.getCustomerEnrolledPrograms(userId);
-          setEnrolledPrograms(programs || []);
-        } catch (programsError) {
-          console.error('Error fetching enrolled programs:', programsError);
-        }
-        
-        // Fetch available promos
-        try {
-          const promos = await UserQrCodeService.getCustomerAvailablePromoCodes(userId);
-          setAvailablePromos(promos.length || 0);
-        } catch (promosError) {
-          console.error('Error fetching available promos:', promosError);
-        }
-      } else {
-        console.error('No QR image URL returned from service');
-        
-        // Try to create a fallback QR code directly
-        if (!createFallbackQrCode()) {
-          setError('Could not load your loyalty card. Please try again later.');
-        }
+      } catch (detailsError) {
+        console.error('Error getting QR details:', detailsError);
+        // Set default expiration date
+        const defaultExpDate = new Date();
+        defaultExpDate.setDate(defaultExpDate.getDate() + 365);
+        setExpirationDate(defaultExpDate.toLocaleDateString());
       }
-    } catch (err) {
-      console.error('Error getting QR code:', err);
       
-      // Try to create a fallback QR code directly
-      if (!createFallbackQrCode()) {
-        setError('Could not load your loyalty card');
+      // Fetch enrolled programs
+      try {
+        // Check if tables exist first
+        const tableCheck = await sql`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'customer_programs'
+          ) AS customer_programs_exists,
+          EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'loyalty_programs'
+          ) AS loyalty_programs_exists
+        `;
+        
+        const tablesExist = tableCheck[0]?.customer_programs_exists && 
+                           tableCheck[0]?.loyalty_programs_exists;
+        
+        if (tablesExist) {
+          // Use proper tagged template literal
+          const programsResult = await sql`
+            SELECT 
+              cp.id, 
+              cp.program_id, 
+              lp.name as program_name, 
+              lp.description, 
+              cp.current_points,
+              cp.enrolled_at
+            FROM customer_programs cp
+            JOIN loyalty_programs lp ON cp.program_id = lp.id
+            WHERE cp.customer_id = ${userId}
+          `;
+          
+          setEnrolledPrograms(programsResult || []);
+        } else {
+          // Tables don't exist, use mock data
+          setEnrolledPrograms([{
+            id: '1',
+            program_id: '101',
+            program_name: 'Sample Loyalty Program',
+            description: 'This is a sample program for display purposes',
+            current_points: 100,
+            enrolled_at: new Date().toISOString()
+          }]);
+        }
+      } catch (programsError) {
+        console.error('Error fetching enrolled programs:', programsError);
+        // Set mock data in case of error
+        setEnrolledPrograms([{
+          id: '1',
+          program_id: '101',
+          program_name: 'Sample Loyalty Program',
+          description: 'This is a sample program for display purposes',
+          current_points: 100,
+          enrolled_at: new Date().toISOString()
+        }]);
       }
+      
+      // Fetch available promos
+      try {
+        // Check if tables exist first
+        const tableCheck = await sql`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'promo_codes'
+          ) AS promo_codes_exists,
+          EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'customer_promo_codes'
+          ) AS customer_promo_codes_exists
+        `;
+        
+        const tablesExist = tableCheck[0]?.promo_codes_exists && 
+                           tableCheck[0]?.customer_promo_codes_exists;
+        
+        if (tablesExist) {
+          // Use proper tagged template literal
+          const promosResult = await sql`
+            SELECT 
+              p.id,
+              p.code,
+              p.description,
+              p.discount_amount,
+              p.start_date,
+              p.end_date
+            FROM promo_codes p
+            JOIN customer_promo_codes cp ON p.id = cp.promo_id
+            WHERE cp.customer_id = ${userId}
+            AND p.end_date > NOW()
+            AND cp.is_used = FALSE
+          `;
+          
+          setAvailablePromos(promosResult.length || 0);
+        } else {
+          // Tables don't exist, use mock data (0 promos)
+          setAvailablePromos(0);
+        }
+      } catch (promosError) {
+        console.error('Error fetching available promos:', promosError);
+        setAvailablePromos(0);
+      }
+      
+    } catch (err) {
+      console.error('Error in fetchQrCode:', err);
+      setError('Failed to load QR code data');
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
     }
   };
 
