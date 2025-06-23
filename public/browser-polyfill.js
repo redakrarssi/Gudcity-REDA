@@ -6,7 +6,7 @@
 // Browser API polyfill for web extensions compatibility
 (function() {
   // Create a browser polyfill if it doesn't exist
-  if (typeof window !== 'undefined' && typeof browser === 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.browser === 'undefined') {
     window.browser = {
       // Add basic browser API polyfills
       runtime: {
@@ -19,6 +19,19 @@
         },
         getURL: function(path) {
           return path;
+        },
+        connect: function() {
+          return {
+            postMessage: function() {},
+            onMessage: { addListener: function() {} },
+            onDisconnect: { addListener: function() {} }
+          };
+        },
+        sendNativeMessage: function() {
+          return Promise.resolve();
+        },
+        getPlatformInfo: function() {
+          return Promise.resolve({ os: 'win', arch: 'x86-64' });
         }
       },
       tabs: {
@@ -26,6 +39,12 @@
           return Promise.resolve([]);
         },
         sendMessage: function() {
+          return Promise.resolve();
+        },
+        create: function() {
+          return Promise.resolve({});
+        },
+        update: function() {
           return Promise.resolve();
         }
       },
@@ -37,6 +56,33 @@
           set: function() {
             return Promise.resolve();
           }
+        },
+        sync: {
+          get: function() {
+            return Promise.resolve({});
+          },
+          set: function() {
+            return Promise.resolve();
+          }
+        }
+      },
+      extension: {
+        getURL: function(path) {
+          return path;
+        },
+        getBackgroundPage: function() {
+          return Promise.resolve(window);
+        }
+      },
+      // Additional APIs that might be referenced
+      webNavigation: {
+        onCommitted: { addListener: function() {} },
+        onCompleted: { addListener: function() {} },
+        onHistoryStateUpdated: { addListener: function() {} }
+      },
+      scripting: {
+        executeScript: function() {
+          return Promise.resolve([]);
         }
       }
     };
@@ -143,6 +189,19 @@
         panels: {
           create: function() { return Promise.resolve({}); }
         }
+      },
+      scripting: {
+        executeScript: function() { return Promise.resolve([]); },
+        insertCSS: function() { return Promise.resolve(); }
+      },
+      webNavigation: {
+        onDOMContentLoaded: { addListener: function() {} },
+        onCompleted: { addListener: function() {} },
+        onHistoryStateUpdated: { addListener: function() {} }
+      },
+      permissions: {
+        contains: function() { return Promise.resolve(true); },
+        request: function() { return Promise.resolve(true); }
       }
     };
     

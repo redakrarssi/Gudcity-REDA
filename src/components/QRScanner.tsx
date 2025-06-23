@@ -37,6 +37,47 @@ import {
   isBrowserSupportedForQrScanning
 } from '../utils/browserSupport';
 
+// Define types for browser extension APIs
+declare global {
+  interface Window {
+    browser?: any;
+    chrome?: any;
+    __CONTENT_SCRIPT_HOST__?: boolean;
+    __BROWSER_POLYFILL__?: boolean;
+    __POLYFILL_LOADER_EXECUTED__?: boolean;
+  }
+}
+
+// Set the maximum number of history items to keep
+const MAX_HISTORY_ITEMS = 20;
+
+// Initialize browser polyfills to prevent "browser is not defined" errors
+// This needs to run before any code that might reference browser extension APIs
+(function initializeBrowserPolyfills() {
+  if (typeof window !== 'undefined') {
+    // Create browser global if it doesn't exist
+    window.browser = window.browser || {
+      runtime: {
+        sendMessage: () => Promise.resolve(),
+        onMessage: { addListener: () => {}, removeListener: () => {} },
+        getURL: (path: string) => path
+      },
+      tabs: { query: () => Promise.resolve([]) },
+      storage: {
+        local: { get: () => Promise.resolve({}), set: () => Promise.resolve() },
+        sync: { get: () => Promise.resolve({}), set: () => Promise.resolve() }
+      }
+    };
+    
+    // Chrome compatibility
+    window.chrome = window.chrome || {
+      runtime: window.browser.runtime,
+      tabs: window.browser.tabs,
+      storage: window.browser.storage
+    };
+  }
+})();
+
 // Define our own version of StandardQrCodeData to avoid import issues
 interface StandardQrCodeData {
   type?: string;

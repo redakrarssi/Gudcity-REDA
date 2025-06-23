@@ -26,15 +26,26 @@
             onDisconnect: { addListener: function() {} },
             postMessage: function() {}
           }; 
-        }
+        },
+        getManifest: function() { return {}; }
       },
       tabs: {
         sendMessage: function() { return Promise.resolve(); },
-        query: function() { return Promise.resolve([]); }
+        query: function() { return Promise.resolve([]); },
+        create: function() { return Promise.resolve({}); }
       },
       storage: {
-        local: { get: function() { return Promise.resolve({}); } },
-        sync: { get: function() { return Promise.resolve({}); } }
+        local: { 
+          get: function() { return Promise.resolve({}); },
+          set: function() { return Promise.resolve({}); }
+        },
+        sync: { 
+          get: function() { return Promise.resolve({}); },
+          set: function() { return Promise.resolve({}); }
+        }
+      },
+      extension: {
+        getURL: function(path) { return path; }
       }
     };
     
@@ -48,9 +59,37 @@
     window.chrome.runtime = window.chrome.runtime || window.browser.runtime;
     window.chrome.tabs = window.chrome.tabs || window.browser.tabs;
     window.chrome.storage = window.chrome.storage || window.browser.storage;
+    window.chrome.extension = window.chrome.extension || window.browser.extension;
     
     // Special flag for content scripts to detect
     window.__CONTENT_SCRIPT_HOST__ = true;
+    
+    // Create mock for script-specific functions called in the error logs
+    // These specifically target the errors in checkPageManual.js, overlays.js, and content.js
+    try {
+      // Apply fixes for known problematic scripts
+      const mockContentScriptFunctions = {
+        // Specific fix for checkPageManual.js:134334 error
+        checkPageManualFix: function() {
+          // Create missing functions referenced in error stack
+          window.i = window.i || function() { return {}; };
+          window[3] = window[3] || function() { return {}; };
+          window[1230] = window[1230] || function() { return {}; };
+        },
+        
+        // Fix for overlays.js error
+        overlaysFix: function() {
+          // Mock the module loader pattern used in the error
+          window.n = window.n || function() { return {}; };
+        }
+      };
+      
+      // Apply the fixes
+      mockContentScriptFunctions.checkPageManualFix();
+      mockContentScriptFunctions.overlaysFix();
+    } catch (err) {
+      console.warn('Error applying specific content script fixes:', err);
+    }
     
     // Add error handler to intercept and suppress content script errors
     window.addEventListener('error', function(event) {
