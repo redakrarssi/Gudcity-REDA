@@ -1571,16 +1571,31 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
   // Save scan to history
   const addToScanHistory = (result: UnifiedScanResult, success: boolean) => {
-    const isObject = (val: any): val is Record<string, any> => 
+    const isObject = (val: unknown): val is Record<string, any> => 
       val !== null && typeof val === 'object';
       
-    const safeGetProperty = (data: any, prop: string): string | undefined => {
-      // Check if data is an object before using 'in' operator
-      if (isObject(data)) {
-        return prop in data ? String(data[prop]) : undefined;
+    const safeGetProperty = (data: unknown, prop: string): string | undefined => {
+      // Handle null, undefined, and primitive values
+      if (data === null || data === undefined) {
+        return undefined;
       }
-      // For primitive values, return string representation
-      return typeof data !== 'undefined' ? String(data) : undefined;
+      
+      // If data is not an object, return string version of primitive
+      if (!isObject(data)) {
+        if (prop === 'value' || prop === 'text') {
+          return String(data);
+        }
+        return undefined;
+      }
+      
+      // Now we know data is an object, we can safely use 'in' operator
+      // But still do an additional check to be ultra safe
+      try {
+        return (prop in data && data[prop] != null) ? String(data[prop]) : undefined;
+      } catch (error) {
+        console.warn(`Error accessing property ${prop}:`, error);
+        return undefined;
+      }
     };
 
     // Generate a unique ID for this scan history item
@@ -1597,7 +1612,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         cardId: safeGetProperty(result.data, 'cardId'),
         programId: safeGetProperty(result.data, 'programId'),
         type: result.type,
-        text: isObject(result.data) ? JSON.stringify(result.data).substring(0, 50) : String(result.data)
+        text: isObject(result.data) ? JSON.stringify(result.data).substring(0, 50) : String(result.data || '')
       },
       timestamp: new Date().toISOString(),
       success

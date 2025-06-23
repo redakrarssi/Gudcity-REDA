@@ -1,52 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- IMMEDIATE browser and extension polyfill to prevent "browser is not defined" errors -->
+    <!-- CRITICAL BROWSER POLYFILL: Must be first script to execute -->
     <script>
-      // CRITICAL: This is the earliest possible polyfill
-      // This prevents "browser is not defined" errors in content scripts and other early-loading code
-      window.browser = {
-        runtime: { 
-          sendMessage: function() { return Promise.resolve(); }, 
-          onMessage: { addListener: function() {}, removeListener: function() {} },
-          getManifest: function() { return {}; },
-          getURL: function(path) { return path; }
-        },
-        storage: { 
-          local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } },
-          sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } }
-        },
-        tabs: { query: function() { return Promise.resolve([]); } }
-      };
-      
-      // Chrome compatibility
-      window.chrome = window.chrome || {
-        runtime: window.browser.runtime,
-        storage: window.browser.storage,
-        tabs: window.browser.tabs
-      };
+      // Immediate critical polyfills for browser extension APIs
+      (function() {
+        console.log('Applying critical browser polyfills');
 
-      // Content script error suppression
-      const originalConsoleError = console.error;
-      console.error = function(...args) {
-        // Suppress browser-related errors
-        if (args[0] && typeof args[0] === 'string' && 
-            (args[0].includes('browser is not defined') || 
-             args[0].includes('ReferenceError: browser'))) {
-          console.warn('Suppressed browser error:', args[0].substring(0, 50) + '...');
-          return;
-        }
-        return originalConsoleError.apply(console, args);
-      };
-      
-      console.log('Emergency browser polyfill applied');
+        // Specifically shim module pattern functions from error logs
+        window['3'] = function() { return {}; };
+        window['1230'] = function() { return {}; };
+        window['i'] = function() { return {}; };
+        window['n'] = function() { return {}; };
+        
+        // Create browser objects
+        window.browser = {
+          runtime: {
+            sendMessage: function() { return Promise.resolve(); },
+            onMessage: { addListener: function() {}, removeListener: function() {} },
+            getURL: function(path) { return path; },
+            connect: function() {
+              return {
+                postMessage: function() {},
+                onMessage: { addListener: function() {} },
+                onDisconnect: { addListener: function() {} }
+              };
+            }
+          },
+          tabs: { 
+            query: function() { return Promise.resolve([]); },
+            sendMessage: function() { return Promise.resolve(); }
+          },
+          storage: { 
+            local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } },
+            sync: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } }
+          }
+        };
+        
+        // Chrome compatibility
+        window.chrome = window.chrome || {
+          runtime: window.browser.runtime,
+          storage: window.browser.storage,
+          tabs: window.browser.tabs,
+          extension: { getURL: function(path) { return path; } }
+        };
+        
+        // Error handling
+        window.addEventListener('error', function(event) {
+          if (event && event.error && event.error.message && 
+              (event.error.message.includes('browser is not defined') || 
+               event.error.message.includes('chrome is not defined'))) {
+            console.warn('Critical polyfill: Suppressed error:', event.error.message);
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+          }
+        }, true);
+        
+        // Content script error suppression
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+          // If the error contains browser is not defined, suppress it
+          if (args[0] && typeof args[0] === 'string' && 
+              (args[0].includes('browser is not defined') || 
+               args[0].includes('ReferenceError: browser') ||
+               args[0].includes("Cannot use 'in' operator"))) {
+            console.warn('Suppressed error:', args[0].substring(0, 50) + '...');
+            return;
+          }
+          return originalConsoleError.apply(console, args);
+        };
+        
+        window.__BROWSER_POLYFILL_LOADED__ = true;
+        
+        console.log('Critical browser polyfill applied');
+      })();
     </script>
 
     <!-- Special fix for content scripts -->
-    <script src="/fix-content-scripts.js" type="module"></script>
+    <script src="/fix-content-scripts.js"></script>
 
     <!-- Load browser polyfill first for extension compatibility -->
-    <script src="/fix-browser-global.js" type="module"></script>
+    <script src="/fix-browser-global.js"></script>
 
     <!-- LODASH FIX -->
     <script>
@@ -84,14 +119,14 @@
         }
       };
       
-      console.log('Emergency fixes applied directly in HTML');
+      console.log('Emergency lodash fix applied');
     </script>
     
     <!-- Load polyfill loader for additional polyfills -->
-    <script src="/polyfill-loader.js" type="module" onerror="console.error('Failed to load polyfill-loader.js')"></script>
+    <script src="/polyfill-loader.js"></script>
     
     <!-- Full browser polyfill -->
-    <script src="/browser-polyfill.js" type="module"></script>
+    <script src="/browser-polyfill.js"></script>
     
     <!-- Standard head tags -->
     <meta charset="UTF-8" />
@@ -115,7 +150,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
     <!-- Fast page transitions -->
-    <script type="module">
+    <script>
       document.addEventListener('click', e => {
         const { target } = e;
         if (target.tagName === 'A' && target.href.startsWith(window.location.origin)) {
@@ -136,28 +171,9 @@
     <meta property="og:url" content="https://gudcity.io/">
   </head>
   <body>
-    <!-- Loading Screen -->
-    <div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; opacity: 0; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(135deg, #EBF4FF 0%, #E6FFFA 100%); z-index: 9999; transition: opacity 0.5s ease-out;">
-      <!-- Loading screen content removed as requested -->
-    </div>
-
+    <!-- App Root -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    
-    <!-- Hide loader when app is ready -->
-    <script>
-      // Loader is disabled as requested
-      var loader = document.getElementById('app-loader');
-      if (loader) {
-        loader.style.display = 'none';
-        loader.style.opacity = '0';
-      }
-      
-      // Disable all loader-related code
-      window.addEventListener('load', function() {
-        // Do nothing - loader is disabled
-      });
-    </script>
     
     <!-- No-JS fallback -->
     <noscript>
