@@ -27,12 +27,15 @@
             postMessage: function() {}
           }; 
         },
-        getManifest: function() { return {}; }
+        getManifest: function() { return {}; },
+        getURL: function(path) { return path; },
+        lastError: null
       },
       tabs: {
         sendMessage: function() { return Promise.resolve(); },
         query: function() { return Promise.resolve([]); },
-        create: function() { return Promise.resolve({}); }
+        create: function() { return Promise.resolve({}); },
+        executeScript: function() { return Promise.resolve([]); }
       },
       storage: {
         local: { 
@@ -45,7 +48,20 @@
         }
       },
       extension: {
-        getURL: function(path) { return path; }
+        getURL: function(path) { return path; },
+        getBackgroundPage: function() { return Promise.resolve(window); }
+      },
+      webRequest: {
+        onBeforeRequest: { addListener: function() {} },
+        onCompleted: { addListener: function() {} }
+      },
+      i18n: {
+        getMessage: function() { return ''; },
+        getUILanguage: function() { return 'en-US'; }
+      },
+      permissions: {
+        contains: function() { return Promise.resolve(true); },
+        request: function() { return Promise.resolve(true); }
       }
     };
     
@@ -57,104 +73,54 @@
     // Chrome compatibility (used by many content scripts)
     window.chrome = window.chrome || {};
     window.chrome.runtime = window.chrome.runtime || window.browser.runtime;
-    window.chrome.tabs = window.chrome.tabs || window.browser.tabs;
     window.chrome.storage = window.chrome.storage || window.browser.storage;
+    window.chrome.tabs = window.chrome.tabs || window.browser.tabs;
     window.chrome.extension = window.chrome.extension || window.browser.extension;
     
-    // Special flag for content scripts to detect
+    // Flags that can be used to detect polyfilled environment
     window.__CONTENT_SCRIPT_HOST__ = true;
-    
-    // Create mock for script-specific functions called in the error logs
-    // These specifically target the errors in checkPageManual.js, overlays.js, and content.js
-    try {
-      // Apply fixes for known problematic scripts
-      const mockContentScriptFunctions = {
-        // Specific fix for checkPageManual.js:134334 error
-        checkPageManualFix: function() {
-          // Create missing functions referenced in error stack
-          window.i = window.i || function() { return {}; };
-          window[3] = window[3] || function() { return {}; };
-          window[1230] = window[1230] || function() { return {}; };
-        },
-        
-        // Fix for overlays.js error
-        overlaysFix: function() {
-          // Mock the module loader pattern used in the error
-          window.n = window.n || function() { return {}; };
-        }
-      };
-      
-      // Apply the fixes
-      mockContentScriptFunctions.checkPageManualFix();
-      mockContentScriptFunctions.overlaysFix();
-    } catch (err) {
-      console.warn('Error applying specific content script fixes:', err);
-    }
-    
-    // Add error handler to intercept and suppress content script errors
+    window.__BROWSER_POLYFILL__ = true;
+
+    // Special error capture specifically for content script errors
     window.addEventListener('error', function(event) {
-      // Check if this is a content script error
       if (event && event.error && event.error.message && 
           (event.error.message.includes('browser is not defined') || 
            event.error.message.includes('chrome is not defined'))) {
-        // Prevent the error from propagating
+        console.warn('Content script polyfill: Suppressed browser API error:', event.error.message);
         event.preventDefault();
         event.stopPropagation();
-        console.warn('Suppressed content script error:', event.error.message);
         return false;
       }
     }, true);
     
-    console.log('Content script fixes applied');
-  }
-
-  // Fix for "browser is not defined" errors in content scripts
-  if (typeof window !== 'undefined' && typeof browser === 'undefined') {
-    // Create a browser polyfill if it doesn't exist
-    window.browser = {
-      // Add basic browser API polyfills
-      runtime: {
-        sendMessage: function() {
-          console.log('Browser API polyfill: sendMessage called');
-          return Promise.resolve();
-        },
-        onMessage: {
-          addListener: function() {
-            console.log('Browser API polyfill: onMessage.addListener called');
-          },
-          removeListener: function() {
-            console.log('Browser API polyfill: onMessage.removeListener called');
-          }
-        },
-        getURL: function(path) {
-          console.log('Browser API polyfill: getURL called with', path);
-          return path;
-        }
-      },
-      tabs: {
-        query: function() {
-          console.log('Browser API polyfill: tabs.query called');
-          return Promise.resolve([]);
-        },
-        sendMessage: function() {
-          console.log('Browser API polyfill: tabs.sendMessage called');
-          return Promise.resolve();
-        }
-      },
-      storage: {
-        local: {
-          get: function() {
-            console.log('Browser API polyfill: storage.local.get called');
-            return Promise.resolve({});
-          },
-          set: function() {
-            console.log('Browser API polyfill: storage.local.set called');
-            return Promise.resolve();
+    // Observer to ensure browser definitions exist when dynamic scripts load
+    const observer = new MutationObserver(function(mutations) {
+      for (let mutation of mutations) {
+        if (mutation.type === 'childList') {
+          for (let node of mutation.addedNodes) {
+            if (node.nodeName === 'SCRIPT') {
+              // Ensure browser is defined before script execution
+              if (!window.browser) {
+                console.warn('Content script polyfill: Detected script insertion without browser defined');
+                // Restore polyfill if somehow removed
+                window.browser = contentScriptAPI;
+                window.chrome = window.chrome || {};
+                window.chrome.runtime = window.chrome.runtime || window.browser.runtime;
+                window.chrome.storage = window.chrome.storage || window.browser.storage;
+                window.chrome.tabs = window.chrome.tabs || window.browser.tabs;
+              }
+            }
           }
         }
       }
-    };
-    
-    console.log('Browser API polyfill installed');
+    });
+
+    // Watch for added scripts
+    observer.observe(document.documentElement, { 
+      childList: true,
+      subtree: true
+    });
+
+    console.log('Content script fixes applied');
   }
-})(); 
+})();
