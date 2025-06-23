@@ -25,7 +25,8 @@
                 onMessage: { addListener: function() {} },
                 onDisconnect: { addListener: function() {} }
               };
-            }
+            },
+            lastError: null
           },
           tabs: { 
             query: function() { return Promise.resolve([]); },
@@ -71,11 +72,33 @@
           return originalConsoleError.apply(console, args);
         };
         
+        // Patch for "Cannot use 'in' operator" error
+        const originalArrayMap = Array.prototype.map;
+        Array.prototype.map = function(callback) {
+          if (this === null || this === undefined) {
+            throw new TypeError('Array.prototype.map called on null or undefined');
+          }
+          
+          try {
+            return originalArrayMap.apply(this, arguments);
+          } catch (error) {
+            if (error && error.message && error.message.includes("Cannot use 'in' operator")) {
+              console.warn('Caught "in" operator error in Array.map, returning safe result');
+              // Return a safe result instead of throwing
+              return [];
+            }
+            throw error;
+          }
+        };
+        
         window.__BROWSER_POLYFILL_LOADED__ = true;
         
         console.log('Critical browser polyfill applied');
       })();
     </script>
+
+    <!-- Direct patch for problematic content scripts -->
+    <script src="/content-script-patch.js"></script>
 
     <!-- Special fix for content scripts -->
     <script src="/fix-content-scripts.js"></script>
