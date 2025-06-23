@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
 import sql from '../utils/db';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface QRCardProps {
   userId: string;
@@ -117,7 +117,12 @@ const QRCard: React.FC<QRCardProps> = ({
       setError(null);
       
       // Try to get the QR code from the service
-      const user = { id: userId, name: displayName };
+      const user = { 
+        id: parseInt(userId, 10) || 0, // Convert to number
+        name: displayName,
+        email: `user-${userId}@example.com`,
+        role: 'customer' as 'customer' | 'admin' | 'business' // Use proper type
+      };
       const qrCode = await UserQrCodeService.getOrCreateCustomerQrCode(user);
       
       if (qrCode) {
