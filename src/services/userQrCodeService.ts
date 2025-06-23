@@ -409,6 +409,21 @@ export class UserQrCodeService {
    */
   static async getCustomerAvailablePromoCodes(userId: string): Promise<any[]> {
     try {
+      // First check if the table exists
+      const tableExists = await sql.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public'
+          AND table_name = 'customer_promo_codes'
+        );
+      `);
+      
+      // If the table doesn't exist, log and return empty array
+      if (!tableExists[0]?.exists) {
+        console.warn('customer_promo_codes table does not exist');
+        return [];
+      }
+
       // Use tagged template literals instead of sql.query
       const result = await sql`
         SELECT 

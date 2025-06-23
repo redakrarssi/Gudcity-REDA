@@ -90,6 +90,20 @@ const debugLog = DEBUG_ENABLED
   : (..._args: unknown[]): void => { /* No-op in production */ };
 
 /**
+ * Ensure data is an object before passing to functions expecting Record<string, unknown>
+ * This fixes the "Cannot use 'in' operator to search for 'rawData' in [number]" error
+ */
+const ensureObjectData = (data: unknown): Record<string, unknown> => {
+  if (data === null || data === undefined) {
+    return {};
+  }
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    return { value: data };
+  }
+  return data as Record<string, unknown>;
+};
+
+/**
  * @deprecated Use QrCodeData from '../types/qrCode' instead
  */
 export type ScanData = CustomerQrCodeData | LoyaltyCardQrCodeData | PromoCodeQrCodeData | UnknownQrCodeData;
@@ -346,7 +360,7 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
       }
 
       // Record successful scan with monitoring
-      extendedQrScanMonitor.recordSuccessfulScan(validatedData.type, validatedData as unknown as Record<string, unknown>);
+      extendedQrScanMonitor.recordSuccessfulScan(validatedData.type, ensureObjectData(validatedData));
       return validatedData;
     }
     
@@ -360,7 +374,7 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
         const customerData = createFallbackCustomerQrCode(parsedData);
         if (customerData) {
           debugLog('Created customer QR code from malformed data', customerData);
-          extendedQrScanMonitor.recordSuccessfulScan('customer', customerData as unknown as Record<string, unknown>);
+          extendedQrScanMonitor.recordSuccessfulScan('customer', ensureObjectData(customerData as unknown as Record<string, unknown>));
           return customerData;
         }
       }
@@ -381,7 +395,7 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
     }
     
     // Record failed scan
-    extendedQrScanMonitor.recordFailedScan('Invalid QR code format', text, parsedData as Record<string, unknown>);
+    extendedQrScanMonitor.recordFailedScan('Invalid QR code format', text, ensureObjectData(parsedData as Record<string, unknown>));
     return null;
   } catch (error) {
     console.error('Error parsing QR code data:', error);
@@ -1518,42 +1532,46 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   const addToScanHistory = (result: UnifiedScanResult, success: boolean) => {
     const isObject = (val: any): val is Record<string, any> => 
       val !== null && typeof val === 'object';
-    
-    // Safe property access - handles non-objects and missing properties
-    const safeGetProperty = (data: any, prop: string): string | undefined => {
-      if (!isObject(data)) return undefined;
-      try {
-        return prop in data && data[prop] != null ? String(data[prop]) : undefined;
-      } catch (error) {
-        console.warn(`Error accessing property ${prop}:`, error);
-        return undefined;
-      }
-    };
       
-    // Safely extract properties from potentially non-object data
+    const safeGetProperty = (data: any, prop: string): string | undefined => {
+      // Check if data is an object before using 'in' operator
+      if (isObject(data)) {
+        return prop in data ? String(data[prop]) : undefined;
+      }
+      // For primitive values, return string representation
+      return typeof data !== 'undefined' ? String(data) : undefined;
+    };
+
+    // Generate a unique ID for this scan history item
+    const idPrefix = success ? 'scan-' : 'error-';
+    const id = `${idPrefix}${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
     const historyItem: ScanHistoryItem = {
-      id: Math.random().toString(36).substring(2, 9),
+      id,
       type: result.type,
       data: {
-        customerId: safeGetProperty(result.data, 'customerId'),
-        customerName: safeGetProperty(result.data, 'customerName'),
-        code: safeGetProperty(result.data, 'code'),
+        customerId: safeGetProperty(result.data, 'customerId') || safeGetProperty(result.data, 'id'),
+        customerName: safeGetProperty(result.data, 'customerName') || safeGetProperty(result.data, 'name'),
+        code: safeGetProperty(result.data, 'code') || safeGetProperty(result.data, 'promoCode'),
+        cardId: safeGetProperty(result.data, 'cardId'),
+        programId: safeGetProperty(result.data, 'programId'),
         type: result.type,
-        text: safeGetProperty(result.data, 'text') || 
-              (isObject(result.data) ? JSON.stringify(result.data) : String(result.data || ''))
+        text: isObject(result.data) ? JSON.stringify(result.data).substring(0, 50) : String(result.data)
       },
-      timestamp: result.timestamp,
+      timestamp: new Date().toISOString(),
       success
     };
     
+    // Add to history
     setScanHistory(prev => {
-      // Keep only the last 20 items
-      const newHistory = [historyItem, ...prev];
-      if (newHistory.length > 20) {
-        return newHistory.slice(0, 20);
-      }
-      return newHistory;
+      const updated = [historyItem, ...prev];
+      return updated.slice(0, MAX_HISTORY_ITEMS);
     });
+    
+    // Save the last successfully scanned result
+    if (success) {
+      setLastResult(result);
+    }
   };
 
   // Handle selecting a previous scan from history
