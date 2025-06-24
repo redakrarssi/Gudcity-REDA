@@ -14,13 +14,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { CustomerNotificationService } from '../../services/customerNotificationService';
 
-// Placeholder types until we have the actual service
+// Real types from the notification service
 enum CustomerNotificationType {
   ENROLLMENT = 'ENROLLMENT',
   POINTS_ADDED = 'POINTS_ADDED',
   POINTS_DEDUCTED = 'POINTS_DEDUCTED',
-  PROMO_CODE = 'PROMO_CODE'
+  PROMO_CODE = 'PROMO_CODE',
+  QR_SCANNED = 'QR_SCANNED'
 }
 
 enum ApprovalRequestType {
@@ -43,6 +45,7 @@ interface CustomerNotification {
   createdAt: string;
   readAt?: string;
   expiresAt?: string;
+  businessName?: string;
 }
 
 interface ApprovalRequest {
@@ -70,93 +73,46 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
   const queryClient = useQueryClient();
   const [activeNotification, setActiveNotification] = useState<string | null>(null);
   
-  // Fetch notifications - For now return mock data
-  const { data: notificationsData, isLoading: notificationsLoading } = useQuery({
+  // Fetch real notifications from the service
+  const { data: notificationsData, isLoading: notificationsLoading, error: notificationsError } = useQuery({
     queryKey: ['customerNotifications', user?.id],
     queryFn: async () => {
       if (!user?.id) return { notifications: [] };
-      // Mock data for development
-      return { 
-        notifications: [
-          {
-            id: '1',
-            customerId: user.id,
-            businessId: '123',
-            type: CustomerNotificationType.POINTS_ADDED,
-            title: 'Points Added',
-            message: 'You received 50 points from Coffee Shop',
-            requiresAction: false,
-            actionTaken: false,
-            isRead: false,
-            createdAt: new Date().toISOString(),
-            businessName: 'Coffee Shop'
-          },
-          {
-            id: '2',
-            customerId: user.id,
-            businessId: '456',
-            type: CustomerNotificationType.PROMO_CODE,
-            title: 'New Promo Code',
-            message: 'You received a new promo code from Fitness Center',
-            data: { promoCode: 'FITNESS10' },
-            requiresAction: false,
-            actionTaken: false,
-            isRead: true,
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-            businessName: 'Fitness Center'
-          }
-        ]
-      };
+      
+      try {
+        const notifications = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
+        return { notifications };
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        // Return empty array on error instead of failing
+        return { notifications: [] };
+      }
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
   
-  // Fetch approval requests - For now return mock data
-  const { data: approvalsData, isLoading: approvalsLoading } = useQuery({
+  // Fetch real approval requests from the service
+  const { data: approvalsData, isLoading: approvalsLoading, error: approvalsError } = useQuery({
     queryKey: ['customerApprovals', user?.id],
     queryFn: async () => {
       if (!user?.id) return { approvals: [] };
-      // Mock data for development
-      return { 
-        approvals: [
-          {
-            id: '1',
-            notificationId: '3',
-            customerId: user.id,
-            businessId: '789',
-            requestType: ApprovalRequestType.ENROLLMENT,
-            entityId: 'program-123',
-            status: 'PENDING',
-            data: { 
-              programName: 'VIP Membership',
-              benefits: ['10% off all purchases', 'Free coffee on Mondays']
-            },
-            requestedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-            businessName: 'Premium Cafe'
-          },
-          {
-            id: '2',
-            notificationId: '4',
-            customerId: user.id,
-            businessId: '101',
-            requestType: ApprovalRequestType.POINTS_DEDUCTION,
-            entityId: 'card-456',
-            status: 'PENDING',
-            data: { 
-              points: 25,
-              reason: 'Incorrect points awarded during system maintenance'
-            },
-            requestedAt: new Date(Date.now() - 86400000).toISOString(),
-            expiresAt: new Date(Date.now() + 6 * 86400000).toISOString(),
-            businessName: 'Tech Store'
-          }
-        ]
-      };
+      
+      try {
+        const approvals = await CustomerNotificationService.getPendingApprovals(user.id.toString());
+        return { approvals };
+      } catch (error) {
+        console.error('Error fetching approvals:', error);
+        // Return empty array on error instead of failing
+        return { approvals: [] };
+      }
     },
     enabled: !!user?.id && showApprovalRequests,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
   
   const notifications = notificationsData?.notifications || [];
@@ -165,17 +121,20 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
   // Handle marking notification as read
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      // In development, just mark as read client-side
-      console.log(`Marking notification ${notificationId} as read`);
-      queryClient.setQueryData(['customerNotifications', user?.id], (oldData: any) => {
-        if (!oldData) return { notifications: [] };
-        return {
-          ...oldData,
-          notifications: oldData.notifications.map((n: CustomerNotification) => 
-            n.id === notificationId ? { ...n, isRead: true } : n
-          )
-        };
-      });
+      const success = await CustomerNotificationService.markAsRead(notificationId);
+      
+      if (success) {
+        // Update local cache
+        queryClient.setQueryData(['customerNotifications', user?.id], (oldData: any) => {
+          if (!oldData) return { notifications: [] };
+          return {
+            ...oldData,
+            notifications: oldData.notifications.map((n: CustomerNotification) => 
+              n.id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+            )
+          };
+        });
+      }
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -184,41 +143,57 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
   // Handle approval action
   const handleApproval = async (approvalId: string, approved: boolean) => {
     try {
-      // In development, just handle client-side
-      console.log(`${approved ? 'Approving' : 'Declining'} request ${approvalId}`);
-      queryClient.setQueryData(['customerApprovals', user?.id], (oldData: any) => {
-        if (!oldData) return { approvals: [] };
-        return {
-          ...oldData,
-          approvals: oldData.approvals.filter((a: ApprovalRequest) => a.id !== approvalId)
-        };
-      });
-
-      // Add notification about approval action
-      const approval = approvals.find(a => a.id === approvalId);
-      if (approval) {
-        queryClient.setQueryData(['customerNotifications', user?.id], (oldData: any) => {
-          if (!oldData) return { notifications: [] };
+      const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
+      
+      if (success) {
+        // Update local cache - remove from approvals
+        queryClient.setQueryData(['customerApprovals', user?.id], (oldData: any) => {
+          if (!oldData) return { approvals: [] };
           return {
             ...oldData,
-            notifications: [
-              {
-                id: `approval-${Date.now()}`,
-                customerId: user?.id || '',
-                businessId: approval.businessId,
-                type: approved ? CustomerNotificationType.ENROLLMENT : CustomerNotificationType.POINTS_DEDUCTED,
-                title: approved ? 'Request Approved' : 'Request Declined',
-                message: `You ${approved ? 'approved' : 'declined'} the request from ${approval.businessName}`,
-                requiresAction: false,
-                actionTaken: true,
-                isRead: false,
-                createdAt: new Date().toISOString(),
-                businessName: approval.businessName
-              },
-              ...oldData.notifications
-            ]
+            approvals: oldData.approvals.filter((a: any) => a.id !== approvalId)
           };
         });
+
+        // Add notification about approval action
+        const approval = approvals.find(a => a.id === approvalId);
+        if (approval) {
+          queryClient.setQueryData(['customerNotifications', user?.id], (oldData: any) => {
+            if (!oldData) return { notifications: [] };
+            return {
+              ...oldData,
+              notifications: [
+                {
+                  id: `approval-response-${Date.now()}`,
+                  customerId: user?.id || '',
+                  businessId: approval.businessId,
+                  type: approved ? CustomerNotificationType.ENROLLMENT : CustomerNotificationType.POINTS_DEDUCTED,
+                  title: approved ? 'Request Approved' : 'Request Declined',
+                  message: `You ${approved ? 'approved' : 'declined'} the request from ${approval.businessName}`,
+                  requiresAction: false,
+                  actionTaken: true,
+                  isRead: false,
+                  createdAt: new Date().toISOString(),
+                  businessName: approval.businessName
+                },
+                ...oldData.notifications
+              ]
+            };
+          });
+        }
+
+        // If approved and it's an enrollment, refresh customer cards data
+        if (approved && approval.requestType === ApprovalRequestType.ENROLLMENT) {
+          queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+          
+          // Also trigger enrollment in the loyalty service
+          try {
+            const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
+            await LoyaltyProgramService.directEnrollCustomer(user?.id.toString() || '', approval.entityId);
+          } catch (enrollmentError) {
+            console.error('Error completing enrollment after approval:', enrollmentError);
+          }
+        }
       }
     } catch (error) {
       console.error('Error responding to approval:', error);
@@ -236,6 +211,8 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         return <Award className="h-5 w-5 text-blue-500" />;
       case CustomerNotificationType.PROMO_CODE:
         return <Tag className="h-5 w-5 text-purple-500" />;
+      case CustomerNotificationType.QR_SCANNED:
+        return <Bell className="h-5 w-5 text-blue-600" />;
       case ApprovalRequestType.ENROLLMENT:
         return <Award className="h-5 w-5 text-blue-700" />;
       case ApprovalRequestType.POINTS_DEDUCTION:
@@ -256,6 +233,8 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         return 'bg-blue-100 border-l-4 border-blue-500';
       case CustomerNotificationType.PROMO_CODE:
         return 'bg-purple-100 border-l-4 border-purple-500';
+      case CustomerNotificationType.QR_SCANNED:
+        return 'bg-blue-100 border-l-4 border-blue-600';
       case ApprovalRequestType.ENROLLMENT:
         return 'bg-blue-100 border-l-4 border-blue-700';
       case ApprovalRequestType.POINTS_DEDUCTION:
@@ -270,12 +249,35 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
     return new Date(dateString).toLocaleString();
   };
   
+  // Show loading state
   if (notificationsLoading || approvalsLoading) {
-    return <div className="text-center py-4"><span className="text-gray-500">{t('Loading...')}</span></div>;
+    return (
+      <div className="text-center py-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <span className="text-gray-500 mt-2 block">{t('Loading notifications...')}</span>
+      </div>
+    );
   }
   
+  // Show error state
+  if (notificationsError || approvalsError) {
+    return (
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <div className="flex">
+          <AlertCircle className="h-5 w-5 text-yellow-400 mr-2" />
+          <div>
+            <p className="text-sm text-yellow-700">
+              {t('Unable to load notifications. Please refresh the page.')}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Don't render if no notifications or approvals
   if (!notifications.length && !approvals.length) {
-    return null; // Don't render anything if no notifications or approvals
+    return null;
   }
   
   return (
@@ -284,7 +286,7 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         <div className="mb-5">
           <h3 className="text-lg font-medium text-gray-800 mb-3 flex items-center">
             <AlertCircle className="mr-2 h-5 w-5 text-amber-500" />
-            {t('Approval Requests')}
+            {t('Approval Requests')} ({approvals.length})
           </h3>
           
           <div className="space-y-3">
@@ -310,23 +312,24 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
                     </div>
                     
                     <p className="text-sm text-gray-600 mt-1">
-                      {/* Show data from the approval */}
-                      {approval.data && approval.data.message ? approval.data.message : 
-                        approval.requestType === ApprovalRequestType.ENROLLMENT
-                          ? `${approval.businessName} wants to enroll you in their loyalty program`
-                          : `${approval.businessName} wants to deduct points from your card`}
+                      {approval.businessName} {approval.requestType === ApprovalRequestType.ENROLLMENT
+                        ? t('wants to enroll you in their loyalty program')
+                        : t('wants to deduct points from your card')}
                     </p>
                     
                     {/* Details about the request */}
                     {approval.data && (
                       <div className="mt-2 p-2 bg-white bg-opacity-70 rounded text-sm text-gray-700">
                         {approval.requestType === ApprovalRequestType.ENROLLMENT && approval.data.programName && (
-                          <p>Program: {approval.data.programName}</p>
+                          <p><strong>Program:</strong> {approval.data.programName}</p>
+                        )}
+                        {approval.requestType === ApprovalRequestType.ENROLLMENT && approval.data.programDescription && (
+                          <p><strong>Description:</strong> {approval.data.programDescription}</p>
                         )}
                         {approval.requestType === ApprovalRequestType.POINTS_DEDUCTION && (
                           <>
-                            {approval.data.points && <p>Points: {approval.data.points}</p>}
-                            {approval.data.reason && <p>Reason: {approval.data.reason}</p>}
+                            {approval.data.points && <p><strong>Points:</strong> {approval.data.points}</p>}
+                            {approval.data.reason && <p><strong>Reason:</strong> {approval.data.reason}</p>}
                           </>
                         )}
                       </div>
@@ -359,7 +362,7 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         <div className="space-y-3">
           <h3 className="text-lg font-medium text-gray-800 mb-3 flex items-center">
             <Bell className="mr-2 h-5 w-5 text-gray-600" />
-            {t('Recent Notifications')}
+            {t('Recent Notifications')} ({notifications.filter(n => !n.isRead).length} {t('unread')})
           </h3>
           
           <AnimatePresence>
@@ -393,7 +396,7 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
                     </p>
                     
                     {/* Expandable details if there's data */}
-                    {notification.data && (
+                    {notification.data && Object.keys(notification.data).length > 0 && (
                       <>
                         <button 
                           onClick={() => setActiveNotification(
@@ -407,7 +410,7 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
                         {activeNotification === notification.id && (
                           <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
                             {Object.entries(notification.data).map(([key, value]) => 
-                              key !== 'requiresAction' && (
+                              key !== 'requiresAction' && value && (
                                 <div key={key} className="flex justify-between mb-1">
                                   <span className="font-medium">{key}:</span>
                                   <span>{String(value)}</span>

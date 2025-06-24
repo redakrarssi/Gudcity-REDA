@@ -2,20 +2,20 @@ import sql from '../utils/db';
 
 export interface Customer {
   id: string;
-  userId?: string;
   name: string;
   email: string;
-  tier: string;
-  loyaltyPoints: number;
-  totalSpent: number;
-  visits: number;
-  birthday?: string;
-  lastVisit?: string;
-  joinedAt: string;
-  notes?: string;
   phone?: string;
-  address?: string;
+  tier: string;
+  points?: number;
+  loyaltyPoints: number;
+  visits: number;
+  totalSpent: number;
+  lastVisit?: string;
   favoriteItems: string[];
+  birthday?: string;
+  joinedAt?: string;
+  notes?: string;
+  status: string;
 }
 
 export interface CustomerInteraction {
@@ -28,71 +28,66 @@ export interface CustomerInteraction {
 }
 
 /**
- * Service for managing customer data with database integration
+ * Service for managing customer data and business-customer relationships
  */
 export class CustomerService {
   /**
-   * Get all customers for a business
+   * Get customers enrolled in a business's programs
+   * This properly joins business programs with customer enrollments
    */
   static async getBusinessCustomers(businessId: string): Promise<Customer[]> {
     try {
-      // Get customers that have interacted with this business via transactions, enrollments or loyalty cards
+      console.log(`Fetching customers for business ID: ${businessId}`);
+      
+      // Get customers who are enrolled in this business's loyalty programs
       const customers = await sql`
-        SELECT DISTINCT c.* 
-        FROM customers c
-        LEFT JOIN program_enrollments pe ON pe.customer_id = c.id::text
-        LEFT JOIN loyalty_programs lp ON lp.id = pe.program_id
-        LEFT JOIN loyalty_transactions lt ON lt.customer_id = c.id::text
-        LEFT JOIN loyalty_cards lc ON lc.customer_id = c.id AND lc.business_id = ${businessId}
-        WHERE lp.business_id = ${businessId} 
-        OR lt.business_id = ${businessId}
-        OR lc.business_id = ${businessId}
+        SELECT DISTINCT
+          c.id,
+          c.name,
+          c.email,
+          c.phone,
+          c.tier,
+          c.status,
+          c.created_at as joined_at,
+          c.notes,
+          COALESCE(SUM(pe.current_points), 0) as loyalty_points,
+          COUNT(DISTINCT pe.program_id) as visits,
+          COALESCE(SUM(lt.amount), 0) as total_spent,
+          MAX(lt.transaction_date) as last_visit,
+          ARRAY_AGG(DISTINCT lp.name) FILTER (WHERE lp.name IS NOT NULL) as enrolled_programs
+        FROM users c
+        JOIN program_enrollments pe ON c.id::text = pe.customer_id
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
+        LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessId}
+        WHERE c.user_type = 'customer' 
+          AND c.status = 'active'
+          AND lp.business_id = ${businessId}
+          AND pe.status = 'ACTIVE'
+        GROUP BY c.id, c.name, c.email, c.phone, c.tier, c.status, c.created_at, c.notes
         ORDER BY c.name ASC
       `;
       
-      if (!customers.length) {
-        return [];
-      }
+      console.log(`Found ${customers.length} customers for business ${businessId}`);
       
-      // For each customer, fetch their favorite items and program information
-      const customersWithDetails = await Promise.all(
-        customers.map(async (customer: any) => {
-          const favoriteItems = await this.getCustomerFavoriteItems(customer.id);
-          
-          // Get customer's loyalty points for this specific business
-          const pointsResult = await sql`
-            SELECT SUM(current_points) as total_points
-            FROM program_enrollments pe
-            JOIN loyalty_programs lp ON pe.program_id = lp.id
-            WHERE pe.customer_id = ${customer.id.toString()}
-            AND lp.business_id = ${businessId}
-          `;
-          
-          const businessPoints = pointsResult.length > 0 ? 
-            parseInt(pointsResult[0].total_points) || 0 : 
-            customer.loyalty_points;
-          
-          return {
-            id: customer.id,
-            userId: customer.user_id,
-            name: customer.name,
-            email: customer.email,
-            tier: customer.tier,
-            loyaltyPoints: businessPoints,
-            totalSpent: parseFloat(customer.total_spent) || 0,
-            visits: customer.visits,
-            birthday: customer.birthday,
-            lastVisit: customer.last_visit,
-            joinedAt: customer.joined_at,
-            notes: customer.notes,
-            phone: customer.phone,
-            address: customer.address,
-            favoriteItems
-          } as Customer;
-        })
-      );
+      const formattedCustomers = customers.map(customer => ({
+        id: customer.id.toString(),
+        name: customer.name || 'Unknown Customer',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        tier: customer.tier || 'Bronze',
+        loyaltyPoints: parseInt(customer.loyalty_points) || 0,
+        points: parseInt(customer.loyalty_points) || 0,
+        visits: parseInt(customer.visits) || 0,
+        totalSpent: parseFloat(customer.total_spent) || 0,
+        lastVisit: customer.last_visit ? new Date(customer.last_visit).toISOString() : undefined,
+        favoriteItems: [], // TODO: Implement favorite items tracking
+        birthday: customer.birthday || undefined,
+        joinedAt: customer.joined_at ? new Date(customer.joined_at).toISOString() : undefined,
+        notes: customer.notes || '',
+        status: customer.status || 'active'
+      }));
       
-      return customersWithDetails;
+      return formattedCustomers;
     } catch (error) {
       console.error('Error fetching business customers:', error);
       return [];
@@ -100,13 +95,19 @@ export class CustomerService {
   }
 
   /**
-   * Get a specific customer by ID
+   * Get a customer by ID
    */
   static async getCustomerById(customerId: string): Promise<Customer | null> {
     try {
       const customers = await sql`
-        SELECT * FROM customers
-        WHERE id = ${customerId}
+        SELECT 
+          c.*,
+          COALESCE(SUM(pe.current_points), 0) as total_loyalty_points,
+          COUNT(DISTINCT pe.program_id) as program_count
+        FROM users c
+        LEFT JOIN program_enrollments pe ON c.id::text = pe.customer_id AND pe.status = 'ACTIVE'
+        WHERE c.id = ${customerId} AND c.user_type = 'customer'
+        GROUP BY c.id
       `;
       
       if (!customers.length) {
@@ -114,145 +115,56 @@ export class CustomerService {
       }
       
       const customer = customers[0];
-      const favoriteItems = await this.getCustomerFavoriteItems(customerId);
-      
       return {
-        id: customer.id,
-        userId: customer.user_id,
-        name: customer.name,
-        email: customer.email,
-        tier: customer.tier,
-        loyaltyPoints: customer.loyalty_points,
-        totalSpent: parseFloat(customer.total_spent) || 0,
-        visits: customer.visits,
-        birthday: customer.birthday,
-        lastVisit: customer.last_visit,
-        joinedAt: customer.joined_at,
-        notes: customer.notes,
-        phone: customer.phone,
-        address: customer.address,
-        favoriteItems
-      } as Customer;
+        id: customer.id.toString(),
+        name: customer.name || 'Unknown Customer',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        tier: customer.tier || 'Bronze',
+        loyaltyPoints: parseInt(customer.total_loyalty_points) || 0,
+        points: parseInt(customer.total_loyalty_points) || 0,
+        visits: parseInt(customer.program_count) || 0,
+        totalSpent: 0, // TODO: Calculate from transactions
+        favoriteItems: [],
+        joinedAt: customer.created_at ? new Date(customer.created_at).toISOString() : undefined,
+        notes: customer.notes || '',
+        status: customer.status || 'active'
+      };
     } catch (error) {
-      console.error(`Error fetching customer ${customerId}:`, error);
+      console.error('Error fetching customer by ID:', error);
       return null;
     }
   }
 
   /**
-   * Get favorite items for a specific customer
-   */
-  static async getCustomerFavoriteItems(customerId: string): Promise<string[]> {
-    try {
-      const items = await sql`
-        SELECT item_name 
-        FROM customer_favorite_items
-        WHERE customer_id = ${customerId}
-        ORDER BY created_at ASC
-      `;
-      
-      return items.map((item: any) => item.item_name);
-    } catch (error) {
-      console.error(`Error fetching favorite items for customer ${customerId}:`, error);
-      return [];
-    }
-  }
-
-  /**
-   * Search for customers by name or email
-   */
-  static async searchCustomers(businessId: string, searchTerm: string): Promise<Customer[]> {
-    try {
-      const customers = await sql`
-        SELECT DISTINCT c.* 
-        FROM customers c
-        LEFT JOIN program_enrollments pe ON pe.customer_id = c.id::text
-        LEFT JOIN loyalty_programs lp ON lp.id = pe.program_id
-        LEFT JOIN loyalty_transactions lt ON lt.customer_id = c.id::text
-        LEFT JOIN loyalty_cards lc ON lc.customer_id = c.id AND lc.business_id = ${businessId}
-        WHERE (lp.business_id = ${businessId} OR lt.business_id = ${businessId} OR lc.business_id = ${businessId})
-        AND (
-          c.name ILIKE ${'%' + searchTerm + '%'}
-          OR c.email ILIKE ${'%' + searchTerm + '%'}
-        )
-        ORDER BY c.name ASC
-      `;
-      
-      if (!customers.length) {
-        return [];
-      }
-      
-      // For each customer, fetch their favorite items and program information
-      const customersWithDetails = await Promise.all(
-        customers.map(async (customer: any) => {
-          const favoriteItems = await this.getCustomerFavoriteItems(customer.id);
-          
-          // Get customer's loyalty points for this specific business
-          const pointsResult = await sql`
-            SELECT SUM(current_points) as total_points
-            FROM program_enrollments pe
-            JOIN loyalty_programs lp ON pe.program_id = lp.id
-            WHERE pe.customer_id = ${customer.id.toString()}
-            AND lp.business_id = ${businessId}
-          `;
-          
-          const businessPoints = pointsResult.length > 0 ? 
-            parseInt(pointsResult[0].total_points) || 0 : 
-            customer.loyalty_points;
-          
-          return {
-            id: customer.id,
-            userId: customer.user_id,
-            name: customer.name,
-            email: customer.email,
-            tier: customer.tier,
-            loyaltyPoints: businessPoints,
-            totalSpent: parseFloat(customer.total_spent) || 0,
-            visits: customer.visits,
-            birthday: customer.birthday,
-            lastVisit: customer.last_visit,
-            joinedAt: customer.joined_at,
-            notes: customer.notes,
-            phone: customer.phone,
-            address: customer.address,
-            favoriteItems
-          } as Customer;
-        })
-      );
-      
-      return customersWithDetails;
-    } catch (error) {
-      console.error('Error searching customers:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Record a customer interaction (message, gift, birthday wish, etc.)
+   * Record a customer interaction for business analytics
    */
   static async recordCustomerInteraction(
     customerId: string,
     businessId: string,
-    type: string,
-    message?: string
+    interactionType: string,
+    description: string
   ): Promise<boolean> {
     try {
       await sql`
         INSERT INTO customer_interactions (
           customer_id,
           business_id,
-          type,
-          message,
-          happened_at
+          interaction_type,
+          description,
+          created_at
         )
         VALUES (
           ${customerId},
           ${businessId},
-          ${type},
-          ${message || null},
+          ${interactionType},
+          ${description},
           NOW()
         )
       `;
+      
+      // TODO: Emit customer event for real-time updates
+      // emitCustomerEvent(customerId, businessId, interactionType, description);
       
       return true;
     } catch (error) {
@@ -262,107 +174,93 @@ export class CustomerService {
   }
 
   /**
-   * Get recent interactions for a customer
+   * Create customer interactions table if it doesn't exist
    */
-  static async getCustomerInteractions(
-    customerId: string,
-    businessId: string,
-    limit: number = 10
-  ): Promise<CustomerInteraction[]> {
+  static async ensureInteractionsTable(): Promise<void> {
     try {
-      const interactions = await sql`
-        SELECT * FROM customer_interactions
-        WHERE customer_id = ${customerId}
-        AND business_id = ${businessId}
-        ORDER BY happened_at DESC
-        LIMIT ${limit}
+      await sql`
+        CREATE TABLE IF NOT EXISTS customer_interactions (
+          id SERIAL PRIMARY KEY,
+          customer_id VARCHAR(255) NOT NULL,
+          business_id VARCHAR(255) NOT NULL,
+          interaction_type VARCHAR(100) NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
       `;
       
-      return interactions.map((interaction: any) => ({
-        id: interaction.id,
-        customerId: interaction.customer_id,
-        businessId: interaction.business_id,
-        type: interaction.type,
-        message: interaction.message,
-        happenedAt: interaction.happened_at
-      }));
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_customer_interactions_customer 
+        ON customer_interactions(customer_id)
+      `;
+      
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_customer_interactions_business 
+        ON customer_interactions(business_id)
+      `;
     } catch (error) {
-      console.error(`Error fetching interactions for customer ${customerId}:`, error);
-      return [];
+      console.error('Error ensuring interactions table:', error);
     }
   }
 
   /**
-   * Associate a customer with a business
+   * Refresh business customers data and trigger real-time sync
    */
-  static async associateCustomerWithBusiness(
-    customerId: string,
-    businessId: string,
-    programId: string
-  ): Promise<boolean> {
+  static async refreshBusinessCustomers(businessId: string): Promise<void> {
     try {
-      // Check if already associated through program_enrollments
-      const enrollmentCheck = await sql`
-        SELECT id FROM program_enrollments pe
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE pe.customer_id = ${customerId}
-        AND lp.business_id = ${businessId}
+      // Trigger a refresh by updating the business's updated_at timestamp
+      await sql`
+        UPDATE businesses 
+        SET updated_at = NOW() 
+        WHERE id = ${businessId}
       `;
       
-      // If no enrollment exists, create one
-      if (enrollmentCheck.length === 0) {
-        await sql`
-          INSERT INTO program_enrollments (
-            program_id,
-            customer_id,
-            current_points,
-            last_activity,
-            enrolled_at
-          ) VALUES (
-            ${programId},
-            ${customerId},
-            0,
-            NOW(),
-            NOW()
-          )
-        `;
-      }
-      
-      // Check if there's any transaction history
-      const transactionCheck = await sql`
-        SELECT COUNT(*) as count 
-        FROM loyalty_transactions
-        WHERE customer_id = ${customerId}
-        AND business_id = ${businessId}
-      `;
-      
-      // If no transaction exists, create an initial one
-      if (transactionCheck.length === 0 || parseInt(transactionCheck[0].count) === 0) {
-        await sql`
-          INSERT INTO loyalty_transactions (
-            program_id,
-            customer_id,
-            business_id,
-            type,
-            points,
-            amount,
-            created_at
-          ) VALUES (
-            ${programId},
-            ${customerId},
-            ${businessId},
-            'ENROLL',
-            0,
-            0,
-            NOW()
-          )
-        `;
-      }
-      
-      return true;
+      // TODO: Emit event for real-time sync
+      // emitCustomerEvent('refresh', businessId, 'REFRESH', 'Customer list refreshed');
     } catch (error) {
-      console.error('Error associating customer with business:', error);
-      return false;
+      console.error('Error refreshing business customers:', error);
     }
   }
-} 
+
+  /**
+   * Get customer enrollment status for a business
+   */
+  static async getCustomerEnrollmentStatus(customerId: string, businessId: string): Promise<{
+    isEnrolled: boolean;
+    programIds: string[];
+    totalPoints: number;
+  }> {
+    try {
+      const enrollments = await sql`
+        SELECT 
+          pe.program_id,
+          pe.current_points,
+          lp.name as program_name
+        FROM program_enrollments pe
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
+        WHERE pe.customer_id = ${customerId} 
+          AND lp.business_id = ${businessId}
+          AND pe.status = 'ACTIVE'
+      `;
+      
+      const programIds = enrollments.map(e => e.program_id.toString());
+      const totalPoints = enrollments.reduce((sum, e) => sum + (e.current_points || 0), 0);
+      
+      return {
+        isEnrolled: enrollments.length > 0,
+        programIds,
+        totalPoints
+      };
+    } catch (error) {
+      console.error('Error getting customer enrollment status:', error);
+      return {
+        isEnrolled: false,
+        programIds: [],
+        totalPoints: 0
+      };
+    }
+  }
+}
+
+// Initialize interactions table when service is imported
+CustomerService.ensureInteractionsTable().catch(console.error); 

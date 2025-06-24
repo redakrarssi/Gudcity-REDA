@@ -34,6 +34,11 @@ import {
   ensureId
 } from '../types/qrCode';
 import type { NotificationType } from '../types/notification';
+import { LoyaltyCardService } from './loyaltyCardService';
+import { LoyaltyProgramService } from './loyaltyProgramService';
+import { CustomerNotificationService } from './customerNotificationService';
+import { CustomerService } from './customerService';
+import { emitEnrollmentEvent } from '../utils/loyaltyEvents';
 
 /**
  * QR code scan log database record
@@ -1789,6 +1794,424 @@ export class QrCodeService {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to process customer card'
       };
+    }
+  }
+
+  /**
+   * Process a QR code scan with full business logic and notifications
+   */
+  static async processQrCodeScan(
+    qrCodeData: QrCodeData,
+    businessId: string,
+    pointsToAward: number = 10
+  ): Promise<QrCodeProcessingResult> {
+    try {
+      console.log('Processing QR code scan:', { type: qrCodeData.type, businessId, pointsToAward });
+      
+      switch (qrCodeData.type) {
+        case 'customer':
+          return await this.processCustomerQrCode(qrCodeData as CustomerQrCodeData, businessId, pointsToAward);
+        
+        case 'loyaltyCard':
+          return await this.processLoyaltyCardQrCode(qrCodeData as LoyaltyCardQrCodeData, businessId, pointsToAward);
+        
+        case 'promoCode':
+          return await this.processPromoCodeQrCode(qrCodeData as PromoCodeQrCodeData, businessId);
+        
+        default:
+          return {
+            success: false,
+            message: 'Unknown QR code type'
+          };
+      }
+    } catch (error) {
+      console.error('Error processing QR code scan:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
+   * Process customer QR code scan
+   */
+  private static async processCustomerQrCode(
+    qrCodeData: CustomerQrCodeData,
+    businessId: string,
+    pointsToAward: number
+  ): Promise<QrCodeProcessingResult> {
+    try {
+      const customerId = qrCodeData.customerId || qrCodeData.id || '';
+      
+      if (!customerId) {
+        return {
+          success: false,
+          message: 'Invalid customer QR code - missing customer ID'
+        };
+      }
+
+      // Get business information
+      const business = await sql`
+        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+      `;
+      
+      const businessName = business.length > 0 ? business[0].name : 'Business';
+
+      // Send immediate notification that QR was scanned
+      try {
+        await CustomerNotificationService.createNotification({
+          customerId: customerId,
+          businessId: businessId,
+          type: 'QR_SCANNED',
+          title: 'QR Code Scanned',
+          message: `Your QR code was scanned by ${businessName}`,
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          data: {
+            businessName: businessName,
+            scanTime: new Date().toISOString(),
+            location: 'In-store'
+          }
+        });
+      } catch (notificationError) {
+        console.error('Error creating QR scan notification:', notificationError);
+      }
+
+      // Check if customer is already enrolled in any business programs
+      const enrollmentStatus = await CustomerService.getCustomerEnrollmentStatus(customerId, businessId);
+      
+      if (!enrollmentStatus.isEnrolled) {
+        // Customer not enrolled - get default program and request enrollment
+        const defaultProgram = await LoyaltyProgramService.getDefaultBusinessProgram(businessId);
+        
+        if (defaultProgram) {
+          // Create enrollment approval request
+          try {
+            await CustomerNotificationService.createApprovalRequest({
+              customerId: customerId,
+              businessId: businessId,
+              requestType: 'ENROLLMENT',
+              entityId: defaultProgram.id,
+              data: {
+                programId: defaultProgram.id,
+                programName: defaultProgram.name,
+                businessId: businessId,
+                businessName: businessName,
+                programType: defaultProgram.type,
+                programDescription: defaultProgram.description,
+                message: `${businessName} would like to enroll you in their ${defaultProgram.name} loyalty program`
+              }
+            });
+
+                         // TODO: Emit QR scan event for analytics
+             // emitQrScanEvent(customerId, businessId, businessName, 'CUSTOMER', 'ENROLLMENT_REQUESTED');
+
+            return {
+              success: true,
+              message: `QR code scanned successfully. Enrollment request sent to customer.`,
+              customerId: customerId,
+              businessId: businessId,
+              programId: defaultProgram.id,
+              data: {
+                action: 'ENROLLMENT_REQUESTED',
+                programName: defaultProgram.name
+              }
+            };
+          } catch (error) {
+            console.error('Error creating enrollment request:', error);
+            return {
+              success: false,
+              message: 'QR code scanned but failed to create enrollment request'
+            };
+          }
+        } else {
+          return {
+            success: false,
+            message: 'QR code scanned but no loyalty programs available for enrollment'
+          };
+        }
+      } else {
+        // Customer is enrolled - award points to their cards
+        try {
+          let totalPointsAwarded = 0;
+          const cardUpdates = [];
+
+          for (const programId of enrollmentStatus.programIds) {
+            const card = await LoyaltyCardService.getCustomerCard(customerId, businessId);
+            
+            if (card) {
+              const success = await LoyaltyCardService.awardPointsToCard(
+                card.id,
+                pointsToAward,
+                'SCAN',
+                `QR code scan at ${businessName}`,
+                `qr-scan-${Date.now()}`,
+                businessId
+              );
+              
+              if (success) {
+                totalPointsAwarded += pointsToAward;
+                cardUpdates.push({
+                  cardId: card.id,
+                  programId: programId,
+                  pointsAwarded: pointsToAward
+                });
+              }
+            }
+          }
+
+          if (totalPointsAwarded > 0) {
+            // Send notification about points awarded
+            try {
+              await CustomerNotificationService.createNotification({
+                customerId: customerId,
+                businessId: businessId,
+                type: 'POINTS_ADDED',
+                title: 'Points Added',
+                message: `You earned ${totalPointsAwarded} points from your visit to ${businessName}!`,
+                requiresAction: false,
+                actionTaken: false,
+                isRead: false,
+                data: {
+                  points: totalPointsAwarded,
+                  businessName: businessName,
+                  source: 'QR_SCAN',
+                  cardUpdates: cardUpdates
+                }
+              });
+            } catch (notificationError) {
+              console.error('Error creating points notification:', notificationError);
+            }
+
+                         // TODO: Emit QR scan event for analytics
+             // emitQrScanEvent(customerId, businessId, businessName, 'CUSTOMER', 'POINTS_AWARDED');
+
+            return {
+              success: true,
+              message: `QR code scanned successfully. ${totalPointsAwarded} points awarded!`,
+              customerId: customerId,
+              businessId: businessId,
+              pointsAwarded: totalPointsAwarded,
+              data: {
+                action: 'POINTS_AWARDED',
+                cardUpdates: cardUpdates
+              }
+            };
+          } else {
+            return {
+              success: false,
+              message: 'QR code scanned but failed to award points'
+            };
+          }
+        } catch (error) {
+          console.error('Error awarding points:', error);
+          return {
+            success: false,
+            message: 'QR code scanned but failed to process point award'
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error processing customer QR code:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error processing customer QR code'
+      };
+    }
+  }
+
+  /**
+   * Process loyalty card QR code scan
+   */
+  private static async processLoyaltyCardQrCode(
+    qrCodeData: LoyaltyCardQrCodeData,
+    businessId: string,
+    pointsToAward: number
+  ): Promise<QrCodeProcessingResult> {
+    try {
+      const cardId = qrCodeData.cardId || '';
+      const customerId = qrCodeData.customerId || '';
+      
+      if (!cardId || !customerId) {
+        return {
+          success: false,
+          message: 'Invalid loyalty card QR code - missing card or customer ID'
+        };
+      }
+
+      // Get business information
+      const business = await sql`
+        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+      `;
+      
+      const businessName = business.length > 0 ? business[0].name : 'Business';
+
+      // Award points to the specific card
+      const success = await LoyaltyCardService.awardPointsToCard(
+        cardId,
+        pointsToAward,
+        'SCAN',
+        `Loyalty card scan at ${businessName}`,
+        `card-scan-${Date.now()}`,
+        businessId
+      );
+
+      if (success) {
+        // Send notification about points awarded
+        try {
+          await CustomerNotificationService.createNotification({
+            customerId: customerId,
+            businessId: businessId,
+            type: 'POINTS_ADDED',
+            title: 'Points Added',
+            message: `You earned ${pointsToAward} points from scanning your loyalty card at ${businessName}!`,
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false,
+            referenceId: cardId,
+            data: {
+              points: pointsToAward,
+              businessName: businessName,
+              cardId: cardId,
+              source: 'LOYALTY_CARD_SCAN'
+            }
+          });
+        } catch (notificationError) {
+          console.error('Error creating points notification:', notificationError);
+        }
+
+                 // TODO: Emit QR scan event for analytics
+         // emitQrScanEvent(customerId, businessId, businessName, 'LOYALTY_CARD', 'POINTS_AWARDED');
+
+        return {
+          success: true,
+          message: `Loyalty card scanned successfully. ${pointsToAward} points awarded!`,
+          customerId: customerId,
+          businessId: businessId,
+          cardId: cardId,
+          pointsAwarded: pointsToAward
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Failed to award points to loyalty card'
+        };
+      }
+    } catch (error) {
+      console.error('Error processing loyalty card QR code:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error processing loyalty card QR code'
+      };
+    }
+  }
+
+  /**
+   * Process promo code QR code scan
+   */
+  private static async processPromoCodeQrCode(
+    qrCodeData: PromoCodeQrCodeData,
+    businessId: string
+  ): Promise<QrCodeProcessingResult> {
+    try {
+      const promoCode = qrCodeData.code || '';
+      
+      if (!promoCode) {
+        return {
+          success: false,
+          message: 'Invalid promo code QR code - missing code'
+        };
+      }
+
+      // For now, just return success - implement promo code validation later
+      return {
+        success: true,
+        message: `Promo code ${promoCode} scanned successfully`,
+        businessId: businessId,
+        data: {
+          promoCode: promoCode,
+          action: 'PROMO_CODE_SCANNED'
+        }
+      };
+    } catch (error) {
+      console.error('Error processing promo code QR code:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error processing promo code QR code'
+      };
+    }
+  }
+
+  /**
+   * Record QR code scan for analytics
+   */
+  static async recordQrCodeScan(
+    qrCodeType: string,
+    customerId: string,
+    businessId: string,
+    success: boolean,
+    data: any = {}
+  ): Promise<void> {
+    try {
+      await sql`
+        INSERT INTO qr_scan_logs (
+          qr_code_type,
+          customer_id,
+          business_id,
+          success,
+          scan_data,
+          scanned_at
+        )
+        VALUES (
+          ${qrCodeType},
+          ${customerId},
+          ${businessId},
+          ${success},
+          ${JSON.stringify(data)},
+          NOW()
+        )
+      `;
+    } catch (error) {
+      console.error('Error recording QR code scan:', error);
+      // Don't throw, this is for analytics only
+    }
+  }
+
+  /**
+   * Ensure QR scan logs table exists
+   */
+  static async ensureQrScanLogsTable(): Promise<void> {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS qr_scan_logs (
+          id SERIAL PRIMARY KEY,
+          qr_code_type VARCHAR(50) NOT NULL,
+          customer_id VARCHAR(255) NOT NULL,
+          business_id VARCHAR(255) NOT NULL,
+          success BOOLEAN NOT NULL,
+          scan_data JSONB,
+          scanned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_qr_scan_logs_customer 
+        ON qr_scan_logs(customer_id)
+      `;
+      
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_qr_scan_logs_business 
+        ON qr_scan_logs(business_id)
+      `;
+      
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_qr_scan_logs_scanned_at 
+        ON qr_scan_logs(scanned_at)
+      `;
+    } catch (error) {
+      console.error('Error ensuring QR scan logs table:', error);
     }
   }
 }
