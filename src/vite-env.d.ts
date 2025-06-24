@@ -24,6 +24,7 @@ interface Window {
       onConnect?: { addListener?: (callback: (...args: any[]) => void) => void };
       onInstalled?: { addListener?: (callback: (...args: any[]) => void) => void };
       id?: string;
+      lastError?: any;
     };
     storage?: {
       local?: {
@@ -104,4 +105,25 @@ interface Window {
       remove?: (details: Record<string, any>) => Promise<void>;
     };
   };
+  chrome?: any;
+  server?: any; // Mock server object for browser environment
+}
+
+// Add any other ambient declarations here
+declare namespace NodeJS {
+  interface ProcessEnv {
+    NODE_ENV: 'development' | 'production' | 'test';
+    VITE_APP_VERSION?: string;
+    VITE_API_URL?: string;
+    VITE_SOCKET_URL?: string;
+    VITE_DEFAULT_LANGUAGE?: string;
+    VITE_MAPBOX_ACCESS_TOKEN?: string;
+    VITE_API_RATE_LIMIT_MAX?: string;
+    VITE_API_RATE_LIMIT_WINDOW?: string;
+    VITE_JWT_EXPIRY?: string;
+    VITE_JWT_REFRESH?: string;
+    VITE_ENABLE_FEEDBACK?: string;
+    VITE_ENABLE_ANIMATIONS?: string;
+    VITE_ENABLE_ANALYTICS?: string;
+  }
 }

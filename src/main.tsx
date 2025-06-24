@@ -1,5 +1,69 @@
+// Pre-initialize browser polyfills before any imports
+// This must be the very first code that runs
+if (typeof window !== 'undefined') {
+  // Create browser and chrome objects early
+  window.browser = window.browser || {
+    runtime: { 
+      sendMessage: () => Promise.resolve(), 
+      onMessage: { addListener: () => {}, removeListener: () => {} },
+      getManifest: () => ({}),
+      getURL: (path) => path,
+      lastError: null
+    },
+    storage: { 
+      local: { get: () => Promise.resolve({}), set: () => Promise.resolve() },
+      sync: { get: () => Promise.resolve({}), set: () => Promise.resolve() }
+    },
+    tabs: { query: () => Promise.resolve([]) }
+  };
+  
+  window.chrome = window.chrome || {
+    runtime: window.browser.runtime,
+    storage: window.browser.storage,
+    tabs: window.browser.tabs
+  };
+
+  // Create a mock server object to prevent errors from server.ts
+  if (typeof window.server === 'undefined') {
+    window.server = {
+      app: {
+        use: () => {},
+        get: () => {},
+        post: () => {}
+      },
+      io: {
+        on: () => {},
+        to: () => ({ emit: () => {} })
+      },
+      emitNotification: () => {},
+      emitApprovalRequest: () => {}
+    };
+  }
+
+  // Suppress common browser extension errors
+  const originalConsoleError = console.error;
+  console.error = function(...args) {
+    if (args[0] && typeof args[0] === 'string' && (
+      args[0].includes('browser is not defined') || 
+      args[0].includes('chrome is not defined') ||
+      args[0].includes('Cannot read properties of undefined') ||
+      args[0].includes('runtime.lastError') ||
+      args[0].includes('server.ts') ||
+      args[0].includes('at server.ts') ||
+      args[0].includes('createRoot() on a container')
+    )) {
+      console.warn('Early polyfill: Suppressed error:', args[0].substring(0, 50) + '...');
+      return;
+    }
+    return originalConsoleError.apply(console, args);
+  };
+}
+
 // Pre-initialize lodash to prevent "Cannot access '_' before initialization" errors
 import './utils/lodash-init';
+
+// Import server mock early to ensure it's properly initialized
+import './utils/serverMock';
 
 // Apply browser extension error suppression early
 import { suppressBrowserExtensionErrors } from './utils/browserSupport';

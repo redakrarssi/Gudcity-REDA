@@ -25,7 +25,9 @@ export default defineConfig({
         Buffer: true,
         global: true,
         process: true
-      }
+      },
+      // Explicitly include problematic modules
+      include: ['net', 'stream', 'events', 'path', 'util', 'buffer']
     }),
     // Compression plugin temporarily disabled due to compatibility issues
     // compression({
@@ -61,14 +63,32 @@ export default defineConfig({
     alias: {
       crypto: resolve(__dirname, 'src/utils/cryptoUtils.ts'),
       '@': resolve(__dirname, 'src'),
+      // Add aliases for problematic Node.js modules
+      'net': resolve(__dirname, 'src/utils/netPolyfill.ts'),
+      'express-rate-limit': resolve(__dirname, 'src/utils/rateLimitPolyfill.ts'),
+      // Use our own express polyfill instead of browser.js
+      'express': resolve(__dirname, 'src/utils/expressPolyfill.ts'),
+      // Add HTTP polyfill
+      'http': resolve(__dirname, 'src/utils/httpPolyfill.ts'),
+      // Add Socket.IO server polyfill
+      'socket.io': resolve(__dirname, 'src/utils/socketIoPolyfill.ts'),
+      // Replace server.ts with mock implementation in browser
+      './server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '../server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      'src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '/src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
     }
   },
   
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    exclude: ['lucide-react', 'express-rate-limit', 'express'],
     include: ['html5-qrcode', 'react', 'react-dom', 'react-router-dom', 'lodash'],
     esbuildOptions: {
       target: 'esnext',
+      // Define Node.js globals
+      define: {
+        global: 'globalThis',
+      },
     },
   },
   
@@ -94,6 +114,10 @@ export default defineConfig({
     
     // More granular chunk strategy
     rollupOptions: {
+      external: [
+        /^src\/server\.ts$/,
+        /^src\/api\/.*/
+      ],
       output: {
         manualChunks: {
           // Explicitly define lodash chunk to ensure it loads before charts
