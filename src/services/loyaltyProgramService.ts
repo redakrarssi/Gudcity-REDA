@@ -1,6 +1,10 @@
 import sql from '../utils/db';
 import type { LoyaltyProgram, RewardTier, ProgramType } from '../types/loyalty';
 import { CustomerService } from './customerService';
+import { v4 as uuidv4 } from 'uuid';
+import { emitNotification, emitApprovalRequest } from '../server';
+import { CustomerNotificationService } from './customerNotificationService';
+import { logger } from '../utils/logger';
 
 /**
  * Service for managing loyalty programs with database integration
@@ -338,130 +342,386 @@ export class LoyaltyProgramService {
    */
   static async enrollCustomer(
     customerId: string,
-    programId: string
-  ): Promise<{ success: boolean; error?: string }> {
+    programId: string,
+    requireApproval: boolean = true
+  ): Promise<{ success: boolean; message?: string; cardId?: string }> {
     try {
-      // Validate customer and program first
-      const customer = await CustomerService.getCustomerById(customerId);
-      if (!customer) {
-        return { success: false, error: 'Customer not found' };
+      // Check if customer exists
+      const customerCheck = await sql`SELECT * FROM customers WHERE id = ${customerId}`;
+      if (!customerCheck.length) {
+        return { success: false, message: 'Customer not found' };
       }
       
-      const program = await this.getProgramById(programId);
-      if (!program) {
-        return { success: false, error: 'Loyalty program not found' };
+      // Check if program exists
+      const programCheck = await sql`
+        SELECT lp.*, u.name as business_name 
+        FROM loyalty_programs lp
+        JOIN users u ON lp.business_id = u.id
+        WHERE lp.id = ${programId}
+      `;
+      if (!programCheck.length) {
+        return { success: false, message: 'Program not found' };
       }
       
-      // Check if the customer is already enrolled in this program
-      const existingEnrollment = await sql`
-        SELECT * FROM program_enrollments
-        WHERE customer_id = ${customerId}
-        AND program_id = ${programId}
+      // Extract business details
+      const program = programCheck[0];
+      const businessId = program.business_id;
+      const businessName = program.business_name;
+      
+      // Check if already enrolled
+      const enrollmentCheck = await sql`
+        SELECT * FROM customer_programs 
+        WHERE customer_id = ${customerId} AND program_id = ${programId}
       `;
       
-      if (existingEnrollment.length > 0) {
-        return { success: false, error: 'Customer is already enrolled in this program' };
+      if (enrollmentCheck.length > 0) {
+        return { success: false, message: 'Customer is already enrolled in this program' };
       }
       
-      // Get the business owner
-      const business = await sql`
-        SELECT * FROM users
-        WHERE id = ${program.businessId}
-      `;
-      
-      // Instead of directly enrolling, create an approval request
-      try {
-        // Import CustomerNotificationService in a way that prevents circular dependencies
-        const { CustomerNotificationService, ApprovalRequestType } = await import('./customerNotificationService');
+      if (requireApproval) {
+        // Create an approval request instead of direct enrollment
+        const requestId = uuidv4();
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 7); // Expire after 7 days
         
-        // Create an approval request for the customer
-        await CustomerNotificationService.createApprovalRequest(
+        await sql`
+          INSERT INTO customer_approval_requests (
+            id, 
+            customer_id, 
+            business_id, 
+            request_type, 
+            entity_id,
+            status, 
+            data,
+            requested_at, 
+            expires_at
+          ) 
+          VALUES (
+            ${requestId},
+            ${customerId},
+            ${businessId},
+            'ENROLLMENT',
+            ${programId},
+            'PENDING',
+            ${JSON.stringify({
+              programName: program.name,
+              programDescription: program.description,
+              benefits: program.benefits || []
+            })},
+            NOW(),
+            ${expiryDate.toISOString()}
+          )
+        `;
+        
+        // Create notification for the approval request
+        const notification = await CustomerNotificationService.createNotification({
           customerId,
-          program.businessId,
-          ApprovalRequestType.ENROLLMENT,
-          programId,
-          'Program Enrollment Request',
-          `${business[0]?.name || 'A business'} wants to enroll you in their ${program.name} program`,
-          {
-            programId: program.id,
+          businessId: businessId.toString(),
+          type: 'ENROLLMENT_REQUEST',
+          title: 'Program Enrollment Request',
+          message: `${businessName} wants to enroll you in ${program.name}`,
+          data: {
+            programId,
             programName: program.name,
-            businessId: program.businessId,
-            businessName: business[0]?.name || 'Business',
-            programType: program.type,
-            programDescription: program.description
+            requestId
+          },
+          requiresAction: true,
+          actionTaken: false,
+          isRead: false,
+          referenceId: requestId
+        });
+        
+        // Emit real-time notification through socket
+        if (notification) {
+          emitNotification(customerId, notification);
+          
+          // Also emit approval request
+          const approvalRequest = {
+            id: requestId,
+            customerId,
+            businessId: businessId.toString(),
+            requestType: 'ENROLLMENT',
+            entityId: programId,
+            status: 'PENDING',
+            data: {
+              programName: program.name,
+              benefits: program.benefits || []
+            },
+            requestedAt: new Date().toISOString(),
+            expiresAt: expiryDate.toISOString(),
+            businessName
+          };
+          
+          emitApprovalRequest(customerId, approvalRequest);
+        }
+        
+        return { 
+          success: true, 
+          message: 'Enrollment request sent to customer for approval'
+        };
+      } else {
+        // Direct enrollment without approval (legacy path)
+        // Generate a unique card number
+        const cardNumber = `GC-${Math.floor(100000 + Math.random() * 900000)}-${Math.floor(Math.random() * 10)}`;
+        const cardId = uuidv4();
+        
+        // Create enrollment
+        await sql`
+          INSERT INTO customer_programs (
+            customer_id, 
+            program_id, 
+            current_points, 
+            status,
+            enrolled_at,
+            updated_at
+          ) 
+          VALUES (
+            ${customerId},
+            ${programId},
+            0,
+            'ACTIVE',
+            NOW(),
+            NOW()
+          )
+        `;
+        
+        // Create loyalty card
+        await sql`
+          INSERT INTO loyalty_cards (
+            id,
+            customer_id, 
+            business_id, 
+            program_id,
+            card_number,
+            points,
+            tier,
+            status,
+            created_at,
+            updated_at
+          ) 
+          VALUES (
+            ${cardId},
+            ${customerId},
+            ${businessId},
+            ${programId},
+            ${cardNumber},
+            0,
+            'STANDARD',
+            'ACTIVE',
+            NOW(),
+            NOW()
+          )
+        `;
+        
+        // Send notification for successful enrollment
+        try {
+          const notification = await CustomerNotificationService.createNotification({
+            customerId,
+            businessId: businessId.toString(),
+            type: 'ENROLLED',
+            title: 'Program Enrollment',
+            message: `You've been enrolled in ${businessName}'s ${program.name} program`,
+            data: {
+              programId,
+              programName: program.name,
+              cardId
+            },
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false
+          });
+          
+          // Emit real-time notification through socket
+          if (notification) {
+            emitNotification(customerId, notification);
           }
-        );
+        } catch (notificationError) {
+          console.error('Failed to send enrollment notification:', notificationError);
+          // Continue even if notification fails
+        }
         
-        return { success: true };
-      } catch (error) {
-        console.error('Failed to create approval request:', error);
-        
-        // Fallback to traditional enrollment if the notification system fails
-        // This is a temporary solution until the notification system is fully integrated
-        return await this.directEnrollCustomer(customerId, programId);
+        return { 
+          success: true, 
+          message: 'Customer enrolled successfully', 
+          cardId 
+        };
       }
     } catch (error) {
-      console.error('Error enrolling customer in loyalty program:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error('Error enrolling customer:', error);
+      return { success: false, message: 'Database error while enrolling customer' };
     }
   }
   
   /**
-   * Direct enrollment without approval process (used as fallback or after approval)
+   * Handle approval response for enrollment request
    */
-  static async directEnrollCustomer(
-    customerId: string,
-    programId: string
-  ): Promise<{ success: boolean; error?: string }> {
+  static async handleEnrollmentApproval(
+    requestId: string,
+    approved: boolean
+  ): Promise<{ success: boolean; message?: string; cardId?: string }> {
     try {
-      // Enroll the customer in the program
+      // Get the request details
+      const requestResult = await sql`
+        SELECT ar.*, lp.name as program_name, u.name as business_name
+        FROM customer_approval_requests ar
+        JOIN loyalty_programs lp ON ar.entity_id = lp.id::text
+        JOIN users u ON lp.business_id = u.id
+        WHERE ar.id = ${requestId} AND ar.request_type = 'ENROLLMENT'
+      `;
+      
+      if (!requestResult.length) {
+        return { success: false, message: 'Enrollment request not found' };
+      }
+      
+      const request = requestResult[0];
+      
+      // Check if already processed
+      if (request.status !== 'PENDING') {
+        return { success: false, message: `Request already ${request.status.toLowerCase()}` };
+      }
+      
+      // Update request status
       await sql`
-        INSERT INTO program_enrollments (
-          customer_id,
-          program_id,
-          current_points,
-          last_activity,
-          enrolled_at
-        )
+        UPDATE customer_approval_requests
+        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, updated_at = NOW()
+        WHERE id = ${requestId}
+      `;
+      
+      // Update notification to mark action taken
+      await sql`
+        UPDATE customer_notifications
+        SET action_taken = true
+        WHERE reference_id = ${requestId}
+      `;
+      
+      if (!approved) {
+        // If rejected, send notification and exit
+        const notification = await CustomerNotificationService.createNotification({
+          customerId: request.customer_id,
+          businessId: request.business_id,
+          type: 'ENROLLMENT_REJECTED',
+          title: 'Enrollment Declined',
+          message: `You declined enrollment in ${request.program_name} from ${request.business_name}`,
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false
+        });
+        
+        if (notification) {
+          emitNotification(request.customer_id, notification);
+        }
+        
+        return { 
+          success: true, 
+          message: 'Enrollment request rejected' 
+        };
+      }
+      
+      // If approved, proceed with enrollment
+      // Generate a unique card number
+      const cardNumber = `GC-${Math.floor(100000 + Math.random() * 900000)}-${Math.floor(Math.random() * 10)}`;
+      const cardId = uuidv4();
+      
+      // Create enrollment
+      await sql`
+        INSERT INTO customer_programs (
+          customer_id, 
+          program_id, 
+          current_points, 
+          status,
+          enrolled_at,
+          updated_at
+        ) 
         VALUES (
-          ${customerId},
-          ${programId},
+          ${request.customer_id},
+          ${request.entity_id},
           0,
+          'ACTIVE',
           NOW(),
           NOW()
         )
       `;
       
-      // Get program details for event emission
-      const program = await this.getProgramById(programId);
-      const business = program ? await sql`SELECT * FROM users WHERE id = ${program.businessId}` : [];
+      // Create loyalty card
+      await sql`
+        INSERT INTO loyalty_cards (
+          id,
+          customer_id, 
+          business_id, 
+          program_id,
+          card_number,
+          points,
+          tier,
+          status,
+          created_at,
+          updated_at
+        ) 
+        VALUES (
+          ${cardId},
+          ${request.customer_id},
+          ${request.business_id},
+          ${request.entity_id},
+          ${cardNumber},
+          0,
+          'STANDARD',
+          'ACTIVE',
+          NOW(),
+          NOW()
+        )
+      `;
       
-      // Emit enrollment event if telemetry utilities are available
-      try {
-        const { emitEnrollmentEvent } = await import('../utils/loyaltyEvents');
-        
-        // Create or fetch a card for the customer if needed
-        const { LoyaltyCardService } = await import('./loyaltyCardService');
-        const card = await LoyaltyCardService.getCustomerCard(customerId, program?.businessId || '');
-        
-        if (program && card) {
-          emitEnrollmentEvent(
-            customerId,
-            program.businessId,
-            business[0]?.name || 'Business',
-            programId,
-            program.name,
-            card.id
-          );
-        }
-      } catch (error) {
-        console.error('Failed to emit enrollment event:', error);
+      // Send enrollment confirmation notification
+      const notification = await CustomerNotificationService.createNotification({
+        customerId: request.customer_id,
+        businessId: request.business_id,
+        type: 'ENROLLED',
+        title: 'Welcome to New Program',
+        message: `You've been enrolled in ${request.business_name}'s ${request.program_name} program`,
+        data: {
+          programId: request.entity_id,
+          programName: request.program_name,
+          cardId
+        },
+        requiresAction: false,
+        actionTaken: false,
+        isRead: false
+      });
+      
+      if (notification) {
+        emitNotification(request.customer_id, notification);
       }
       
-      return { success: true };
+      // Notify business that customer accepted
+      const businessNotification = await CustomerNotificationService.createNotification({
+        customerId: request.business_id,
+        businessId: request.business_id,
+        type: 'ENROLLMENT_ACCEPTED',
+        title: 'Customer Joined Program',
+        message: `A customer has accepted enrollment in ${request.program_name}`,
+        requiresAction: false,
+        actionTaken: false,
+        isRead: false
+      });
+      
+      if (businessNotification) {
+        emitNotification(request.business_id, businessNotification);
+      }
+      
+      // Associate customer with business
+      await CustomerService.associateCustomerWithBusiness(
+        request.customer_id,
+        request.business_id,
+        request.entity_id
+      );
+      
+      return { 
+        success: true, 
+        message: 'Enrollment approved and processed',
+        cardId
+      };
     } catch (error) {
-      console.error('Error directly enrolling customer:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error('Error handling enrollment approval:', error);
+      return { success: false, message: 'Database error while processing approval' };
     }
   }
 

@@ -1,96 +1,92 @@
 import { QueryClient } from '@tanstack/react-query';
 
-// Create a custom query client with optimal settings
+// Create a client with error handling
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Keep cached data for 5 minutes before garbage collection
-      gcTime: 5 * 60 * 1000,
-      
-      // Consider data fresh for 1 minute before refetching
-      staleTime: 60 * 1000,
-      
-      // Retry failed queries 3 times with exponential backoff
-      retry: 3,
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-      
-      // Refetch data when window regains focus
-      refetchOnWindowFocus: true,
-      
-      // Refetch on reconnect
-      refetchOnReconnect: true,
+      staleTime: 60000, // 1 minute
+      retry: 1,
+      onError: (error) => {
+        console.warn('Query error:', error);
+      }
     },
+    mutations: {
+      onError: (error) => {
+        console.warn('Mutation error:', error);
+      }
+    }
   },
 });
 
-// Custom query key factory to generate consistent keys
+// Define query keys for better organization and type safety
 export const queryKeys = {
-  // User data and authentication
-  user: (userId?: string | number) => 
-    userId ? ['user', userId.toString()] : ['user'],
+  // User related queries
+  user: (userId?: string | number) => ['user', userId],
   
-  // Transaction history
+  // Transaction related queries
   transactions: {
     all: ['transactions'],
-    byCustomer: (customerId: string | number) => 
-      ['transactions', 'customer', customerId.toString()],
-    byProgram: (programId: string | number) => 
-      ['transactions', 'program', programId.toString()],
+    byCustomer: (customerId: string | number) => ['transactions', 'customer', customerId],
+    byProgram: (programId: string | number) => ['transactions', 'program', programId],
     byCustomerAndProgram: (customerId: string | number, programId: string | number) => 
-      ['transactions', 'customer', customerId.toString(), 'program', programId.toString()],
+      ['transactions', 'customer', customerId, 'program', programId],
   },
   
-  // Loyalty programs and rewards
+  // Programs related queries
   programs: {
     all: ['programs'],
-    byId: (programId: string | number) => 
-      ['programs', programId.toString()],
-    byBusiness: (businessId: string | number) => 
-      ['programs', 'business', businessId.toString()],
-    rewards: (programId: string | number) => 
-      ['programs', programId.toString(), 'rewards'],
+    byBusiness: (businessId: string | number) => ['programs', 'business', businessId],
   },
   
-  // Customer data
+  // Customer related queries
   customers: {
     all: ['customers'],
-    byId: (customerId: string | number) => 
-      ['customers', customerId.toString()],
-    programs: (customerId: string | number) => 
-      ['customers', customerId.toString(), 'programs'],
-    points: (customerId: string | number) => 
-      ['customers', customerId.toString(), 'points'],
+    byId: (customerId: string | number) => ['customers', customerId],
+    byBusiness: (businessId: string | number) => ['customers', 'business', businessId],
+    cards: (customerId: string | number) => ['customers', customerId, 'cards'],
+    programs: (customerId: string | number) => ['customers', customerId, 'programs'],
+    notifications: (customerId: string | number) => ['customers', customerId, 'notifications'],
+    approvals: (customerId: string | number) => ['customers', customerId, 'approvals'],
   },
   
-  // Business data
-  businesses: {
-    all: ['businesses'],
-    byId: (businessId: string | number) => 
-      ['businesses', businessId.toString()],
+  // Business related queries
+  business: {
+    details: (businessId: string | number) => ['business', businessId],
+    analytics: (businessId: string | number) => ['business', businessId, 'analytics'],
+    settings: (businessId: string | number) => ['business', businessId, 'settings'],
   },
-
-  // Dashboard data
+  
+  // Dashboard related queries
   dashboard: {
-    customerSummary: (customerId: string | number) => 
-      ['dashboard', 'customer', customerId.toString(), 'summary'],
-    totalPoints: (customerId: string | number) => 
-      ['dashboard', 'customer', customerId.toString(), 'totalPoints'],
-    upcomingRewards: (customerId: string | number) => 
-      ['dashboard', 'customer', customerId.toString(), 'upcomingRewards'],
-    recentActivity: (customerId: string | number) => 
-      ['dashboard', 'customer', customerId.toString(), 'recentActivity'],
+    customerSummary: (customerId: string | number) => ['dashboard', 'customer', customerId],
+    businessSummary: (businessId: string | number) => ['dashboard', 'business', businessId],
+  },
+  
+  // Notifications related queries
+  notifications: {
+    all: ['notifications'],
+    byCustomer: (customerId: string | number) => ['notifications', 'customer', customerId],
+    unread: (customerId: string | number) => ['notifications', 'customer', customerId, 'unread'],
   },
 };
 
 // Function to invalidate all queries related to a specific customer
 export function invalidateCustomerQueries(customerId: string | number) {
-  queryClient.invalidateQueries({ queryKey: ['customers', customerId.toString()] });
-  queryClient.invalidateQueries({ queryKey: ['transactions', 'customer', customerId.toString()] });
-  queryClient.invalidateQueries({ queryKey: ['dashboard', 'customer', customerId.toString()] });
+  try {
+    queryClient.invalidateQueries({ queryKey: ['customers', customerId.toString()] });
+    queryClient.invalidateQueries({ queryKey: ['transactions', 'customer', customerId.toString()] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'customer', customerId.toString()] });
+  } catch (error) {
+    console.warn('Error invalidating customer queries:', error);
+  }
 }
 
 // Function to invalidate all queries related to a specific program
 export function invalidateProgramQueries(programId: string | number) {
-  queryClient.invalidateQueries({ queryKey: ['programs', programId.toString()] });
-  queryClient.invalidateQueries({ queryKey: ['transactions', 'program', programId.toString()] });
+  try {
+    queryClient.invalidateQueries({ queryKey: ['programs', programId.toString()] });
+    queryClient.invalidateQueries({ queryKey: ['transactions', 'program', programId.toString()] });
+  } catch (error) {
+    console.warn('Error invalidating program queries:', error);
+  }
 } 

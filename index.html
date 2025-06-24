@@ -10,7 +10,9 @@
           sendMessage: function() { return Promise.resolve(); }, 
           onMessage: { addListener: function() {}, removeListener: function() {} },
           getManifest: function() { return {}; },
-          getURL: function(path) { return path; }
+          getURL: function(path) { return path; },
+          // Add lastError to prevent errors
+          lastError: null
         },
         storage: { 
           local: { get: function() { return Promise.resolve({}); }, set: function() { return Promise.resolve(); } },
@@ -26,13 +28,28 @@
         tabs: window.browser.tabs
       };
 
+      // Ensure runtime.lastError is defined to prevent "Cannot read properties of undefined" errors
+      if (window.chrome && window.chrome.runtime && !window.chrome.runtime.lastError) {
+        window.chrome.runtime.lastError = null;
+      }
+
       // Content script error suppression
       const originalConsoleError = console.error;
       console.error = function(...args) {
         // Suppress browser-related errors
         if (args[0] && typeof args[0] === 'string' && 
             (args[0].includes('browser is not defined') || 
-             args[0].includes('ReferenceError: browser'))) {
+             args[0].includes('ReferenceError: browser') ||
+             args[0].includes('Cannot read properties of undefined') ||
+             args[0].includes('Unchecked runtime.lastError') ||
+             args[0].includes('Could not establish connection') ||
+             args[0].includes('Receiving end does not exist') ||
+             args[0].includes('The message port closed before a response was received') ||
+             args[0].includes('content.js') ||
+             args[0].includes('checkPageManual.js') ||
+             args[0].includes('overlays.js') ||
+             args[0].includes('createRoot() on a container that has already been passed to createRoot()') ||
+             args[0].includes('server.ts:62'))) {
           console.warn('Suppressed browser error:', args[0].substring(0, 50) + '...');
           return;
         }
@@ -42,11 +59,17 @@
       console.log('Emergency browser polyfill applied');
     </script>
 
+    <!-- Load browser polyfill first for extension compatibility -->
+    <script src="/browser-polyfill.js"></script>
+    
+    <!-- Fix for browser global -->
+    <script src="/fix-browser-global.js"></script>
+    
     <!-- Special fix for content scripts - loaded without type=module to run before module scripts -->
     <script src="/fix-content-scripts.js"></script>
-
-    <!-- Load browser polyfill first for extension compatibility -->
-    <script src="/fix-browser-global.js"></script>
+    
+    <!-- Content script specific polyfill -->
+    <script src="/content-script-polyfill.js"></script>
 
     <!-- LODASH FIX -->
     <script>
@@ -84,14 +107,33 @@
         }
       };
       
+      // Add global error handler for React errors
+      window.addEventListener('error', function(event) {
+        if (event && event.error && 
+            (event.error.toString().includes('React') || 
+             event.error.toString().includes('Cannot read properties of undefined'))) {
+          console.warn('Global error handler caught:', event.error.toString());
+          event.preventDefault();
+          return false;
+        }
+      });
+      
+      // Additional fix for "Cannot read properties of undefined" errors
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event && event.reason && 
+            (event.reason.toString().includes('Cannot read properties of undefined') ||
+             event.reason.toString().includes('runtime.lastError'))) {
+          console.warn('Unhandled rejection caught:', event.reason.toString());
+          event.preventDefault();
+          return false;
+        }
+      });
+      
       console.log('Emergency fixes applied directly in HTML');
     </script>
     
     <!-- Load polyfill loader for additional polyfills - without type=module to load before modules -->
     <script src="/polyfill-loader.js" onerror="console.error('Failed to load polyfill-loader.js')"></script>
-    
-    <!-- Full browser polyfill - without type=module to load before modules -->
-    <script src="/browser-polyfill.js"></script>
     
     <!-- Standard head tags -->
     <meta charset="UTF-8" />

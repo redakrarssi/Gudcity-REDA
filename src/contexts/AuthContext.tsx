@@ -177,6 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
+  const [initialized, setInitialized] = useState<boolean>(false);
   const navigate = useNavigate();
 
   // Check if user is already logged in (from localStorage)
@@ -187,59 +188,105 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // CRITICAL FIX: Set a timeout to ensure the app doesn't get stuck loading
         const isProduction = window.location.hostname === 'gudcity-reda.vercel.app';
-        const timeout = isProduction ? 2000 : 10000; // 2s in prod, 10s otherwise
+        const timeout = isProduction ? 2000 : 5000; // 2s in prod, 5s in dev (reduced from 10s)
         
         // Create a promise that resolves after the timeout
         const timeoutPromise = new Promise<void>(resolve => {
           setTimeout(() => {
             console.warn(`Authentication initialization timed out after ${timeout}ms`);
+            setIsLoading(false);
+            setInitialized(true);
             resolve();
           }, timeout);
         });
         
         // Create the actual auth initialization promise
-        const initAuthPromise = (async () => {
+        const authInitPromise = (async () => {
           try {
-            // First ensure the database is set up properly
+            // Ensure database tables exist
             await ensureUserTableExists();
             
-            // Then ensure demo users exist
-            await ensureDemoUsers();
-            console.log('Database initialization complete');
-            
-            const storedUserId = localStorage.getItem('authUserId');
-            if (storedUserId) {
-              try {
-                const userId = parseInt(storedUserId, 10);
-                const dbUser = await getUserById(userId);
-                if (dbUser) {
-                  setUser(convertDbUserToUser(dbUser));
-                  console.log('User authenticated from stored ID:', userId);
-                } else {
-                  localStorage.removeItem('authUserId');
-                  console.log('Stored user ID not found in database:', userId);
-                }
-              } catch (error) {
-                console.error('Error checking auth:', error);
-                localStorage.removeItem('authUserId');
-              }
-            } else {
-              console.log('No stored user ID found');
+            // Create demo users if needed in development mode
+            if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+              await ensureDemoUsers();
             }
+            
+            // Check if user ID is stored in localStorage
+            const storedUserId = localStorage.getItem('authUserId');
+            if (!storedUserId) {
+              console.log('No stored user ID found');
+              setIsLoading(false);
+              setInitialized(true);
+              return;
+            }
+            
+            // Get user by ID
+            console.log('Fetching user data for ID:', storedUserId);
+            const dbUser = await getUserById(parseInt(storedUserId));
+            if (!dbUser) {
+              console.warn('Stored user ID not found in database:', storedUserId);
+              localStorage.removeItem('authUserId');
+              setIsLoading(false);
+              setInitialized(true);
+              return;
+            }
+            
+            // Validate user status
+            if (!validateUser(dbUser)) {
+              console.warn('User account is not valid:', dbUser);
+              localStorage.removeItem('authUserId');
+              setIsLoading(false);
+              setInitialized(true);
+              return;
+            }
+            
+            // Convert DB user to app user
+            const appUser = convertDbUserToUser(dbUser);
+            
+            // If business user, record login
+            if (appUser.role === 'business') {
+              try {
+                await recordBusinessLogin(appUser.id);
+              } catch (loginError) {
+                console.error('Error recording business login:', loginError);
+                // Non-critical error, continue
+              }
+            }
+            
+            // Set user in state
+            console.log('User authenticated successfully:', appUser.name);
+            setUser(appUser);
+            setIsLoading(false);
+            setInitialized(true);
           } catch (error) {
-            console.error('Error during authentication initialization:', error);
+            console.error('Auth initialization error:', error);
+            setIsLoading(false);
+            setInitialized(true);
           }
         })();
         
-        // Race between the timeout and actual initialization
-        await Promise.race([initAuthPromise, timeoutPromise]);
-      } finally {
+        // Wait for either timeout or auth init to complete
+        await Promise.race([timeoutPromise, authInitPromise]);
+      } catch (error) {
+        console.error('Fatal auth initialization error:', error);
         setIsLoading(false);
+        setInitialized(true);
       }
     };
-
+    
     checkAuth();
   }, []);
+
+  // Use fallback default values if initialization fails
+  if (!initialized && window.location.pathname === '/cards') {
+    // When directly accessing /cards, provide a fallback empty context until initialization completes
+    setInitialized(true);
+    setIsLoading(false);
+    // Redirect to login after a short delay
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 100);
+  }
 
   /**
    * Login function
@@ -499,11 +546,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: isLoading,
         isAuthenticated: !!user,
         error,
-        login,
-        register,
-        logout,
-        hasPermission,
-        clearError
+        login: login || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
+        register: register || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
+        logout: logout || (() => {}),
+        hasPermission: hasPermission || (() => false),
+        clearError: clearError || (() => {})
       }}
     >
       {children}

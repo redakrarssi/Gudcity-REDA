@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import sql from '../utils/db';
 import db from '../utils/databaseConnector';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import { Customer } from '../types/customer';
 import { QRCodeData } from '../types/qrCode';
 
@@ -410,13 +410,13 @@ export class UserQrCodeService {
   static async getCustomerAvailablePromoCodes(userId: string): Promise<any[]> {
     try {
       // First check if the table exists
-      const tableExists = await sql.query(`
+      const tableExists = await sql`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public'
           AND table_name = 'customer_promo_codes'
         );
-      `);
+      `;
       
       // If the table doesn't exist, log and return empty array
       if (!tableExists[0]?.exists) {

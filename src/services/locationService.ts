@@ -155,11 +155,11 @@ export class LocationService {
     params: LocationSearchParams
   ): Promise<{ programs: NearbyProgram[]; error?: string }> {
     try {
-      const radius = params.radius || 10; // Default 10 km
-      const limit = params.limit || 20; // Default 20 results
-
-      // First check if required tables exist
-      const [locationsExist, programsExist] = await Promise.all([
+      const radius = params.radius || 10; // Default to 10 km
+      const limit = params.limit || 20;   // Default to 20 results
+      
+      // Check tables exist before executing query
+      const [locationsExists, programsExists] = await Promise.all([
         sql`SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
@@ -171,28 +171,27 @@ export class LocationService {
           AND table_name = 'loyalty_programs'
         )`
       ]);
-
-      // If tables don't exist, return empty results
-      if (!locationsExist[0]?.exists || !programsExist[0]?.exists) {
-        console.warn('Required tables do not exist for nearby program search');
+      
+      if (!locationsExists?.[0]?.exists || !programsExists?.[0]?.exists) {
+        console.warn('Required tables do not exist for nearby programs search');
         return { programs: [] };
       }
-
-      // Start building the query with tagged template literals
+      
+      // Use tagged template literals for SQL queries
       let query = sql`
         SELECT 
           lp.id as program_id,
           lp.business_id,
-          b.name as business_name,
           lp.name as program_name,
-          COALESCE(lp.category, 'retail') as category,
+          lp.category,
           l.id as location_id,
           l.name as location_name,
+          b.name as business_name,
           l.address_line1,
           l.city,
           l.state,
-          l.country,
           l.zip,
+          l.country,
           l.latitude,
           l.longitude,
           (
@@ -203,17 +202,23 @@ export class LocationService {
               sin(radians(${params.latitude})) * 
               sin(radians(l.latitude))
             )
-          ) as distance
-        FROM business_locations l
-        JOIN businesses b ON l.business_id = b.id
-        JOIN loyalty_programs lp ON lp.business_id = b.id
-        WHERE l.is_active = TRUE
-        AND lp.is_active = TRUE
+          ) AS distance
+        FROM 
+          business_locations l
+        JOIN 
+          loyalty_programs lp ON l.business_id = lp.business_id
+        JOIN
+          business_profile b ON b.id = l.business_id
+        WHERE 
+          l.is_active = TRUE
+          AND lp.active = TRUE
       `;
       
-      // Add category filter if specified
+      // Add category filter if provided
       if (params.categories && params.categories.length > 0) {
-        const categoriesFilter = params.categories.filter(c => c !== 'all');
+        const categoriesFilter = Array.isArray(params.categories) 
+          ? params.categories 
+          : [params.categories];
         
         if (categoriesFilter.length > 0) {
           // Check if category column exists in loyalty_programs table
@@ -225,21 +230,18 @@ export class LocationService {
             )
           `;
           
-          if (categoryExists[0]?.exists) {
-            // Convert array to PostgreSQL array format for IN clause
-            const categoryList = categoriesFilter.join(',');
-            
-            // Add category filter
+          if (categoryExists?.[0]?.exists) {
+            // Fix: Use proper array parameter handling with sql.array
             query = sql`
               ${query} 
-              AND lp.category IN (${sql.raw(categoryList)})
+              AND lp.category = ANY(${sql.array(categoriesFilter)})
             `;
           }
         }
       }
       
       // Add distance constraint
-      query = sql`
+      const finalQuery = sql`
         ${query}
         AND (
           6371 * acos(
@@ -255,39 +257,56 @@ export class LocationService {
       `;
       
       // Execute the query
-      const result = await query;
+      const result = await finalQuery;
       
       // Transform the results into NearbyProgram objects
-      const programs: NearbyProgram[] = result.map(row => ({
-        programId: row.program_id?.toString() || '',
-        businessId: row.business_id?.toString() || '',
-        businessName: row.business_name || row.location_name || '',
-        programName: row.program_name || '',
-        category: row.category || 'retail',
-        distance: typeof row.distance === 'string' ? parseFloat(row.distance) : (row.distance || 0),
-        location: {
-          id: row.location_id?.toString() || '',
-          businessId: row.business_id?.toString() || '',
-          name: row.location_name || '',
-          address: row.address_line1 || '',
-          city: row.city || '',
-          state: row.state || '',
-          country: row.country || '',
-          postalCode: row.zip || '',
-          latitude: typeof row.latitude === 'string' ? parseFloat(row.latitude) : (row.latitude || 0),
-          longitude: typeof row.longitude === 'string' ? parseFloat(row.longitude) : (row.longitude || 0),
-          isActive: true,
-          openingHours: {
-            monday: '9:00-17:00',
-            tuesday: '9:00-17:00',
-            wednesday: '9:00-17:00',
-            thursday: '9:00-17:00',
-            friday: '9:00-17:00',
-            saturday: '10:00-14:00',
-            sunday: 'Closed'
+      const programs: NearbyProgram[] = result.map(row => {
+        // Safely get string values with fallbacks
+        const safeString = (value: any): string => 
+          value === null || value === undefined ? '' : String(value);
+        
+        // Safely get number values with fallbacks
+        const safeNumber = (value: any): number => {
+          if (value === null || value === undefined) return 0;
+          if (typeof value === 'number') return value;
+          try {
+            return parseFloat(value);
+          } catch (e) {
+            return 0;
           }
-        }
-      }));
+        };
+        
+        return {
+          programId: safeString(row.program_id),
+          businessId: safeString(row.business_id),
+          businessName: safeString(row.business_name || row.location_name),
+          programName: safeString(row.program_name),
+          category: safeString(row.category || 'retail'),
+          distance: safeNumber(row.distance),
+          location: {
+            id: safeString(row.location_id),
+            businessId: safeString(row.business_id),
+            name: safeString(row.location_name),
+            address: safeString(row.address_line1),
+            city: safeString(row.city),
+            state: safeString(row.state),
+            country: safeString(row.country),
+            postalCode: safeString(row.zip),
+            latitude: safeNumber(row.latitude),
+            longitude: safeNumber(row.longitude),
+            isActive: true,
+            openingHours: {
+              monday: '9:00-17:00',
+              tuesday: '9:00-17:00',
+              wednesday: '9:00-17:00',
+              thursday: '9:00-17:00',
+              friday: '9:00-17:00',
+              saturday: '10:00-14:00',
+              sunday: 'Closed'
+            }
+          }
+        };
+      });
       
       return { programs };
     } catch (error) {

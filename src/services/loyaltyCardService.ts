@@ -5,6 +5,11 @@ import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { emitPromoCodeGeneratedEvent, emitEnrollmentEvent, emitPointsRedeemedEvent } from '../utils/loyaltyEvents';
+import { emitNotification } from '../server';
+import { CustomerNotificationService } from './customerNotificationService';
+import { LoyaltyProgramService } from './loyaltyProgramService';
+import { formatPoints, validateCardData } from '../utils/validators';
+import { logger } from '../utils/logger';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -31,6 +36,8 @@ export interface LoyaltyCard {
   updatedAt: string;
   businessName?: string;
   programName?: string;
+  cardNumber: string;
+  status: string;
 }
 
 // Define the Reward interface
@@ -40,6 +47,9 @@ export interface Reward {
   description: string;
   imageUrl?: string;
   isRedeemable?: boolean;
+  id: string;
+  programId: string;
+  isActive: boolean;
 }
 
 // Define the RedemptionResult interface
@@ -60,13 +70,14 @@ export interface CardTierRequirement {
 
 // Define the CardActivity interface
 export interface CardActivity {
-  id: number;
-  card_id: number;
-  activity_type: 'EARN_POINTS' | 'REDEEM_POINTS' | 'CARD_USED';
+  id: string;
+  cardId: string;
+  type: string;
   points: number;
+  balance: number;
   description: string;
-  transaction_reference: string;
-  created_at: Date | string;
+  createdAt: string;
+  businessName?: string;
 }
 
 /**
@@ -130,18 +141,91 @@ export class LoyaltyCardService {
    */
   static async getCustomerCards(customerId: string): Promise<LoyaltyCard[]> {
     try {
-      // Use the customer_loyalty_cards view that joins all the necessary tables
-      const cards = await sql`
-        SELECT * 
-        FROM customer_loyalty_cards
-        WHERE customer_id = ${customerId}
-        AND is_active = true
-        ORDER BY updated_at DESC
+      // Ensure we have a valid customer ID
+      if (!customerId) {
+        console.error('Invalid customer ID');
+        return [];
+      }
+
+      console.log(`Fetching loyalty cards for customer ${customerId}`);
+
+      // Check if reward_tiers column exists
+      const columnExists = await sql`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='loyalty_programs' AND column_name='reward_tiers'
+        );
       `;
       
-      return cards.map(card => this.formatCard(card));
+      let result;
+      
+      // Get all cards with program and business details - handle missing columns gracefully
+      if (columnExists && columnExists[0] && columnExists[0].exists) {
+        // Column exists, use original query
+        result = await sql`
+          SELECT 
+            lc.*,
+            lp.name as program_name,
+            lp.description as program_description,
+            lp.type as program_type,
+            lp.points_per_dollar,
+            lp.reward_tiers,
+            lp.points_expiry_days,
+            u.name as business_name
+          FROM loyalty_cards lc
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lp.business_id = u.id
+          WHERE lc.customer_id = ${parseInt(customerId.toString())}
+          ORDER BY lc.created_at DESC
+        `;
+      } else {
+        // Column doesn't exist, omit it from query
+        result = await sql`
+          SELECT 
+            lc.*,
+            lp.name as program_name,
+            lp.description as program_description,
+            lp.type as program_type,
+            lp.points_per_dollar,
+            lp.points_expiry_days,
+            u.name as business_name
+          FROM loyalty_cards lc
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lp.business_id = u.id
+          WHERE lc.customer_id = ${parseInt(customerId.toString())}
+          ORDER BY lc.created_at DESC
+        `;
+      }
+
+      if (!result.length) {
+        console.log(`No loyalty cards found for customer ${customerId}`);
+        return [];
+      }
+
+      console.log(`Found ${result.length} loyalty cards for customer ${customerId}`);
+
+      // Map database results to our interface
+      return result.map(card => ({
+        id: card.id.toString(),
+        customerId: card.customer_id.toString(),
+        businessId: card.business_id.toString(),
+        programId: card.program_id.toString(),
+        programName: card.program_name,
+        cardNumber: card.card_number,
+        points: parseFloat(card.points) || 0,
+        tier: card.tier || 'STANDARD',
+        status: card.status || 'ACTIVE',
+        expiryDate: card.expiry_date,
+        createdAt: card.created_at,
+        updatedAt: card.updated_at,
+        cardType: card.card_type || 'STANDARD',
+        businessName: card.business_name,
+        pointsMultiplier: parseFloat(card.points_multiplier) || 1,
+        pointsToNext: card.points_to_next_tier ? parseFloat(card.points_to_next_tier) : undefined,
+        benefits: card.benefits || []
+      }));
     } catch (error) {
-      console.error('Error fetching customer loyalty cards:', error);
+      console.error('Error fetching customer cards:', error);
       return [];
     }
   }
@@ -512,76 +596,98 @@ export class LoyaltyCardService {
   static async addPoints(
     cardId: string,
     points: number,
-    transactionType: string
-  ): Promise<LoyaltyCard | null> {
+    description: string = 'Points added'
+  ): Promise<{ success: boolean; message?: string; newBalance?: number }> {
     try {
-      // Get current card to apply multiplier
+      // Validate inputs
+      if (!cardId || !points) {
+        return { success: false, message: 'Invalid card ID or points' };
+      }
+
+      // Format points to 2 decimal places to prevent floating point errors
+      const formattedPoints = formatPoints(points);
+
+      // Get the card to check it exists and get current balance
       const cardResult = await sql`
-        SELECT * FROM loyalty_cards WHERE id = ${cardId}
+        SELECT 
+          lc.*,
+          lp.name as program_name,
+          lp.business_id,
+          b.name as business_name
+        FROM loyalty_cards lc
+        JOIN loyalty_programs lp ON lc.program_id = lp.id
+        JOIN users b ON lp.business_id = b.id
+        WHERE lc.id = ${cardId}
       `;
-      
-      if (!cardResult.length) {
-        return null;
+
+      if (!cardResult || cardResult.length === 0) {
+        return { success: false, message: 'Card not found' };
       }
-      
+
       const card = cardResult[0];
-      const multiplier = card.points_multiplier || 1.0;
-      const pointsToAdd = Math.round(points * multiplier);
-      
-      // Update card points
-      const updatedCard = await sql`
+      const currentPoints = parseFloat(card.points) || 0;
+      const newBalance = currentPoints + formattedPoints;
+
+      // Update the card
+      await sql`
         UPDATE loyalty_cards
-        SET 
-          points = points + ${pointsToAdd},
-          last_used = NOW(),
-          updated_at = NOW()
+        SET points = ${newBalance}, updated_at = NOW()
         WHERE id = ${cardId}
-        RETURNING *
       `;
-      
-      if (!updatedCard.length) {
-        return null;
-      }
-      
-      // Record transaction
+
+      // Record the activity
+      const activityId = uuidv4();
       await sql`
         INSERT INTO card_activities (
-          card_id,
-          activity_type,
-          points,
-          description,
-          created_at
-        ) VALUES (
+          id, card_id, type, points, balance, description, created_at
+        )
+        VALUES (
+          ${activityId},
           ${cardId},
-          ${transactionType},
-          ${pointsToAdd},
-          ${`Added ${pointsToAdd} points (base: ${points}, multiplier: ×${multiplier})`},
+          'ADD_POINTS',
+          ${formattedPoints},
+          ${newBalance},
+          ${description},
           NOW()
         )
       `;
-      
-      // Check if tier upgrade is needed
-      await this.checkAndUpdateTier(updatedCard[0].id);
-      
-      // Get the final card
-      const finalCard = await sql`
-        SELECT * FROM loyalty_cards WHERE id = ${cardId}
-      `;
-      
-      // Broadcast update to customer's cards
+
+      // Send real-time notification to the customer
       try {
-        const storageKey = `cards_update_${card.customer_id || ''}`;
-        localStorage.setItem(storageKey, Date.now().toString());
-        setTimeout(() => localStorage.removeItem(storageKey), 5000);
-      } catch (_) {}
-      if (card.customer_id) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.customerSummary(card.customer_id) });
+        const notification = await CustomerNotificationService.createNotification({
+          customerId: card.customer_id.toString(),
+          businessId: card.business_id.toString(),
+          type: 'POINTS_ADDED',
+          title: 'Points Added',
+          message: `You received ${formattedPoints} points from ${card.business_name}`,
+          data: {
+            points: formattedPoints,
+            cardId: cardId,
+            programId: card.program_id.toString(),
+            programName: card.program_name
+          },
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false
+        });
+
+        // Emit real-time notification through socket
+        if (notification) {
+          emitNotification(card.customer_id.toString(), notification);
+        }
+      } catch (notificationError) {
+        console.error('Failed to send points notification:', notificationError);
+        // Continue even if notification fails
       }
-      
-      return this.formatCard(finalCard[0]);
+
+      return { 
+        success: true, 
+        message: `Added ${formattedPoints} points to card ${cardId}`, 
+        newBalance 
+      };
     } catch (error) {
       console.error('Error adding points to card:', error);
-      return null;
+      return { success: false, message: 'Database error while adding points' };
     }
   }
   
@@ -1024,7 +1130,9 @@ export class LoyaltyCardService {
       createdAt: card.created_at,
       updatedAt: card.updated_at,
       businessName: card.business_name,
-      programName: card.program_name
+      programName: card.program_name,
+      cardNumber: card.card_number,
+      status: card.status || 'ACTIVE'
     };
   }
 

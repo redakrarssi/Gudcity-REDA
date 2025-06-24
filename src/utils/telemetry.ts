@@ -3,7 +3,7 @@
  * especially focused on database connection health and query performance.
  */
 
-import logger from './logger';
+import { logger } from './logger';
 
 // Define metric types
 export type MetricName = 
@@ -348,7 +348,7 @@ export function clearTelemetryData(): void {
 }
 
 // Create and export the default object with all the functions
-const telemetry = {
+export const telemetry = {
   recordMetric,
   recordEvent,
   subscribeToMetrics,

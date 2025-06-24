@@ -1,51 +1,64 @@
 /**
- * Browser API Polyfill for GudCity
- * This provides fallbacks for browser extension APIs to prevent "browser is not defined" errors
+ * Browser API polyfill for cross-browser compatibility
+ * This provides a consistent browser API across environments
  */
 
-(function() {
-  console.log('Loading browser polyfill');
-  
-  // Create browser global if it doesn't exist
-  if (typeof window !== 'undefined' && !window.browser) {
-    window.browser = {
-      runtime: {
-        sendMessage: function() { return Promise.resolve(); },
-        onMessage: { addListener: function() {}, removeListener: function() {} },
-        getManifest: function() { return {}; },
-        getURL: function(path) { return path; },
-        lastError: null
-      },
-      storage: {
-        local: { 
-          get: function() { return Promise.resolve({}); }, 
-          set: function() { return Promise.resolve(); }, 
-          remove: function() { return Promise.resolve(); } 
-        },
-        sync: { 
-          get: function() { return Promise.resolve({}); }, 
-          set: function() { return Promise.resolve(); }, 
-          remove: function() { return Promise.resolve(); } 
+// Define a global browser object for extension compatibility
+const browserPolyfill = {
+  // Basic extension API structure
+  runtime: {
+    sendMessage: function() {
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        return chrome.runtime.sendMessage.apply(chrome.runtime, arguments);
+      }
+      console.warn('Browser runtime API not available');
+      return Promise.resolve(null);
+    },
+    onMessage: {
+      addListener: function(callback) {
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+          chrome.runtime.onMessage.addListener(callback);
         }
       },
-      tabs: {
-        query: function() { return Promise.resolve([]); },
-        create: function() { return Promise.resolve({}); },
-        update: function() { return Promise.resolve(); }
-      },
-      webRequest: {
-        onBeforeRequest: { addListener: function() {} },
-        onCompleted: { addListener: function() {} },
-        onErrorOccurred: { addListener: function() {} }
-      },
-      extension: {
-        getURL: function(path) { return path; }
-      },
-      i18n: {
-        getMessage: function() { return ''; }
+      removeListener: function(callback) {
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+          chrome.runtime.onMessage.removeListener(callback);
+        }
       }
-    };
-    
-    console.log('Browser polyfill installed');
+    },
+    getURL: function(path) {
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        return chrome.runtime.getURL(path);
+      }
+      return path; // Fallback to relative path
+    }
+  },
+  
+  // Storage API
+  storage: {
+    local: {
+      get: function(keys) {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          return chrome.storage.local.get(keys);
+        }
+        return Promise.resolve({});
+      },
+      set: function(items) {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          return chrome.storage.local.set(items);
+        }
+        return Promise.resolve();
+      }
+    }
   }
-})(); 
+};
+
+// Define browser globally
+if (typeof window !== 'undefined') {
+  window.browser = browserPolyfill;
+}
+
+// For CommonJS environments
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = browserPolyfill;
+} 

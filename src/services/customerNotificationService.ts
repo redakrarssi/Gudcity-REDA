@@ -1,6 +1,9 @@
 // Customer Notification Service
 
 import sql from '../utils/db';
+import { v4 as uuidv4 } from 'uuid';
+import { emitNotification, emitApprovalRequest } from '../server';
+import { logger } from '../utils/logger';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference } from '../types/customerNotification';
 
 /**
@@ -11,10 +14,14 @@ export class CustomerNotificationService {
    * Create a new notification for a customer
    * @param notification The notification data to create
    */
-  static async createNotification(notification: Omit<CustomerNotification, 'id' | 'createdAt'>): Promise<CustomerNotification> {
+  static async createNotification(notification: Omit<CustomerNotification, 'id' | 'createdAt'>): Promise<CustomerNotification | null> {
     try {
+      const notificationId = uuidv4();
+      const now = new Date();
+      
       const result = await sql`
         INSERT INTO customer_notifications (
+          id,
           customer_id,
           business_id,
           type,
@@ -24,8 +31,10 @@ export class CustomerNotificationService {
           reference_id,
           requires_action,
           action_taken,
-          is_read
+          is_read,
+          created_at
         ) VALUES (
+          ${notificationId},
           ${parseInt(notification.customerId)},
           ${parseInt(notification.businessId)},
           ${notification.type},
@@ -33,16 +42,46 @@ export class CustomerNotificationService {
           ${notification.message},
           ${notification.data ? JSON.stringify(notification.data) : null},
           ${notification.referenceId || null},
-          ${notification.requiresAction || false},
-          ${notification.actionTaken || false},
-          ${notification.isRead || false}
+          ${notification.requiresAction},
+          ${notification.actionTaken},
+          ${notification.isRead},
+          ${now.toISOString()}
         ) RETURNING *
       `;
-
-      return this.mapNotification(result[0]);
+      
+      if (!result.length) {
+        return null;
+      }
+      
+      // Get business name for better context
+      const businessNameResult = await sql`
+        SELECT name FROM users WHERE id = ${parseInt(notification.businessId)}
+      `;
+      
+      const businessName = businessNameResult.length ? businessNameResult[0].name : undefined;
+      
+      const createdNotification: CustomerNotification = {
+        id: result[0].id,
+        customerId: result[0].customer_id.toString(),
+        businessId: result[0].business_id.toString(),
+        type: result[0].type,
+        title: result[0].title,
+        message: result[0].message,
+        data: result[0].data,
+        referenceId: result[0].reference_id,
+        requiresAction: result[0].requires_action,
+        actionTaken: result[0].action_taken,
+        isRead: result[0].is_read,
+        createdAt: result[0].created_at,
+        readAt: result[0].read_at,
+        expiresAt: result[0].expires_at,
+        businessName
+      };
+      
+      return createdNotification;
     } catch (error) {
       console.error('Error creating notification:', error);
-      throw error;
+      return null;
     }
   }
 
@@ -52,6 +91,20 @@ export class CustomerNotificationService {
    */
   static async getCustomerNotifications(customerId: string): Promise<CustomerNotification[]> {
     try {
+      // Check if the table exists first
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'customer_notifications'
+        );
+      `;
+      
+      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
+        console.warn('Table customer_notifications does not exist');
+        return [];
+      }
+      
       const results = await sql`
         SELECT 
           cn.*,
@@ -75,6 +128,20 @@ export class CustomerNotificationService {
    */
   static async getUnreadNotifications(customerId: string): Promise<CustomerNotification[]> {
     try {
+      // Check if the table exists first
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'customer_notifications'
+        );
+      `;
+      
+      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
+        console.warn('Table customer_notifications does not exist');
+        return [];
+      }
+      
       const results = await sql`
         SELECT 
           cn.*,
@@ -98,14 +165,36 @@ export class CustomerNotificationService {
    */
   static async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      await sql`
+      const result = await sql`
         UPDATE customer_notifications
         SET is_read = TRUE, read_at = NOW()
-        WHERE id = ${parseInt(notificationId)}
+        WHERE id = ${notificationId}
+        RETURNING id
       `;
-      return true;
+
+      return result.length > 0;
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark all notifications as read for a customer
+   * @param customerId The customer ID
+   */
+  static async markAllAsRead(customerId: string): Promise<boolean> {
+    try {
+      const result = await sql`
+        UPDATE customer_notifications
+        SET is_read = TRUE, read_at = NOW()
+        WHERE customer_id = ${parseInt(customerId)} AND is_read = FALSE
+        RETURNING id
+      `;
+
+      return true;
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
       return false;
     }
   }
@@ -164,6 +253,20 @@ export class CustomerNotificationService {
    */
   static async getPendingApprovals(customerId: string): Promise<ApprovalRequest[]> {
     try {
+      // Check if the table exists first
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'customer_approval_requests'
+        );
+      `;
+      
+      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
+        console.warn('Table customer_approval_requests does not exist');
+        return [];
+      }
+      
       const results = await sql`
         SELECT 
           ar.*,
@@ -190,26 +293,29 @@ export class CustomerNotificationService {
    */
   static async respondToApproval(approvalId: string, approved: boolean): Promise<boolean> {
     try {
-      // Update the approval request status
+      const status = approved ? 'APPROVED' : 'REJECTED';
+      
       const result = await sql`
         UPDATE customer_approval_requests
-        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, response_at = NOW()
-        WHERE id = ${parseInt(approvalId)}
-        RETURNING notification_id
+        SET status = ${status}, response_at = NOW()
+        WHERE id = ${approvalId}
+        RETURNING id, customer_id, business_id, request_type, entity_id
       `;
 
-      if (!result.length) return false;
+      if (!result.length) {
+        return false;
+      }
       
-      // Update the linked notification
+      // Update any related notifications
       await sql`
         UPDATE customer_notifications
-        SET action_taken = TRUE, requires_action = FALSE
-        WHERE id = ${result[0].notification_id}
+        SET action_taken = TRUE
+        WHERE reference_id = ${approvalId}
       `;
-
+      
       return true;
     } catch (error) {
-      console.error('Error responding to approval request:', error);
+      console.error('Error responding to approval:', error);
       return false;
     }
   }
@@ -346,7 +452,7 @@ export class CustomerNotificationService {
   // Helper methods to map database results to typed objects
   private static mapNotification(row: any): CustomerNotification {
     return {
-      id: row.id.toString(),
+      id: row.id,
       customerId: row.customer_id.toString(),
       businessId: row.business_id.toString(),
       type: row.type,
@@ -366,11 +472,11 @@ export class CustomerNotificationService {
 
   private static mapApprovalRequest(row: any): ApprovalRequest {
     return {
-      id: row.id.toString(),
-      notificationId: row.notification_id.toString(),
+      id: row.id,
+      notificationId: row.notification_id,
       customerId: row.customer_id.toString(),
       businessId: row.business_id.toString(),
-      requestType: row.request_type,
+      requestType: row.request_type as ApprovalRequestType,
       entityId: row.entity_id,
       status: row.status,
       data: row.data || {},

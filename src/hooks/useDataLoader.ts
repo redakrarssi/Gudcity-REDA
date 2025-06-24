@@ -5,10 +5,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, UseQueryOptions, QueryClient } from '@tanstack/react-query';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import { withRetry } from '../utils/withRetry';
 import { FEATURES } from '../utils/env';
-import telemetry from '../utils/telemetry';
+import { telemetry } from '../utils/telemetry';
 
 // Custom retry interface that's compatible with React Query
 interface CustomRetryOptions {

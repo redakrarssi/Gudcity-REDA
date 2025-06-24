@@ -201,26 +201,44 @@ export const NearbyPrograms: React.FC<NearbyProgramsProps> = ({
         categories
       };
 
-      const { programs: nearbyPrograms, error: apiError } = await LocationService.searchNearbyPrograms(searchParams);
+      try {
+        const { programs: nearbyPrograms, error: apiError } = await LocationService.searchNearbyPrograms(searchParams);
 
-      if (apiError) {
-        setError(apiError);
-        return;
-      }
+        if (apiError) {
+          console.warn('API error searching nearby programs:', apiError);
+          setError(apiError);
+          setPrograms([]); // Ensure we have an empty array even on error
+          return;
+        }
 
-      setPrograms(nearbyPrograms);
+        // Set programs if we have valid data
+        setPrograms(nearbyPrograms || []);
 
-      // Update map markers if map is available
-      if (map && !mapError) {
-        import('mapbox-gl').then(mapboxgl => {
-          updateMapMarkers(map, nearbyPrograms, mapboxgl);
-        }).catch(err => {
-          console.error('Failed to load mapbox-gl for updating markers:', err);
-        });
+        // Update map markers if map is available
+        if (map && !mapError && nearbyPrograms?.length > 0) {
+          import('mapbox-gl').then(mapboxgl => {
+            updateMapMarkers(map, nearbyPrograms, mapboxgl);
+          }).catch(err => {
+            console.error('Failed to load mapbox-gl for updating markers:', err);
+          });
+        }
+      } catch (dbError) {
+        // Handle database-specific errors
+        console.error('Database error searching nearby programs:', dbError);
+        
+        // Don't show technical SQL errors to users
+        if (dbError instanceof Error && dbError.message.includes('syntax error at or near "$1"')) {
+          setError('Unable to search nearby programs. The feature is temporarily unavailable.');
+        } else {
+          setError('Error loading nearby programs data. Please try again later.');
+        }
+        setPrograms([]);
       }
     } catch (err) {
-      console.error('Error searching nearby programs:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred while searching for programs');
+      // Handle general errors
+      console.error('Error in NearbyPrograms component:', err);
+      setError('An unexpected error occurred. Please try again later.');
+      setPrograms([]);
     } finally {
       setLoading(false);
     }

@@ -57,208 +57,334 @@ const UserTypeRedirect = () => {
   return <Navigate to="/dashboard" />;
 };
 
+// Create a fallback component for the error boundary
+const AppErrorFallback = () => (
+  <div style={{ 
+    padding: '30px', 
+    margin: '50px auto', 
+    maxWidth: '600px',
+    backgroundColor: '#f8f9fa', 
+    border: '1px solid #dee2e6',
+    borderRadius: '8px',
+    textAlign: 'center'
+  }}>
+    <h2 style={{ marginBottom: '20px', color: '#dc3545' }}>Application Error</h2>
+    <p style={{ marginBottom: '20px' }}>
+      We're sorry, but something went wrong with the application. 
+      Please try refreshing the page or contact support if the issue persists.
+    </p>
+    <button 
+      onClick={() => window.location.reload()}
+      style={{
+        padding: '10px 20px',
+        backgroundColor: '#007bff',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      }}
+    >
+      Refresh Page
+    </button>
+  </div>
+);
+
 function App() {
   const { t } = useTranslation();
 
   return (
-    <Router>
-      <AuthProvider>
-        <FallbackProvider>
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
-            {/* Show database connection alert */}
-            <DatabaseConnectionAlert />
+    <ErrorBoundary fallback={<AppErrorFallback />}>
+      <Router>
+        <AuthProvider>
+          <FallbackProvider>
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+              {/* Show database connection alert */}
+              <DatabaseConnectionAlert />
 
-            <Routes>
-              <Route path="/" element={
-                <ErrorBoundary>
-                  <DiagnosticRenderer name="LandingPage">
-                    <LandingPage />
-                  </DiagnosticRenderer>
-                </ErrorBoundary>
-              } />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/comments" element={<CommentsPage />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/unauthorized" element={<Unauthorized />} />
-              <Route path="/admin-access" element={<AdminLogin />} />
-              
-              {/* Setup Wizard Routes */}
-              <Route path="/setup" element={
-                <ProtectedRoute>
-                  <SetupController />
-                </ProtectedRoute>
-              } />
-              
-              {/* Redirect route based on user type */}
-              <Route path="/account" element={<UserTypeRedirect />} />
-              
-              {/* Customer Routes */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <CustomerDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/cards" element={
-                <ProtectedRoute>
-                  <CustomerCards />
-                </ProtectedRoute>
-              } />
-              <Route path="/promotions" element={
-                <ProtectedRoute>
-                  <CustomerPromotions />
-                </ProtectedRoute>
-              } />
-              <Route path="/qr-card" element={
-                <ProtectedRoute>
-                  <CustomerQrCard />
-                </ProtectedRoute>
-              } />
-              <Route path="/qr-code" element={
-                <Navigate to="/qr-card" replace />
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <CustomerSettings />
-                </ProtectedRoute>
-              } />
-              <Route path="/nearby" element={
-                <ProtectedRoute>
-                  <CustomerNearby />
-                </ProtectedRoute>
-              } />
-              
-              {/* Business Routes */}
-              <Route path="/business/dashboard" element={
-                <ProtectedRoute requiredPermission="business.profile.view">
-                  <BusinessDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/programs" element={
-                <ProtectedRoute requiredPermission="business.programs.view">
-                  <BusinessPrograms />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/analytics" element={
-                <ProtectedRoute requiredPermission="business.analytics.view">
-                  <BusinessAnalytics />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/customers" element={
-                <ProtectedRoute requiredPermission="business.customers.view">
-                  <BusinessCustomers />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/promotions" element={
-                <ProtectedRoute requiredPermission="business.promotions.view">
-                  <BusinessPromotions />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/qr-scanner" element={
-                <ProtectedRoute requiredPermission="business.profile.view">
-                  <BusinessQrScanner />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/test-codes" element={
-                <ProtectedRoute requiredPermission="business.profile.view">
-                  <BusinessTestCodes />
-                </ProtectedRoute>
-              } />
-              <Route path="/business/settings" element={
-                <ProtectedRoute requiredPermission="business.profile.view">
-                  <BusinessSettings />
-                </ProtectedRoute>
-              } />
-              
-              {/* Admin Routes */}
-              <Route 
-                path="/admin" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminDashboard />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/dashboard" 
-                element={
-                  <Navigate to="/admin" replace />
-                } 
-              />
-              <Route 
-                path="/admin/users" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminUsers />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/businesses" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminBusinesses />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route path="/admin/analytics" element={
-                <AdminProtectedRoute>
-                  <AdminAnalytics />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/approvals" element={
-                <AdminProtectedRoute>
-                  <AdminApprovals />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/global-settings" element={
-                <AdminProtectedRoute>
-                  <AdminGlobalSettings />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/settings" element={
-                <AdminProtectedRoute>
-                  <AdminSettings />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/system-logs" element={
-                <AdminProtectedRoute>
-                  <AdminSystemLogs />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/permissions" element={
-                <AdminProtectedRoute>
-                  <AdminPermissions />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/email-templates" element={
-                <AdminProtectedRoute>
-                  <AdminEmailTemplates />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/page-manager" element={
-                <AdminProtectedRoute>
-                  <AdminPageManager />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/pricing-plans" element={
-                <AdminProtectedRoute>
-                  <AdminPricingPlans />
-                </AdminProtectedRoute>
-              } />
-              <Route path="/admin/database-diagnostics" element={
-                <AdminProtectedRoute>
-                  <DatabaseDiagnosticsPage />
-                </AdminProtectedRoute>
-              } />
-              
-              {/* Catch-all route */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </FallbackProvider>
-      </AuthProvider>
-    </Router>
+              <Routes>
+                <Route path="/" element={
+                  <ErrorBoundary>
+                    <DiagnosticRenderer name="LandingPage">
+                      <LandingPage />
+                    </DiagnosticRenderer>
+                  </ErrorBoundary>
+                } />
+                <Route path="/pricing" element={
+                  <ErrorBoundary>
+                    <Pricing />
+                  </ErrorBoundary>
+                } />
+                <Route path="/comments" element={
+                  <ErrorBoundary>
+                    <CommentsPage />
+                  </ErrorBoundary>
+                } />
+                <Route path="/login" element={
+                  <ErrorBoundary>
+                    <Login />
+                  </ErrorBoundary>
+                } />
+                <Route path="/register" element={
+                  <ErrorBoundary>
+                    <Register />
+                  </ErrorBoundary>
+                } />
+                <Route path="/unauthorized" element={
+                  <ErrorBoundary>
+                    <Unauthorized />
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin-access" element={
+                  <ErrorBoundary>
+                    <AdminLogin />
+                  </ErrorBoundary>
+                } />
+                
+                {/* Setup Wizard Routes */}
+                <Route path="/setup" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <SetupController />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                
+                {/* Redirect route based on user type */}
+                <Route path="/account" element={
+                  <ErrorBoundary>
+                    <UserTypeRedirect />
+                  </ErrorBoundary>
+                } />
+                
+                {/* Customer Routes */}
+                <Route path="/dashboard" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerDashboard />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/cards" element={
+                  <ErrorBoundary>
+                    <CustomerCards />
+                  </ErrorBoundary>
+                } />
+                <Route path="/promotions" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerPromotions />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/qr-card" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerQrCard />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/qr-code" element={
+                  <Navigate to="/qr-card" replace />
+                } />
+                <Route path="/settings" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerSettings />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/nearby" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerNearby />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                
+                {/* Business Routes */}
+                <Route path="/business/dashboard" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.profile.view">
+                      <BusinessDashboard />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/programs" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.programs.view">
+                      <BusinessPrograms />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/analytics" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.analytics.view">
+                      <BusinessAnalytics />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/customers" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.customers.view">
+                      <BusinessCustomers />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/promotions" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.promotions.view">
+                      <BusinessPromotions />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/qr-scanner" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.profile.view">
+                      <BusinessQrScanner />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/test-codes" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.profile.view">
+                      <BusinessTestCodes />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/business/settings" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute requiredPermission="business.profile.view">
+                      <BusinessSettings />
+                    </ProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                
+                {/* Admin Routes */}
+                <Route 
+                  path="/admin" 
+                  element={
+                    <ErrorBoundary>
+                      <AdminProtectedRoute>
+                        <AdminDashboard />
+                      </AdminProtectedRoute>
+                    </ErrorBoundary>
+                  } 
+                />
+                <Route 
+                  path="/admin/dashboard" 
+                  element={
+                    <Navigate to="/admin" replace />
+                  } 
+                />
+                <Route 
+                  path="/admin/users" 
+                  element={
+                    <ErrorBoundary>
+                      <AdminProtectedRoute>
+                        <AdminUsers />
+                      </AdminProtectedRoute>
+                    </ErrorBoundary>
+                  } 
+                />
+                <Route 
+                  path="/admin/businesses" 
+                  element={
+                    <ErrorBoundary>
+                      <AdminProtectedRoute>
+                        <AdminBusinesses />
+                      </AdminProtectedRoute>
+                    </ErrorBoundary>
+                  } 
+                />
+                <Route path="/admin/analytics" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminAnalytics />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/approvals" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminApprovals />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/global-settings" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminGlobalSettings />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/settings" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminSettings />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/system-logs" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminSystemLogs />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/permissions" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminPermissions />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/email-templates" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminEmailTemplates />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/page-manager" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminPageManager />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/pricing-plans" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <AdminPricingPlans />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+                <Route path="/admin/database-diagnostics" element={
+                  <ErrorBoundary>
+                    <AdminProtectedRoute>
+                      <DatabaseDiagnosticsPage />
+                    </AdminProtectedRoute>
+                  </ErrorBoundary>
+                } />
+
+                {/* Catch-all route */}
+                <Route path="*" element={
+                  <ErrorBoundary>
+                    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+                      <h1 className="text-4xl font-bold mb-4">{t('notFound.title', '404: Page Not Found')}</h1>
+                      <p className="mb-8">{t('notFound.message', 'The page you are looking for does not exist.')}</p>
+                      <a href="/" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        {t('notFound.goHome', 'Go to Home')}
+                      </a>
+                    </div>
+                  </ErrorBoundary>
+                } />
+              </Routes>
+            </div>
+          </FallbackProvider>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

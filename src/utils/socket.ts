@@ -1,69 +1,38 @@
 import { io, Socket } from 'socket.io-client';
+import { API_BASE_URL } from '../env';
+import { WEBSOCKET_EVENTS } from './constants';
 
-// Create a singleton socket instance with better error handling
-const createSafeSocket = () => {
-  try {
-    const socketUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    
-    // Only create socket connection if we're running in browser environment
-    if (typeof window !== 'undefined') {
-      return io(socketUrl, {
-        autoConnect: false,
-        transports: ['websocket', 'polling'],
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1000,
-        timeout: 5000
-      });
-    }
-    
-    // Return a mock socket for SSR environments
-    return {
-      on: () => {},
-      emit: () => {},
-      connect: () => {},
-      disconnect: () => {},
-      connected: false,
-      auth: {}
-    } as unknown as Socket;
-  } catch (error) {
-    console.error('Failed to initialize socket:', error);
-    
-    // Return a dummy socket that won't throw errors
-    return {
-      on: () => {},
-      emit: () => {},
-      connect: () => {},
-      disconnect: () => {},
-      connected: false,
-      auth: {}
-    } as unknown as Socket;
-  }
-};
+// Flag to disable socket connections - useful for development or when server is unavailable
+const DISABLE_SOCKETS = process.env.NODE_ENV === 'development';
 
-export const socket: Socket = createSafeSocket();
+// Create a singleton socket instance if not disabled
+let socket: Socket | null = null;
 
-// Add connection event handlers for debugging
-socket.on('connect', () => {
-  console.log('Socket connected');
-});
+// Only create the socket if not disabled
+if (!DISABLE_SOCKETS) {
+  socket = io(API_BASE_URL, {
+    autoConnect: false, // Don't connect automatically, we'll do it explicitly
+    reconnectionAttempts: 3, // Reduced number of attempts
+    reconnectionDelay: 2000,
+    timeout: 5000, // Shorter timeout
+    transports: ['websocket', 'polling']
+  });
+}
 
-socket.on('disconnect', (reason: string) => {
-  console.log(`Socket disconnected: ${reason}`);
-});
-
-socket.on('connect_error', (error) => {
-  console.error('Socket connection error:', error.message);
-});
-
-socket.on('error', (error: Error) => {
-  console.error('Socket error:', error);
-});
+// Track connection state
+let isConnecting = false;
+let connectedUserId: string | null = null;
+let connectionFailed = false; // Flag to track if connection has failed
 
 /**
  * Connect socket with authentication token
  * @param token JWT authentication token
  */
 export const connectAuthenticatedSocket = (token: string) => {
+  if (DISABLE_SOCKETS || connectionFailed || !socket) {
+    return; // Silently exit if sockets are disabled or previous connection failed
+  }
+  
   if (!token) {
     console.warn('Cannot connect socket: No authentication token provided');
     return;
@@ -79,18 +48,132 @@ export const connectAuthenticatedSocket = (token: string) => {
     }
   } catch (error) {
     console.error('Error connecting socket:', error);
+    connectionFailed = true; // Mark as failed
   }
 };
 
 /**
- * Disconnect socket
+ * Connect socket for a specific user ID
+ * @param userId User ID to connect for notifications
  */
-export const disconnectSocket = () => {
+export const connectUserSocket = (userId: string) => {
+  if (DISABLE_SOCKETS || connectionFailed || !socket) {
+    return; // Silently exit if sockets are disabled or previous connection failed
+  }
+  
+  if (!userId) {
+    console.warn('Cannot connect socket: No user ID provided');
+    return;
+  }
+  
+  // Don't reconnect if already connecting for the same user
+  if (isConnecting && connectedUserId === userId) {
+    return;
+  }
+  
   try {
-    if (socket.connected) {
-      socket.disconnect();
+    isConnecting = true;
+    connectedUserId = userId;
+    
+    // Set user ID in auth
+    socket.auth = { userId };
+    
+    // Connect if not already connected
+    if (!socket.connected) {
+      console.log(`Connecting socket for user: ${userId}`);
+      socket.connect();
+      
+      // Set up event handlers for connection
+      socket.on('connect', () => {
+        console.log(`Socket connected for user: ${userId}`);
+        isConnecting = false;
+        
+        // Join user's room for notifications
+        socket.emit('join', { userId });
+      });
+      
+      // Handle connection errors more gracefully
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        isConnecting = false;
+        
+        // After multiple failed attempts, mark as failed to prevent further attempts
+        if (socket) {
+          console.warn('Socket connection failed, disabling reconnection');
+          connectionFailed = true;
+          socket.disconnect(); // Disconnect to prevent further attempts
+        }
+      });
+    } else {
+      // If already connected but for a different user, join new room
+      socket.emit('join', { userId });
     }
   } catch (error) {
-    console.error('Error disconnecting socket:', error);
+    console.error('Error connecting socket:', error);
+    isConnecting = false;
   }
-}; 
+};
+
+/**
+ * Disconnect the socket
+ */
+export const disconnectSocket = () => {
+  if (socket?.connected) {
+    socket.disconnect();
+    connectedUserId = null;
+  }
+};
+
+/**
+ * Listen for events on a specific topic for a user
+ * @param userId User ID
+ * @param topic Topic to listen for (e.g., 'notification', 'approval')
+ * @param callback Callback function when event is received
+ */
+export const listenForUserEvents = (userId: string, topic: string, callback: (data: any) => void) => {
+  if (DISABLE_SOCKETS || connectionFailed || !socket) {
+    return () => {}; // Return empty cleanup function
+  }
+  
+  const eventName = `${topic}:${userId}`;
+  
+  // Remove any existing listeners to prevent duplicates
+  socket.off(eventName);
+  
+  // Add new listener
+  socket.on(eventName, callback);
+  
+  // Ensure socket is connected
+  if (!socket.connected) {
+    connectUserSocket(userId);
+  }
+  
+  // Return cleanup function
+  return () => {
+    socket?.off(eventName);
+  };
+};
+
+// Setup global error handler if socket exists
+if (socket) {
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
+
+  // Setup reconnection logic
+  socket.io.on('reconnect', (attempt) => {
+    console.log(`Socket reconnected after ${attempt} attempts`);
+    
+    // Re-join user room if needed
+    if (connectedUserId) {
+      socket.emit('join', { userId: connectedUserId });
+    }
+  });
+
+  // Debug event listeners (for development)
+  if (process.env.NODE_ENV === 'development') {
+    socket.onAny((event, ...args) => {
+      console.log(`[Socket Event]: ${event}`, args);
+    });
+  }
+} 

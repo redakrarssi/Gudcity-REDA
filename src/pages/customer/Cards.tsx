@@ -28,6 +28,34 @@ interface PromoCodeState {
   isLoading: boolean;
 }
 
+// Safe wrapper component for CustomerCards
+const CustomerCardsSafeWrapper = () => {
+  // Try/catch to handle the case when AuthProvider isn't available
+  try {
+    // Test if we can access the auth context
+    const { user } = useAuth();
+    // If we can access it, render the actual component
+    return <CustomerCards />;
+  } catch (error) {
+    // If we can't access the auth context, show a fallback
+    console.error('Auth context not available:', error);
+    return (
+      <CustomerLayout>
+        <div className="p-6 text-center">
+          <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
+          <p className="mb-6">Please log in to view your loyalty cards</p>
+          <button 
+            onClick={() => window.location.href = '/login'}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </CustomerLayout>
+    );
+  }
+};
+
 const CustomerCards = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -569,4 +597,5 @@ const CustomerCards = () => {
   );
 };
 
-export default CustomerCards; 
+// Export the safe wrapper instead of the component directly
+export default CustomerCardsSafeWrapper; 

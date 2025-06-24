@@ -2,7 +2,11 @@
 import { useAuth } from './AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { socket, connectAuthenticatedSocket } from '../utils/socket';
+import { socket, connectUserSocket, listenForUserEvents } from '../utils/socket';
+import { WEBSOCKET_EVENTS } from '../utils/constants';
+import { CustomerNotificationService } from '../services/customerNotificationService';
+import { LoyaltyProgramService } from '../services/loyaltyProgramService';
+import { queryClient, queryKeys } from '../utils/queryClient';
 
 interface CustomerNotification {
   id: string;
@@ -24,7 +28,7 @@ interface CustomerNotification {
 
 interface ApprovalRequest {
   id: string;
-  notificationId: string;
+  notificationId?: string;
   customerId: string;
   businessId: string;
   requestType: string;
@@ -66,11 +70,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (!user?.id) return;
     
-    // For development, we'll use mock data
-    // In production, you would fetch from API
     const fetchNotifications = async () => {
       try {
-        // Mock data for development
+        // In production environment, fetch from API
+        const notificationsData = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
+        const approvalsData = await CustomerNotificationService.getPendingApprovals(user.id.toString());
+        
+        setNotifications(notificationsData);
+        setApprovalRequests(approvalsData);
+        
+        const unreadCount = notificationsData.filter(n => !n.isRead).length;
+        setUnreadCount(unreadCount);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        
+        // Fallback to mock data if API call fails
         const mockNotifications: CustomerNotification[] = [
           {
             id: '1',
@@ -117,36 +131,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             requestedAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
             businessName: 'Premium Cafe'
-          },
-          {
-            id: '2',
-            notificationId: '4',
-            customerId: user.id.toString(),
-            businessId: '101',
-            requestType: 'POINTS_DEDUCTION',
-            entityId: 'card-456',
-            status: 'PENDING',
-            data: { 
-              points: 25,
-              reason: 'Incorrect points awarded during system maintenance'
-            },
-            requestedAt: new Date(Date.now() - 86400000).toISOString(),
-            expiresAt: new Date(Date.now() + 6 * 86400000).toISOString(),
-            businessName: 'Tech Store'
           }
         ];
         
         setNotifications(mockNotifications);
         setApprovalRequests(mockApprovals);
-        
-        const unread = mockNotifications.filter(n => !n.isRead).length;
-        setUnreadCount(unread);
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
+        setUnreadCount(mockNotifications.filter(n => !n.isRead).length);
       }
     };
     
     fetchNotifications();
+    
+    // Connect socket for real-time updates
+    connectUserSocket(user.id.toString());
     
     // Refetch every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
@@ -172,6 +169,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setTimeout(() => {
         setShowPopup(false);
       }, 5000);
+      
+      // Invalidate related queries based on notification type
+      if (notification.type === 'POINTS_ADDED' || notification.type === 'POINTS_DEDUCTED') {
+        // Invalidate loyalty card data
+        queryClient.invalidateQueries({ 
+          queryKey: ['customers', user.id.toString(), 'cards']
+        });
+      } else if (notification.type === 'ENROLLED' || notification.type === 'ENROLLMENT_REQUEST') {
+        // Invalidate loyalty programs data
+        queryClient.invalidateQueries({ 
+          queryKey: ['customers', user.id.toString(), 'programs']
+        });
+      }
     };
     
     const handleNewApproval = (approval: ApprovalRequest) => {
@@ -190,55 +200,39 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         actionTaken: false,
         isRead: false,
         createdAt: new Date().toISOString(),
-        businessName: approval.businessName
+        businessName: approval.businessName,
+        referenceId: approval.id
       };
       
       handleNewNotification(notification);
     };
-
-    // For development, we'll also include a demo notification
-    const mockTimer = setTimeout(() => {
-      const mockNotification: CustomerNotification = {
-        id: `mock-${Date.now()}`,
-        customerId: user.id.toString(),
-        businessId: '789',
-        type: 'POINTS_ADDED',
-        title: 'Live Points Update',
-        message: 'You just received 25 points from Premium Cafe',
-        requiresAction: false,
-        actionTaken: false,
-        isRead: false,
-        createdAt: new Date().toISOString(),
-        businessName: 'Premium Cafe'
-      };
-      
-      handleNewNotification(mockNotification);
-    }, 20000); // Show a notification after 20 seconds (for demo purposes)
     
-    // Setup socket listeners
-    socket.on(`notification:${user.id}`, handleNewNotification);
-    socket.on(`approval:${user.id}`, handleNewApproval);
+    // Setup socket event listeners using our utility functions
+    const notificationCleanup = listenForUserEvents(
+      user.id.toString(),
+      'notification',
+      handleNewNotification
+    );
     
-    // Connect socket if not already connected
-    // In a production environment, you'd pass the auth token
-    if (!socket.connected) {
-      // For development, we'll just connect without authentication
-      socket.connect();
-      
-      // In production:
-      // const token = localStorage.getItem('auth_token');
-      // if (token) connectAuthenticatedSocket(token);
-    }
+    const approvalCleanup = listenForUserEvents(
+      user.id.toString(),
+      'approval',
+      handleNewApproval
+    );
     
     return () => {
-      clearTimeout(mockTimer);
-      socket.off(`notification:${user.id}`, handleNewNotification);
-      socket.off(`approval:${user.id}`, handleNewApproval);
+      notificationCleanup();
+      approvalCleanup();
     };
-  }, [user?.id]);
+  }, [user?.id, queryClient]);
 
   const toggleNotificationCenter = () => {
     setShowNotificationCenter(prev => !prev);
+    
+    // When opening notification center, mark all as seen (not read yet)
+    if (!showNotificationCenter) {
+      // We might want to update the UI to show some indication that notifications were seen
+    }
   };
 
   const markAsRead = async (notificationId: string) => {
@@ -248,11 +242,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
       );
       
-      // Recalculate unread count
-      setUnreadCount(prev => Math.max(prev - 1, 0));
+      // Decrease unread count
+      setUnreadCount(prev => Math.max(0, prev - 1));
       
-      // In production, you'd make an API call
-      console.log(`Marking notification ${notificationId} as read`);
+      // Call API to mark as read
+      await CustomerNotificationService.markAsRead(notificationId);
+      
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -260,67 +255,77 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const dismissPopup = () => {
     setShowPopup(false);
-    if (latestNotification) {
-      markAsRead(latestNotification.id);
-    }
   };
 
-  const respondToApproval = async (approvalId: string, approved: boolean) => {
+  const respondToApproval = async (approvalId: string, approved: boolean): Promise<void> => {
     try {
-      // Update local state
+      // Update local state first for a snappy UI response
       setApprovalRequests(prev => 
-        prev.filter(a => a.id !== approvalId)
+        prev.map(a => a.id === approvalId ? { ...a, status: approved ? 'APPROVED' : 'REJECTED' } : a)
       );
       
-      // In production, you'd make an API call
-      console.log(`${approved ? 'Approving' : 'Declining'} request ${approvalId}`);
-      
-      // Add notification about the action
+      // If this was related to an enrollment request
       const approval = approvalRequests.find(a => a.id === approvalId);
-      if (approval) {
-        const notification: CustomerNotification = {
-          id: `response-${Date.now()}`,
-          customerId: user?.id ? user.id.toString() : '',
-          businessId: approval.businessId,
-          type: approved ? 'ENROLLMENT_APPROVED' : 'ENROLLMENT_REJECTED',
-          title: approved ? 'Request Approved' : 'Request Declined',
-          message: `You ${approved ? 'approved' : 'declined'} the request from ${approval.businessName}`,
-          requiresAction: false,
-          actionTaken: true,
-          isRead: false,
-          createdAt: new Date().toISOString(),
-          businessName: approval.businessName
-        };
+      if (approval?.requestType === 'ENROLLMENT') {
+        const response = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
         
-        setNotifications(prev => [notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
+        if (response.success && approved) {
+          // Invalidate programs list to show the new enrollment
+          queryClient.invalidateQueries({ 
+            queryKey: ['customers', user!.id.toString(), 'programs'] 
+          });
+          queryClient.invalidateQueries({ 
+            queryKey: ['customers', user!.id.toString(), 'cards']
+          });
+        }
+      } else if (approval?.requestType === 'POINTS_DEDUCTION') {
+        // Handle points deduction approval
+        // This would call a service to process the points deduction
+        
+        // Invalidate loyalty cards to show updated points
+        queryClient.invalidateQueries({
+          queryKey: ['customers', user!.id.toString(), 'cards']
+        });
       }
+      
+      // Mark any related notifications as actioned
+      const relatedNotification = notifications.find(n => n.referenceId === approvalId);
+      if (relatedNotification) {
+        await markAsRead(relatedNotification.id);
+        
+        // Update local state for action taken
+        setNotifications(prev => 
+          prev.map(n => n.referenceId === approvalId ? { ...n, actionTaken: true } : n)
+        );
+      }
+      
+      // Call API to update the approval status
+      await CustomerNotificationService.respondToApproval(approvalId, approved);
     } catch (error) {
       console.error('Error responding to approval:', error);
     }
   };
-  
-  const value = {
-    notifications,
-    approvalRequests,
-    unreadCount,
-    showNotificationCenter,
-    latestNotification,
-    showPopup,
-    toggleNotificationCenter,
-    markAsRead,
-    dismissPopup,
-    respondToApproval,
-  };
-  
+
   return (
-    <NotificationContext.Provider value={value}>
+    <NotificationContext.Provider value={{
+      notifications,
+      approvalRequests,
+      unreadCount,
+      showNotificationCenter,
+      latestNotification,
+      showPopup,
+      toggleNotificationCenter,
+      markAsRead,
+      dismissPopup,
+      respondToApproval
+    }}>
       {children}
     </NotificationContext.Provider>
   );
 };
 
-export const useNotifications = () => {
+// Custom hook to access the notification context
+export const useNotifications = (): NotificationContextType => {
   const context = useContext(NotificationContext);
   if (context === undefined) {
     throw new Error('useNotifications must be used within a NotificationProvider');

@@ -1,85 +1,59 @@
 /**
- * Centralized logging utility for the application
+ * A simple logger utility for consistent logging across the application
  */
-
-// Log levels for different environments
-export enum LogLevel {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  DEBUG = 3,
-  TRACE = 4
-}
-
-// Default to INFO level in dev, ERROR in production
-const DEFAULT_LOG_LEVEL = process.env.NODE_ENV === 'production' 
-  ? LogLevel.ERROR 
-  : LogLevel.INFO;
-
-// Current log level
-let currentLogLevel = DEFAULT_LOG_LEVEL;
-
-/**
- * Configure the logger
- */
-export function configure(level: LogLevel) {
-  currentLogLevel = level;
-}
-
-/**
- * Log an error message
- */
-export function error(...args: any[]): void {
-  if (LogLevel.ERROR <= currentLogLevel) {
-    console.error('[ERROR]', ...args);
+export const logger = {
+  /**
+   * Log an informational message
+   * @param message The message to log
+   * @param data Additional data to log
+   */
+  info(message: string, data?: any): void {
+    console.log(`[INFO] ${message}`, data !== undefined ? data : '');
+  },
+  
+  /**
+   * Log a warning message
+   * @param message The message to log
+   * @param data Additional data to log
+   */
+  warn(message: string, data?: any): void {
+    console.warn(`[WARN] ${message}`, data !== undefined ? data : '');
+  },
+  
+  /**
+   * Log an error message
+   * @param message The message to log
+   * @param error The error object or additional data
+   */
+  error(message: string, error?: any): void {
+    console.error(`[ERROR] ${message}`, error !== undefined ? error : '');
+  },
+  
+  /**
+   * Log a debug message (only in development)
+   * @param message The message to log
+   * @param data Additional data to log
+   */
+  debug(message: string, data?: any): void {
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug(`[DEBUG] ${message}`, data !== undefined ? data : '');
+    }
+  },
+  
+  /**
+   * Create a child logger with a specific context
+   * @param context The context to add to log messages
+   */
+  withContext(context: string) {
+    return {
+      info: (message: string, data?: any) => 
+        this.info(`[${context}] ${message}`, data),
+      warn: (message: string, data?: any) => 
+        this.warn(`[${context}] ${message}`, data),
+      error: (message: string, data?: any) => 
+        this.error(`[${context}] ${message}`, data),
+      debug: (message: string, data?: any) => 
+        this.debug(`[${context}] ${message}`, data)
+    };
   }
-}
-
-/**
- * Log a warning message
- */
-export function warn(...args: any[]): void {
-  if (LogLevel.WARN <= currentLogLevel) {
-    console.warn('[WARN]', ...args);
-  }
-}
-
-/**
- * Log an info message
- */
-export function info(...args: any[]): void {
-  if (LogLevel.INFO <= currentLogLevel) {
-    console.info('[INFO]', ...args);
-  }
-}
-
-/**
- * Log a debug message
- */
-export function debug(...args: any[]): void {
-  if (LogLevel.DEBUG <= currentLogLevel) {
-    console.debug('[DEBUG]', ...args);
-  }
-}
-
-/**
- * Log a trace message
- */
-export function trace(...args: any[]): void {
-  if (LogLevel.TRACE <= currentLogLevel) {
-    console.log('[TRACE]', ...args);
-  }
-}
-
-// Create and export the default logger object
-const logger = {
-  error,
-  warn,
-  info,
-  debug,
-  trace,
-  configure,
-  LogLevel
-};
-
-export default logger; 
+}; 
