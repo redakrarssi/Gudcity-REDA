@@ -2,8 +2,10 @@ import sql from '../utils/db';
 import type { LoyaltyProgram, RewardTier, ProgramType } from '../types/loyalty';
 import { CustomerService } from './customerService';
 import { v4 as uuidv4 } from 'uuid';
-import { emitNotification, emitApprovalRequest } from '../server';
+import type { ProgramBenefit } from '../types/loyalty';
 import { CustomerNotificationService } from './customerNotificationService';
+import * as serverFunctions from '../server';
+import { createEnrollmentSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
 import { logger } from '../utils/logger';
 
 /**
@@ -344,211 +346,226 @@ export class LoyaltyProgramService {
     customerId: string,
     programId: string,
     requireApproval: boolean = true
-  ): Promise<{ success: boolean; message?: string; cardId?: string }> {
+  ): Promise<{ success: boolean; message?: string; error?: string; cardId?: string }> {
     try {
-      // Check if customer exists
-      const customerCheck = await sql`SELECT * FROM customers WHERE id = ${customerId}`;
-      if (!customerCheck.length) {
-        return { success: false, message: 'Customer not found' };
+      // Validate inputs
+      if (!customerId || !programId) {
+        logger.error('Missing required parameters for enrollment', { customerId, programId });
+        return { success: false, error: 'Missing required parameters' };
       }
-      
-      // Check if program exists
-      const programCheck = await sql`
-        SELECT lp.*, u.name as business_name 
-        FROM loyalty_programs lp
-        JOIN users u ON lp.business_id = u.id
-        WHERE lp.id = ${programId}
-      `;
-      if (!programCheck.length) {
-        return { success: false, message: 'Program not found' };
+
+      logger.info('Processing enrollment request', { customerId, programId, requireApproval });
+
+      // Get program details to check business ID
+      const program = await this.getProgramById(programId);
+      if (!program) {
+        logger.error('Program not found', { programId });
+        return { success: false, error: 'Program not found' };
       }
-      
-      // Extract business details
-      const program = programCheck[0];
-      const businessId = program.business_id;
-      const businessName = program.business_name;
-      
+
+      const businessId = program.businessId;
+
       // Check if already enrolled
-      const enrollmentCheck = await sql`
-        SELECT * FROM customer_programs 
-        WHERE customer_id = ${customerId} AND program_id = ${programId}
+      const enrollment = await sql`
+        SELECT * FROM program_enrollments
+        WHERE customer_id = ${customerId}
+        AND program_id = ${programId}
       `;
-      
-      if (enrollmentCheck.length > 0) {
-        return { success: false, message: 'Customer is already enrolled in this program' };
-      }
-      
-      if (requireApproval) {
-        // Create an approval request instead of direct enrollment
-        const requestId = uuidv4();
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 7); // Expire after 7 days
+
+      if (enrollment.length > 0) {
+        // Already enrolled, check status
+        const status = enrollment[0].status;
         
-        await sql`
-          INSERT INTO customer_approval_requests (
-            id, 
-            customer_id, 
-            business_id, 
-            request_type, 
-            entity_id,
-            status, 
-            data,
-            requested_at, 
-            expires_at
-          ) 
-          VALUES (
-            ${requestId},
-            ${customerId},
-            ${businessId},
-            'ENROLLMENT',
-            ${programId},
-            'PENDING',
-            ${JSON.stringify({
-              programName: program.name,
-              programDescription: program.description,
-              benefits: program.benefits || []
-            })},
-            NOW(),
-            ${expiryDate.toISOString()}
-          )
-        `;
-        
-        // Create notification for the approval request
-        const notification = await CustomerNotificationService.createNotification({
-          customerId,
-          businessId: businessId.toString(),
-          type: 'ENROLLMENT_REQUEST',
-          title: 'Program Enrollment Request',
-          message: `${businessName} wants to enroll you in ${program.name}`,
-          data: {
-            programId,
-            programName: program.name,
-            requestId
-          },
-          requiresAction: true,
-          actionTaken: false,
-          isRead: false,
-          referenceId: requestId
-        });
-        
-        // Emit real-time notification through socket
-        if (notification) {
-          emitNotification(customerId, notification);
-          
-          // Also emit approval request
-          const approvalRequest = {
-            id: requestId,
-            customerId,
-            businessId: businessId.toString(),
-            requestType: 'ENROLLMENT',
-            entityId: programId,
-            status: 'PENDING',
-            data: {
-              programName: program.name,
-              benefits: program.benefits || []
-            },
-            requestedAt: new Date().toISOString(),
-            expiresAt: expiryDate.toISOString(),
-            businessName
-          };
-          
-          emitApprovalRequest(customerId, approvalRequest);
+        if (status === 'ACTIVE') {
+          logger.info('Customer already enrolled', { customerId, programId });
+          return { success: false, error: 'Customer already enrolled in this program' };
+        } else if (status === 'PENDING') {
+          logger.info('Enrollment already pending', { customerId, programId });
+          return { success: false, error: 'Enrollment request already pending' };
+        } else if (status === 'REJECTED') {
+          // If previously rejected, allow re-enrollment
+          logger.info('Re-enrolling previously rejected customer', { customerId, programId });
+          await sql`
+            UPDATE program_enrollments
+            SET status = 'PENDING', updated_at = NOW()
+            WHERE customer_id = ${customerId} AND program_id = ${programId}
+          `;
         }
-        
-        return { 
-          success: true, 
-          message: 'Enrollment request sent to customer for approval'
-        };
       } else {
-        // Direct enrollment without approval (legacy path)
-        // Generate a unique card number
-        const cardNumber = `GC-${Math.floor(100000 + Math.random() * 900000)}-${Math.floor(Math.random() * 10)}`;
-        const cardId = uuidv4();
-        
-        // Create enrollment
+        // Create new enrollment record
+        logger.info('Creating new enrollment record', { customerId, programId });
         await sql`
-          INSERT INTO customer_programs (
-            customer_id, 
-            program_id, 
-            current_points, 
-            status,
-            enrolled_at,
-            updated_at
-          ) 
-          VALUES (
-            ${customerId},
-            ${programId},
-            0,
-            'ACTIVE',
-            NOW(),
-            NOW()
-          )
-        `;
-        
-        // Create loyalty card
-        await sql`
-          INSERT INTO loyalty_cards (
-            id,
-            customer_id, 
-            business_id, 
+          INSERT INTO program_enrollments (
+            customer_id,
             program_id,
-            card_number,
-            points,
-            tier,
+            business_id,
             status,
+            current_points,
             created_at,
             updated_at
-          ) 
-          VALUES (
-            ${cardId},
+          ) VALUES (
             ${customerId},
-            ${businessId},
             ${programId},
-            ${cardNumber},
+            ${businessId},
+            ${requireApproval ? 'PENDING' : 'ACTIVE'},
             0,
-            'STANDARD',
-            'ACTIVE',
             NOW(),
             NOW()
           )
         `;
+      }
+
+      if (requireApproval) {
+        logger.info('Creating approval request for enrollment', { customerId, programId });
         
-        // Send notification for successful enrollment
+        // Create approval request
         try {
-          const notification = await CustomerNotificationService.createNotification({
+          const approvalRequest = await CustomerNotificationService.createApprovalRequest({
             customerId,
-            businessId: businessId.toString(),
-            type: 'ENROLLED',
-            title: 'Program Enrollment',
-            message: `You've been enrolled in ${businessName}'s ${program.name} program`,
+            businessId,
+            requestType: 'ENROLLMENT',
+            entityId: programId,
             data: {
               programId,
               programName: program.name,
-              cardId
-            },
-            requiresAction: false,
-            actionTaken: false,
-            isRead: false
+              businessId,
+              message: `Would you like to join ${program.name}?`
+            }
           });
           
-          // Emit real-time notification through socket
-          if (notification) {
-            emitNotification(customerId, notification);
+          // Emit real-time notification via socket
+          try {
+            serverFunctions.emitApprovalRequest(customerId, approvalRequest);
+            
+            // Create notification sync event for real-time UI updates
+            createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
+            
+            // Create notification sync event
+            const notificationData = {
+              type: 'ENROLLMENT_REQUEST',
+              programName: program.name,
+              businessId,
+              customerId
+            };
+            createNotificationSyncEvent(approvalRequest.id, customerId, businessId, 'INSERT', notificationData);
+            
+            logger.info('Enrollment approval request created and notification sent', { 
+              customerId, programId, approvalId: approvalRequest.id 
+            });
+          } catch (emitError) {
+            logger.error('Error emitting approval notification', { error: emitError });
+            // Continue execution even if emit fails
           }
-        } catch (notificationError) {
-          console.error('Failed to send enrollment notification:', notificationError);
-          // Continue even if notification fails
+          
+          return { 
+            success: true, 
+            message: 'Enrollment request sent to customer for approval' 
+          };
+        } catch (approvalError) {
+          logger.error('Error creating approval request', { error: approvalError });
+          return { success: false, error: 'Failed to create approval request' };
         }
+      } else {
+        // Auto-approve enrollment
+        logger.info('Auto-approving enrollment', { customerId, programId });
         
-        return { 
-          success: true, 
-          message: 'Customer enrolled successfully', 
-          cardId 
-        };
+        // Update enrollment status to ACTIVE
+        await sql`
+          UPDATE program_enrollments
+          SET status = 'ACTIVE', updated_at = NOW()
+          WHERE customer_id = ${customerId} AND program_id = ${programId}
+        `;
+        
+        // Create loyalty card for the customer
+        try {
+          const card = await sql`
+            INSERT INTO loyalty_cards (
+              customer_id,
+              business_id,
+              program_id,
+              card_number,
+              tier,
+              points,
+              points_multiplier,
+              status,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${customerId},
+              ${businessId},
+              ${programId},
+              ${await this.generateUniqueCardNumber(customerId, programId)},
+              'STANDARD',
+              0,
+              1.0,
+              'ACTIVE',
+              NOW(),
+              NOW()
+            ) RETURNING id
+          `;
+          
+          const cardId = card[0].id;
+          
+          // Create enrollment notification
+          try {
+            const notification = await CustomerNotificationService.createNotification({
+              customerId,
+              businessId,
+              type: 'ENROLLMENT',
+              title: 'Welcome to New Program',
+              message: `You have been enrolled in ${program.name}`,
+              requiresAction: false,
+              actionTaken: false,
+              isRead: false,
+              referenceId: programId,
+              data: {
+                programId,
+                programName: program.name,
+                cardId
+              }
+            });
+            
+            // Emit real-time notification
+            try {
+              serverFunctions.emitNotification(customerId, notification);
+              
+              // Create notification sync event for real-time UI updates
+              createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
+              
+              // Create card sync event to update UI
+              createCardSyncEvent(
+                cardId, 
+                customerId, 
+                businessId, 
+                'INSERT', 
+                { programId, programName: program.name }
+              );
+              
+              logger.info('Enrollment completed and notification sent', { 
+                customerId, programId, cardId 
+              });
+            } catch (emitError) {
+              logger.error('Error emitting notification', { error: emitError });
+              // Continue execution even if emit fails
+            }
+          } catch (notificationError) {
+            logger.error('Error creating notification', { error: notificationError });
+            // Continue execution even if notification fails
+          }
+          
+          return { 
+            success: true, 
+            message: 'Customer successfully enrolled', 
+            cardId: cardId.toString() 
+          };
+        } catch (cardError) {
+          logger.error('Error creating loyalty card', { error: cardError });
+          return { success: false, error: 'Failed to create loyalty card' };
+        }
       }
     } catch (error) {
-      console.error('Error enrolling customer:', error);
-      return { success: false, message: 'Database error while enrolling customer' };
+      logger.error('Error enrolling customer in program', { error });
+      return { success: false, error: 'Enrollment failed due to server error' };
     }
   }
   
@@ -608,7 +625,7 @@ export class LoyaltyProgramService {
         });
         
         if (notification) {
-          emitNotification(request.customer_id, notification);
+          serverFunctions.emitNotification(request.customer_id, notification);
         }
         
         return { 
@@ -674,7 +691,7 @@ export class LoyaltyProgramService {
       const notification = await CustomerNotificationService.createNotification({
         customerId: request.customer_id,
         businessId: request.business_id,
-        type: 'ENROLLED',
+        type: 'ENROLLMENT',
         title: 'Welcome to New Program',
         message: `You've been enrolled in ${request.business_name}'s ${request.program_name} program`,
         data: {
@@ -688,7 +705,28 @@ export class LoyaltyProgramService {
       });
       
       if (notification) {
-        emitNotification(request.customer_id, notification);
+        // Emit real-time notification
+        serverFunctions.emitNotification(request.customer_id, notification);
+        
+        // Create card sync event to trigger UI updates
+        createCardSyncEvent(
+          cardId, 
+          request.customer_id, 
+          request.business_id, 
+          'INSERT', 
+          { 
+            programId: request.entity_id, 
+            programName: request.program_name
+          }
+        );
+        
+        // Create enrollment sync event to update enrollment status
+        createEnrollmentSyncEvent(
+          request.customer_id, 
+          request.business_id, 
+          request.entity_id, 
+          'UPDATE'
+        );
       }
       
       // Notify business that customer accepted
@@ -704,7 +742,7 @@ export class LoyaltyProgramService {
       });
       
       if (businessNotification) {
-        emitNotification(request.business_id, businessNotification);
+        serverFunctions.emitNotification(request.business_id, businessNotification);
       }
       
       // Associate customer with business

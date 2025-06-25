@@ -57,6 +57,66 @@ These limitations help with:
 - Better separation of concerns
 - Reduced merge conflicts in collaborative development
 
+## Dashboard Synchronization and Real-time Interaction
+
+### Business and Customer Dashboard Sync
+- **Real-time Updates** - Ensure changes made in business dashboard reflect immediately in customer dashboard
+- **Notification Services** - Use `NotificationService` for real-time communication between dashboards
+- **WebSocket Implementation** - Leverage existing WebSocket connections for bidirectional communication
+- **Sync Components** - Pay special attention to loyalty points, transaction records, and program enrollments
+- **Data Consistency** - Enforce data consistency across business and customer views
+- **Optimization Patterns** - Use optimistic UI updates with proper error rollback mechanisms
+
+### Real-time Interaction Best Practices
+- **Event-driven Architecture** - Follow the established event patterns for state updates
+- **Debouncing** - Implement debouncing for high-frequency update operations
+- **Conflict Resolution** - Provide clear conflict resolution strategies when concurrent updates occur
+- **Offline Support** - Ensure graceful degradation when real-time connections fail
+- **State Management** - Follow existing patterns for state synchronization
+
+## Error and Console Error Handling
+
+### UI Error Handling
+- **User-facing Errors** - Ensure all errors are properly caught and presented to users in a friendly manner
+- **Error Boundaries** - Use React error boundaries to prevent cascading UI failures
+- **Recovery Mechanisms** - Implement recovery paths from common error scenarios
+- **Error Logging** - Ensure all errors are properly logged for later analysis
+
+### Console Error Management
+- **Silent Failures** - Eliminate all silent failures; everything should be logged appropriately
+- **Debugging Information** - Include useful debugging context without exposing sensitive information
+- **Error Categories** - Categorize errors by severity and type for easier troubleshooting
+- **Production vs Development** - Implement different error verbosity based on environment
+- **Performance Monitoring** - Console errors should include performance impact information when relevant
+
+### Error Prevention
+- **Validation** - Implement robust validation before operations that could cause errors
+- **Type Safety** - Leverage TypeScript's type system to prevent errors at compile time
+- **Testing** - Ensure error scenarios are covered in tests
+- **Graceful Degradation** - Design features to degrade gracefully when errors occur
+
+## Website Security
+
+### Authentication and Authorization
+- **Token Management** - Ensure proper handling of auth tokens with appropriate expiration
+- **Permission Checks** - Implement consistent permission verification across all endpoints
+- **Session Management** - Follow best practices for session handling and timeout
+- **Multi-factor Authentication** - Consider MFA implementation for sensitive operations
+
+### Data Protection
+- **PII Handling** - Follow strict protocols for handling Personally Identifiable Information
+- **Data Encryption** - Ensure sensitive data is encrypted at rest and in transit
+- **Input Sanitization** - Implement thorough input sanitization to prevent injection attacks
+- **CORS Policies** - Maintain strict CORS policies to prevent unauthorized data access
+
+### Security Best Practices
+- **XSS Prevention** - Implement measures against Cross-Site Scripting attacks
+- **CSRF Protection** - Ensure Cross-Site Request Forgery protections are in place
+- **Rate Limiting** - Implement rate limiting on sensitive endpoints
+- **Dependency Security** - Regularly audit dependencies for security vulnerabilities
+- **Secure Headers** - Configure secure HTTP headers (Content-Security-Policy, etc.)
+- **Audit Logging** - Maintain comprehensive audit logs for security-relevant actions
+
 ## Best Practices for AI Changes
 
 1. **Incremental Changes** - Make small, focused changes rather than large rewrites

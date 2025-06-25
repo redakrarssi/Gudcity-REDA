@@ -10,6 +10,8 @@ import { CustomerNotificationService } from './customerNotificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
 import { formatPoints, validateCardData } from '../utils/validators';
 import { logger } from '../utils/logger';
+import { createCardSyncEvent } from '../utils/realTimeSync';
+import type { LoyaltyCard } from '../types/loyalty';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -591,7 +593,7 @@ export class LoyaltyCardService {
   }
 
   /**
-   * Add points to a customer's loyalty card
+   * Add points to a loyalty card
    */
   static async addPoints(
     cardId: string,
@@ -600,53 +602,68 @@ export class LoyaltyCardService {
   ): Promise<{ success: boolean; message?: string; newBalance?: number }> {
     try {
       // Validate inputs
-      if (!cardId || !points) {
-        return { success: false, message: 'Invalid card ID or points' };
+      if (points <= 0) {
+        return { success: false, message: 'Points must be greater than 0' };
       }
-
-      // Format points to 2 decimal places to prevent floating point errors
-      const formattedPoints = formatPoints(points);
-
-      // Get the card to check it exists and get current balance
+      
+      // Format points to 2 decimal places
+      const formattedPoints = Number(points.toFixed(2));
+      
+      // Get the card details
       const cardResult = await sql`
         SELECT 
           lc.*,
           lp.name as program_name,
-          lp.business_id,
           b.name as business_name
         FROM loyalty_cards lc
         JOIN loyalty_programs lp ON lc.program_id = lp.id
-        JOIN users b ON lp.business_id = b.id
+        JOIN users b ON lc.business_id = b.id
         WHERE lc.id = ${cardId}
       `;
-
-      if (!cardResult || cardResult.length === 0) {
+      
+      if (!cardResult.length) {
         return { success: false, message: 'Card not found' };
       }
-
+      
       const card = cardResult[0];
+      
+      // Calculate new balance
       const currentPoints = parseFloat(card.points) || 0;
-      const newBalance = currentPoints + formattedPoints;
-
-      // Update the card
+      const newBalance = Number((currentPoints + formattedPoints).toFixed(2));
+      
+      // Update card points
       await sql`
         UPDATE loyalty_cards
-        SET points = ${newBalance}, updated_at = NOW()
+        SET 
+          points = ${newBalance},
+          updated_at = NOW()
         WHERE id = ${cardId}
+        RETURNING *
       `;
-
-      // Record the activity
-      const activityId = uuidv4();
+      
+      // Record the transaction
       await sql`
-        INSERT INTO card_activities (
-          id, card_id, type, points, balance, description, created_at
+        INSERT INTO loyalty_transactions (
+          card_id,
+          customer_id,
+          business_id,
+          program_id,
+          points_change,
+          points_before,
+          points_after,
+          transaction_type,
+          description,
+          created_at
         )
         VALUES (
-          ${activityId},
           ${cardId},
-          'ADD_POINTS',
+          ${card.customer_id},
+          ${card.business_id},
+          ${card.program_id},
           ${formattedPoints},
+          ${currentPoints},
           ${newBalance},
+          'POINTS_ADDED',
           ${description},
           NOW()
         )
@@ -654,6 +671,7 @@ export class LoyaltyCardService {
 
       // Send real-time notification to the customer
       try {
+        // Create notification in customer notification system
         const notification = await CustomerNotificationService.createNotification({
           customerId: card.customer_id.toString(),
           businessId: card.business_id.toString(),
@@ -671,10 +689,30 @@ export class LoyaltyCardService {
           isRead: false
         });
 
-        // Emit real-time notification through socket
-        if (notification) {
-          emitNotification(card.customer_id.toString(), notification);
-        }
+        // Use localStorage to trigger UI updates on the customer side
+        // This will work even if socket connections aren't functioning
+        localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
+          customerId: card.customer_id.toString(),
+          businessId: card.business_id.toString(),
+          cardId: cardId,
+          programId: card.program_id.toString(),
+          points: formattedPoints,
+          timestamp: new Date().toISOString(),
+          type: 'POINTS_ADDED'
+        }));
+
+        // Create sync event for React Query invalidation
+        createCardSyncEvent(
+          cardId,
+          card.customer_id.toString(),
+          card.business_id.toString(),
+          'UPDATE',
+          {
+            points: newBalance,
+            pointsAdded: formattedPoints,
+            programName: card.program_name
+          }
+        );
       } catch (notificationError) {
         console.error('Failed to send points notification:', notificationError);
         // Continue even if notification fails
@@ -1269,6 +1307,134 @@ export class LoyaltyCardService {
     } catch (error) {
       console.error('Error granting promo code to customer:', error);
       return { success: false, message: 'An error occurred while granting the promo code' };
+    }
+  }
+
+  /**
+   * Synchronize loyalty cards with program enrollments
+   * This ensures every enrolled program with status 'ACTIVE' has a corresponding card
+   * @param customerId The customer ID
+   * @returns Array of created card IDs
+   */
+  static async syncEnrollmentsToCards(customerId: string): Promise<string[]> {
+    try {
+      // Find all active program enrollments without corresponding cards
+      const missingCardEnrollments = await sql`
+        SELECT 
+          pe.id as enrollment_id,
+          pe.customer_id,
+          pe.program_id,
+          lp.business_id,
+          lp.name as program_name,
+          u.name as business_name
+        FROM program_enrollments pe
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
+        JOIN users u ON lp.business_id = u.id
+        LEFT JOIN loyalty_cards lc ON 
+          pe.customer_id = lc.customer_id AND 
+          pe.program_id = lc.program_id
+        WHERE pe.customer_id = ${customerId}
+        AND pe.status = 'ACTIVE'
+        AND lc.id IS NULL
+      `;
+      
+      if (!missingCardEnrollments.length) {
+        return [];
+      }
+      
+      logger.info(`Found ${missingCardEnrollments.length} enrollments without cards for customer ${customerId}`);
+      
+      // Create cards for each missing enrollment
+      const createdCardIds: string[] = [];
+      
+      for (const enrollment of missingCardEnrollments) {
+        try {
+          // Generate a unique card number
+          const cardNumber = await this.generateUniqueCardNumber(
+            enrollment.customer_id, 
+            enrollment.program_id
+          );
+          
+          // Create the loyalty card
+          const cardResult = await sql`
+            INSERT INTO loyalty_cards (
+              customer_id,
+              business_id,
+              program_id,
+              card_number,
+              card_type,
+              tier,
+              points,
+              points_multiplier,
+              status,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${enrollment.customer_id},
+              ${enrollment.business_id},
+              ${enrollment.program_id},
+              ${cardNumber},
+              'STANDARD',
+              'STANDARD',
+              ${enrollment.current_points || 0},
+              1.0,
+              'ACTIVE',
+              NOW(),
+              NOW()
+            ) RETURNING id
+          `;
+          
+          if (cardResult.length > 0) {
+            const cardId = cardResult[0].id.toString();
+            createdCardIds.push(cardId);
+            
+            // Create card sync event to update UI
+            createCardSyncEvent(
+              cardId, 
+              enrollment.customer_id, 
+              enrollment.business_id, 
+              'INSERT', 
+              { 
+                programId: enrollment.program_id, 
+                programName: enrollment.program_name
+              }
+            );
+            
+            // Create notification for the customer
+            const notification = await CustomerNotificationService.createNotification({
+              customerId: enrollment.customer_id,
+              businessId: enrollment.business_id,
+              type: 'ENROLLMENT',
+              title: 'Loyalty Card Created',
+              message: `Your loyalty card for ${enrollment.program_name} at ${enrollment.business_name} is ready`,
+              requiresAction: false,
+              actionTaken: false,
+              isRead: false,
+              referenceId: enrollment.program_id,
+              data: {
+                programId: enrollment.program_id,
+                programName: enrollment.program_name,
+                cardId
+              }
+            });
+            
+            if (notification) {
+              // Emit real-time notification
+              serverFunctions.emitNotification(enrollment.customer_id, notification);
+            }
+            
+            logger.info(`Created loyalty card ${cardId} for enrollment ${enrollment.enrollment_id}`);
+          }
+        } catch (error) {
+          logger.error(`Error creating card for enrollment ${enrollment.enrollment_id}:`, error);
+          // Continue with next enrollment
+        }
+      }
+      
+      return createdCardIds;
+    } catch (error) {
+      logger.error('Error synchronizing enrollments to cards:', error);
+      return [];
     }
   }
 }

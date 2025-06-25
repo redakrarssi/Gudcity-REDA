@@ -81,11 +81,15 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
           setShowConfetti(false);
         }, 3000);
       } else {
-        setError(result?.error || 'Failed to enroll customer');
+        // Use the specific error message if provided
+        const errorMessage = result?.error || result?.message || 'Failed to enroll customer';
+        setError(errorMessage);
+        console.error('Enrollment error:', result);
         playErrorSound();
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(errorMessage);
       console.error('Error enrolling customer:', err);
       playErrorSound();
     } finally {

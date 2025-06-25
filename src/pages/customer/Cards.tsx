@@ -7,6 +7,7 @@ import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/lo
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToEvents, Event } from '../../utils/telemetry';
+import { subscribeToSync, SyncEvent } from '../../utils/realTimeSync';
 import { queryClient } from '../../utils/queryClient';
 import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
 import NotificationList from '../../components/customer/NotificationList';
@@ -93,25 +94,33 @@ const CustomerCards = () => {
     queryKey: ['loyaltyCards', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
+      
+      // First synchronize enrollments to cards to ensure all enrolled programs have cards
+      await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      
+      // Then get all customer cards
       const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
-        const activities: Record<string, CardActivity[]> = {};
-        for (const card of cards) {
-          const cardActivities = await LoyaltyCardService.getCardActivities(card.id);
-          activities[card.id] = cardActivities;
-        }
-        setCardActivities(activities);
+      
+      // Fetch activities for each card
+      const activities: Record<string, CardActivity[]> = {};
+      for (const card of cards) {
+        const cardActivities = await LoyaltyCardService.getCardActivities(card.id);
+        activities[card.id] = cardActivities;
+      }
+      setCardActivities(activities);
+      
       return cards;
     },
     enabled: !!user?.id,
     refetchInterval: 5000, // Refetch every 5 seconds
   });
 
-  // Subscribe to real-time events 
+  // Subscribe to real-time events and sync updates
   useEffect(() => {
     if (!user?.id) return;
     
-    // Listen for database events that might affect loyalty cards
-    const unsubscribe = subscribeToEvents((event: Event) => {
+    // 1. Listen to telemetry events for notifications
+    const telemetryUnsubscribe = subscribeToEvents((event: Event) => {
       // Check if the event is relevant to this customer's cards
       if (event.name === 'error' && 
           event.data && 
@@ -158,8 +167,46 @@ const CustomerCards = () => {
       }
     });
     
+    // 2. Subscribe to loyalty card real-time sync events
+    const cardSyncUnsubscribe = subscribeToSync('loyalty_cards', (event) => {
+      if (event.customer_id === user.id) {
+        console.log('Loyalty card sync event received:', event);
+        
+        // Refresh cards data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        
+        // Show notification based on operation type
+        if (event.operation === 'INSERT') {
+          addNotification('success', 'New loyalty card added! Pull down to refresh.');
+        } else if (event.operation === 'UPDATE') {
+          addNotification('info', 'Your loyalty card has been updated.');
+        }
+      }
+    }, user.id);
+    
+    // 3. Subscribe to program enrollments sync events
+    const enrollmentSyncUnsubscribe = subscribeToSync('program_enrollments', (event) => {
+      if (event.customer_id === user.id) {
+        console.log('Program enrollment sync event received:', event);
+        
+        // Refresh cards data
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        
+        // Only show notification for new or updated enrollments (not for queries)
+        if (event.operation === 'INSERT') {
+          const programName = event.data?.programName || 'loyalty program';
+          addNotification('success', `You've been enrolled in a new ${programName}!`);
+        } else if (event.operation === 'UPDATE' && event.data?.status === 'ACTIVE') {
+          addNotification('success', 'Your program enrollment has been approved!');
+        }
+      }
+    }, user.id);
+    
+    // Return cleanup function to unsubscribe from all events
     return () => {
-      unsubscribe();
+      telemetryUnsubscribe();
+      cardSyncUnsubscribe();
+      enrollmentSyncUnsubscribe();
     };
   }, [user?.id, addNotification]);
 
@@ -352,15 +399,15 @@ const CustomerCards = () => {
                       <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-black/5 to-transparent"></div>
                       
                       <div className="flex justify-between items-start relative z-10">
-                        {/* Left Side - Business Info */}
+                        {/* Left Side - Program Info */}
                         <div className="flex items-center">
                           <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl mr-4 shadow-inner">
                             {getIconForCard(card)}
                           </div>
                           <div>
-                            <h3 className="font-bold text-xl tracking-wide">{card.businessName}</h3>
+                            <h3 className="font-bold text-xl tracking-wide">{card.programName || 'Loyalty Program'}</h3>
                             <div className="flex items-center mt-1">
-                              <span className="text-white/80 text-sm uppercase tracking-wider font-medium">{card.cardType}</span>
+                              <span className="text-white/80 text-sm uppercase tracking-wider font-medium">{card.businessName}</span>
                               {card.cardType?.toLowerCase() === 'premium' && (
                                 <Crown className="w-4 h-4 ml-1 text-amber-300" />
                               )}
@@ -459,27 +506,27 @@ const CustomerCards = () => {
                                 {cardActivities[card.id].map((activity, idx) => (
                                   <div key={idx} className="flex items-start p-2 rounded-lg bg-gray-50">
                                     <div className={`p-1.5 rounded-full mr-3 ${
-                                      activity.activity_type === 'EARN_POINTS' ? 'bg-green-100' :
-                                      activity.activity_type === 'REDEEM_POINTS' ? 'bg-amber-100' :
+                                      activity.type === 'EARN_POINTS' ? 'bg-green-100' :
+                                      activity.type === 'REDEEM_POINTS' ? 'bg-amber-100' :
                                       'bg-blue-100'
                                     }`}>
                                       <Award className={`w-3.5 h-3.5 ${
-                                        activity.activity_type === 'EARN_POINTS' ? 'text-green-600' :
-                                        activity.activity_type === 'REDEEM_POINTS' ? 'text-amber-600' :
+                                        activity.type === 'EARN_POINTS' ? 'text-green-600' :
+                                        activity.type === 'REDEEM_POINTS' ? 'text-amber-600' :
                                         'text-blue-600'
                                       }`} />
                                     </div>
                                     <div>
                                       <p className="text-sm font-medium text-gray-800">
-                                        {activity.activity_type === 'EARN_POINTS' 
+                                        {activity.type === 'EARN_POINTS' 
                                           ? `Earned ${activity.points} points`
-                                          : activity.activity_type === 'REDEEM_POINTS'
+                                          : activity.type === 'REDEEM_POINTS'
                                             ? `Redeemed ${activity.points} points`
                                             : 'Card used'
                                         }
                                         {activity.description ? ` - ${activity.description}` : ''}
                                       </p>
-                                      <p className="text-xs text-gray-500">{formatDate(activity.created_at)}</p>
+                                      <p className="text-xs text-gray-500">{formatDate(activity.createdAt)}</p>
                                     </div>
                                   </div>
                                 ))}

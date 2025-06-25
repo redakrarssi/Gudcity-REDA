@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag } from 'lucide-react';
+import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine } from 'lucide-react';
 import { LoyaltyCard as LoyaltyCardType, Reward } from '../../services/loyaltyCardService';
+import { QrCodeService } from '../../services/qrCodeService';
 
 interface LoyaltyCardProps {
   card: LoyaltyCardType;
@@ -47,14 +48,39 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [showPromoCode, setShowPromoCode] = useState(false);
   const [copiedPromoCode, setCopiedPromoCode] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   
   const tierColors = CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
   
   // Use businessName from card, or fallback to businessId if not available
-  const businessName = card.businessName || card.business_name || t('Business');
+  const businessName = card.businessName || t('Business');
   
   // Use programName from card, or fallback to a generic name if not available
-  const programName = card.programName || card.program_name || t('Loyalty Program');
+  const programName = card.programName || t('Loyalty Program');
+  
+  // Generate QR code data for the loyalty card
+  useEffect(() => {
+    // Only generate QR code if the card has all necessary information
+    if (card.id && card.customerId && card.programId && card.businessId) {
+      try {
+        // Create a loyalty card QR code data object
+        const qrData = {
+          type: 'loyaltyCard',
+          cardId: card.id,
+          customerId: card.customerId,
+          programId: card.programId,
+          businessId: card.businessId,
+          timestamp: Date.now()
+        };
+        
+        // Convert to JSON string for QR code
+        setQrCodeData(JSON.stringify(qrData));
+      } catch (error) {
+        console.error('Error generating QR code data:', error);
+      }
+    }
+  }, [card.id, card.customerId, card.programId, card.businessId]);
   
   // Reset copied state after 3 seconds
   useEffect(() => {
@@ -122,8 +148,8 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
         className={`${tierColors.bg} ${tierColors.border} border-b p-4 flex justify-between items-center`}
       >
         <div>
-          <h3 className={`font-bold text-lg ${tierColors.text}`}>{businessName}</h3>
-          <p className="text-sm text-gray-600">{programName}</p>
+          <h3 className={`font-bold text-lg ${tierColors.text}`}>{programName}</h3>
+          <p className="text-sm text-gray-600">{businessName}</p>
         </div>
         <div className="flex items-center">
           <div className="bg-white bg-opacity-70 px-3 py-1 rounded-full flex items-center">
@@ -230,6 +256,45 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
           </div>
         )}
         
+        {/* QR Code */}
+        <div className="mb-4">
+          <button 
+            onClick={() => setShowQrCode(!showQrCode)} 
+            className="w-full flex justify-between items-center bg-blue-50 text-blue-700 p-3 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <div className="flex items-center">
+              <ScanLine className="w-5 h-5 mr-2" />
+              <span>{t('Your Loyalty Card QR Code')}</span>
+            </div>
+            {showQrCode ? (
+              <ChevronDown className="w-5 h-5" />
+            ) : (
+              <ChevronRight className="w-5 h-5" />
+            )}
+          </button>
+          
+          {showQrCode && qrCodeData && (
+            <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 flex flex-col items-center">
+              <div className="mb-2 text-sm text-gray-600 text-center">
+                {t('Scan this code at {{businessName}} to earn points for {{programName}}', { 
+                  businessName,
+                  programName
+                })}
+              </div>
+              <div className="bg-white p-2 border border-gray-200 rounded-lg">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeData)}`} 
+                  alt="Loyalty Card QR Code" 
+                  className="w-48 h-48"
+                />
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                {t('Card ID')}: {card.id}
+              </div>
+            </div>
+          )}
+        </div>
+      
         {/* Toggle Rewards */}
         <button 
           onClick={() => setExpanded(!expanded)} 

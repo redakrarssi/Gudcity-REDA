@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Award, BadgeCheck, Gift, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useEnrolledPrograms, EnrolledProgramData } from '../../hooks/useEnrolledPrograms';
 import { DataLoader } from '../common/DataLoader';
 import { FallbackIndicator } from '../common/FallbackIndicator';
+import { LoyaltyCardService } from '../../services/loyaltyCardService';
 
 interface EnrolledProgramsProps {
   onRedeem?: (programId: string) => void;
@@ -11,6 +13,7 @@ interface EnrolledProgramsProps {
 
 export const EnrolledPrograms: React.FC<EnrolledProgramsProps> = ({ onRedeem }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [animatedItems, setAnimatedItems] = useState<Record<string, boolean>>({});
   
   // Use our standardized hook for data loading
@@ -155,12 +158,27 @@ export const EnrolledPrograms: React.FC<EnrolledProgramsProps> = ({ onRedeem }) 
                   </div>
                 )}
                 
-                {/* Redeem Button */}
+                {/* View Card Button */}
                 <button
-                  onClick={() => onRedeem && onRedeem(enrolledProgram.programId)}
-                  className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mb-4"
+                  onClick={async () => {
+                    // If onRedeem is provided, call it first
+                    if (onRedeem) {
+                      onRedeem(enrolledProgram.programId);
+                    }
+                    
+                    try {
+                      // Ensure a card exists for this enrollment
+                      await LoyaltyCardService.syncEnrollmentsToCards(enrolledProgram.customerId);
+                      // Navigate to the cards page
+                      navigate('/customer/cards');
+                    } catch (error) {
+                      console.error('Error navigating to cards page:', error);
+                    }
+                  }}
+                  className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mb-4 flex items-center justify-center"
                 >
-                  {t('viewDetails')}
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  {t('viewLoyaltyCard')}
                 </button>
                 
                 {/* Available Rewards */}
@@ -212,6 +230,15 @@ export const EnrolledPrograms: React.FC<EnrolledProgramsProps> = ({ onRedeem }) 
             <span className="text-sm bg-blue-50 px-3 py-1 rounded-full text-blue-700 font-medium">
               {enrolledProgramsQuery.data?.length || 0} {t('active')}
             </span>
+            {enrolledProgramsQuery.data && enrolledProgramsQuery.data.length > 0 && (
+              <button 
+                onClick={() => navigate('/customer/cards')}
+                className="ml-3 flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <CreditCard className="w-4 h-4 mr-1" />
+                {t('viewAllCards')}
+              </button>
+            )}
             {enrolledProgramsQuery.isUsingStaleData && (
               <div className="ml-2">
                 <FallbackIndicator 

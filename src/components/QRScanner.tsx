@@ -20,6 +20,10 @@ import {
 } from '../utils/qrCodeValidator';
 import { validateQrCodeData, isQrCodeData, isCustomerQrCodeData, isLoyaltyCardQrCodeData, isPromoCodeQrCodeData, monitorTypeViolation } from '../utils/runtimeTypeValidator';
 import type { NotificationType } from '../types/notification';
+import { CustomerNotificationService } from '../services/customerNotificationService';
+// Import from server directly - the file handles browser/server environments internally
+import * as serverFunctions from '../server';
+import { createNotificationSyncEvent } from '../utils/realTimeSync';
 import {
   QrCodeType,
   QrCodeData,
@@ -40,7 +44,12 @@ import {
 // Define types for browser extension APIs
 declare global {
   interface Window {
-    browser?: any;
+    browser?: {
+      runtime?: { sendMessage?: (...args: any[]) => Promise<any>, onMessage?: { addListener?: (callback: (...args: any[]) => void) => void, removeListener?: (callback: (...args: any[]) => void) => void } };
+      tabs?: { query?: (...args: any[]) => Promise<any> };
+      storage?: { local?: { get?: (...args: any[]) => Promise<any>, set?: (...args: any[]) => Promise<any> }, sync?: { get?: (...args: any[]) => Promise<any>, set?: (...args: any[]) => Promise<any> } };
+      lastError?: any;
+    };
     chrome?: any;
     __CONTENT_SCRIPT_HOST__?: boolean;
     __BROWSER_POLYFILL__?: boolean;
@@ -1170,17 +1179,71 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         // Silently handle logging errors - non-critical
       }
       
-      // Schedule a notification for the scan
+      // Send real-time notification to the customer about the scan
       if (businessId) {
         try {
+          // Get business name for better context
+          let businessName = "Unknown Business";
+          try {
+            const businessResult = await fetch(`/api/businesses/${businessId}`)
+              .then(res => res.json());
+            if (businessResult?.name) {
+              businessName = businessResult.name;
+            }
+          } catch (nameError) {
+            console.error('Failed to fetch business name:', nameError);
+          }
+          
+          // Create a notification for the customer that their QR code was scanned
+          // Using NotificationService directly for client-side notification
           await NotificationService.createNotification(
             customerId,
-            'POINTS_EARNED', // Use a valid NotificationType
-            'Your QR code was scanned',
-            `Your code was scanned at ${new Date().toLocaleTimeString()}`
+            'POINTS_EARNED', // Use existing notification type
+            'QR Code Scanned',
+            `Your QR code was scanned by ${businessName}`,
+            {
+              businessId: ensureId(businessId),
+              businessName,
+              scanTime: new Date().toISOString(),
+              scanLocation: 'In-store' // Could be enhanced with actual location data
+            }
           );
+          
+          // For persistence and server-side notifications, use the CustomerNotificationService when available
+          try {
+            // This will be stored in the database and potentially trigger real-time notifications
+            await CustomerNotificationService.createNotification({
+              customerId,
+              businessId: ensureId(businessId),
+              type: 'QR_SCANNED',
+              title: 'QR Code Scanned',
+              message: `Your QR code was scanned by ${businessName}`,
+              data: {
+                businessId: ensureId(businessId),
+                businessName,
+                scanTime: new Date().toISOString()
+              },
+              requiresAction: false,
+              actionTaken: false,
+              isRead: false
+            });
+            
+            // Trigger sync event via localStorage for React Query invalidation
+            // This helps update the UI even without direct socket communication
+            localStorage.setItem(`sync_qr_scan_${Date.now()}`, JSON.stringify({
+              customerId,
+              businessId: ensureId(businessId),
+              timestamp: new Date().toISOString(),
+              type: 'QR_SCANNED'
+            }));
+            
+          } catch (serverNotifyError) {
+            console.error('Failed to create server-side notification:', serverNotifyError);
+            // Non-critical error - continue execution
+          }
         } catch (notifyError) {
-          // Silently handle notification errors - non-critical
+          console.error('Failed to send QR scan notification:', notifyError);
+          // Non-critical error - continue execution
         }
       }
       

@@ -23,8 +23,13 @@ if (isBrowser) {
   };
 
   // Export mock functions that do nothing in browser environment
-  export const emitNotification = () => {};
-  export const emitApprovalRequest = () => {};
+  export const emitNotification = (userId: string, notification: any): void => {
+    console.log('Mock emitNotification called, no-op in browser environment', { userId, notification });
+  };
+  
+  export const emitApprovalRequest = (userId: string, approvalRequest: any): void => {
+    console.log('Mock emitApprovalRequest called, no-op in browser environment', { userId, approvalRequest });
+  };
   
   // Export mock app
   export default mockApp;

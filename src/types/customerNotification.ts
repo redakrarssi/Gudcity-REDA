@@ -1,11 +1,13 @@
 export type CustomerNotificationType = 
   | 'ENROLLMENT'  // When customer is enrolled in program
+  | 'ENROLLMENT_REQUEST'  // When a business requests to enroll customer
   | 'POINTS_ADDED'  // When points are added to customer account
   | 'POINTS_DEDUCTED'  // When points are deducted from customer account
   | 'PROMO_CODE'  // When a promo code is granted to customer
   | 'REWARD_AVAILABLE'  // When customer has enough points for a reward
   | 'CARD_EXPIRING'  // When loyalty card is about to expire
-  | 'MILESTONE_REACHED';  // When customer reaches a milestone
+  | 'MILESTONE_REACHED'  // When customer reaches a milestone
+  | 'QR_SCANNED';  // When customer QR code is scanned
 
 export type ApprovalRequestType = 
   | 'ENROLLMENT'  // Request for customer to join a program

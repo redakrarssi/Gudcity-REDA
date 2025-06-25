@@ -260,6 +260,86 @@ export class CustomerService {
       };
     }
   }
+
+  /**
+   * Associate a customer with a business
+   * This establishes a relationship between a customer and a business
+   * through enrollment in a loyalty program
+   */
+  static async associateCustomerWithBusiness(
+    customerId: string,
+    businessId: string,
+    programId: string
+  ): Promise<boolean> {
+    try {
+      // Check if the customer-business association already exists
+      const existingCheck = await sql`
+        SELECT * FROM customer_business_relationships
+        WHERE customer_id = ${customerId}
+          AND business_id = ${businessId}
+      `;
+      
+      // If it doesn't exist, create it
+      if (existingCheck.length === 0) {
+        await sql`
+          CREATE TABLE IF NOT EXISTS customer_business_relationships (
+            id SERIAL PRIMARY KEY,
+            customer_id VARCHAR(255) NOT NULL,
+            business_id VARCHAR(255) NOT NULL,
+            status VARCHAR(50) DEFAULT 'ACTIVE',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(customer_id, business_id)
+          )
+        `;
+        
+        await sql`
+          INSERT INTO customer_business_relationships (
+            customer_id,
+            business_id,
+            status,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ${customerId},
+            ${businessId},
+            'ACTIVE',
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (customer_id, business_id) 
+          DO UPDATE SET
+            status = 'ACTIVE',
+            updated_at = NOW()
+        `;
+        
+        // Record the association event
+        await this.recordCustomerInteraction(
+          customerId,
+          businessId,
+          'ASSOCIATION',
+          `Customer associated with business through program ${programId}`
+        );
+      } else {
+        // If it exists but might be inactive, reactivate it
+        await sql`
+          UPDATE customer_business_relationships
+          SET 
+            status = 'ACTIVE',
+            updated_at = NOW()
+          WHERE 
+            customer_id = ${customerId} AND
+            business_id = ${businessId}
+        `;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error associating customer with business:', error);
+      return false;
+    }
+  }
 }
 
 // Initialize interactions table when service is imported
