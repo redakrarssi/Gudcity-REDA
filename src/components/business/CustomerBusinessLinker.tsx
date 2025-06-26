@@ -130,6 +130,18 @@ export const CustomerBusinessLinker: React.FC<CustomerBusinessLinkerProps> = ({
         setAvailableCustomers(availableCustomers.filter(c => c.id !== selectedCustomer.id));
         setSelectedCustomer(null);
         
+        // Trigger a sync event to update the UI in real-time
+        import('../../utils/realTimeSync').then(({ triggerSyncEvent }) => {
+          triggerSyncEvent({
+            table_name: 'program_enrollments',
+            operation: 'INSERT',
+            record_id: `${selectedCustomer.id}-${selectedProgram}`,
+            customer_id: selectedCustomer.id,
+            business_id: businessId,
+            data: { programId: selectedProgram }
+          });
+        });
+        
         // Call the success callback if provided
         if (onSuccess) onSuccess();
       } else {

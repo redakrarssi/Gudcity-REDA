@@ -1212,10 +1212,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           // For persistence and server-side notifications, use the CustomerNotificationService when available
           try {
             // This will be stored in the database and potentially trigger real-time notifications
-            await CustomerNotificationService.createNotification({
+            const notification = await CustomerNotificationService.createNotification({
               customerId,
               businessId: ensureId(businessId),
-              type: 'QR_SCANNED',
+              type: 'QR_SCAN',
               title: 'QR Code Scanned',
               message: `Your QR code was scanned by ${businessName}`,
               data: {
@@ -1227,6 +1227,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({
               actionTaken: false,
               isRead: false
             });
+            
+            // Create notification sync event to update customer UI in real-time
+            if (notification) {
+              createNotificationSyncEvent(
+                notification.id,
+                customerId,
+                ensureId(businessId),
+                'INSERT',
+                {
+                  type: 'QR_SCAN',
+                  businessName,
+                  timestamp: new Date().toISOString()
+                }
+              );
+            }
             
             // Trigger sync event via localStorage for React Query invalidation
             // This helps update the UI even without direct socket communication

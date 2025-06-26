@@ -11,11 +11,12 @@ import { subscribeToSync, SyncEvent } from '../../utils/realTimeSync';
 import { queryClient } from '../../utils/queryClient';
 import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
 import NotificationList from '../../components/customer/NotificationList';
+import { CustomerNotificationService } from '../../services/customerNotificationService';
 
 // Local interface for card UI notifications
 interface CardNotification {
   id: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'scan';
   message: string;
   timestamp: Date;
 }
@@ -27,6 +28,17 @@ interface PromoCodeState {
   promoCode: string | null;
   businessName: string | null;
   isLoading: boolean;
+}
+
+// Interface for enrollment request modal
+interface EnrollmentRequestState {
+  isOpen: boolean;
+  businessId: string | null;
+  businessName: string | null;
+  programId: string | null;
+  programName: string | null;
+  notificationId: string | null;
+  approvalId: string | null;
 }
 
 // Safe wrapper component for CustomerCards
@@ -60,6 +72,7 @@ const CustomerCardsSafeWrapper = () => {
 const CustomerCards = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const queryClientInstance = useQueryClient();
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [rotateCard, setRotateCard] = useState('');
@@ -72,9 +85,18 @@ const CustomerCards = () => {
     businessName: null,
     isLoading: false
   });
+  const [enrollmentRequestState, setEnrollmentRequestState] = useState<EnrollmentRequestState>({
+    isOpen: false,
+    businessId: null,
+    businessName: null,
+    programId: null,
+    programName: null,
+    notificationId: null,
+    approvalId: null
+  });
   
   // Function to add notification
-  const addNotification = useCallback((type: 'success' | 'error' | 'info', message: string) => {
+  const addNotification = useCallback((type: 'success' | 'error' | 'info' | 'scan', message: string) => {
     const newNotification = {
       id: `notification-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       type,
@@ -115,6 +137,40 @@ const CustomerCards = () => {
     refetchInterval: 5000, // Refetch every 5 seconds
   });
 
+  // Fetch pending approval requests
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['customerApprovals', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      return CustomerNotificationService.getPendingApprovals(String(user.id));
+    },
+    enabled: !!user?.id,
+    refetchInterval: 5000, // Check for new approvals every 5 seconds
+  });
+
+  // Check for pending enrollment requests and show modal
+  useEffect(() => {
+    if (pendingApprovals.length > 0) {
+      // Find the first enrollment request that hasn't been shown yet
+      const enrollmentRequest = pendingApprovals.find(
+        approval => approval.requestType === 'ENROLLMENT' && !enrollmentRequestState.isOpen
+      );
+      
+      if (enrollmentRequest && !enrollmentRequestState.isOpen) {
+        // Show the enrollment request modal
+        setEnrollmentRequestState({
+          isOpen: true,
+          businessId: enrollmentRequest.businessId,
+          businessName: enrollmentRequest.data?.businessName || 'Business',
+          programId: enrollmentRequest.entityId,
+          programName: enrollmentRequest.data?.programName || 'Loyalty Program',
+          notificationId: enrollmentRequest.notificationId,
+          approvalId: enrollmentRequest.id
+        });
+      }
+    }
+  }, [pendingApprovals, enrollmentRequestState.isOpen]);
+
   // Subscribe to real-time events and sync updates
   useEffect(() => {
     if (!user?.id) return;
@@ -122,7 +178,7 @@ const CustomerCards = () => {
     // 1. Listen to telemetry events for notifications
     const telemetryUnsubscribe = subscribeToEvents((event: Event) => {
       // Check if the event is relevant to this customer's cards
-      if (event.name === 'error' && 
+      if (event.name && 
           event.data && 
           event.data.type === LOYALTY_EVENT.POINTS_ADDED && 
           event.data.customerId === user.id) {
@@ -130,10 +186,10 @@ const CustomerCards = () => {
         addNotification('success', `${event.data.points} points added to your ${event.data.businessName || 'loyalty'} card!`);
         
         // Refresh card data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
       }
       
-      if (event.name === 'error' && 
+      if (event.name && 
           event.data && 
           event.data.type === LOYALTY_EVENT.POINTS_REDEEMED && 
           event.data.customerId === user.id) {
@@ -141,10 +197,10 @@ const CustomerCards = () => {
         addNotification('info', `${event.data.points} points redeemed from your ${event.data.businessName || 'loyalty'} card.`);
         
         // Refresh card data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
       }
       
-      if (event.name === 'error' && 
+      if (event.name && 
           event.data && 
           event.data.type === LOYALTY_EVENT.ENROLLMENT_NEW && 
           event.data.customerId === user.id) {
@@ -152,10 +208,10 @@ const CustomerCards = () => {
         addNotification('success', `You've joined the ${event.data.programName || 'loyalty'} program!`);
         
         // Refresh card data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
       }
       
-      if (event.name === 'error' && 
+      if (event.name && 
           event.data && 
           event.data.type === LOYALTY_EVENT.PROMO_CODE_GENERATED && 
           event.data.customerId === user.id) {
@@ -163,17 +219,25 @@ const CustomerCards = () => {
         addNotification('success', `${event.data.businessName || 'A business'} has granted you a promo code!`);
         
         // Refresh card data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+      
+      // New event for QR code scanning
+      if (event.name && 
+          event.data && 
+          event.data.customerId === user.id) {
+        // Customer QR code is being scanned by a business
+        addNotification('scan', `${event.data.businessName || 'A business'} is scanning your QR code`);
       }
     });
     
     // 2. Subscribe to loyalty card real-time sync events
     const cardSyncUnsubscribe = subscribeToSync('loyalty_cards', (event) => {
-      if (event.customer_id === user.id) {
+      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
         console.log('Loyalty card sync event received:', event);
         
         // Refresh cards data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
         
         // Show notification based on operation type
         if (event.operation === 'INSERT') {
@@ -182,15 +246,15 @@ const CustomerCards = () => {
           addNotification('info', 'Your loyalty card has been updated.');
         }
       }
-    }, user.id);
+    }, String(user.id));
     
     // 3. Subscribe to program enrollments sync events
     const enrollmentSyncUnsubscribe = subscribeToSync('program_enrollments', (event) => {
-      if (event.customer_id === user.id) {
+      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
         console.log('Program enrollment sync event received:', event);
         
         // Refresh cards data
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
         
         // Only show notification for new or updated enrollments (not for queries)
         if (event.operation === 'INSERT') {
@@ -200,15 +264,76 @@ const CustomerCards = () => {
           addNotification('success', 'Your program enrollment has been approved!');
         }
       }
-    }, user.id);
+    }, String(user.id));
+    
+    // 4. Subscribe to customer notifications sync events
+    const notificationSyncUnsubscribe = subscribeToSync('customer_notifications', (event) => {
+      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
+        console.log('Customer notification sync event received:', event);
+        
+        // Refresh notifications data
+        queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
+        
+        // Show real-time notification for scan events
+        if (event.data?.type === 'SCAN') {
+          const businessName = event.data?.businessName || 'A business';
+          addNotification('scan', `${businessName} is scanning your QR code`);
+        }
+      }
+    }, String(user.id));
     
     // Return cleanup function to unsubscribe from all events
     return () => {
       telemetryUnsubscribe();
       cardSyncUnsubscribe();
       enrollmentSyncUnsubscribe();
+      notificationSyncUnsubscribe();
     };
-  }, [user?.id, addNotification]);
+  }, [user?.id, addNotification, queryClientInstance]);
+
+  // Handle enrollment request response
+  const handleEnrollmentResponse = async (approved: boolean) => {
+    if (!enrollmentRequestState.approvalId) return;
+    
+    try {
+      const success = await CustomerNotificationService.respondToApproval(
+        enrollmentRequestState.approvalId,
+        approved
+      );
+      
+      if (success) {
+        // Show notification based on response
+        if (approved) {
+          addNotification('success', `You've joined ${enrollmentRequestState.programName}!`);
+          
+          // Refresh cards data after a short delay to allow backend processing
+          setTimeout(() => {
+            queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+            queryClientInstance.invalidateQueries({ queryKey: ['customerPrograms', user?.id] });
+          }, 1000);
+        } else {
+          addNotification('info', `You declined to join ${enrollmentRequestState.programName}`);
+        }
+      } else {
+        addNotification('error', 'Failed to process your response. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error responding to enrollment request:', error);
+      addNotification('error', 'An error occurred while processing your response');
+    } finally {
+      // Close the modal
+      setEnrollmentRequestState({
+        isOpen: false,
+        businessId: null,
+        businessName: null,
+        programId: null,
+        programName: null,
+        notificationId: null,
+        approvalId: null
+      });
+    }
+  };
 
   useEffect(() => {
     // Trigger animation after a short delay
@@ -315,6 +440,41 @@ const CustomerCards = () => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
+  // Render enrollment request modal
+  const renderEnrollmentRequestModal = () => {
+    if (!enrollmentRequestState.isOpen) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+          <h3 className="text-xl font-semibold mb-2">Program Enrollment Request</h3>
+          <p className="mb-4">
+            <span className="font-medium">{enrollmentRequestState.businessName}</span> invites you to join their 
+            <span className="font-medium"> {enrollmentRequestState.programName}</span> loyalty program.
+          </p>
+          <p className="text-sm text-gray-600 mb-6">
+            Joining will allow you to earn points and rewards when you visit.
+          </p>
+          
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => handleEnrollmentResponse(false)}
+              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+            >
+              Decline
+            </button>
+            <button
+              onClick={() => handleEnrollmentResponse(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Join Program
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return <CustomerLayout><div>Loading...</div></CustomerLayout>;
   }
@@ -338,28 +498,24 @@ const CustomerCards = () => {
       
         {/* Notifications */}
         <AnimatePresence>
-          {notifications.map(note => (
+          {notifications.map(notification => (
             <motion.div
-              key={note.id}
+              key={notification.id}
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-              className={`p-4 rounded-md shadow-lg mb-2 ${
-                note.type === 'success' ? 'bg-green-100 border-l-4 border-green-500 text-green-700' :
-                note.type === 'error' ? 'bg-red-100 border-l-4 border-red-500 text-red-700' :
-                'bg-blue-100 border-l-4 border-blue-500 text-blue-700'
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`mb-3 p-3 rounded-lg shadow-md flex items-center ${
+                notification.type === 'success' ? 'bg-green-100 text-green-800' :
+                notification.type === 'error' ? 'bg-red-100 text-red-800' :
+                notification.type === 'scan' ? 'bg-blue-100 text-blue-800' :
+                'bg-blue-50 text-blue-800'
               }`}
-              role="alert"
             >
-              <div className="flex justify-between items-center">
-                <p className="font-medium">{note.message}</p>
-                <button 
-                  onClick={() => setNotifications(prev => prev.filter(n => n.id !== note.id))}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              {notification.type === 'success' && <Check className="w-5 h-5 mr-2" />}
+              {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2" />}
+              {notification.type === 'info' && <Info className="w-5 h-5 mr-2" />}
+              {notification.type === 'scan' && <QrCode className="w-5 h-5 mr-2" />}
+              <span>{notification.message}</span>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -640,6 +796,9 @@ const CustomerCards = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Enrollment request modal */}
+      {renderEnrollmentRequestModal()}
     </CustomerLayout>
   );
 };

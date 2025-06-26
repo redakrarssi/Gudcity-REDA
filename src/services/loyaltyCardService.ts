@@ -5,12 +5,12 @@ import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { emitPromoCodeGeneratedEvent, emitEnrollmentEvent, emitPointsRedeemedEvent } from '../utils/loyaltyEvents';
-import { emitNotification } from '../server';
+import * as serverFunctions from '../server';
 import { CustomerNotificationService } from './customerNotificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
 import { formatPoints, validateCardData } from '../utils/validators';
 import { logger } from '../utils/logger';
-import { createCardSyncEvent } from '../utils/realTimeSync';
+import { createCardSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
 import type { LoyaltyCard } from '../types/loyalty';
 
 // Define the card benefit type
@@ -1326,7 +1326,8 @@ export class LoyaltyCardService {
           pe.program_id,
           lp.business_id,
           lp.name as program_name,
-          u.name as business_name
+          u.name as business_name,
+          pe.points as current_points
         FROM program_enrollments pe
         JOIN loyalty_programs lp ON pe.program_id = lp.id
         JOIN users u ON lp.business_id = u.id
@@ -1351,8 +1352,8 @@ export class LoyaltyCardService {
         try {
           // Generate a unique card number
           const cardNumber = await this.generateUniqueCardNumber(
-            enrollment.customer_id, 
-            enrollment.program_id
+            String(enrollment.customer_id), 
+            String(enrollment.program_id)
           );
           
           // Create the loyalty card
@@ -1391,36 +1392,74 @@ export class LoyaltyCardService {
             // Create card sync event to update UI
             createCardSyncEvent(
               cardId, 
-              enrollment.customer_id, 
-              enrollment.business_id, 
+              String(enrollment.customer_id), 
+              String(enrollment.business_id), 
               'INSERT', 
               { 
-                programId: enrollment.program_id, 
-                programName: enrollment.program_name
+                programId: String(enrollment.program_id), 
+                programName: enrollment.program_name,
+                businessName: enrollment.business_name
               }
             );
             
             // Create notification for the customer
             const notification = await CustomerNotificationService.createNotification({
-              customerId: enrollment.customer_id,
-              businessId: enrollment.business_id,
+              customerId: String(enrollment.customer_id),
+              businessId: String(enrollment.business_id),
               type: 'ENROLLMENT',
               title: 'Loyalty Card Created',
               message: `Your loyalty card for ${enrollment.program_name} at ${enrollment.business_name} is ready`,
               requiresAction: false,
               actionTaken: false,
               isRead: false,
-              referenceId: enrollment.program_id,
+              referenceId: String(enrollment.program_id),
               data: {
-                programId: enrollment.program_id,
+                programId: String(enrollment.program_id),
                 programName: enrollment.program_name,
+                businessName: enrollment.business_name,
                 cardId
               }
             });
             
             if (notification) {
-              // Emit real-time notification
-              serverFunctions.emitNotification(enrollment.customer_id, notification);
+              // Emit real-time notification using server functions
+              try {
+                // Check if serverFunctions is available (it might not be in some environments)
+                if (typeof serverFunctions !== 'undefined' && serverFunctions.emitNotification) {
+                  serverFunctions.emitNotification(String(enrollment.customer_id), notification);
+                }
+              } catch (emitError) {
+                logger.error('Error emitting notification:', emitError);
+                // Non-critical error, continue with next enrollment
+              }
+              
+              // Also create a notification sync event
+              createNotificationSyncEvent(
+                notification.id,
+                String(enrollment.customer_id),
+                String(enrollment.business_id),
+                'INSERT',
+                {
+                  type: 'ENROLLMENT',
+                  programName: enrollment.program_name,
+                  businessName: enrollment.business_name,
+                  cardId
+                }
+              );
+            }
+            
+            // Emit enrollment event for analytics and other systems
+            try {
+              emitEnrollmentEvent(
+                String(enrollment.customer_id),
+                String(enrollment.business_id),
+                String(enrollment.program_id),
+                enrollment.program_name,
+                enrollment.business_name
+              );
+            } catch (eventError) {
+              logger.error('Error emitting enrollment event:', eventError);
+              // Non-critical error, continue with next enrollment
             }
             
             logger.info(`Created loyalty card ${cardId} for enrollment ${enrollment.enrollment_id}`);

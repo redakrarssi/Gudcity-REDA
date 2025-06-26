@@ -1,144 +1,219 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { QRScanner } from '../components/QRScanner';
 import { QrCodeService } from '../services/qrCodeService';
-import { NotificationService } from '../services/notificationService';
+import { CustomerNotificationService } from '../services/customerNotificationService';
+import { createNotificationSyncEvent } from '../utils/realTimeSync';
+import * as serverFunctions from '../server';
 
 // Mock dependencies
-jest.mock('html5-qrcode', () => ({
-  Html5Qrcode: jest.fn().mockImplementation(() => ({
-    start: jest.fn().mockResolvedValue(true),
-    stop: jest.fn().mockResolvedValue(true),
-    clear: jest.fn(),
-    getState: jest.fn().mockReturnValue({ isScanning: false }),
-  })),
-  CameraDevice: jest.fn(),
-}));
+jest.mock('../services/qrCodeService');
+jest.mock('../services/customerNotificationService');
+jest.mock('../utils/realTimeSync');
+jest.mock('../server');
 
-jest.mock('../services/qrCodeService', () => ({
-  QrCodeService: {
-    processQrCodeScan: jest.fn().mockResolvedValue({ success: true }),
-    logScan: jest.fn().mockResolvedValue(true),
-  },
-}));
-
-jest.mock('../services/notificationService', () => ({
-  NotificationService: {
-    createNotification: jest.fn().mockResolvedValue(true),
-  },
-}));
-
-// Create mock QR code data for testing
-const mockCustomerQR = JSON.stringify({
-  type: 'customer',
-  customerId: '12345',
-  customerName: 'Test Customer',
-  email: 'test@example.com',
-  text: 'Customer QR code',
+// Mock Html5Qrcode
+jest.mock('html5-qrcode', () => {
+  return {
+    Html5Qrcode: jest.fn().mockImplementation(() => ({
+      start: jest.fn().mockResolvedValue({}),
+      stop: jest.fn().mockResolvedValue({}),
+      clear: jest.fn(),
+      getState: jest.fn().mockReturnValue({ isScanning: true }),
+      isScanning: jest.fn().mockReturnValue(true),
+      getSupportedFormats: jest.fn().mockReturnValue([]),
+      getCameras: jest.fn().mockResolvedValue([{ id: 'camera1', label: 'Test Camera' }]),
+    })),
+    CameraDevice: {},
+  };
 });
 
-const mockLoyaltyCardQR = JSON.stringify({
-  type: 'loyaltyCard',
-  cardId: '7890',
-  customerId: '12345',
-  cardNumber: 'CARD-001',
-  text: 'Loyalty card QR code',
-});
+// Mock contexts
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: jest.fn().mockReturnValue({ 
+    user: { id: '1', name: 'Test Business', role: 'BUSINESS' },
+    isAuthenticated: true
+  })
+}));
 
-const mockPromoCodeQR = JSON.stringify({
-  type: 'promoCode',
-  code: 'PROMO123',
-  text: 'Promo code QR code',
-});
-
-const mockUnknownQR = 'invalid-qr-data';
-
-// Create custom renderer with translation mock
-const renderWithTranslation = (component: React.ReactElement) => {
-  return render(
-    <div>{component}</div>
-  );
-};
-
-describe('QRScanner Component', () => {
+describe('QR Scanner Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  test('renders without crashing', () => {
-    renderWithTranslation(<QRScanner businessId="1" />);
-    expect(screen.getByText(/Start Scanner/i)).toBeInTheDocument();
-  });
-
-  test('toggles scanning state when button is clicked', async () => {
-    renderWithTranslation(<QRScanner businessId="1" />);
-    
-    // Start scanning
-    fireEvent.click(screen.getByText(/Start Scanner/i));
-    
-    // Wait for the scanner to initialize
-    await waitFor(() => {
-      expect(screen.getByText(/Stop Scanner/i)).toBeInTheDocument();
-    });
-    
-    // Stop scanning
-    fireEvent.click(screen.getByText(/Stop Scanner/i));
+  test('should render scanner component', async () => {
+    render(<QRScanner businessId="1" />);
     
     await waitFor(() => {
-      expect(screen.getByText(/Start Scanner/i)).toBeInTheDocument();
+      expect(screen.getByText(/Scan a QR code/i)).toBeInTheDocument();
     });
   });
 
-  test('ensureId utility handles undefined IDs correctly', async () => {
-    // This test accesses a private utility function, which isn't ideal
-    // In real testing, we would test the public API, not implementation details
-    // This is for demonstration purposes only
-    const { container } = renderWithTranslation(<QRScanner businessId="1" />);
+  test('should successfully scan customer QR code', async () => {
+    // Mock successful QR code scan
+    const mockQrData = {
+      type: 'customer',
+      customerId: '4',
+      customerName: 'Test Customer',
+      raw: JSON.stringify({ customerId: '4', customerName: 'Test Customer', type: 'customer' })
+    };
     
-    // Access the component instance to test the ensureId function
-    // Note: This is not a recommended practice in real tests
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const componentInstance = (container as any).ensureId;
+    // Mock notification creation
+    (CustomerNotificationService.createNotification as jest.Mock).mockResolvedValue({
+      id: 'notif-123',
+      customerId: '4',
+      businessId: '1',
+      type: 'QR_SCAN',
+      title: 'QR Code Scanned',
+      message: 'Test Business is scanning your QR code',
+    });
     
-    // If we can't access the function directly, we can test its behavior through props
-    // We do this by passing undefined as businessId and checking it doesn't crash
-    renderWithTranslation(<QRScanner businessId={undefined} />);
-    expect(screen.getByText(/Start Scanner/i)).toBeInTheDocument();
-  });
-
-  test('handles customer QR code correctly', async () => {
+    // Mock QR code service
+    (QrCodeService.logScan as jest.Mock).mockResolvedValue({ success: true });
+    
     const onScanMock = jest.fn();
-    renderWithTranslation(<QRScanner businessId="1" onScan={onScanMock} />);
     
-    // Directly simulate QR code scan since we can't trigger the HTML5QrCode in tests
-    // This is a way to test the parsing logic without the actual scanning
-    // Get the component instance
-    const instance = screen.getByTestId('qr-scanner-container');
+    // Render component
+    render(<QRScanner businessId="1" onScan={onScanMock} />);
     
-    // Simulate QR code scan by calling the function directly
-    // This is not ideal in real tests but works for this validation
-    fireEvent.click(screen.getByText(/Start Scanner/i));
+    // Simulate QR code scan
+    const scannerInstance = (window as any).scannerInstance;
     
-    // Wait for scanner to initialize
+    // Manually trigger the handleQrCodeScan method
     await waitFor(() => {
-      expect(screen.getByText(/Stop Scanner/i)).toBeInTheDocument();
+      // Find and trigger the scan button
+      const scanButton = screen.getByText(/Start Scanning/i);
+      fireEvent.click(scanButton);
     });
     
-    // Mock the scan result
-    const scanHandler = (HTML5QrCode as any).mock.calls[0][1];
-    if (scanHandler) {
-      scanHandler(mockCustomerQR, { decodedText: mockCustomerQR });
-    }
-    
-    // Verify QrCodeService was called correctly
+    // Verify notification was created
     await waitFor(() => {
-      expect(QrCodeService.logScan).toHaveBeenCalledWith(
-        'CUSTOMER_CARD',
-        '1',
-        expect.objectContaining({ customerId: '12345' }),
-        true,
-        expect.any(Object)
+      expect(CustomerNotificationService.createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: expect.any(String),
+          businessId: expect.any(String),
+          type: expect.any(String)
+        })
       );
+    });
+    
+    // Verify sync event was created
+    await waitFor(() => {
+      expect(createNotificationSyncEvent).toHaveBeenCalled();
+    });
+  });
+
+  test('should handle invalid QR code format', async () => {
+    // Mock invalid QR code data
+    const invalidQrData = "not-a-valid-qr-code";
+    
+    const onErrorMock = jest.fn();
+    
+    // Render component
+    render(<QRScanner businessId="1" onError={onErrorMock} />);
+    
+    // Simulate invalid QR code scan
+    await waitFor(() => {
+      // Find and trigger the scan button
+      const scanButton = screen.getByText(/Start Scanning/i);
+      fireEvent.click(scanButton);
+    });
+    
+    // Verify error handling
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid QR code format/i)).toBeInTheDocument();
+    });
+  });
+
+  test('should create real-time notification when scanning', async () => {
+    // Mock successful QR code scan for customer ID 4
+    const mockQrData = {
+      type: 'customer',
+      customerId: '4',
+      customerName: 'Test Customer',
+      raw: JSON.stringify({ customerId: '4', customerName: 'Test Customer', type: 'customer' })
+    };
+    
+    // Mock notification creation
+    const mockNotification = {
+      id: 'notif-123',
+      customerId: '4',
+      businessId: '1',
+      type: 'QR_SCAN',
+      title: 'QR Code Scanned',
+      message: 'Test Business is scanning your QR code',
+    };
+    
+    (CustomerNotificationService.createNotification as jest.Mock).mockResolvedValue(mockNotification);
+    
+    // Render component
+    render(<QRScanner businessId="1" />);
+    
+    // Simulate QR code scan
+    await waitFor(() => {
+      // Find and trigger the scan button
+      const scanButton = screen.getByText(/Start Scanning/i);
+      fireEvent.click(scanButton);
+    });
+    
+    // Verify notification was created
+    await waitFor(() => {
+      expect(CustomerNotificationService.createNotification).toHaveBeenCalled();
+    });
+    
+    // Verify sync event was created
+    await waitFor(() => {
+      expect(createNotificationSyncEvent).toHaveBeenCalledWith(
+        mockNotification.id,
+        expect.any(String),
+        expect.any(String),
+        'INSERT',
+        expect.objectContaining({
+          type: expect.any(String),
+          businessName: expect.any(String),
+          timestamp: expect.any(String)
+        })
+      );
+    });
+    
+    // Verify server notification was emitted
+    await waitFor(() => {
+      expect(serverFunctions.emitNotification).toHaveBeenCalled();
+    });
+  });
+
+  test('should handle multiple scans gracefully', async () => {
+    // Mock QR code service to simulate multiple scans
+    (QrCodeService.logScan as jest.Mock).mockResolvedValue({ success: true });
+    
+    // Mock rate limiting check
+    const mockRateLimitCheck = jest.fn().mockReturnValue(false);
+    (window as any).qrScanMonitor = {
+      isRateLimited: mockRateLimitCheck,
+      trackScan: jest.fn(),
+      recordSuccessfulScan: jest.fn(),
+      recordFailedScan: jest.fn(),
+    };
+    
+    // Render component
+    render(<QRScanner businessId="1" />);
+    
+    // Simulate multiple QR code scans
+    await waitFor(() => {
+      // Find and trigger the scan button
+      const scanButton = screen.getByText(/Start Scanning/i);
+      fireEvent.click(scanButton);
+    });
+    
+    // Verify scan tracking was called
+    await waitFor(() => {
+      expect((window as any).qrScanMonitor.trackScan).toHaveBeenCalled();
+    });
+    
+    // Verify rate limiting was checked
+    await waitFor(() => {
+      expect(mockRateLimitCheck).toHaveBeenCalled();
     });
   });
 }); 

@@ -39,7 +39,11 @@ export class CustomerService {
     try {
       console.log(`Fetching customers for business ID: ${businessId}`);
       
+      // Convert businessId to integer for database comparison
+      const businessIdInt = parseInt(businessId, 10);
+      
       // Get customers who are enrolled in this business's loyalty programs
+      // or have a direct business relationship
       const customers = await sql`
         SELECT DISTINCT
           c.id,
@@ -51,18 +55,21 @@ export class CustomerService {
           c.created_at as joined_at,
           c.notes,
           COALESCE(SUM(pe.current_points), 0) as loyalty_points,
-          COUNT(DISTINCT pe.program_id) as visits,
+          COUNT(DISTINCT pe.program_id) as enrolled_programs_count,
           COALESCE(SUM(lt.amount), 0) as total_spent,
-          MAX(lt.transaction_date) as last_visit,
-          ARRAY_AGG(DISTINCT lp.name) FILTER (WHERE lp.name IS NOT NULL) as enrolled_programs
+          MAX(lt.transaction_date) as last_visit
         FROM users c
-        JOIN program_enrollments pe ON c.id::text = pe.customer_id
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessId}
+        LEFT JOIN program_enrollments pe ON c.id::text = pe.customer_id
+        LEFT JOIN loyalty_programs lp ON pe.program_id = lp.id
+        LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN customer_business_relationships cbr ON c.id::text = cbr.customer_id AND cbr.business_id = ${businessIdInt}
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND lp.business_id = ${businessId}
-          AND pe.status = 'ACTIVE'
+          AND (
+            (lp.business_id = ${businessIdInt} AND pe.status = 'ACTIVE')
+            OR
+            (cbr.business_id = ${businessIdInt} AND cbr.status = 'ACTIVE')
+          )
         GROUP BY c.id, c.name, c.email, c.phone, c.tier, c.status, c.created_at, c.notes
         ORDER BY c.name ASC
       `;
@@ -77,7 +84,7 @@ export class CustomerService {
         tier: customer.tier || 'Bronze',
         loyaltyPoints: parseInt(customer.loyalty_points) || 0,
         points: parseInt(customer.loyalty_points) || 0,
-        visits: parseInt(customer.visits) || 0,
+        visits: parseInt(customer.enrolled_programs_count) || 0,
         totalSpent: parseFloat(customer.total_spent) || 0,
         lastVisit: customer.last_visit ? new Date(customer.last_visit).toISOString() : undefined,
         favoriteItems: [], // TODO: Implement favorite items tracking
@@ -334,10 +341,84 @@ export class CustomerService {
         `;
       }
       
+      // Import LoyaltyProgramService dynamically to avoid circular dependency
+      const { LoyaltyProgramService } = await import('./loyaltyProgramService');
+      
+      // Enroll the customer in the specified program
+      // Set requireApproval to false for direct linking from business side
+      const enrollmentResult = await LoyaltyProgramService.enrollCustomer(
+        customerId,
+        programId,
+        false // Auto-approve the enrollment
+      );
+      
+      if (!enrollmentResult.success) {
+        console.error('Error enrolling customer in program:', enrollmentResult.error);
+        // Continue anyway as the business-customer relationship was established
+      }
+      
+      // Refresh business customers data to ensure UI updates
+      await this.refreshBusinessCustomers(businessId);
+      
       return true;
     } catch (error) {
       console.error('Error associating customer with business:', error);
       return false;
+    }
+  }
+
+  /**
+   * Search for customers by name or email
+   * Used for finding customers to link to a business
+   */
+  static async searchCustomers(businessId: string, searchTerm: string): Promise<Customer[]> {
+    try {
+      const query = searchTerm.toLowerCase();
+      
+      // Search for customers that match the search term
+      const result = await sql`
+        SELECT 
+          id,
+          name,
+          email,
+          phone,
+          tier,
+          status,
+          created_at as joined_at,
+          notes
+        FROM users
+        WHERE user_type = 'customer' 
+          AND status = 'active'
+          AND (
+            LOWER(name) LIKE ${`%${query}%`} OR
+            LOWER(email) LIKE ${`%${query}%`}
+          )
+        ORDER BY name ASC
+        LIMIT 20
+      `;
+      
+      // Convert to Customer objects with proper type handling
+      const customers: Customer[] = result.map((row: any) => ({
+        id: row.id ? row.id.toString() : '',
+        name: row.name ? row.name.toString() : 'Unknown Customer',
+        email: row.email ? row.email.toString() : '',
+        phone: row.phone ? row.phone.toString() : '',
+        tier: row.tier ? row.tier.toString() : 'Bronze',
+        loyaltyPoints: 0,
+        points: 0,
+        visits: 0,
+        totalSpent: 0,
+        favoriteItems: [],
+        birthday: undefined,
+        joinedAt: row.joined_at ? new Date(row.joined_at).toISOString() : undefined,
+        notes: row.notes ? row.notes.toString() : '',
+        status: row.status ? row.status.toString() : 'active'
+      }));
+      
+      return customers;
+    } catch (error) {
+      console.error('Error searching customers:', error);
+      return [];
     }
   }
 }

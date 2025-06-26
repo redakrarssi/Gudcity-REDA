@@ -450,7 +450,7 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
       WHERE business_id = ${businessId}
         AND DATE(login_time) = ${date}
     `;
-    const loginCount = loginResults[0]?.login_count || 0;
+    const loginCount = parseInt(loginResults[0]?.login_count as string) || 0;
     
     // Get transaction data for the day
     const transactionResults = await sql`
@@ -462,9 +462,9 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
       WHERE business_id = ${businessId}
         AND DATE(transaction_date) = ${date}
     `;
-    const transactionCount = transactionResults[0]?.transaction_count || 0;
-    const dailyRevenue = transactionResults[0]?.daily_revenue || 0;
-    const activeCustomers = transactionResults[0]?.active_customers || 0;
+    const transactionCount = parseInt(transactionResults[0]?.transaction_count as string) || 0;
+    const dailyRevenue = parseFloat(transactionResults[0]?.daily_revenue as string) || 0;
+    const activeCustomers = parseInt(transactionResults[0]?.active_customers as string) || 0;
     
     // Get new customers for the day (first transaction)
     const newCustomerResults = await sql`
@@ -479,7 +479,7 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
             AND DATE(bt2.transaction_date) < ${date}
         )
     `;
-    const newCustomers = newCustomerResults[0]?.new_customers || 0;
+    const newCustomers = parseInt(newCustomerResults[0]?.new_customers as string) || 0;
     
     // Calculate average transaction value
     const avgTransactionValue = transactionCount > 0 ? dailyRevenue / transactionCount : 0;
@@ -498,19 +498,26 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
             AND DATE(transaction_date) < ${date}
         )
     `;
-    const returningCustomers = retentionResults[0]?.returning_customers || 0;
+    const returningCustomers = parseInt(retentionResults[0]?.returning_customers as string) || 0;
     const retentionRate = activeCustomers > 0 ? (returningCustomers / activeCustomers) * 100 : 0;
     
     // Calculate growth rate (compared to previous day)
     const previousDayResults = await sql`
-      SELECT total_transactions, revenue
-      FROM business_analytics
-      WHERE business_id = ${businessId}
-        AND date = (${date}::date - interval '1 day')
+      SELECT 
+        COALESCE(transactions, 0) as total_transactions,
+        COALESCE(revenue, 0) as revenue
+      FROM (
+        SELECT 
+          COUNT(bt.id) as transactions,
+          COALESCE(SUM(bt.amount), 0) as revenue
+        FROM business_transactions bt
+        WHERE bt.business_id = ${businessId}
+          AND DATE(bt.transaction_date) = (${date}::date - interval '1 day')
+      ) as prev_day_data
     `;
     
-    const previousDayTransactions = previousDayResults[0]?.total_transactions || 0;
-    const previousDayRevenue = previousDayResults[0]?.revenue || 0;
+    const previousDayTransactions = parseInt(previousDayResults[0]?.total_transactions as string) || 0;
+    const previousDayRevenue = parseFloat(previousDayResults[0]?.revenue as string) || 0;
     
     const transactionGrowth = previousDayTransactions > 0 
       ? ((transactionCount - previousDayTransactions) / previousDayTransactions) * 100 

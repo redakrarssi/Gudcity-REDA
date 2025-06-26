@@ -284,11 +284,14 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
               <div className="bg-white p-2 border border-gray-200 rounded-lg">
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeData)}`} 
-                  alt="Loyalty Card QR Code" 
+                  alt={`${programName} QR Code`} 
                   className="w-48 h-48"
                 />
               </div>
               <div className="mt-3 text-xs text-gray-500">
+                {programName} - {businessName}
+              </div>
+              <div className="mt-1 text-xs text-gray-400">
                 {t('Card ID')}: {card.id}
               </div>
             </div>
