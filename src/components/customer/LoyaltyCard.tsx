@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine } from 'lucide-react';
 import { LoyaltyCard as LoyaltyCardType, Reward } from '../../services/loyaltyCardService';
 import { QrCodeService } from '../../services/qrCodeService';
+import { createStandardLoyaltyCardQRCode } from '../../utils/standardQrCodeGenerator';
 
 interface LoyaltyCardProps {
   card: LoyaltyCardType;
@@ -50,37 +51,52 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   const [copiedPromoCode, setCopiedPromoCode] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   
   const tierColors = CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
   
-  // Use businessName from card, or fallback to businessId if not available
-  const businessName = card.businessName || t('Business');
-  
-  // Use programName from card, or fallback to a generic name if not available
+  // Use programName as primary display, with businessName as secondary
   const programName = card.programName || t('Loyalty Program');
+  const businessName = card.businessName || t('Business');
   
   // Generate QR code data for the loyalty card
   useEffect(() => {
     // Only generate QR code if the card has all necessary information
     if (card.id && card.customerId && card.programId && card.businessId) {
       try {
-        // Create a loyalty card QR code data object
-        const qrData = {
-          type: 'loyaltyCard',
+        // Create a properly formatted loyalty card QR code with all required fields
+        const qrData = createStandardLoyaltyCardQRCode({
           cardId: card.id,
           customerId: card.customerId,
           programId: card.programId,
           businessId: card.businessId,
-          timestamp: Date.now()
-        };
+          cardNumber: card.cardNumber || '',
+          programName: programName,
+          businessName: businessName,
+          points: card.points || 0
+        });
         
-        // Convert to JSON string for QR code
         setQrCodeData(JSON.stringify(qrData));
+        
+        // Generate QR code image URL
+        QrCodeService.generateQrCode(JSON.stringify(qrData))
+          .then(url => {
+            setQrCodeUrl(url);
+            setQrCodeError(null);
+          })
+          .catch(error => {
+            console.error('Error generating QR code:', error);
+            setQrCodeError('Failed to generate QR code');
+          });
       } catch (error) {
-        console.error('Error generating QR code data:', error);
+        console.error('Error creating QR code data:', error);
+        setQrCodeError('Error creating QR code data');
       }
+    } else {
+      setQrCodeError('Missing required card information');
     }
-  }, [card.id, card.customerId, card.programId, card.businessId]);
+  }, [card.id, card.customerId, card.programId, card.businessId, programName, businessName]);
   
   // Reset copied state after 3 seconds
   useEffect(() => {
@@ -141,6 +157,42 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
     return { available: true };
   };
   
+  // Handle QR code display toggle with retry capability
+  const toggleQrCode = () => {
+    if (qrCodeError && !qrCodeUrl) {
+      // Retry QR code generation if there was an error
+      if (card.id && card.customerId && card.programId && card.businessId) {
+        try {
+          const qrData = createStandardLoyaltyCardQRCode({
+            cardId: card.id,
+            customerId: card.customerId,
+            programId: card.programId,
+            businessId: card.businessId,
+            cardNumber: card.cardNumber || '',
+            programName: programName,
+            businessName: businessName,
+            points: card.points || 0
+          });
+          
+          QrCodeService.generateQrCode(JSON.stringify(qrData))
+            .then(url => {
+              setQrCodeUrl(url);
+              setQrCodeError(null);
+              setShowQrCode(true);
+            })
+            .catch(error => {
+              console.error('Error generating QR code on retry:', error);
+              setQrCodeError('Failed to generate QR code');
+            });
+        } catch (error) {
+          console.error('Error creating QR code data on retry:', error);
+        }
+      }
+    } else {
+      setShowQrCode(!showQrCode);
+    }
+  };
+  
   return (
     <div className={`rounded-xl overflow-hidden shadow-md ${className}`}>
       {/* Card Header */}
@@ -190,6 +242,62 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
             </div>
           </div>
         )}
+        
+        {/* QR Code Button */}
+        <div className="mb-4">
+          <button 
+            onClick={toggleQrCode} 
+            className="w-full flex justify-between items-center bg-blue-50 text-blue-700 p-3 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <div className="flex items-center">
+              <QrCode className="w-5 h-5 mr-2" />
+              <span>{t('Show QR Code')}</span>
+            </div>
+            {showQrCode ? (
+              <ChevronDown className="w-5 h-5" />
+            ) : (
+              <ChevronRight className="w-5 h-5" />
+            )}
+          </button>
+          
+          {/* QR Code Display */}
+          {showQrCode && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex flex-col items-center">
+                {qrCodeUrl ? (
+                  <>
+                    <div className="bg-white p-3 rounded-lg shadow-sm mb-2">
+                      <img 
+                        src={qrCodeUrl} 
+                        alt={`QR Code for ${programName}`}
+                        className="w-full max-w-[200px] h-auto"
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-800">{programName}</p>
+                      <p className="text-xs text-gray-600">{businessName}</p>
+                    </div>
+                  </>
+                ) : qrCodeError ? (
+                  <div className="text-center p-4">
+                    <div className="text-red-500 mb-2">{qrCodeError}</div>
+                    <button 
+                      onClick={toggleQrCode}
+                      className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm"
+                    >
+                      {t('Retry')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-gray-600">{t('Generating QR code...')}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         
         {/* Benefits */}
         <div className="mb-4">
@@ -248,7 +356,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
                     className="w-full flex justify-center items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 py-2 rounded-md transition-colors"
                   >
                     <Share2 className="w-4 h-4" />
-                    {t('Share with Friends')}
+                    <span>{t('Share Code')}</span>
                   </button>
                 </div>
               </div>
@@ -256,118 +364,58 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
           </div>
         )}
         
-        {/* QR Code */}
-        <div className="mb-4">
-          <button 
-            onClick={() => setShowQrCode(!showQrCode)} 
-            className="w-full flex justify-between items-center bg-blue-50 text-blue-700 p-3 rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <div className="flex items-center">
-              <ScanLine className="w-5 h-5 mr-2" />
-              <span>{t('Your Loyalty Card QR Code')}</span>
-            </div>
-            {showQrCode ? (
-              <ChevronDown className="w-5 h-5" />
-            ) : (
-              <ChevronRight className="w-5 h-5" />
-            )}
-          </button>
-          
-          {showQrCode && qrCodeData && (
-            <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 flex flex-col items-center">
-              <div className="mb-2 text-sm text-gray-600 text-center">
-                {t('Scan this code at {{businessName}} to earn points for {{programName}}', { 
-                  businessName,
-                  programName
-                })}
-              </div>
-              <div className="bg-white p-2 border border-gray-200 rounded-lg">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeData)}`} 
-                  alt={`${programName} QR Code`} 
-                  className="w-48 h-48"
-                />
-              </div>
-              <div className="mt-3 text-xs text-gray-500">
-                {programName} - {businessName}
-              </div>
-              <div className="mt-1 text-xs text-gray-400">
-                {t('Card ID')}: {card.id}
-              </div>
-            </div>
-          )}
-        </div>
-      
-        {/* Toggle Rewards */}
+        {/* Toggle for showing more details */}
         <button 
           onClick={() => setExpanded(!expanded)} 
-          className="w-full flex justify-between items-center bg-blue-50 text-blue-700 p-3 rounded-lg hover:bg-blue-100 transition-colors"
+          className="w-full flex justify-center items-center gap-2 text-gray-500 hover:text-gray-700 py-2"
         >
-          <div className="flex items-center">
-            <Gift className="w-5 h-5 mr-2" />
-            <span>{t('Available Rewards')}</span>
-          </div>
           {expanded ? (
-            <ChevronDown className="w-5 h-5" />
+            <>
+              <span>{t('Show Less')}</span>
+              <ChevronDown className="w-4 h-4" />
+            </>
           ) : (
-            <ChevronRight className="w-5 h-5" />
+            <>
+              <span>{t('Show More')}</span>
+              <ChevronRight className="w-4 h-4" />
+            </>
           )}
         </button>
-      </div>
-      
-      {/* Expanded Rewards */}
-      {expanded && (
-        <div className="bg-gray-50 p-4 space-y-4 border-t border-gray-200">
-          {card.availableRewards && card.availableRewards.length > 0 ? (
-            card.availableRewards.map((reward, index) => {
-              const { available, reason } = getRewardAvailability(reward);
-              
-              return (
-                <div 
-                  key={`${reward.name}-${index}`} 
-                  className={`p-3 rounded-lg ${available ? 'bg-white' : 'bg-gray-100'} border ${available ? 'border-green-200' : 'border-gray-300'}`}
-                >
-                  <div className="flex justify-between">
-                    <div>
-                      <h5 className="font-medium">{reward.name}</h5>
-                      <p className="text-sm text-gray-600 mt-1">{reward.description}</p>
-                    </div>
-                    <div className="text-right">
-                      {reward.points > 0 ? (
-                        <div className="flex items-center bg-blue-50 text-blue-700 px-2 py-1 rounded-md mb-2">
-                          <Star className="w-3 h-3 mr-1" />
-                          <span>{reward.points}</span>
-                        </div>
-                      ) : (
-                        <div className="px-2 py-1 bg-green-50 text-green-700 rounded-md mb-2 text-xs">
-                          {t('Free Benefit')}
-                        </div>
-                      )}
-                      
-                      {available ? (
-                        <button
-                          onClick={() => onRedeemReward && onRedeemReward(reward.name)}
-                          className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm"
-                        >
-                          {t('Redeem')}
-                        </button>
-                      ) : (
-                        <div className="text-xs text-gray-500">
-                          {reason}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+        
+        {/* Expanded content */}
+        {expanded && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            {/* Card details */}
+            <div className="mb-4">
+              <h4 className="font-medium text-gray-800 mb-2">{t('Card Details')}</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('Card Number')}</span>
+                  <span className="font-mono">{card.cardNumber}</span>
                 </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              {t('No rewards available')}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('Card Type')}</span>
+                  <span>{card.cardType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('Issued On')}</span>
+                  <span>{new Date(card.createdAt).toLocaleDateString()}</span>
+                </div>
+                {card.expiryDate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">{t('Expires On')}</span>
+                    <span>{new Date(card.expiryDate).toLocaleDateString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{t('Points Multiplier')}</span>
+                  <span>{card.pointsMultiplier}×</span>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }; 

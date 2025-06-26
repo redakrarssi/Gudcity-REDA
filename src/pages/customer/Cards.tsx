@@ -111,14 +111,36 @@ const CustomerCards = () => {
       setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
     }, 5000);
   }, []);
+
+  // Function to sync enrollments to cards
+  const syncEnrollments = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('Syncing enrollments to cards for customer:', user.id);
+      const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      
+      if (createdCardIds.length > 0) {
+        console.log(`Created ${createdCardIds.length} new cards from enrollments`);
+        addNotification('success', `${createdCardIds.length} new loyalty card(s) created from your program enrollments`);
+        
+        // Refresh card data
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+      }
+    } catch (error) {
+      console.error('Error syncing enrollments to cards:', error);
+      addNotification('error', 'Failed to sync enrollments to cards');
+    }
+  }, [user?.id, addNotification, queryClientInstance]);
   
-  const { data: loyaltyCards = [], isLoading: loading, error } = useQuery({
+  // Fetch loyalty cards with sync
+  const { data: loyaltyCards = [], isLoading: loading, error, refetch } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
-      await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      await syncEnrollments();
       
       // Then get all customer cards
       const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
@@ -134,7 +156,7 @@ const CustomerCards = () => {
       return cards;
     },
     enabled: !!user?.id,
-    refetchInterval: 5000, // Refetch every 5 seconds
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Fetch pending approval requests
@@ -145,7 +167,7 @@ const CustomerCards = () => {
       return CustomerNotificationService.getPendingApprovals(String(user.id));
     },
     enabled: !!user?.id,
-    refetchInterval: 5000, // Check for new approvals every 5 seconds
+    refetchInterval: 15000, // Check for new approvals every 15 seconds
   });
 
   // Check for pending enrollment requests and show modal
@@ -207,8 +229,8 @@ const CustomerCards = () => {
         // Customer enrolled in a new loyalty program
         addNotification('success', `You've joined the ${event.data.programName || 'loyalty'} program!`);
         
-        // Refresh card data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        // Sync enrollments to cards
+        syncEnrollments();
       }
       
       if (event.name && 
@@ -223,7 +245,7 @@ const CustomerCards = () => {
       }
       
       // New event for QR code scanning
-      if (event.name && 
+      if (event.name === 'qr_scan' && 
           event.data && 
           event.data.customerId === user.id) {
         // Customer QR code is being scanned by a business
@@ -232,7 +254,7 @@ const CustomerCards = () => {
     });
     
     // 2. Subscribe to loyalty card real-time sync events
-    const cardSyncUnsubscribe = subscribeToSync('loyalty_cards', (event) => {
+    const cardSyncUnsubscribe = subscribeToSync('loyalty_cards', (event: SyncEvent) => {
       if (event.customer_id && user.id && event.customer_id === String(user.id)) {
         console.log('Loyalty card sync event received:', event);
         
@@ -243,80 +265,106 @@ const CustomerCards = () => {
         if (event.operation === 'INSERT') {
           addNotification('success', 'New loyalty card added! Pull down to refresh.');
         } else if (event.operation === 'UPDATE') {
-          addNotification('info', 'Your loyalty card has been updated.');
+          const businessName = event.data?.businessName || 'A business';
+          const pointsChange = event.data?.pointsChange;
+          
+          if (pointsChange && pointsChange > 0) {
+            addNotification('success', `${pointsChange} points added to your ${businessName} card!`);
+          } else {
+            addNotification('info', `Your ${businessName} loyalty card has been updated.`);
+          }
         }
       }
     }, String(user.id));
     
-    // 3. Subscribe to program enrollments sync events
-    const enrollmentSyncUnsubscribe = subscribeToSync('program_enrollments', (event) => {
-      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
-        console.log('Program enrollment sync event received:', event);
-        
-        // Refresh cards data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-        
-        // Only show notification for new or updated enrollments (not for queries)
-        if (event.operation === 'INSERT') {
-          const programName = event.data?.programName || 'loyalty program';
-          addNotification('success', `You've been enrolled in a new ${programName}!`);
-        } else if (event.operation === 'UPDATE' && event.data?.status === 'ACTIVE') {
-          addNotification('success', 'Your program enrollment has been approved!');
-        }
-      }
-    }, String(user.id));
-    
-    // 4. Subscribe to customer notifications sync events
-    const notificationSyncUnsubscribe = subscribeToSync('customer_notifications', (event) => {
+    // 3. Subscribe to customer notifications real-time sync events
+    const notificationSyncUnsubscribe = subscribeToSync('customer_notifications', (event: SyncEvent) => {
       if (event.customer_id && user.id && event.customer_id === String(user.id)) {
         console.log('Customer notification sync event received:', event);
         
+        // Show notification based on event data
+        if (event.data?.type === 'QR_SCAN') {
+          const businessName = event.data?.businessName || 'A business';
+          addNotification('scan', `${businessName} scanned your QR code`);
+        } else if (event.data?.type === 'POINTS_ADDED') {
+          const businessName = event.data?.businessName || 'A business';
+          const points = event.data?.points || 0;
+          addNotification('success', `${points} points added to your ${businessName} card!`);
+          
+          // Refresh card data
+          queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        }
+        
         // Refresh notifications data
         queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
-        queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
+      }
+    }, String(user.id));
+    
+    // 4. Subscribe to program enrollments real-time sync events
+    const enrollmentSyncUnsubscribe = subscribeToSync('program_enrollments', (event: SyncEvent) => {
+      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
+        console.log('Program enrollment sync event received:', event);
         
-        // Show real-time notification for scan events
-        if (event.data?.type === 'SCAN') {
-          const businessName = event.data?.businessName || 'A business';
-          addNotification('scan', `${businessName} is scanning your QR code`);
+        // When a new enrollment is created, sync it to cards
+        if (event.operation === 'INSERT') {
+          syncEnrollments();
         }
       }
     }, String(user.id));
     
-    // Return cleanup function to unsubscribe from all events
+    // Run initial sync on component mount
+    syncEnrollments();
+    
+    // Clean up subscriptions
     return () => {
       telemetryUnsubscribe();
       cardSyncUnsubscribe();
-      enrollmentSyncUnsubscribe();
       notificationSyncUnsubscribe();
+      enrollmentSyncUnsubscribe();
     };
-  }, [user?.id, addNotification, queryClientInstance]);
+  }, [user?.id, addNotification, queryClientInstance, syncEnrollments]);
+
+  // Handle manual refresh
+  const handleRefresh = useCallback(() => {
+    if (!user?.id) return;
+    
+    // Show loading animation
+    setAnimateIn(true);
+    
+    // Sync enrollments to cards first
+    syncEnrollments().then(() => {
+      // Then refresh the cards data
+      refetch();
+      
+      // Hide loading animation after a short delay
+      setTimeout(() => {
+        setAnimateIn(false);
+      }, 1000);
+    });
+  }, [user?.id, refetch, syncEnrollments]);
 
   // Handle enrollment request response
   const handleEnrollmentResponse = async (approved: boolean) => {
     if (!enrollmentRequestState.approvalId) return;
     
     try {
+      // Respond to the approval request
       const success = await CustomerNotificationService.respondToApproval(
         enrollmentRequestState.approvalId,
         approved
       );
       
       if (success) {
-        // Show notification based on response
         if (approved) {
-          addNotification('success', `You've joined ${enrollmentRequestState.programName}!`);
+          addNotification('success', `You've joined ${enrollmentRequestState.programName}`);
           
-          // Refresh cards data after a short delay to allow backend processing
-          setTimeout(() => {
-            queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
-            queryClientInstance.invalidateQueries({ queryKey: ['customerPrograms', user?.id] });
-          }, 1000);
+          // Sync enrollments to cards to create the new card
+          syncEnrollments();
         } else {
           addNotification('info', `You declined to join ${enrollmentRequestState.programName}`);
         }
       } else {
-        addNotification('error', 'Failed to process your response. Please try again.');
+        addNotification('error', 'Failed to process your response');
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);

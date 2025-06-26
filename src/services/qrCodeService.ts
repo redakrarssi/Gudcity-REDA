@@ -152,6 +152,38 @@ export class QrCodeService {
   private static readonly SECRET_KEY = env.QR_SECRET_KEY || 'gudcity-qrcode-security-key';
   private static readonly MAX_RETRY_COUNT = 3;
   private static readonly RETRY_DELAY_MS = 500;
+  private static readonly QR_API_URL = 'https://api.qrserver.com/v1/create-qr-code/';
+  
+  /**
+   * Generate a QR code image URL from data
+   * @param data The data to encode in the QR code
+   * @param size The size of the QR code image (default: 200x200)
+   * @param errorCorrectionLevel The error correction level (L, M, Q, H)
+   * @returns Promise resolving to the QR code image URL
+   */
+  static async generateQrCode(
+    data: string,
+    size: string = '200x200',
+    errorCorrectionLevel: string = 'M'
+  ): Promise<string> {
+    try {
+      // Validate input
+      if (!data) {
+        throw new Error('QR code data is required');
+      }
+      
+      // URL encode the data
+      const encodedData = encodeURIComponent(data);
+      
+      // Construct the QR code API URL
+      const qrCodeUrl = `${this.QR_API_URL}?size=${size}&data=${encodedData}&ecc=${errorCorrectionLevel}`;
+      
+      return qrCodeUrl;
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      throw error;
+    }
+  }
   
   /**
    * Validate QR code data before processing with enhanced validation

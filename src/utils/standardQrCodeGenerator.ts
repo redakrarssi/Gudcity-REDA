@@ -141,29 +141,40 @@ export async function createStandardCustomerQRCode(
 /**
  * Create a QR code for a loyalty card
  */
-export async function createStandardLoyaltyCardQRCode(
-  cardId: string | number,
-  programId: string | number,
-  businessId: string | number,
-  customerId: string | number,
-  points?: number
-): Promise<string> {
+export function createStandardLoyaltyCardQRCode(
+  params: {
+    cardId: string | number,
+    programId: string | number,
+    businessId: string | number,
+    customerId: string | number,
+    cardNumber?: string,
+    programName?: string,
+    businessName?: string,
+    points?: number
+  }
+): LoyaltyCardQrCodeData {
   // Create standardized data structure
   const qrData: LoyaltyCardQrCodeData = {
     type: 'loyaltyCard',
-    cardId,
-    programId,
-    businessId,
-    customerId,
-    points,
+    cardId: params.cardId,
+    programId: params.programId,
+    businessId: params.businessId,
+    customerId: params.customerId,
+    points: params.points,
+    cardNumber: params.cardNumber,
     timestamp: Date.now()
   };
   
-  // Generate QR code with standard options
-  return generateStandardQRCode(qrData, {
-    errorCorrectionLevel: 'Q',  // Higher error correction for loyalty cards
-    size: 300
-  });
+  // Add optional metadata for better display
+  if (params.programName) {
+    (qrData as any).programName = params.programName;
+  }
+  
+  if (params.businessName) {
+    (qrData as any).businessName = params.businessName;
+  }
+  
+  return qrData;
 }
 
 /**
