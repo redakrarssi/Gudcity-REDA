@@ -111,7 +111,9 @@ export async function createStandardCustomerQRCode(
   customerId: string | number,
   businessId?: string | number,
   customerName?: string,
-  email?: string
+  email?: string,
+  cardNumber?: string,
+  cardType?: string
 ): Promise<string> {
   try {
     // Create standardized data structure
@@ -126,6 +128,15 @@ export async function createStandardCustomerQRCode(
       businessId,
       timestamp: Date.now()
     };
+
+    // Add card number and type if provided
+    if (cardNumber) {
+      (qrData as any).cardNumber = cardNumber;
+    }
+    
+    if (cardType) {
+      (qrData as any).cardType = cardType;
+    }
     
     // Generate QR code with standard options
     return generateStandardQRCode(qrData, {
