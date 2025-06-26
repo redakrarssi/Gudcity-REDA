@@ -5,6 +5,9 @@ import { UserQrCodeService } from '../services/userQrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
 import sql from '../utils/db';
 import { useAuth } from '../contexts/AuthContext';
+import { QrCardGenerator } from '../utils/qrCardGenerator';
+import { logger } from '../utils/logger';
+import { QrCodeStorageService } from '../services/qrCodeStorageService';
 
 export interface QRCardProps {
   userId: string;
@@ -48,6 +51,30 @@ export const QRCard: React.FC<QRCardProps> = ({
   const actualCardNumber = cardNumber || `GC-${userId.substring(0, 8)}`;
 
   useEffect(() => {
+    // First ensure the customer has a valid QR code with the correct structure
+    const ensureValidQrCode = async () => {
+      try {
+        // This will check if the customer has a valid QR code and create one if not
+        // It will also fix any QR codes with incorrect structure
+        await QrCardGenerator.ensureCustomerHasQrCode(userId);
+      } catch (error) {
+        logger.error('Error ensuring valid QR code:', error);
+        // Continue with fetching anyway
+      }
+    };
+    
+    // Then fetch the QR code
+    const fetchQrCode = async () => {
+      try {
+        await ensureValidQrCode();
+        fetchQrCode();
+      } catch (error) {
+        logger.error('Error in QR card initialization:', error);
+        setError('Failed to initialize QR card. Please try refreshing.');
+        setLoading(false);
+      }
+    };
+    
     fetchQrCode();
     
     // Animation effect
@@ -56,7 +83,7 @@ export const QRCard: React.FC<QRCardProps> = ({
     }, 300);
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const fetchCardInfo = async () => {
@@ -107,62 +134,121 @@ export const QRCard: React.FC<QRCardProps> = ({
 
   const fetchQrCode = async () => {
     if (!userId) {
-      setError('User ID is required');
+      setError('Missing user ID');
       setLoading(false);
       return;
     }
-
+    
     try {
       setLoading(true);
       setError(null);
       
-      // Try to get the QR code from the service
-      const user = { 
-        id: parseInt(userId, 10) || 0, // Convert to number
-        name: displayName,
-        email: `user-${userId}@example.com`,
-        role: 'customer' as 'customer' | 'admin' | 'business' // Use proper type
-      };
-      const qrCode = await UserQrCodeService.getOrCreateCustomerQrCode(user);
+      // First ensure the customer has a valid QR code with the correct structure
+      await QrCardGenerator.ensureCustomerHasQrCode(userId);
       
-      if (qrCode) {
-        setQrImageUrl(qrCode);
+      // Get the primary QR code for this customer
+      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
+        userId,
+        'CUSTOMER_CARD'
+      );
+      
+      if (!qrCode || !qrCode.qr_image_url) {
+        // If no QR code found, create a new one
+        const newQrImageUrl = await QrCardGenerator.generateCustomerQrCode(userId);
         
-        // Get consistent card number
-        const generatedCardNumber = UserQrCodeService.generateConsistentCardNumber ?
-          await UserQrCodeService.generateConsistentCardNumber(userId) :
-          `GC-${userId.substring(0, 8)}`;
-          
+        if (!newQrImageUrl) {
+          throw new Error('Failed to generate QR code');
+        }
+        
+        setQrImageUrl(newQrImageUrl);
+        
+        // Get the card number from the consistent generator
+        const generatedCardNumber = UserQrCodeService.generateConsistentCardNumber(userId);
         setCardNumber(generatedCardNumber);
         
+        // Notify parent component if needed
         if (onCardReady) {
           onCardReady(generatedCardNumber);
         }
       } else {
-        throw new Error('Failed to generate QR code');
+        // Use the existing QR code
+        setQrImageUrl(qrCode.qr_image_url);
+        
+        // Parse the QR data to get the card number and type
+        try {
+          const qrData = typeof qrCode.qr_data === 'string' 
+            ? JSON.parse(qrCode.qr_data) 
+            : qrCode.qr_data;
+          
+          if (qrData.cardNumber) {
+            setCardNumber(qrData.cardNumber);
+            
+            // Notify parent component if needed
+            if (onCardReady) {
+              onCardReady(qrData.cardNumber);
+            }
+          }
+          
+          if (qrData.cardType) {
+            setCardType(qrData.cardType.toLowerCase());
+          }
+          
+          // Set the raw QR data for the QR code component
+          setQrData(JSON.stringify(qrData));
+        } catch (parseError) {
+          console.error('Error parsing QR data:', parseError);
+          // Use fallback values
+          createFallbackQrCode();
+        }
       }
-    } catch (err) {
-      console.error('Error generating QR code:', err);
-      setError('Could not generate your loyalty card QR code. Please try again.');
       
-      // Create fallback card number
-      const fallbackCardNumber = `GC-${userId.substring(0, 8)}`;
-      setCardNumber(fallbackCardNumber);
-      
-      if (onCardReady) {
-        onCardReady(fallbackCardNumber);
-      }
-      
-      createFallbackQrCode();
-    } finally {
       setLoading(false);
+    } catch (err) {
+      console.error('Error fetching QR code:', err);
+      setError('Failed to load your QR code. Please try again.');
+      setLoading(false);
+      
+      // Use fallback QR code
+      createFallbackQrCode();
     }
   };
 
   const handleRefreshQrCode = async () => {
     setIsRefreshing(true);
-    await fetchQrCode();
-    setIsRefreshing(false);
+    try {
+      // Generate a new QR code using the generator
+      const newQrImageUrl = await QrCardGenerator.generateCustomerQrCode(userId, {
+        isPrimary: true,
+        cardType: 'STANDARD',
+        expiryDays: 365
+      });
+      
+      if (!newQrImageUrl) {
+        throw new Error('Failed to generate QR code');
+      }
+      
+      setQrImageUrl(newQrImageUrl);
+      setSuccessMessage('QR code refreshed successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+      
+      // Reload card info
+      const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
+      if (cardInfo.cardNumber) {
+        setCardNumber(cardInfo.cardNumber);
+      }
+    } catch (err) {
+      console.error('Error refreshing QR code:', err);
+      setError('Failed to refresh QR code. Please try again.');
+      
+      // Use fallback QR code
+      createFallbackQrCode();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const createFallbackQrCode = () => {

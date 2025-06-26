@@ -1,6 +1,8 @@
 export type CustomerNotificationType = 
   | 'ENROLLMENT'  // When customer is enrolled in program
   | 'ENROLLMENT_REQUEST'  // When a business requests to enroll customer
+  | 'ENROLLMENT_ACCEPTED'  // When a customer accepts an enrollment request
+  | 'ENROLLMENT_REJECTED'  // When a customer rejects an enrollment request
   | 'POINTS_ADDED'  // When points are added to customer account
   | 'POINTS_DEDUCTED'  // When points are deducted from customer account
   | 'PROMO_CODE'  // When a promo code is granted to customer

@@ -1,7 +1,6 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-import { Pool } from '@neondatabase/serverless';
-import { v4 as uuidv4 } from 'uuid';
+// Import required modules
+const { Pool } = require('@neondatabase/serverless');
+const { v4: uuidv4 } = require('uuid');
 
 // Database connection
 const pool = new Pool({
@@ -80,7 +79,10 @@ function generateVerificationCode() {
   return result;
 }
 
-async function fixCustomerQrCode(customerId, customerName, customerEmail) {
+/**
+ * Fix a customer's QR card based on the working model of customer ID 4
+ */
+async function fixCustomerQrCard(customerId, customerName, customerEmail) {
   console.log(`Processing customer ID ${customerId}...`);
   
   try {
@@ -295,6 +297,9 @@ async function fixCustomerQrCode(customerId, customerName, customerEmail) {
   }
 }
 
+/**
+ * Fix all customer QR cards based on the working model of customer ID 4
+ */
 async function main() {
   try {
     console.log('Starting fix for all customer QR cards...');
@@ -314,7 +319,7 @@ async function main() {
     let failCount = 0;
     
     for (const customer of customers.rows) {
-      const success = await fixCustomerQrCode(customer.id, customer.name, customer.email);
+      const success = await fixCustomerQrCard(customer.id, customer.name, customer.email);
       if (success) {
         successCount++;
       } else {
@@ -327,6 +332,25 @@ async function main() {
     if (failCount > 0) {
       console.log(`❌ Failed to process ${failCount} customers`);
     }
+    
+    // Verify customer ID 4 specifically
+    console.log('\nVerifying customer ID 4...');
+    const customer4 = await pool.query(`
+      SELECT c.id, c.name, c.email
+      FROM customers c
+      WHERE c.id = 4
+    `);
+    
+    if (customer4.rows.length > 0) {
+      const verified = await fixCustomerQrCard(4, customer4.rows[0].name, customer4.rows[0].email);
+      if (verified) {
+        console.log('✅ Customer ID 4 QR card is working correctly');
+      } else {
+        console.log('❌ Failed to verify customer ID 4 QR card');
+      }
+    } else {
+      console.log('❌ Customer ID 4 not found');
+    }
   } catch (error) {
     console.error('Error fixing customer QR cards:', error);
   } finally {
@@ -334,4 +358,5 @@ async function main() {
   }
 }
 
+// Run the script
 main().catch(console.error); 
