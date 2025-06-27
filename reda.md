@@ -42,6 +42,49 @@ The following can generally be modified safely:
 4. Adding comments or documentation to existing code
 5. Fixing obvious bugs that don't affect core functionality
 
+## QR Card Format
+
+The QR card system requires a specific format to ensure compatibility between customer cards and the business scanner. All QR codes must adhere to these requirements:
+
+### Customer QR Card Format
+```json
+{
+  "type": "customer",
+  "customerId": "customer-id-value",
+  "name": "Customer Name",
+  "email": "customer@example.com",
+  "cardNumber": "GC-XXXXXX-C",
+  "cardType": "STANDARD",
+  "timestamp": 1234567890123
+}
+```
+
+### Loyalty Card QR Format
+```json
+{
+  "type": "loyaltyCard",
+  "cardId": "card-id-value",
+  "customerId": "customer-id-value",
+  "programId": "program-id-value",
+  "businessId": "business-id-value",
+  "cardNumber": "GC-XXXXXX-C",
+  "programName": "Program Name",
+  "businessName": "Business Name",
+  "points": 0,
+  "timestamp": 1234567890123
+}
+```
+
+### Critical QR Requirements
+- The `type` field MUST be either "customer" or "loyaltyCard"
+- Each QR code MUST have a unique and consistent `cardNumber` for the customer
+- The `customerId` field is required for all QR code types
+- The business QR scanner requires these specific fields to process rewards and enrollments
+- All customer dashboard QR codes should be stored in the database with an image URL
+- Digital signatures should be generated for all QR codes for security validation
+
+When modifying any QR code related functionality, ensure these formats are preserved to maintain compatibility between the customer dashboard and business scanner.
+
 ## File Size Limitations
 
 For improved maintainability and easier bug fixing:
