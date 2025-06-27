@@ -165,7 +165,7 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      {showConfetti && <Confetti />}
+      {showConfetti && <Confetti active={showConfetti} />}
       
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full overflow-hidden">
         <div className="p-6">
@@ -276,28 +276,29 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
             </div>
           )}
 
-        <div className="flex justify-end space-x-3 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors shadow-sm"
-            disabled={isProcessing}
-          >
-            {t('Cancel')}
-          </button>
-          <button
-            onClick={handleEnrollCustomer}
-            disabled={!selectedProgramId || isProcessing || enrollmentStatus === 'pending'}
-            className={`px-4 py-2 bg-blue-500 text-white rounded-lg transition-colors flex items-center shadow-sm hover:shadow-md ${
-              !selectedProgramId || isProcessing || enrollmentStatus === 'pending' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'
-            }`}
-          >
-            {isProcessing ? (
-              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-            ) : (
-              <Users className="w-4 h-4 mr-2" />
-            )}
-            {enrollmentStatus === 'pending' ? t('Invitation Sent') : t('Enroll Customer')}
-          </button>
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors shadow-sm"
+              disabled={isProcessing}
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              onClick={handleEnrollCustomer}
+              disabled={!selectedProgramId || isProcessing || enrollmentStatus === 'pending'}
+              className={`px-4 py-2 bg-blue-500 text-white rounded-lg transition-colors flex items-center shadow-sm hover:shadow-md ${
+                !selectedProgramId || isProcessing || enrollmentStatus === 'pending' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'
+              }`}
+            >
+              {isProcessing ? (
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+              ) : (
+                <Users className="w-4 h-4 mr-2" />
+              )}
+              {enrollmentStatus === 'pending' ? t('Invitation Sent') : t('Enroll Customer')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -212,8 +212,6 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         return <Tag className="h-5 w-5 text-purple-500" />;
       case CustomerNotificationType.QR_SCANNED:
         return <Bell className="h-5 w-5 text-blue-600" />;
-      case ApprovalRequestType.ENROLLMENT:
-        return <Award className="h-5 w-5 text-blue-700" />;
       case ApprovalRequestType.POINTS_DEDUCTION:
         return <Gift className="h-5 w-5 text-red-500" />;
       default:
