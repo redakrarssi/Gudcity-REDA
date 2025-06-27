@@ -217,46 +217,126 @@ export class CustomerNotificationService {
    * Create a new approval request
    * @param request The approval request data
    */
-  static async createApprovalRequest(request: Omit<ApprovalRequest, 'id' | 'requestedAt'>): Promise<ApprovalRequest> {
+  static async createApprovalRequest(request: {
+    customerId: string;
+    businessId: string;
+    requestType: 'ENROLLMENT' | 'POINTS_DEDUCTION';
+    entityId: string;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    data?: Record<string, any>;
+    expiresAt?: string;
+    notificationId?: string;
+  }): Promise<ApprovalRequest> {
     try {
-      // First create notification
-      const notification = await this.createNotification({
-        customerId: request.customerId,
-        businessId: request.businessId,
-        type: request.requestType === 'ENROLLMENT' ? 'ENROLLMENT' : 'POINTS_DEDUCTED',
-        title: request.requestType === 'ENROLLMENT' ? 'Program Enrollment Request' : 'Points Deduction Request',
-        message: request.data?.message || `A business requested your approval for ${request.requestType.toLowerCase()}`,
-        requiresAction: true,
-        actionTaken: false,
-        isRead: false,
-        referenceId: request.entityId,
-        data: request.data
-      });
+      // Generate IDs
+      const requestId = uuidv4();
+      const now = new Date().toISOString();
+      
+      // Validate inputs
+      if (!request.customerId || !request.businessId || !request.entityId) {
+        logger.error('Missing required parameters for approval request');
+        throw new Error('Missing required parameters for approval request');
+      }
+      
+      // Parse IDs to ensure they are numbers
+      const customerId = parseInt(String(request.customerId));
+      const businessId = parseInt(String(request.businessId));
+      
+      if (isNaN(customerId) || isNaN(businessId)) {
+        logger.error('Invalid customer or business ID', { 
+          customerId: request.customerId, 
+          businessId: request.businessId 
+        });
+        throw new Error('Invalid customer or business ID');
+      }
 
-      // Then create approval request linked to notification
-      const result = await sql`
-        INSERT INTO customer_approval_requests (
-          notification_id,
-          customer_id,
-          business_id,
-          request_type,
-          entity_id,
-          status,
-          data
-        ) VALUES (
-          ${notification.id},
-          ${parseInt(request.customerId)},
-          ${parseInt(request.businessId)},
-          ${request.requestType},
-          ${request.entityId},
-          'PENDING',
-          ${request.data ? JSON.stringify(request.data) : null}
-        ) RETURNING *
-      `;
-
-      return this.mapApprovalRequest(result[0]);
+      // Create notification first if needed
+      let notificationId = request.notificationId;
+      
+      if (!notificationId) {
+        // Determine notification type and content based on request type
+        let notificationType: CustomerNotificationType;
+        let title: string;
+        let message: string;
+        
+        if (request.requestType === 'ENROLLMENT') {
+          notificationType = 'ENROLLMENT_REQUEST';
+          title = 'Program Enrollment Request';
+          message = request.data?.message || 'A business would like to enroll you in their loyalty program';
+        } else {
+          notificationType = 'POINTS_DEDUCTED';
+          title = 'Points Deduction Request';
+          message = request.data?.message || 'A business is requesting to deduct points from your account';
+        }
+        
+        // Create the notification
+        try {
+          const notification = await this.createNotification({
+            customerId: String(customerId),
+            businessId: String(businessId),
+            type: notificationType,
+            title,
+            message,
+            requiresAction: true,
+            actionTaken: false,
+            isRead: false,
+            referenceId: request.entityId,
+            data: request.data || {}
+          });
+          
+          if (!notification || !notification.id) {
+            throw new Error('Failed to create notification');
+          }
+          
+          notificationId = notification.id;
+        } catch (notificationError) {
+          logger.error('Error creating notification for approval request', notificationError);
+          throw new Error('Failed to create notification for approval request');
+        }
+      }
+      
+      // Set expiration date if not provided (default 7 days)
+      const expiresAt = request.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      // Create the approval request
+      try {
+        const result = await sql`
+          INSERT INTO customer_approval_requests (
+            id,
+            notification_id,
+            customer_id,
+            business_id,
+            request_type,
+            entity_id,
+            status,
+            data,
+            requested_at,
+            expires_at
+          ) VALUES (
+            ${requestId},
+            ${notificationId},
+            ${customerId},
+            ${businessId},
+            ${request.requestType},
+            ${request.entityId},
+            ${'PENDING'},
+            ${request.data ? JSON.stringify(request.data) : null},
+            ${now},
+            ${expiresAt}
+          ) RETURNING *
+        `;
+        
+        if (!result || result.length === 0) {
+          throw new Error('Failed to insert approval request record');
+        }
+        
+        return this.mapApprovalRequest(result[0]);
+      } catch (dbError) {
+        logger.error('Database error creating approval request', dbError);
+        throw new Error('Failed to create approval request in database');
+      }
     } catch (error) {
-      console.error('Error creating approval request:', error);
+      logger.error('Error creating approval request:', error);
       throw error;
     }
   }

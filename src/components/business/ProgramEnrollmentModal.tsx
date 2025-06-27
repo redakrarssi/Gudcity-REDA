@@ -7,6 +7,7 @@ import { LoyaltyProgram } from '../../types/loyalty';
 import { Confetti } from '../ui/Confetti';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { listenForUserEvents } from '../../utils/socket';
+import { safeEnrollCustomer } from '../../utils/enrollmentHelper';
 
 interface ProgramEnrollmentModalProps {
   isOpen: boolean;
@@ -101,8 +102,8 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
       const program = programs.find(p => p.id === selectedProgramId);
       const programName = program ? program.name : 'the program';
       
-      // Enroll customer in the selected program with approval required
-      const result = await LoyaltyProgramService.enrollCustomer(
+      // Use our safer enrollment function that handles errors better
+      const result = await safeEnrollCustomer(
         customerId,
         selectedProgramId,
         true // requireApproval = true to trigger customer notification
@@ -114,21 +115,26 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
         setSuccess(`Enrollment invitation sent to ${customerName}. Waiting for response...`);
         
         // Create a notification for the business dashboard about the pending enrollment
-        await CustomerNotificationService.createNotification({
-          customerId: businessId,
-          businessId: businessId,
-          type: 'ENROLLMENT_PENDING',
-          title: 'Enrollment Request Sent',
-          message: `Waiting for ${customerName} to respond to the ${programName} enrollment invitation.`,
-          requiresAction: false,
-          actionTaken: false,
-          isRead: false,
-          data: {
-            customerId,
-            programName,
-            timestamp: new Date().toISOString()
-          }
-        });
+        try {
+          await CustomerNotificationService.createNotification({
+            customerId: businessId,
+            businessId: businessId,
+            type: 'ENROLLMENT_PENDING',
+            title: 'Enrollment Request Sent',
+            message: `Waiting for ${customerName} to respond to the ${programName} enrollment invitation.`,
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false,
+            data: {
+              customerId,
+              programName,
+              timestamp: new Date().toISOString()
+            }
+          });
+        } catch (notificationError) {
+          console.error('Error creating business notification:', notificationError);
+          // Don't fail the whole process if just the business notification fails
+        }
       } else {
         // Use the specific error message if provided
         const errorMessage = result?.error || result?.message || 'Failed to send enrollment invitation';

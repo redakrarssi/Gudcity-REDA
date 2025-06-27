@@ -426,64 +426,72 @@ export class LoyaltyProgramService {
           });
           
           if (!notification) {
-            throw new Error('Failed to create notification');
+            logger.error('Failed to create notification for enrollment request');
+            return { success: false, error: 'Failed to create enrollment notification' };
           }
           
           // Create an expiration date 7 days from now
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 7);
           
-          // Then create the approval request
-          const approvalRequest = await CustomerNotificationService.createApprovalRequest({
-            customerId,
-            businessId,
-            requestType: 'ENROLLMENT' as ApprovalRequestType,
-            entityId: programId,
-            notificationId: notification.id,
-            status: 'PENDING',
-            expiresAt: expiresAt.toISOString(),
-            data: {
-              programId,
-              programName: program.name,
-              businessId,
-              businessName,
-              message: `${businessName} would like to enroll you in their ${program.name} loyalty program. Would you like to join?`
-            }
-          });
-          
-          // Emit real-time notification via socket
+          // Then create the approval request with better error handling
           try {
-            if (serverFunctions && typeof serverFunctions.emitApprovalRequest === 'function') {
-              serverFunctions.emitApprovalRequest(customerId, approvalRequest);
+            const approvalRequest = await CustomerNotificationService.createApprovalRequest({
+              customerId,
+              businessId,
+              requestType: 'ENROLLMENT',
+              entityId: programId,
+              notificationId: notification.id,
+              status: 'PENDING',
+              expiresAt: expiresAt.toISOString(),
+              data: {
+                programId,
+                programName: program.name,
+                businessId,
+                businessName,
+                message: `${businessName} would like to enroll you in their ${program.name} loyalty program. Would you like to join?`
+              }
+            });
+            
+            // Emit real-time notification via socket
+            try {
+              // Use a safer way to call server functions that avoids type errors
+              const server = serverFunctions as any;
+              if (server && typeof server.emitApprovalRequest === 'function') {
+                server.emitApprovalRequest(customerId, approvalRequest);
+              }
+              
+              // Create notification sync event for real-time UI updates
+              createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
+              
+              // Create notification sync event
+              const notificationData = {
+                type: 'ENROLLMENT_REQUEST',
+                programName: program.name,
+                businessId,
+                customerId
+              };
+              createNotificationSyncEvent(approvalRequest.id, customerId, businessId, 'INSERT', notificationData);
+              
+              logger.info('Enrollment approval request created and notification sent', { 
+                customerId, programId, approvalId: approvalRequest.id 
+              });
+            } catch (emitError) {
+              logger.error('Error emitting approval notification', { error: emitError });
+              // Continue execution even if emit fails
             }
             
-            // Create notification sync event for real-time UI updates
-            createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
-            
-            // Create notification sync event
-            const notificationData = {
-              type: 'ENROLLMENT_REQUEST',
-              programName: program.name,
-              businessId,
-              customerId
+            return { 
+              success: true, 
+              message: 'Enrollment request sent to customer for approval' 
             };
-            createNotificationSyncEvent(approvalRequest.id, customerId, businessId, 'INSERT', notificationData);
-            
-            logger.info('Enrollment approval request created and notification sent', { 
-              customerId, programId, approvalId: approvalRequest.id 
-            });
-          } catch (emitError) {
-            logger.error('Error emitting approval notification', { error: emitError });
-            // Continue execution even if emit fails
+          } catch (approvalError) {
+            logger.error('Error creating approval request', { error: approvalError });
+            return { success: false, error: 'Failed to create approval request. Please try again.' };
           }
-          
-          return { 
-            success: true, 
-            message: 'Enrollment request sent to customer for approval' 
-          };
-        } catch (approvalError) {
-          logger.error('Error creating approval request', { error: approvalError });
-          return { success: false, error: 'Failed to create approval request' };
+        } catch (notificationError) {
+          logger.error('Error creating notification for enrollment', { error: notificationError });
+          return { success: false, error: 'Failed to send enrollment notification. Please try again.' };
         }
       }
 
@@ -566,7 +574,7 @@ export class LoyaltyProgramService {
         
         // Emit real-time notification
         try {
-          if (notification && serverFunctions && typeof serverFunctions.emitNotification === 'function') {
+          if (serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
             serverFunctions.emitNotification(customerId, notification);
           }
           
@@ -672,7 +680,7 @@ export class LoyaltyProgramService {
           }
         });
         
-        if (businessNotification && serverFunctions && typeof serverFunctions.emitNotification === 'function') {
+        if (businessNotification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
           serverFunctions.emitNotification(businessId, businessNotification);
         }
         
@@ -786,7 +794,7 @@ export class LoyaltyProgramService {
         isRead: false
       });
       
-      if (notification && serverFunctions && typeof serverFunctions.emitNotification === 'function') {
+      if (notification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
         // Emit real-time notification
         serverFunctions.emitNotification(customerId, notification);
         
@@ -829,7 +837,7 @@ export class LoyaltyProgramService {
         }
       });
       
-      if (businessNotification && serverFunctions && typeof serverFunctions.emitNotification === 'function') {
+      if (businessNotification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
         serverFunctions.emitNotification(businessId, businessNotification);
       }
       
