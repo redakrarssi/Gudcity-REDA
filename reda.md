@@ -110,6 +110,33 @@ These limitations help with:
 - **Data Consistency** - Enforce data consistency across business and customer views
 - **Optimization Patterns** - Use optimistic UI updates with proper error rollback mechanisms
 
+### Real-time Enrollment Notification System
+The enrollment notification system enables business owners to invite customers to join loyalty programs and receive real-time responses:
+
+1. **Business Enrollment Flow**:
+   - Business selects a customer and a program to enroll them in
+   - System sends a real-time notification to the customer's dashboard
+   - Business UI shows a pending state while waiting for customer response
+   - Once customer responds, business receives immediate notification of acceptance/rejection
+
+2. **Customer Response Flow**:
+   - Customer receives enrollment invitation in their notification center
+   - Customer can accept or reject the invitation directly from the notification
+   - Upon acceptance, a loyalty card is automatically created and displayed in the customer dashboard
+   - Customer is added to the business's customer list
+
+3. **Technical Implementation**:
+   - Uses WebSocket connections for instant notifications in both directions
+   - Leverages the `CustomerNotificationService` to handle notification creation and delivery
+   - Implements `NotificationContext` for managing real-time notification state
+   - Uses React Query for data invalidation and automatic UI updates
+
+4. **Security and Data Integrity**:
+   - All enrollment requests require explicit customer approval
+   - Customer data is only shared with businesses after consent
+   - All enrollment actions are tracked with timestamps and audit logs
+   - System maintains consistent state between customer and business views
+
 ### Real-time Interaction Best Practices
 - **Event-driven Architecture** - Follow the established event patterns for state updates
 - **Debouncing** - Implement debouncing for high-frequency update operations

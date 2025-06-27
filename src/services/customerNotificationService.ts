@@ -2,9 +2,10 @@
 
 import sql from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
-import { emitNotification, emitApprovalRequest } from '../server';
+import * as serverFunctions from '../server';
 import { logger } from '../utils/logger';
-import type { CustomerNotification, ApprovalRequest, NotificationPreference } from '../types/customerNotification';
+import { createNotificationSyncEvent, createEnrollmentSyncEvent } from '../utils/realTimeSync';
+import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';
 
 /**
  * Service for managing customer notifications and approval requests
@@ -14,7 +15,20 @@ export class CustomerNotificationService {
    * Create a new notification for a customer
    * @param notification The notification data to create
    */
-  static async createNotification(notification: Omit<CustomerNotification, 'id' | 'createdAt'>): Promise<CustomerNotification | null> {
+  static async createNotification(notification: {
+    customerId: string;
+    businessId: string;
+    type: string | CustomerNotificationType;
+    title: string;
+    message: string;
+    data?: Record<string, any>;
+    referenceId?: string;
+    requiresAction: boolean;
+    actionTaken: boolean;
+    isRead: boolean;
+    readAt?: string;
+    expiresAt?: string;
+  }): Promise<CustomerNotification | null> {
     try {
       const notificationId = uuidv4();
       const now = new Date();
@@ -287,32 +301,179 @@ export class CustomerNotificationService {
   }
 
   /**
-   * Respond to an approval request
-   * @param approvalId The approval request ID
+   * Respond to an approval request (accept or reject)
+   * @param requestId The approval request ID
    * @param approved Whether the request was approved
+   * @returns Whether the response was successful
    */
-  static async respondToApproval(approvalId: string, approved: boolean): Promise<boolean> {
+  static async respondToApproval(requestId: string, approved: boolean): Promise<boolean> {
     try {
-      const status = approved ? 'APPROVED' : 'REJECTED';
-      
-      const result = await sql`
-        UPDATE customer_approval_requests
-        SET status = ${status}, response_at = NOW()
-        WHERE id = ${approvalId}
-        RETURNING id, customer_id, business_id, request_type, entity_id
+      // Get the approval request details
+      const request = await sql`
+        SELECT * FROM customer_approval_requests
+        WHERE id = ${requestId}
       `;
 
-      if (!result.length) {
+      if (!request.length) {
+        console.error('Approval request not found:', requestId);
         return false;
       }
-      
-      // Update any related notifications
+
+      const customerId = request[0].customer_id.toString();
+      const businessId = request[0].business_id.toString();
+      const requestType = request[0].request_type as string;
+      const entityId = request[0].entity_id.toString();
+      const data = request[0].data as Record<string, any> || {};
+
+      // Update the approval request status
       await sql`
-        UPDATE customer_notifications
-        SET action_taken = TRUE
-        WHERE reference_id = ${approvalId}
+        UPDATE customer_approval_requests
+        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, updated_at = NOW()
+        WHERE id = ${requestId}
       `;
+
+      // If this is an enrollment request, handle the enrollment process
+      if (requestType === 'ENROLLMENT') {
+        try {
+          // For enrollment approvals, delegate to LoyaltyProgramService
+          const { LoyaltyProgramService } = await import('./loyaltyProgramService');
+          await LoyaltyProgramService.handleEnrollmentApproval(requestId, approved);
+        } catch (error) {
+          console.error('Error handling enrollment approval:', error);
+          // Don't fail the whole process if the enrollment fails
+        }
+      } else if (requestType === 'POINTS_DEDUCTION' && approved) {
+        // Handle points deduction if approved
+        // You would implement this part based on your points system
+      }
+
+      // Create a notification about the action for both customer and business
+      let customerNotificationTitle = '';
+      let customerNotificationMessage = '';
+      let businessNotificationTitle = '';
+      let businessNotificationMessage = '';
+      let businessNotificationType = '';
+
+      const programName = (data.programName as string) || 'the program';
+      const businessName = (data.businessName as string) || 'the business';
+      const points = (data.points as number) || 0;
+
+      if (approved) {
+        if (requestType === 'ENROLLMENT') {
+          customerNotificationTitle = 'Program Joined';
+          customerNotificationMessage = `You've joined ${businessName}'s ${programName} program`;
+          
+          businessNotificationTitle = 'Customer Joined Program';
+          businessNotificationMessage = `A customer has joined your ${programName} program`;
+          businessNotificationType = 'ENROLLMENT_ACCEPTED';
+        } else {
+          customerNotificationTitle = 'Points Deduction Approved';
+          customerNotificationMessage = `You've approved the deduction of ${points} points`;
+          
+          businessNotificationTitle = 'Points Deduction Approved';
+          businessNotificationMessage = `Customer approved deduction of ${points} points`;
+          businessNotificationType = 'POINTS_DEDUCTION_APPROVED';
+        }
+      } else {
+        if (requestType === 'ENROLLMENT') {
+          customerNotificationTitle = 'Program Declined';
+          customerNotificationMessage = `You've declined to join ${businessName}'s ${programName} program`;
+          
+          businessNotificationTitle = 'Enrollment Declined';
+          businessNotificationMessage = `A customer has declined to join your ${programName} program`;
+          businessNotificationType = 'ENROLLMENT_REJECTED';
+        } else {
+          customerNotificationTitle = 'Points Deduction Declined';
+          customerNotificationMessage = `You've declined the deduction of ${points} points`;
+          
+          businessNotificationTitle = 'Points Deduction Declined';
+          businessNotificationMessage = `Customer declined deduction of ${points} points`;
+          businessNotificationType = 'POINTS_DEDUCTION_REJECTED';
+        }
+      }
+
+      // Create notification for customer
+      const customerNotification = await this.createNotification({
+        customerId,
+        businessId,
+        type: approved ? 'ENROLLMENT' : 'ENROLLMENT_REJECTED',
+        title: customerNotificationTitle,
+        message: customerNotificationMessage,
+        requiresAction: false,
+        actionTaken: true,
+        isRead: false,
+        data: {
+          programId: entityId,
+          programName,
+          businessName
+        }
+      });
+
+      // Create notification for business
+      const businessNotification = await this.createNotification({
+        customerId: businessId,
+        businessId,
+        type: businessNotificationType,
+        title: businessNotificationTitle,
+        message: businessNotificationMessage,
+        requiresAction: false,
+        actionTaken: false,
+        isRead: false,
+        data: {
+          programId: entityId,
+          programName,
+          customerId,
+          approved
+        }
+      });
+
+      // Emit real-time notifications
+      if (customerNotification) {
+        try {
+          if (typeof serverFunctions.emitNotification === 'function') {
+            serverFunctions.emitNotification(customerId, customerNotification);
+          }
+          
+          // Create notification sync event for customer UI
+          createNotificationSyncEvent(
+            customerNotification.id,
+            customerId,
+            businessId,
+            'INSERT'
+          );
+        } catch (error) {
+          console.error('Error emitting customer notification:', error);
+        }
+      }
       
+      if (businessNotification) {
+        try {
+          if (typeof serverFunctions.emitNotification === 'function') {
+            serverFunctions.emitNotification(businessId, businessNotification);
+          }
+          
+          // Create notification sync event for business UI
+          createNotificationSyncEvent(
+            businessNotification.id,
+            businessId,
+            businessId,
+            'INSERT'
+          );
+          
+          // Also create enrollment sync event if this was an enrollment
+          if (requestType === 'ENROLLMENT') {
+            createEnrollmentSyncEvent(
+              customerId,
+              businessId,
+              entityId,
+              approved ? 'INSERT' : 'DELETE'
+            );
+          }
+        } catch (error) {
+          console.error('Error emitting business notification:', error);
+        }
+      }
+
       return true;
     } catch (error) {
       console.error('Error responding to approval:', error);
