@@ -51,23 +51,14 @@ export const QRCard: React.FC<QRCardProps> = ({
   const actualCardNumber = cardNumber || `GC-${userId.substring(0, 8)}`;
 
   useEffect(() => {
-    // First ensure the customer has a valid QR code with the correct structure
-    const ensureValidQrCode = async () => {
+    // Initialize QR code
+    const initQrCode = async () => {
       try {
-        // This will check if the customer has a valid QR code and create one if not
-        // It will also fix any QR codes with incorrect structure
+        // First ensure the customer has a valid QR code with the correct structure
         await QrCardGenerator.ensureCustomerHasQrCode(userId);
-      } catch (error) {
-        logger.error('Error ensuring valid QR code:', error);
-        // Continue with fetching anyway
-      }
-    };
-    
-    // Then fetch the QR code
-    const fetchQrCode = async () => {
-      try {
-        await ensureValidQrCode();
-        fetchQrCode();
+        
+        // Then fetch the QR code
+        await fetchQrCode();
       } catch (error) {
         logger.error('Error in QR card initialization:', error);
         setError('Failed to initialize QR card. Please try refreshing.');
@@ -75,7 +66,7 @@ export const QRCard: React.FC<QRCardProps> = ({
       }
     };
     
-    fetchQrCode();
+    initQrCode();
     
     // Animation effect
     const timer = setTimeout(() => {
@@ -99,6 +90,11 @@ export const QRCard: React.FC<QRCardProps> = ({
           // Set card number from consistent generation
           if (cardInfo.cardNumber) {
             setCardNumber(cardInfo.cardNumber);
+            
+            // Notify parent component if needed
+            if (onCardReady) {
+              onCardReady(cardInfo.cardNumber);
+            }
           }
           
           // Set enrolled programs and promo codes
@@ -130,7 +126,7 @@ export const QRCard: React.FC<QRCardProps> = ({
     };
     
     fetchCardInfo();
-  }, [userId]);
+  }, [userId, onCardReady]);
 
   const fetchQrCode = async () => {
     if (!userId) {
@@ -143,17 +139,15 @@ export const QRCard: React.FC<QRCardProps> = ({
       setLoading(true);
       setError(null);
       
-      // First ensure the customer has a valid QR code with the correct structure
-      await QrCardGenerator.ensureCustomerHasQrCode(userId);
-      
-      // Get the primary QR code for this customer
+      // Get the primary QR code for this customer from storage service
       const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
         userId,
         'CUSTOMER_CARD'
       );
       
       if (!qrCode || !qrCode.qr_image_url) {
-        // If no QR code found, create a new one
+        // If no QR code found or no image URL, create a new one
+        console.log('No valid QR code found, generating new one');
         const newQrImageUrl = await QrCardGenerator.generateCustomerQrCode(userId);
         
         if (!newQrImageUrl) {
@@ -172,32 +166,33 @@ export const QRCard: React.FC<QRCardProps> = ({
         }
       } else {
         // Use the existing QR code
+        console.log('Using existing QR code from database');
         setQrImageUrl(qrCode.qr_image_url);
         
-        // Parse the QR data to get the card number and type
+        // Parse the QR data to get additional information
         try {
-          const qrData = typeof qrCode.qr_data === 'string' 
+          const parsedData = typeof qrCode.qr_data === 'string' 
             ? JSON.parse(qrCode.qr_data) 
             : qrCode.qr_data;
           
-          if (qrData.cardNumber) {
-            setCardNumber(qrData.cardNumber);
+          // Set the raw QR data for the QR code component
+          setQrData(JSON.stringify(parsedData));
+          
+          // Extract card details from QR data
+          if (parsedData.cardNumber) {
+            setCardNumber(parsedData.cardNumber);
             
             // Notify parent component if needed
             if (onCardReady) {
-              onCardReady(qrData.cardNumber);
+              onCardReady(parsedData.cardNumber);
             }
           }
           
-          if (qrData.cardType) {
-            setCardType(qrData.cardType.toLowerCase());
+          if (parsedData.cardType) {
+            setCardType(parsedData.cardType.toLowerCase());
           }
-          
-          // Set the raw QR data for the QR code component
-          setQrData(JSON.stringify(qrData));
         } catch (parseError) {
           console.error('Error parsing QR data:', parseError);
-          // Use fallback values
           createFallbackQrCode();
         }
       }
@@ -215,6 +210,8 @@ export const QRCard: React.FC<QRCardProps> = ({
 
   const handleRefreshQrCode = async () => {
     setIsRefreshing(true);
+    setError(null);
+    
     try {
       // Generate a new QR code using the generator
       const newQrImageUrl = await QrCardGenerator.generateCustomerQrCode(userId, {
@@ -239,6 +236,11 @@ export const QRCard: React.FC<QRCardProps> = ({
       const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
       if (cardInfo.cardNumber) {
         setCardNumber(cardInfo.cardNumber);
+        
+        // Notify parent component if needed
+        if (onCardReady) {
+          onCardReady(cardInfo.cardNumber);
+        }
       }
     } catch (err) {
       console.error('Error refreshing QR code:', err);
@@ -255,14 +257,16 @@ export const QRCard: React.FC<QRCardProps> = ({
     // Set fallback mode
     setUseFallback(true);
     
-    // Create a basic QR code with user ID
-    const fallbackData = JSON.stringify({
-      userId: userId,
-      cardNumber: `GC-${userId.substring(0, 8)}`,
+    // Create a properly formatted QR code that can be scanned by business QR scanner
+    const fallbackData = {
+      type: 'customer',
+      customerId: userId,
+      cardNumber: actualCardNumber,
+      name: displayName,
       timestamp: Date.now()
-    });
+    };
     
-    setQrData(fallbackData);
+    setQrData(JSON.stringify(fallbackData));
   };
 
   const handleCopyId = () => {
@@ -344,6 +348,13 @@ export const QRCard: React.FC<QRCardProps> = ({
         </div>
       )}
 
+      {successMessage && (
+        <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm flex items-start">
+          <CheckCircle2 className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">{successMessage}</div>
+        </div>
+      )}
+
       <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
         {qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL
@@ -353,34 +364,20 @@ export const QRCard: React.FC<QRCardProps> = ({
             className="mx-auto"
             width={250}
             height={250}
-            onError={(e) => {
+            onError={() => {
               console.error('Failed to load QR image');
-              setError('QR image failed to load. Please try again later.');
+              setError('QR image failed to load. Using generated QR code instead.');
               createFallbackQrCode();
             }}
           />
-        ) : qrData && !useFallback ? (
-          // QR Code SVG generation
+        ) : qrData ? (
+          // QR Code SVG generation from data
           <div className="border border-gray-200 p-4 rounded-lg">
             <QRCodeSVG 
               value={qrData} 
               size={250} 
               includeMargin={true}
-              level="M" // Error correction level
-            />
-          </div>
-        ) : useFallback ? (
-          // Absolute last resort: Direct QR code generation
-          <div className="border border-gray-200 p-4 rounded-lg">
-            <QRCodeSVG 
-              value={JSON.stringify({
-                cardNumber: actualCardNumber,
-                userId: userId,
-                timestamp: Date.now()
-              })}
-              size={250} 
-              includeMargin={true}
-              level="L" // Low error correction level for simplicity
+              level="M" // Medium error correction level
             />
           </div>
         ) : (

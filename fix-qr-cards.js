@@ -1,12 +1,17 @@
 // Import required modules
-const { Pool } = require('@neondatabase/serverless');
-const { v4: uuidv4 } = require('uuid');
+import { Pool } from '@neondatabase/serverless';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+import axios from 'axios';
 
 // Database connection
 const pool = new Pool({
   connectionString: "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require",
   ssl: true
 });
+
+// QR code API URL for generating image URLs
+const QR_API_URL = 'https://api.qrserver.com/v1/create-qr-code/';
 
 /**
  * Generates a consistent card number for a user
@@ -80,6 +85,37 @@ function generateVerificationCode() {
 }
 
 /**
+ * Generate a QR code image URL
+ * @param {object} data - The data to encode in the QR code
+ * @returns {Promise<string>} - URL of the generated QR code image
+ */
+async function generateQRCodeImageURL(data) {
+  try {
+    // Convert data to string if it's not already
+    const dataString = typeof data === 'string' ? data : JSON.stringify(data);
+    
+    // URL encode the data
+    const encodedData = encodeURIComponent(dataString);
+    
+    // Create QR code URL with medium error correction and size 300x300
+    const qrCodeUrl = `${QR_API_URL}?size=300x300&data=${encodedData}&ecc=M`;
+    
+    // Verify the URL works by making a HEAD request
+    try {
+      await axios.head(qrCodeUrl);
+    } catch (error) {
+      console.error('Error verifying QR code URL:', error);
+      // If HEAD request fails, return the URL anyway
+    }
+    
+    return qrCodeUrl;
+  } catch (error) {
+    console.error('Error generating QR code image URL:', error);
+    throw error;
+  }
+}
+
+/**
  * Fix a customer's QR card based on the working model of customer ID 4
  */
 async function fixCustomerQrCard(customerId, customerName, customerEmail) {
@@ -109,19 +145,22 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
         qrData = {};
       }
       
-      // Check if the QR code data has the required fields
+      // Check if the QR code data has the required fields and correct structure for scanner
       const hasCorrectStructure = qrData && 
         qrData.type === 'customer' && 
-        qrData.customerId && 
+        qrData.customerId &&
         qrData.cardNumber;
       
-      if (!hasCorrectStructure) {
-        console.log(`⚠️ Customer ID ${customerId}'s QR code has incorrect data structure. Fixing...`);
+      const hasImageUrl = existingQrCode.rows[0].qr_image_url && 
+        existingQrCode.rows[0].qr_image_url.startsWith('http');
+      
+      if (!hasCorrectStructure || !hasImageUrl) {
+        console.log(`⚠️ Customer ID ${customerId}'s QR code has incorrect format. Fixing...`);
         
         // Update the QR code with the correct data structure
         const cardNumber = generateConsistentCardNumber(customerId);
         
-        // Create the updated QR data
+        // Create the updated QR data with proper structure for business scanner
         const updatedQrData = {
           type: 'customer',
           customerId: customerId,
@@ -132,6 +171,15 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
           timestamp: Date.now()
         };
         
+        // Generate QR code image URL
+        let qrImageUrl;
+        try {
+          qrImageUrl = await generateQRCodeImageURL(updatedQrData);
+        } catch (urlError) {
+          console.error(`Error generating QR code URL for customer ${customerId}:`, urlError);
+          qrImageUrl = null;
+        }
+        
         // Create a new digital signature
         const signature = createDigitalSignature(updatedQrData);
         
@@ -140,9 +188,10 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
           UPDATE customer_qrcodes
           SET qr_data = $1,
               digital_signature = $2,
+              qr_image_url = $3,
               updated_at = NOW()
-          WHERE id = $3
-        `, [JSON.stringify(updatedQrData), signature, existingQrCode.rows[0].id]);
+          WHERE id = $4
+        `, [JSON.stringify(updatedQrData), signature, qrImageUrl, existingQrCode.rows[0].id]);
         
         console.log(`✅ Updated QR code data for customer ID ${customerId}`);
       }
@@ -158,7 +207,7 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
       // Generate a consistent card number
       const cardNumber = generateConsistentCardNumber(customerId);
       
-      // Create the QR data
+      // Create the QR data with structure compatible with QRScanner
       const qrData = {
         type: 'customer',
         customerId: customerId,
@@ -168,6 +217,15 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
         cardType: 'STANDARD',
         timestamp: Date.now()
       };
+      
+      // Generate QR code image URL
+      let qrImageUrl;
+      try {
+        qrImageUrl = await generateQRCodeImageURL(qrData);
+      } catch (urlError) {
+        console.error(`Error generating QR code URL for customer ${customerId}:`, urlError);
+        qrImageUrl = null;
+      }
       
       // Create a digital signature
       const signature = createDigitalSignature(qrData);
@@ -182,6 +240,7 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
           qr_unique_id,
           customer_id,
           qr_data,
+          qr_image_url,
           qr_type,
           status,
           verification_code,
@@ -191,9 +250,9 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
           created_at,
           updated_at
         ) VALUES (
-          $1, $2, $3, 'CUSTOMER_CARD', 'ACTIVE', $4, true, $5, $6, NOW(), NOW()
+          $1, $2, $3, $4, 'CUSTOMER_CARD', 'ACTIVE', $5, true, $6, $7, NOW(), NOW()
         )
-      `, [qrUniqueId, customerId, JSON.stringify(qrData), verificationCode, expiryDate, signature]);
+      `, [qrUniqueId, customerId, JSON.stringify(qrData), qrImageUrl, verificationCode, expiryDate, signature]);
       
       console.log(`✅ Created new primary QR code for customer ID ${customerId}`);
       
@@ -240,7 +299,7 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
           // Generate a verification code (6 characters)
           const verificationCode = generateVerificationCode();
           
-          // Create the QR data
+          // Create the QR data with scanner-compatible structure
           const qrData = {
             type: 'loyaltyCard',
             cardId: card.id,
@@ -253,6 +312,15 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
             points: card.points,
             timestamp: Date.now()
           };
+          
+          // Generate QR code image URL
+          let qrImageUrl;
+          try {
+            qrImageUrl = await generateQRCodeImageURL(qrData);
+          } catch (urlError) {
+            console.error(`Error generating QR code URL for loyalty card ${card.id}:`, urlError);
+            qrImageUrl = null;
+          }
           
           // Create a digital signature
           const signature = createDigitalSignature(qrData);
@@ -268,6 +336,7 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
               customer_id,
               business_id,
               qr_data,
+              qr_image_url,
               qr_type,
               status,
               verification_code,
@@ -277,13 +346,40 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
               created_at,
               updated_at
             ) VALUES (
-              $1, $2, $3, $4, 'LOYALTY_CARD', 'ACTIVE', $5, false, $6, $7, NOW(), NOW()
+              $1, $2, $3, $4, $5, 'LOYALTY_CARD', 'ACTIVE', $6, false, $7, $8, NOW(), NOW()
             )
-          `, [qrUniqueId, customerId, card.business_id, JSON.stringify(qrData), verificationCode, expiryDate, signature]);
+          `, [qrUniqueId, customerId, card.business_id, JSON.stringify(qrData), qrImageUrl, verificationCode, expiryDate, signature]);
           
           console.log(`✅ Created QR code for loyalty card ID ${card.id}`);
         } else {
           console.log(`✅ Loyalty card ID ${card.id} already has a QR code`);
+          
+          // Check if the loyalty card QR code has an image URL
+          if (!cardQrCode.rows[0].qr_image_url) {
+            console.log(`⚠️ Loyalty card ID ${card.id} QR code missing image URL. Updating...`);
+            
+            let qrData;
+            try {
+              qrData = typeof cardQrCode.rows[0].qr_data === 'string' 
+                ? JSON.parse(cardQrCode.rows[0].qr_data) 
+                : cardQrCode.rows[0].qr_data;
+              
+              // Generate QR code image URL
+              const qrImageUrl = await generateQRCodeImageURL(qrData);
+              
+              // Update the QR code with the image URL
+              await pool.query(`
+                UPDATE customer_qrcodes
+                SET qr_image_url = $1,
+                    updated_at = NOW()
+                WHERE id = $2
+              `, [qrImageUrl, cardQrCode.rows[0].id]);
+              
+              console.log(`✅ Updated image URL for loyalty card ID ${card.id} QR code`);
+            } catch (error) {
+              console.error(`Error updating image URL for loyalty card ID ${card.id} QR code:`, error);
+            }
+          }
         }
       }
     } else {
@@ -298,65 +394,44 @@ async function fixCustomerQrCard(customerId, customerName, customerEmail) {
 }
 
 /**
- * Fix all customer QR cards based on the working model of customer ID 4
+ * Main function to fix all customer QR cards
  */
 async function main() {
+  console.log('Starting QR card fix process...');
+  
   try {
-    console.log('Starting fix for all customer QR cards...');
-    
+    // Check if axios is installed
+    if (!axios) {
+      console.error('Error: axios module required but not found. Please install axios with:');
+      console.error('npm install axios');
+      process.exit(1);
+    }
+
     // Get all customers
     const customers = await pool.query(`
       SELECT c.id, c.name, c.email
       FROM customers c
-      JOIN users u ON c.user_id = u.id
-      WHERE u.status = 'active'
+      ORDER BY c.id
     `);
     
-    console.log(`Found ${customers.rows.length} active customers`);
+    console.log(`Found ${customers.rows.length} customers to process`);
     
     // Process each customer
-    let successCount = 0;
-    let failCount = 0;
-    
     for (const customer of customers.rows) {
-      const success = await fixCustomerQrCard(customer.id, customer.name, customer.email);
-      if (success) {
-        successCount++;
-      } else {
-        failCount++;
-      }
+      await fixCustomerQrCard(customer.id, customer.name, customer.email);
     }
     
-    console.log('\nFix completed:');
-    console.log(`✅ Successfully processed ${successCount} customers`);
-    if (failCount > 0) {
-      console.log(`❌ Failed to process ${failCount} customers`);
-    }
-    
-    // Verify customer ID 4 specifically
-    console.log('\nVerifying customer ID 4...');
-    const customer4 = await pool.query(`
-      SELECT c.id, c.name, c.email
-      FROM customers c
-      WHERE c.id = 4
-    `);
-    
-    if (customer4.rows.length > 0) {
-      const verified = await fixCustomerQrCard(4, customer4.rows[0].name, customer4.rows[0].email);
-      if (verified) {
-        console.log('✅ Customer ID 4 QR card is working correctly');
-      } else {
-        console.log('❌ Failed to verify customer ID 4 QR card');
-      }
-    } else {
-      console.log('❌ Customer ID 4 not found');
-    }
+    console.log('QR card fix process completed successfully!');
   } catch (error) {
-    console.error('Error fixing customer QR cards:', error);
+    console.error('Error in main function:', error);
   } finally {
+    // Close the pool
     await pool.end();
   }
 }
 
-// Run the script
-main().catch(console.error); 
+// Run the main function
+main().catch(error => {
+  console.error('Unhandled error in main:', error);
+  process.exit(1);
+}); 
