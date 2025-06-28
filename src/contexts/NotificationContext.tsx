@@ -2,7 +2,7 @@
 import { useAuth } from './AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { socket, connectUserSocket, listenForUserEvents } from '../utils/socket';
+import { connectUserSocket, listenForUserEvents } from '../utils/socket';
 import { WEBSOCKET_EVENTS } from '../utils/constants';
 import { CustomerNotificationService } from '../services/customerNotificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
@@ -264,30 +264,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         prev.map(a => a.id === approvalId ? { ...a, status: approved ? 'APPROVED' : 'REJECTED' } : a)
       );
       
-      // If this was related to an enrollment request
-      const approval = approvalRequests.find(a => a.id === approvalId);
-      if (approval?.requestType === 'ENROLLMENT') {
-        const response = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
-        
-        if (response.success && approved) {
-          // Invalidate programs list to show the new enrollment
-          queryClient.invalidateQueries({ 
-            queryKey: ['customers', user!.id.toString(), 'programs'] 
-          });
-          queryClient.invalidateQueries({ 
-            queryKey: ['customers', user!.id.toString(), 'cards']
-          });
-        }
-      } else if (approval?.requestType === 'POINTS_DEDUCTION') {
-        // Handle points deduction approval
-        // This would call a service to process the points deduction
-        
-        // Invalidate loyalty cards to show updated points
-        queryClient.invalidateQueries({
-          queryKey: ['customers', user!.id.toString(), 'cards']
-        });
-      }
-      
       // Mark any related notifications as actioned
       const relatedNotification = notifications.find(n => n.referenceId === approvalId);
       if (relatedNotification) {
@@ -299,8 +275,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         );
       }
       
-      // Call API to update the approval status
-      await CustomerNotificationService.respondToApproval(approvalId, approved);
+      // Call API to update the approval status - this will handle enrollment logic
+      const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
+      
+      if (success) {
+        // If successful, invalidate relevant queries to refresh the UI
+        const approval = approvalRequests.find(a => a.id === approvalId);
+        
+        if (approval?.requestType === 'ENROLLMENT') {
+          // Invalidate programs list to show the new enrollment
+          queryClient.invalidateQueries({ 
+            queryKey: ['customers', user!.id.toString(), 'programs'] 
+          });
+          queryClient.invalidateQueries({ 
+            queryKey: ['customers', user!.id.toString(), 'cards']
+          });
+        } else if (approval?.requestType === 'POINTS_DEDUCTION') {
+          // Invalidate loyalty cards to show updated points
+          queryClient.invalidateQueries({
+            queryKey: ['customers', user!.id.toString(), 'cards']
+          });
+        }
+      }
     } catch (error) {
       console.error('Error responding to approval:', error);
     }

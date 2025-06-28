@@ -412,20 +412,14 @@ export class CustomerNotificationService {
         WHERE id = ${requestId}
       `;
 
-      // If this is an enrollment request, handle the enrollment process
-      if (requestType === 'ENROLLMENT') {
-        try {
-          // For enrollment approvals, delegate to LoyaltyProgramService
-          const { LoyaltyProgramService } = await import('./loyaltyProgramService');
-          await LoyaltyProgramService.handleEnrollmentApproval(requestId, approved);
-        } catch (error) {
-          console.error('Error handling enrollment approval:', error);
-          // Don't fail the whole process if the enrollment fails
-        }
-      } else if (requestType === 'POINTS_DEDUCTION' && approved) {
+      // If this is a points deduction request, handle the points deduction process
+      if (requestType === 'POINTS_DEDUCTION' && approved) {
         // Handle points deduction if approved
         // You would implement this part based on your points system
       }
+      
+      // Note: For enrollment requests, we let the LoyaltyProgramService.handleEnrollmentApproval
+      // handle the entire process to avoid duplicate calls
 
       // Create a notification about the action for both customer and business
       let customerNotificationTitle = '';
