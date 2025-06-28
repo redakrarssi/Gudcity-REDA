@@ -2,9 +2,9 @@
 
 -- Notification Table
 CREATE TABLE IF NOT EXISTS customer_notifications (
-  id SERIAL PRIMARY KEY,
-  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  business_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  business_id INTEGER NOT NULL,
   type VARCHAR(50) NOT NULL, -- ENROLLMENT, POINTS_ADDED, POINTS_DEDUCTED, PROMO_CODE
   title VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
@@ -27,10 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_customer_notifications_is_read ON customer_notifi
 
 -- Customer Approval Requests Table
 CREATE TABLE IF NOT EXISTS customer_approval_requests (
-  id SERIAL PRIMARY KEY,
-  notification_id INTEGER NOT NULL REFERENCES customer_notifications(id) ON DELETE CASCADE,
-  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  business_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
+  notification_id UUID REFERENCES customer_notifications(id) ON DELETE CASCADE,
+  customer_id INTEGER NOT NULL,
+  business_id INTEGER NOT NULL,
   request_type VARCHAR(50) NOT NULL, -- ENROLLMENT, POINTS_DEDUCTION
   entity_id VARCHAR(255) NOT NULL, -- Related entity ID (card_id, program_id)
   status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, APPROVED, REJECTED
@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_approval_requests_expires_at ON customer
 
 -- Customer Notification Preferences
 CREATE TABLE IF NOT EXISTS customer_notification_preferences (
-  customer_id INTEGER PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  customer_id INTEGER PRIMARY KEY,
   email BOOLEAN DEFAULT TRUE,
   push BOOLEAN DEFAULT TRUE,
   in_app BOOLEAN DEFAULT TRUE,
