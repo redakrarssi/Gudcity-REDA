@@ -1,4 +1,5 @@
 // Test Enrollment Notification System
+// This script tests the enrollment notification system by creating a test notification and approval request
 
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
@@ -9,50 +10,44 @@ dotenv.config({ path: '.env.local' });
 
 // Get database URL from environment
 const DATABASE_URL = process.env.VITE_DATABASE_URL;
+console.log("Database URL found:", DATABASE_URL ? "Yes" : "No");
 
 // Create database connection
 const sql = neon(DATABASE_URL);
 
-async function main() {
+async function testNotificationSystem() {
   try {
     console.log('Testing enrollment notification system...');
     
-    // Test connection
-    console.log('Testing database connection...');
-    const testResult = await sql`SELECT 1 as connected`;
-    console.log('Connection test result:', testResult);
+    // Test customer and business IDs (replace with actual IDs from your database)
+    const customerId = 1; // Replace with a valid customer ID
+    const businessId = 2; // Replace with a valid business ID
+    const programId = 1; // Replace with a valid program ID
     
-    // Get a customer ID
-    const customers = await sql`SELECT id FROM customers LIMIT 1`;
-    if (!customers.length) {
-      console.error('No customers found in the database');
+    // Get customer and business names
+    const customerResult = await sql`SELECT id, name FROM customers WHERE id = ${customerId}`;
+    const businessResult = await sql`SELECT id, name FROM users WHERE id = ${businessId}`;
+    
+    if (customerResult.length === 0) {
+      console.error(`Customer with ID ${customerId} not found`);
       return;
     }
-    const customerId = customers[0].id;
-    console.log(`Using customer ID: ${customerId}`);
     
-    // Get a business ID
-    const businesses = await sql`SELECT id FROM users WHERE role = 'business' LIMIT 1`;
-    if (!businesses.length) {
-      console.error('No businesses found in the database');
+    if (businessResult.length === 0) {
+      console.error(`Business with ID ${businessId} not found`);
       return;
     }
-    const businessId = businesses[0].id;
-    console.log(`Using business ID: ${businessId}`);
     
-    // Get a program ID
-    const programs = await sql`SELECT id, name FROM loyalty_programs LIMIT 1`;
-    if (!programs.length) {
-      console.error('No loyalty programs found in the database');
-      return;
-    }
-    const programId = programs[0].id;
-    const programName = programs[0].name;
-    console.log(`Using program: ${programName} (ID: ${programId})`);
+    const customer = customerResult[0];
+    const business = businessResult[0];
     
-    // Create a notification
+    console.log(`Creating test notification for customer ${customer.name} from business ${business.name}...`);
+    
+    // Generate UUIDs for the notification and approval request
     const notificationId = uuidv4();
-    console.log('Creating notification...');
+    const approvalId = uuidv4();
+    
+    // Create a test notification
     await sql`
       INSERT INTO customer_notifications (
         id,
@@ -73,23 +68,24 @@ async function main() {
         ${businessId},
         ${'ENROLLMENT_REQUEST'},
         ${'Program Enrollment Request'},
-        ${'Would you like to join this loyalty program?'},
+        ${`${business.name} would like to enroll you in their loyalty program. Would you like to join?`},
         ${JSON.stringify({
           programId,
-          programName
+          programName: 'Test Loyalty Program',
+          businessId,
+          businessName: business.name
         })},
-        ${programId},
+        ${programId.toString()},
         ${true},
         ${false},
         ${false},
         ${new Date().toISOString()}
       )
     `;
-    console.log(`✅ Created notification with ID: ${notificationId}`);
     
-    // Create an approval request
-    const approvalId = uuidv4();
-    console.log('Creating approval request...');
+    console.log(`Created notification with ID ${notificationId}`);
+    
+    // Create a test approval request
     await sql`
       INSERT INTO customer_approval_requests (
         id,
@@ -108,35 +104,33 @@ async function main() {
         ${customerId},
         ${businessId},
         ${'ENROLLMENT'},
-        ${programId},
+        ${programId.toString()},
         ${'PENDING'},
         ${JSON.stringify({
           programId,
-          programName
+          programName: 'Test Loyalty Program',
+          businessId,
+          businessName: business.name,
+          message: `${business.name} would like to enroll you in their Test Loyalty Program. Would you like to join?`
         })},
         ${new Date().toISOString()},
         ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()}
       )
     `;
-    console.log(`✅ Created approval request with ID: ${approvalId}`);
     
-    // Verify that the notification was created
-    const notifications = await sql`
-      SELECT * FROM customer_notifications WHERE id = ${notificationId}
-    `;
-    console.log('Notification created:', notifications.length > 0);
+    console.log(`Created approval request with ID ${approvalId}`);
     
-    // Verify that the approval request was created
-    const approvals = await sql`
-      SELECT * FROM customer_approval_requests WHERE id = ${approvalId}
-    `;
-    console.log('Approval request created:', approvals.length > 0);
+    // Verify the notification and approval request were created
+    const notificationResult = await sql`SELECT * FROM customer_notifications WHERE id = ${notificationId}`;
+    const approvalResult = await sql`SELECT * FROM customer_approval_requests WHERE id = ${approvalId}`;
+    
+    console.log('Notification created:', notificationResult.length > 0 ? 'Yes' : 'No');
+    console.log('Approval request created:', approvalResult.length > 0 ? 'Yes' : 'No');
     
     console.log('✅ Enrollment notification system test completed successfully!');
-  } catch (error) {
-    console.error('❌ Error testing enrollment notification system:', error);
+  } catch (err) {
+    console.error('Error testing notification system:', err);
   }
 }
 
-// Run the main function
-main(); 
+testNotificationSystem(); 
