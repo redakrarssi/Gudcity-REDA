@@ -520,27 +520,37 @@ export class LoyaltyProgramService {
       `;
       
       // Create card for the enrollment
+      // Generate a unique card number
+      const prefix = 'GC';
+      const timestamp = Date.now().toString().slice(-6);
+      const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const cardNumber = `${prefix}-${timestamp}-${randomPart}`;
+      
       const cardResult = await sql`
         INSERT INTO loyalty_cards (
           customer_id,
           business_id,
           program_id,
+          card_number,
           card_type,
           tier,
           points,
           points_multiplier,
           is_active,
+          status,
           created_at,
           updated_at
         ) VALUES (
           ${customerId},
           ${businessId},
           ${programId},
+          ${cardNumber},
           'STANDARD',
           'STANDARD',
           0,
           1.0,
           true,
+          'ACTIVE',
           NOW(),
           NOW()
         ) RETURNING id
@@ -680,7 +690,8 @@ export class LoyaltyProgramService {
           }
         });
         
-        if (businessNotification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+        if (businessNotification && typeof serverFunctions !== 'undefined' && 
+            serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
           serverFunctions.emitNotification(businessId, businessNotification);
         }
         
@@ -745,27 +756,37 @@ export class LoyaltyProgramService {
       }
       
       // Create card for the enrollment
+      // Generate a unique card number
+      const prefix = 'GC';
+      const timestamp = Date.now().toString().slice(-6);
+      const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const cardNumber = `${prefix}-${timestamp}-${randomPart}`;
+      
       const cardResult = await sql`
         INSERT INTO loyalty_cards (
           customer_id,
           business_id,
           program_id,
+          card_number,
           card_type,
           tier,
           points,
           points_multiplier,
           is_active,
+          status,
           created_at,
           updated_at
         ) VALUES (
           ${customerId},
           ${businessId},
           ${programId},
+          ${cardNumber},
           'STANDARD',
           'STANDARD',
           0,
           1.0,
           true,
+          'ACTIVE',
           NOW(),
           NOW()
         ) RETURNING id
@@ -794,7 +815,8 @@ export class LoyaltyProgramService {
         isRead: false
       });
       
-      if (notification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+      if (notification && typeof serverFunctions !== 'undefined' && 
+          serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
         // Emit real-time notification
         serverFunctions.emitNotification(customerId, notification);
         
@@ -837,7 +859,8 @@ export class LoyaltyProgramService {
         }
       });
       
-      if (businessNotification && serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+      if (businessNotification && typeof serverFunctions !== 'undefined' && 
+          serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
         serverFunctions.emitNotification(businessId, businessNotification);
       }
       
@@ -860,9 +883,9 @@ export class LoyaltyProgramService {
           ON CONFLICT (customer_id, business_id) 
           DO UPDATE SET status = 'ACTIVE', updated_at = NOW()
         `;
-      } catch (error) {
-        logger.error('Error adding customer to business', { error });
-        // Continue execution even if this fails
+      } catch (relationError) {
+        // Non-critical error, continue execution
+        console.error('Error updating customer-business relationship:', relationError);
       }
       
       return { 
@@ -871,8 +894,8 @@ export class LoyaltyProgramService {
         cardId 
       };
     } catch (error) {
-      logger.error('Error handling enrollment approval', { error });
-      return { success: false, message: 'An error occurred while processing approval' };
+      console.error('Error handling enrollment approval:', error);
+      return { success: false, message: 'An error occurred while processing the enrollment' };
     }
   }
 

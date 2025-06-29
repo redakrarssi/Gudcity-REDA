@@ -1,58 +1,65 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+// Check Customer Tables
+// This script checks the structure of the customers table
+
+import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
-import { Pool } from '@neondatabase/serverless';
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
 
-// Create a database connection
-const pool = new Pool({
-  connectionString: process.env.VITE_DATABASE_URL,
-  ssl: true
-});
+// Get database URL from environment
+const DATABASE_URL = process.env.VITE_DATABASE_URL;
+console.log("Database URL found:", DATABASE_URL ? "Yes" : "No");
 
-async function main() {
+// Create database connection
+const sql = neon(DATABASE_URL);
+
+async function checkCustomerTable() {
   try {
-    console.log('Testing connection...');
-    const testResult = await pool.query('SELECT 1 as test');
-    console.log('Connection successful:', testResult.rows);
+    console.log('Checking customers table structure...');
     
-    // Check for customer-related tables
-    console.log('Checking for customer-related tables...');
-    const customerTables = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
+    // Check if the customers table exists
+    const tableExists = await sql`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'customers'
+      )
+    `;
+    
+    if (!tableExists[0].exists) {
+      console.error('Customers table does not exist');
+      return;
+    }
+    
+    // Get the columns of the customers table
+    const columns = await sql`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
       WHERE table_schema = 'public' 
-      AND table_name LIKE '%customer%'
-    `);
-    console.log('Customer-related tables:', customerTables.rows);
-
-    // Check the tables that have already been created related to businesses and users
-    console.log('Tables in database:');
-    const allTables = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `);
+      AND table_name = 'customers'
+    `;
     
-    // Print all tables that exist
-    allTables.rows.forEach(table => {
-      console.log(`- ${table.table_name}`);
+    console.log('Customers table columns:');
+    columns.forEach(column => {
+      console.log(`  ${column.column_name}: ${column.data_type}`);
     });
     
-    // Check if 'users' table exists and get its structure
-    const usersTable = await pool.query(`
-      SELECT column_name, data_type
-      FROM information_schema.columns
-      WHERE table_name = 'users'
-    `);
-    console.log('Users table columns:', usersTable.rows);
-  } catch (error) {
-    console.error('Error:', error);
-  } finally {
-    await pool.end();
+    // Get a sample customer
+    const customers = await sql`
+      SELECT * FROM customers LIMIT 1
+    `;
+    
+    if (customers.length > 0) {
+      console.log('\nSample customer data:');
+      console.log(JSON.stringify(customers[0], null, 2));
+    } else {
+      console.log('No customers found in the database');
+    }
+    
+  } catch (err) {
+    console.error('Error checking customers table:', err);
   }
 }
 
-main(); 
+checkCustomerTable(); 

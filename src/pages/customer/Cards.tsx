@@ -348,23 +348,28 @@ const CustomerCards = () => {
     if (!enrollmentRequestState.approvalId) return;
     
     try {
-      // Respond to the approval request
-      const success = await CustomerNotificationService.respondToApproval(
+      // First, use the LoyaltyProgramService to handle the enrollment approval
+      // This ensures the card is created and the customer is properly enrolled
+      const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
+      const result = await LoyaltyProgramService.handleEnrollmentApproval(
         enrollmentRequestState.approvalId,
         approved
       );
       
-      if (success) {
+      if (result.success) {
         if (approved) {
           addNotification('success', `You've joined ${enrollmentRequestState.programName}`);
           
-          // Sync enrollments to cards to create the new card
-          syncEnrollments();
+          // Sync enrollments to cards to ensure the new card appears in UI
+          await syncEnrollments();
+          
+          // Refresh card data
+          refetch();
         } else {
           addNotification('info', `You declined to join ${enrollmentRequestState.programName}`);
         }
       } else {
-        addNotification('error', 'Failed to process your response');
+        addNotification('error', result.message || 'Failed to process your response');
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);
