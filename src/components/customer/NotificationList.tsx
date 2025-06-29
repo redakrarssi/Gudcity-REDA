@@ -16,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
+import sql from '../../utils/db';
 
 // Real types from the notification service
 enum CustomerNotificationType {
@@ -152,8 +153,25 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         try {
           const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
           
-          // Call the service to handle the enrollment
-          const result = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
+          // Call the service to handle the enrollment with better error handling
+          let result;
+          try {
+            // First update the approval status
+            await sql`
+              UPDATE customer_approval_requests
+              SET status = ${approved ? 'APPROVED' : 'REJECTED'}, 
+                  responded_at = NOW() 
+              WHERE id = ${String(approvalId)}
+            `;
+            
+            // Then call the service to handle the enrollment
+            result = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
+          } catch (enrollmentError) {
+            console.error('Error handling enrollment directly:', enrollmentError);
+            // Fall back to CustomerNotificationService as backup
+            const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
+            result = { success, message: success ? 'Processed via fallback' : 'Failed to process' };
+          }
           
           if (!result.success) {
             console.error('Enrollment approval failed:', result.message);
@@ -167,7 +185,7 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
           }
           
           // If we have a card ID and it was approved, also sync cards to ensure it appears in the UI
-          if (result.cardId && approved) {
+          if (approved) {
             try {
               const { LoyaltyCardService } = await import('../../services/loyaltyCardService');
               await LoyaltyCardService.syncEnrollmentsToCards(user.id);
@@ -227,14 +245,13 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         });
       }
     } catch (error) {
-      console.error('Error responding to approval:', error);
+      console.error('Error handling approval response:', error);
       setResponseStatus({
         id: approvalId,
         status: 'error',
         message: 'An error occurred. Please try again.'
       });
     } finally {
-      // Clear processing state
       setProcessingApprovalId(null);
     }
   };
