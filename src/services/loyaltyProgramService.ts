@@ -526,97 +526,110 @@ export class LoyaltyProgramService {
       const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
       const cardNumber = `${prefix}-${timestamp}-${randomPart}`;
       
-      const cardResult = await sql`
-        INSERT INTO loyalty_cards (
-          customer_id,
-          business_id,
-          program_id,
-          card_number,
-          card_type,
-          tier,
-          points,
-          points_multiplier,
-          is_active,
-          status,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${customerId},
-          ${businessId},
-          ${programId},
-          ${cardNumber},
-          'STANDARD',
-          'STANDARD',
-          0,
-          1.0,
-          true,
-          'ACTIVE',
-          NOW(),
-          NOW()
-        ) RETURNING id
-      `;
-      
-      if (!cardResult.length) {
-        logger.error('Failed to create loyalty card', { customerId, programId });
-        return { success: false, error: 'Failed to create loyalty card' };
-      }
-      
-      const cardId = cardResult[0].id.toString();
-      
-      // Create enrollment notification
       try {
-        const notification = await CustomerNotificationService.createNotification({
-          customerId,
-          businessId,
-          type: 'ENROLLMENT' as CustomerNotificationType,
-          title: 'Welcome to New Program',
-          message: `You have been enrolled in ${program.name}`,
-          requiresAction: false,
-          actionTaken: false,
-          isRead: false,
-          referenceId: programId,
-          data: {
-            programId,
-            programName: program.name,
-            cardId
-          }
-        });
+        // Ensure the loyalty_cards table has the card_number column
+        await sql`
+          ALTER TABLE loyalty_cards 
+          ADD COLUMN IF NOT EXISTS card_number VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE',
+          ADD COLUMN IF NOT EXISTS tier VARCHAR(50) DEFAULT 'STANDARD',
+          ADD COLUMN IF NOT EXISTS points_multiplier NUMERIC(10,2) DEFAULT 1.0
+        `;
         
-        // Emit real-time notification
-        try {
-          if (serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
-            serverFunctions.emitNotification(customerId, notification);
-          }
-          
-          // Create notification sync event for real-time UI updates
-          createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
-          
-          // Create card sync event to update UI
-          createCardSyncEvent(
-            cardId, 
-            customerId, 
-            businessId, 
-            'INSERT', 
-            { programId, programName: program.name }
-          );
-          
-          logger.info('Enrollment completed and notification sent', { 
-            customerId, programId, cardId 
-          });
-        } catch (emitError) {
-          logger.error('Error emitting notification', { error: emitError });
-          // Continue execution even if emit fails
+        const cardResult = await sql`
+          INSERT INTO loyalty_cards (
+            customer_id,
+            business_id,
+            program_id,
+            card_number,
+            card_type,
+            tier,
+            points,
+            points_multiplier,
+            is_active,
+            status,
+            created_at,
+            updated_at
+          ) VALUES (
+            ${customerId},
+            ${businessId},
+            ${programId},
+            ${cardNumber},
+            'STANDARD',
+            'STANDARD',
+            0,
+            1.0,
+            true,
+            'ACTIVE',
+            NOW(),
+            NOW()
+          ) RETURNING id
+        `;
+        
+        if (!cardResult.length) {
+          return { success: false, message: 'Failed to create loyalty card' };
         }
-      } catch (notificationError) {
-        logger.error('Error creating notification', { error: notificationError });
-        // Continue execution even if notification fails
+        
+        const cardId = cardResult[0].id.toString();
+        
+        // Create enrollment notification
+        try {
+          const notification = await CustomerNotificationService.createNotification({
+            customerId,
+            businessId,
+            type: 'ENROLLMENT' as CustomerNotificationType,
+            title: 'Welcome to New Program',
+            message: `You have been enrolled in ${program.name}`,
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false,
+            referenceId: programId,
+            data: {
+              programId,
+              programName: program.name,
+              cardId
+            }
+          });
+          
+          // Emit real-time notification
+          try {
+            if (serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+              serverFunctions.emitNotification(customerId, notification);
+            }
+            
+            // Create notification sync event for real-time UI updates
+            createEnrollmentSyncEvent(customerId, businessId, programId, 'INSERT');
+            
+            // Create card sync event to update UI
+            createCardSyncEvent(
+              cardId, 
+              customerId, 
+              businessId, 
+              'INSERT', 
+              { programId, programName: program.name }
+            );
+            
+            logger.info('Enrollment completed and notification sent', { 
+              customerId, programId, cardId 
+            });
+          } catch (emitError) {
+            logger.error('Error emitting notification', { error: emitError });
+            // Continue execution even if emit fails
+          }
+        } catch (notificationError) {
+          logger.error('Error creating notification', { error: notificationError });
+          // Continue execution even if notification fails
+        }
+        
+        return { 
+          success: true, 
+          message: 'Customer successfully enrolled', 
+          cardId: cardId.toString() 
+        };
+      } catch (error) {
+        console.error('Error creating loyalty card:', error);
+        return { success: false, error: 'An error occurred while creating loyalty card' };
       }
-      
-      return { 
-        success: true, 
-        message: 'Customer successfully enrolled', 
-        cardId: cardId.toString() 
-      };
     } catch (error) {
       logger.error('Error enrolling customer', { error });
       return { success: false, error: 'An error occurred while enrolling customer' };
@@ -762,137 +775,165 @@ export class LoyaltyProgramService {
       const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
       const cardNumber = `${prefix}-${timestamp}-${randomPart}`;
       
-      const cardResult = await sql`
-        INSERT INTO loyalty_cards (
-          customer_id,
-          business_id,
-          program_id,
-          card_number,
-          card_type,
-          tier,
-          points,
-          points_multiplier,
-          is_active,
-          status,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${customerId},
-          ${businessId},
-          ${programId},
-          ${cardNumber},
-          'STANDARD',
-          'STANDARD',
-          0,
-          1.0,
-          true,
-          'ACTIVE',
-          NOW(),
-          NOW()
-        ) RETURNING id
-      `;
-      
-      if (!cardResult.length) {
-        return { success: false, message: 'Failed to create loyalty card' };
-      }
-      
-      const cardId = cardResult[0].id.toString();
-      
-      // Send enrollment confirmation notification
-      const notification = await CustomerNotificationService.createNotification({
-        customerId: customerId,
-        businessId: businessId,
-        type: 'ENROLLMENT' as CustomerNotificationType,
-        title: 'Welcome to New Program',
-        message: `You've been enrolled in ${request.business_name}'s ${request.program_name} program`,
-        data: {
-          programId: programId,
-          programName: request.program_name,
-          cardId
-        },
-        requiresAction: false,
-        actionTaken: false,
-        isRead: false
-      });
-      
-      if (notification && typeof serverFunctions !== 'undefined' && 
-          serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
-        // Emit real-time notification
-        serverFunctions.emitNotification(customerId, notification);
-        
-        // Create card sync event to trigger UI updates
-        createCardSyncEvent(
-          cardId, 
-          customerId, 
-          businessId, 
-          'INSERT', 
-          { 
-            programId: programId, 
-            programName: request.program_name
-          }
-        );
-        
-        // Create enrollment sync event to update enrollment status
-        createEnrollmentSyncEvent(
-          customerId, 
-          businessId, 
-          programId, 
-          'UPDATE'
-        );
-      }
-      
-      // Notify business that customer accepted
-      const businessNotification = await CustomerNotificationService.createNotification({
-        customerId: businessId,
-        businessId: businessId,
-        type: 'ENROLLMENT_ACCEPTED' as CustomerNotificationType,
-        title: 'Customer Joined Program',
-        message: `A customer has accepted enrollment in ${request.program_name}`,
-        requiresAction: false,
-        actionTaken: false,
-        isRead: false,
-        data: {
-          programId: programId,
-          programName: request.program_name,
-          customerId: customerId,
-          cardId
-        }
-      });
-      
-      if (businessNotification && typeof serverFunctions !== 'undefined' && 
-          serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
-        serverFunctions.emitNotification(businessId, businessNotification);
-      }
-      
-      // Add customer to business customers list if not already there
       try {
+        // Ensure the loyalty_cards table has the card_number column
         await sql`
-          INSERT INTO customer_business_relationships (
+          ALTER TABLE loyalty_cards 
+          ADD COLUMN IF NOT EXISTS card_number VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE',
+          ADD COLUMN IF NOT EXISTS tier VARCHAR(50) DEFAULT 'STANDARD',
+          ADD COLUMN IF NOT EXISTS points_multiplier NUMERIC(10,2) DEFAULT 1.0
+        `;
+        
+        const cardResult = await sql`
+          INSERT INTO loyalty_cards (
             customer_id,
             business_id,
+            program_id,
+            card_number,
+            card_type,
+            tier,
+            points,
+            points_multiplier,
+            is_active,
             status,
             created_at,
             updated_at
           ) VALUES (
             ${customerId},
             ${businessId},
+            ${programId},
+            ${cardNumber},
+            'STANDARD',
+            'STANDARD',
+            0,
+            1.0,
+            true,
             'ACTIVE',
             NOW(),
             NOW()
-          )
-          ON CONFLICT (customer_id, business_id) 
-          DO UPDATE SET status = 'ACTIVE', updated_at = NOW()
+          ) RETURNING id
         `;
-      } catch (relationError) {
-        // Non-critical error, continue execution
-        console.error('Error updating customer-business relationship:', relationError);
+        
+        if (!cardResult.length) {
+          return { success: false, message: 'Failed to create loyalty card' };
+        }
+        
+        const cardId = cardResult[0].id.toString();
+        
+        // Send enrollment confirmation notification
+        const notification = await CustomerNotificationService.createNotification({
+          customerId: customerId,
+          businessId: businessId,
+          type: 'ENROLLMENT' as CustomerNotificationType,
+          title: 'Welcome to New Program',
+          message: `You've been enrolled in ${request.business_name}'s ${request.program_name} program`,
+          data: {
+            programId: programId,
+            programName: request.program_name,
+            cardId
+          },
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false
+        });
+        
+        if (notification && typeof serverFunctions !== 'undefined' && 
+            serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+          // Emit real-time notification
+          serverFunctions.emitNotification(customerId, notification);
+          
+          // Create card sync event to trigger UI updates
+          createCardSyncEvent(
+            cardId, 
+            customerId, 
+            businessId, 
+            'INSERT', 
+            { 
+              programId: programId, 
+              programName: request.program_name
+            }
+          );
+          
+          // Create enrollment sync event to update enrollment status
+          createEnrollmentSyncEvent(
+            customerId, 
+            businessId, 
+            programId, 
+            'UPDATE'
+          );
+        }
+        
+        // Notify business that customer accepted
+        const businessNotification = await CustomerNotificationService.createNotification({
+          customerId: businessId,
+          businessId: businessId,
+          type: 'ENROLLMENT_ACCEPTED' as CustomerNotificationType,
+          title: 'Customer Joined Program',
+          message: `A customer has accepted enrollment in ${request.program_name}`,
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          data: {
+            programId: programId,
+            programName: request.program_name,
+            customerId: customerId,
+            cardId
+          }
+        });
+        
+        if (businessNotification && typeof serverFunctions !== 'undefined' && 
+            serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
+          serverFunctions.emitNotification(businessId, businessNotification);
+        }
+        
+        // Add customer to business customers list if not already there
+        try {
+          // First ensure the table exists
+          await sql`
+            CREATE TABLE IF NOT EXISTS customer_business_relationships (
+              id SERIAL PRIMARY KEY,
+              customer_id VARCHAR(255) NOT NULL,
+              business_id VARCHAR(255) NOT NULL,
+              status VARCHAR(50) DEFAULT 'ACTIVE',
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(customer_id, business_id)
+            )
+          `;
+          
+          // Then insert or update the relationship
+          await sql`
+            INSERT INTO customer_business_relationships (
+              customer_id,
+              business_id,
+              status,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${customerId},
+              ${businessId},
+              'ACTIVE',
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT (customer_id, business_id) 
+            DO UPDATE SET status = 'ACTIVE', updated_at = NOW()
+          `;
+        } catch (relationError) {
+          // Non-critical error, continue execution
+          console.error('Error updating customer-business relationship:', relationError);
+        }
+        
+        return { 
+          success: true, 
+          message: 'Enrollment approved and card created', 
+          cardId 
+        };
+      } catch (error) {
+        console.error('Error creating loyalty card:', error);
+        return { success: false, error: 'An error occurred while creating loyalty card' };
       }
-      
-      return { 
-        success: true, 
-        message: 'Enrollment approved and card created', 
-        cardId 
-      };
     } catch (error) {
       console.error('Error handling enrollment approval:', error);
       return { success: false, message: 'An error occurred while processing the enrollment' };

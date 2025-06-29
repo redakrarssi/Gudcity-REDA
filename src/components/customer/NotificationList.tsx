@@ -147,7 +147,62 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
       // Set processing state to show loading
       setProcessingApprovalId(approvalId);
       
-      // Use the CustomerNotificationService to respond to the approval
+      // If this is an enrollment request, handle it through LoyaltyProgramService first
+      if (approval.requestType === ApprovalRequestType.ENROLLMENT) {
+        try {
+          const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
+          
+          // Call the service to handle the enrollment
+          const result = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
+          
+          if (!result.success) {
+            console.error('Enrollment approval failed:', result.message);
+            setResponseStatus({
+              id: approvalId,
+              status: 'error',
+              message: result.message || 'Failed to process enrollment response'
+            });
+            setProcessingApprovalId(null);
+            return;
+          }
+          
+          // If we have a card ID and it was approved, also sync cards to ensure it appears in the UI
+          if (result.cardId && approved) {
+            try {
+              const { LoyaltyCardService } = await import('../../services/loyaltyCardService');
+              await LoyaltyCardService.syncEnrollmentsToCards(user.id);
+              
+              // Invalidate loyalty cards query to refresh the UI
+              queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+            } catch (syncError) {
+              console.error('Error syncing cards after enrollment:', syncError);
+              // Continue even if sync fails - the card should still be created
+            }
+          }
+          
+          // Set success message
+          setResponseStatus({
+            id: approvalId,
+            status: 'success',
+            message: approved 
+              ? `You've joined ${approval.data?.programName || 'the program'}`
+              : `You declined to join ${approval.data?.programName || 'the program'}`
+          });
+          
+          // Invalidate related queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
+          
+          // Clear processing state
+          setProcessingApprovalId(null);
+          return;
+        } catch (enrollmentError) {
+          console.error('Error handling enrollment approval:', enrollmentError);
+          // Fall back to regular approval response below
+        }
+      }
+      
+      // For non-enrollment requests or as fallback, use the CustomerNotificationService
       const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
       
       if (success) {
@@ -163,19 +218,6 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         // Invalidate related queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
         queryClient.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
-
-        // If approved and it's an enrollment, refresh customer cards data
-        if (approved && approval.requestType === ApprovalRequestType.ENROLLMENT) {
-          queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-          
-          // Also trigger enrollment in the loyalty service
-          try {
-            const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
-            await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
-          } catch (enrollmentError) {
-            console.error('Error completing enrollment after approval:', enrollmentError);
-          }
-        }
       } else {
         // Set error message on failure
         setResponseStatus({

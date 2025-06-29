@@ -405,6 +405,13 @@ export class CustomerNotificationService {
       const entityId = request[0].entity_id.toString();
       const data = request[0].data as Record<string, any> || {};
 
+      // If this is an enrollment request, delegate full processing to LoyaltyProgramService
+      if (requestType === 'ENROLLMENT') {
+        const { LoyaltyProgramService } = await import('./loyaltyProgramService');
+        const result = await LoyaltyProgramService.handleEnrollmentApproval(requestId, approved);
+        return result.success;
+      }
+
       // Update the approval request status
       await sql`
         UPDATE customer_approval_requests
