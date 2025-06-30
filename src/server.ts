@@ -48,6 +48,7 @@ if (isBrowser) {
   import businessRoutes from './api/businessRoutes';
   import feedbackRoutes from './api/feedbackRoutes';
   import notificationRoutes from './api/notificationRoutes';
+  import debugRoutes from './api/debugRoutes';
 
   // Create Express server
   const app: any = express();
@@ -90,6 +91,7 @@ if (isBrowser) {
     app.use('/api', businessRoutes);
     app.use('/api', feedbackRoutes);
     app.use('/api', notificationRoutes);
+    app.use('/api', debugRoutes);
   } catch (error) {
     console.warn('Error setting up API routes:', error);
   }

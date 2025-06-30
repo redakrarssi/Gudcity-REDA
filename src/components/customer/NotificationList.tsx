@@ -17,6 +17,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import sql from '../../utils/db';
+import { 
+  reportEnrollmentError, 
+  EnrollmentErrorCode, 
+  formatEnrollmentErrorForUser 
+} from '../../utils/enrollmentErrorReporter';
 
 // Real types from the notification service
 enum CustomerNotificationType {
@@ -142,6 +147,18 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
       const approval = approvalsData?.approvals?.find(a => a.id === approvalId);
       if (!approval) {
         console.error('Approval request not found:', approvalId);
+        const error = reportEnrollmentError(
+          EnrollmentErrorCode.APPROVAL_REQUEST_NOT_FOUND,
+          'Approval request not found in client data',
+          { approvalId },
+          approvalId
+        );
+        
+        setResponseStatus({
+          id: approvalId,
+          status: 'error',
+          message: formatEnrollmentErrorForUser(error)
+        });
         return;
       }
       
@@ -157,28 +174,103 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
           let result;
           try {
             // First update the approval status
-            await sql`
-              UPDATE customer_approval_requests
-              SET status = ${approved ? 'APPROVED' : 'REJECTED'}, 
-                  responded_at = NOW() 
-              WHERE id = ${String(approvalId)}
-            `;
+            try {
+              await sql`
+                UPDATE customer_approval_requests
+                SET status = ${approved ? 'APPROVED' : 'REJECTED'}, 
+                    responded_at = NOW() 
+                WHERE id = ${String(approvalId)}
+              `;
+            } catch (dbError) {
+              // Report database error
+              reportEnrollmentError(
+                EnrollmentErrorCode.DATABASE_ERROR,
+                'Failed to update approval request status',
+                dbError,
+                approvalId,
+                user.id.toString(),
+                approval.entityId
+              );
+              throw dbError; // Re-throw to be caught by outer try/catch
+            }
             
             // Then call the service to handle the enrollment
-            result = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
+            try {
+              result = await LoyaltyProgramService.handleEnrollmentApproval(approvalId, approved);
+            } catch (serviceError) {
+              // Report service error
+              reportEnrollmentError(
+                EnrollmentErrorCode.TRANSACTION_FAILED,
+                'LoyaltyProgramService.handleEnrollmentApproval failed',
+                serviceError,
+                approvalId,
+                user.id.toString(),
+                approval.entityId
+              );
+              throw serviceError; // Re-throw to be caught by outer try/catch
+            }
           } catch (enrollmentError) {
             console.error('Error handling enrollment directly:', enrollmentError);
+            
             // Fall back to CustomerNotificationService as backup
-            const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
-            result = { success, message: success ? 'Processed via fallback' : 'Failed to process' };
+            try {
+              const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+              const success = await safeRespondToApproval(approvalId, approved);
+              
+              if (!success) {
+                reportEnrollmentError(
+                  EnrollmentErrorCode.TRANSACTION_FAILED,
+                  'safeRespondToApproval fallback failed',
+                  { approvalId, approved },
+                  approvalId,
+                  user.id.toString(),
+                  approval.entityId
+                );
+              }
+              
+              result = { 
+                success, 
+                message: success ? 'Processed via fallback' : 'Failed to process' 
+              };
+            } catch (fallbackError) {
+              // Report fallback error
+              const error = reportEnrollmentError(
+                EnrollmentErrorCode.UNKNOWN_ERROR,
+                'Both primary and fallback enrollment handlers failed',
+                { 
+                  originalError: enrollmentError,
+                  fallbackError
+                },
+                approvalId,
+                user.id.toString(),
+                approval.entityId
+              );
+              
+              setResponseStatus({
+                id: approvalId,
+                status: 'error',
+                message: formatEnrollmentErrorForUser(error) + ' (Error code: ' + error.code + ')'
+              });
+              setProcessingApprovalId(null);
+              return;
+            }
           }
           
           if (!result.success) {
             console.error('Enrollment approval failed:', result.message);
+            const error = reportEnrollmentError(
+              EnrollmentErrorCode.TRANSACTION_FAILED,
+              'Enrollment process returned failure',
+              { result },
+              approvalId,
+              user.id.toString(),
+              approval.entityId
+            );
+            
             setResponseStatus({
               id: approvalId,
               status: 'error',
-              message: result.message || 'Failed to process enrollment response'
+              message: result.message || formatEnrollmentErrorForUser(error) + ' (Error code: ' + error.code + ')'
             });
             setProcessingApprovalId(null);
             return;
@@ -188,12 +280,21 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
           if (approved) {
             try {
               const { LoyaltyCardService } = await import('../../services/loyaltyCardService');
-              await LoyaltyCardService.syncEnrollmentsToCards(user.id);
+              await LoyaltyCardService.syncEnrollmentsToCards(user.id.toString());
               
               // Invalidate loyalty cards query to refresh the UI
               queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
             } catch (syncError) {
               console.error('Error syncing cards after enrollment:', syncError);
+              // Report but continue - this is non-critical
+              reportEnrollmentError(
+                EnrollmentErrorCode.CARD_CREATION_FAILED,
+                'Failed to sync cards after successful enrollment',
+                syncError,
+                approvalId,
+                user.id.toString(),
+                approval.entityId
+              );
               // Continue even if sync fails - the card should still be created
             }
           }
@@ -216,40 +317,98 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
           return;
         } catch (enrollmentError) {
           console.error('Error handling enrollment approval:', enrollmentError);
-          // Fall back to regular approval response below
+          // Report the error
+          const error = reportEnrollmentError(
+            EnrollmentErrorCode.UNKNOWN_ERROR,
+            'Unhandled error in enrollment approval process',
+            enrollmentError,
+            approvalId,
+            user.id.toString(),
+            approval.entityId
+          );
+          
+          setResponseStatus({
+            id: approvalId,
+            status: 'error',
+            message: formatEnrollmentErrorForUser(error) + ' (Error code: ' + error.code + ')'
+          });
+          setProcessingApprovalId(null);
+          return;
         }
       }
       
       // For non-enrollment requests or as fallback, use the CustomerNotificationService
-      const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
-      
-      if (success) {
-        // Set a temporary success message
-        setResponseStatus({
-          id: approvalId,
-          status: 'success',
-          message: approved 
-            ? `You've joined ${approval.data?.programName || 'the program'}`
-            : `You declined to join ${approval.data?.programName || 'the program'}`
-        });
+      try {
+        const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+        const success = await safeRespondToApproval(approvalId, approved);
         
-        // Invalidate related queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
-        queryClient.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
-      } else {
-        // Set error message on failure
+        if (success) {
+          // Set a temporary success message
+          setResponseStatus({
+            id: approvalId,
+            status: 'success',
+            message: approved 
+              ? `You've joined ${approval.data?.programName || 'the program'}`
+              : `You declined to join ${approval.data?.programName || 'the program'}`
+          });
+          
+          // Invalidate related queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
+        } else {
+          // Report service error
+          const error = reportEnrollmentError(
+            EnrollmentErrorCode.TRANSACTION_FAILED,
+            'safeRespondToApproval returned false',
+            { approvalId, approved },
+            approvalId,
+            user.id.toString(),
+            approval.entityId
+          );
+          
+          // Set error message on failure
+          setResponseStatus({
+            id: approvalId,
+            status: 'error',
+            message: 'Failed to process your response. Please try again. (Error code: ' + error.code + ')'
+          });
+        }
+      } catch (error) {
+        console.error('Error in safeRespondToApproval:', error);
+        
+        // Report service error
+        const reportedError = reportEnrollmentError(
+          EnrollmentErrorCode.TRANSACTION_FAILED,
+          'Exception thrown by safeRespondToApproval',
+          error,
+          approvalId,
+          user.id.toString(),
+          approval.entityId
+        );
+        
         setResponseStatus({
           id: approvalId,
           status: 'error',
-          message: 'Failed to process your response. Please try again.'
+          message: 'Failed to process your response. Please try again. (Error code: ' + reportedError.code + ')'
         });
       }
     } catch (error) {
       console.error('Error handling approval response:', error);
+      
+      // Report unknown error
+      const reportedError = reportEnrollmentError(
+        EnrollmentErrorCode.UNKNOWN_ERROR,
+        'Unhandled error in handleApproval',
+        error,
+        approvalId,
+        user?.id?.toString(),
+        approvalsData?.approvals?.find(a => a.id === approvalId)?.entityId
+      );
+      
       setResponseStatus({
         id: approvalId,
         status: 'error',
-        message: 'An error occurred. Please try again.'
+        message: 'An error occurred. Please try again. (Error code: ' + reportedError.code + ')'
       });
     } finally {
       setProcessingApprovalId(null);
