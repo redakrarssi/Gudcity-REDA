@@ -7,6 +7,7 @@ import { WEBSOCKET_EVENTS } from '../utils/constants';
 import { CustomerNotificationService } from '../services/customerNotificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
+import { deleteCustomerNotification } from '../services/customerNotificationDelete';
 
 interface CustomerNotification {
   id: string;
@@ -52,6 +53,7 @@ interface NotificationContextType {
   markAsRead: (notificationId: string) => Promise<void>;
   dismissPopup: () => void;
   respondToApproval: (approvalId: string, approved: boolean) => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -302,6 +304,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const deleteNotification = async (notificationId: string): Promise<void> => {
+    try {
+      // Persist deletion in database (soft delete)
+      await deleteCustomerNotification(notificationId, user?.id?.toString());
+      // Update local state
+      setNotifications(prev => {
+        const toDelete = prev.find(n => n.id === notificationId);
+        if (toDelete && !toDelete.isRead) {
+          setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+        }
+        return prev.filter(n => n.id !== notificationId);
+      });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
   return (
     <NotificationContext.Provider value={{
       notifications,
@@ -313,7 +332,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       toggleNotificationCenter,
       markAsRead,
       dismissPopup,
-      respondToApproval
+      respondToApproval,
+      deleteNotification
     }}>
       {children}
     </NotificationContext.Provider>

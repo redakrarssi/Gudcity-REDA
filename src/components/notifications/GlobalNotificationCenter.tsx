@@ -10,7 +10,8 @@ import {
   Clock,
   Gift,
   Tag,
-  Award
+  Award,
+  Trash2
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 
@@ -25,7 +26,8 @@ const GlobalNotificationCenter: React.FC = () => {
     notifications,
     approvalRequests,
     markAsRead,
-    respondToApproval
+    respondToApproval,
+    deleteNotification
   } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<'notifications' | 'approvals'>('notifications');
@@ -171,6 +173,16 @@ const GlobalNotificationCenter: React.FC = () => {
                           {!notification.isRead && (
                             <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 flex-shrink-0"
+                            aria-label="Delete notification"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
                         </div>
                       </div>
                     ))

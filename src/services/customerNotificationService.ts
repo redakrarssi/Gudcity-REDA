@@ -74,23 +74,10 @@ export class CustomerNotificationService {
       
       const businessName = businessNameResult.length ? businessNameResult[0].name : undefined;
       
-      const createdNotification: CustomerNotification = {
-        id: result[0].id,
-        customerId: result[0].customer_id.toString(),
-        businessId: result[0].business_id.toString(),
-        type: result[0].type,
-        title: result[0].title,
-        message: result[0].message,
-        data: result[0].data,
-        referenceId: result[0].reference_id,
-        requiresAction: result[0].requires_action,
-        actionTaken: result[0].action_taken,
-        isRead: result[0].is_read,
-        createdAt: result[0].created_at,
-        readAt: result[0].read_at,
-        expiresAt: result[0].expires_at,
-        businessName
-      };
+      const createdNotification = this.mapNotification({
+        ...result[0],
+        business_name: businessName,
+      });
       
       return createdNotification;
     } catch (error) {
