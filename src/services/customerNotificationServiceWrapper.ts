@@ -23,6 +23,7 @@ import {
   CustomerNotificationType
 } from '../types/customer';
 import { ensureEnrollmentProcedureExists } from '../utils/db';
+import { queryClient } from '../utils/queryClient';
 
 /**
  * Safely respond to an approval request with proper error handling and transaction support
@@ -65,35 +66,67 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
       reportEnrollmentError(error);
       return { 
         success: false, 
-        error: formatEnrollmentErrorForUser(error)
+        error: formatEnrollmentErrorForUser(error),
+        errorCode: EnrollmentErrorCode.REQUEST_NOT_FOUND
       };
     }
     
-    const { customerId, businessId, entityId, requestType, programName, businessName, customerName } = request[0];
+    const { customerId, businessId, entityId, requestType, programName, businessName, customerName, notificationId } = request[0];
     
     // Call the stored procedure based on request type
     let cardId: string | undefined;
     
     if (requestType === 'ENROLLMENT') {
       try {
-        // Use the stored procedure for enrollment approvals
-        const result = await sql`
-          SELECT process_enrollment_approval(${requestId}::uuid, ${approved})
-        `;
+        // Use the stored procedure for enrollment approvals with timeout handling
+        const result = await Promise.race([
+          sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`,
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database operation timed out')), 15000)
+          )
+        ]) as any;
         
         if (result && result[0] && result[0].process_enrollment_approval) {
           cardId = result[0].process_enrollment_approval;
         }
+        
+        // Ensure notification is marked as actioned regardless of DB procedure success
+        if (notificationId) {
+          try {
+            await sql`
+              UPDATE customer_notifications
+              SET action_taken = TRUE, is_read = TRUE, read_at = NOW()
+              WHERE id = ${notificationId}
+            `;
+          } catch (notifError) {
+            logger.warn('Failed to update notification status', { notificationId, error: notifError });
+            // Non-critical error, continue execution
+          }
+        }
+        
       } catch (dbError: any) {
+        // Check for specific database error types
+        let errorCode = EnrollmentErrorCode.TRANSACTION_ERROR;
+        
+        if (dbError.message?.includes('timeout')) {
+          errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
+        } else if (dbError.code === '23505') {
+          errorCode = EnrollmentErrorCode.ALREADY_ENROLLED;
+        } else if (dbError.code === '23503') {
+          errorCode = EnrollmentErrorCode.VALIDATION_ERROR;
+        }
+        
         const error = createDetailedError(
-          EnrollmentErrorCode.TRANSACTION_ERROR,
+          errorCode,
           `Database transaction error: ${dbError.message || 'Unknown error'}`,
-          'multiple enrollment handler'
+          'enrollment_transaction'
         );
         reportEnrollmentError(error, { requestId, approved });
+        
         return { 
           success: false, 
-          error: formatEnrollmentErrorForUser(error)
+          error: formatEnrollmentErrorForUser(error),
+          errorCode
         };
       }
     } else {
@@ -109,7 +142,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         reportEnrollmentError(error);
         return { 
           success: false, 
-          error: formatEnrollmentErrorForUser(error)
+          error: formatEnrollmentErrorForUser(error),
+          errorCode: EnrollmentErrorCode.GENERIC_ERROR
         };
       }
     }
@@ -135,15 +169,15 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
       if (customerId && businessId && entityId) {
         // Create customer relationship sync event to update the business dashboard
         createBusinessCustomerSyncEvent(
-          customerId,
-          businessId,
+          String(customerId),
+          String(businessId),
           approved ? 'INSERT' : 'DECLINED'
         );
         
         // Create enrollment sync event
         createEnrollmentSyncEvent(
-          customerId,
-          businessId,
+          String(customerId),
+          String(businessId),
           String(entityId),
           approved ? 'INSERT' : 'DELETE'
         );
@@ -152,14 +186,26 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         if (approved && cardId) {
           createCardSyncEvent(
             cardId,
-            customerId,
-            businessId,
+            String(customerId),
+            String(businessId),
             'INSERT',
             {
-              programId: entityId,
+              programId: String(entityId),
               programName: programName || 'Loyalty Program'
             }
           );
+          
+          // Ensure the card is properly linked in the UI by invalidating caches
+          if (typeof queryClient !== 'undefined') {
+            try {
+              queryClient.invalidateQueries({ queryKey: ['loyaltyCards', String(customerId)] });
+              queryClient.invalidateQueries({ queryKey: ['customerNotifications', String(customerId)] });
+              queryClient.invalidateQueries({ queryKey: ['customerApprovals', String(customerId)] });
+            } catch (cacheError) {
+              logger.warn('Failed to invalidate cache', { error: cacheError });
+              // Non-critical error, continue execution
+            }
+          }
         }
       }
     } catch (notificationError) {
@@ -182,8 +228,19 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
   } catch (error: any) {
     logger.error('Unexpected error in safeRespondToApproval', { error });
     
+    // Determine appropriate error code based on error message
+    let errorCode = EnrollmentErrorCode.GENERIC_ERROR;
+    
+    if (error.message?.includes('network') || error.message?.includes('connection')) {
+      errorCode = EnrollmentErrorCode.NETWORK_ERROR;
+    } else if (error.message?.includes('timeout')) {
+      errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
+    } else if (error.message?.includes('permission')) {
+      errorCode = EnrollmentErrorCode.INSUFFICIENT_PERMISSIONS;
+    }
+    
     const detailedError = createDetailedError(
-      EnrollmentErrorCode.GENERIC_ERROR,
+      errorCode,
       `Unexpected error: ${error.message || 'Unknown error'}`,
       'approval_response'
     );
@@ -191,7 +248,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     
     return { 
       success: false, 
-      error: formatEnrollmentErrorForUser(detailedError)
+      error: formatEnrollmentErrorForUser(detailedError),
+      errorCode
     };
   }
 } 

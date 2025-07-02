@@ -264,11 +264,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             // Store user data in localStorage for quick access on page refresh
             localStorage.setItem('authUserData', JSON.stringify(appUser));
+            localStorage.setItem('authLastLogin', new Date().toISOString());
             
             // If business user, record login
             if (appUser.role === 'business') {
               try {
-                await recordBusinessLogin(Number(appUser.business_id));
+                await recordBusinessLogin(Number(appUser.id));
               } catch (loginError) {
                 console.error('Error recording business login:', loginError);
                 // Non-critical error, continue
@@ -370,6 +371,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Store user ID and data in localStorage
         localStorage.setItem('authUserId', String(dbUser.id));
         localStorage.setItem('authUserData', JSON.stringify(appUser));
+        localStorage.setItem('authLastLogin', new Date().toISOString());
+        localStorage.setItem('authSessionActive', 'true');
         
         // Record business login if applicable
         if (dbUser.user_type === 'business' && dbUser.business_id) {
@@ -561,9 +564,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Logout function
    */
   const logout = () => {
+    // Clear user from state
+    setUser(null);
+    
+    // Clear localStorage
     localStorage.removeItem('authUserId');
     localStorage.removeItem('authUserData');
-    setUser(null);
+    localStorage.removeItem('authSessionActive');
+    localStorage.setItem('authLoggedOut', new Date().toISOString());
+    
+    // Redirect to login page
     navigate('/login');
   };
 

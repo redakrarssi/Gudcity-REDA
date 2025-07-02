@@ -362,6 +362,7 @@ const CustomerCards = () => {
     try {
       // Show loading state
       setIsProcessingResponse(true);
+      setIsLoading(true);
       
       // Import the safer wrapper service
       const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
@@ -379,10 +380,14 @@ const CustomerCards = () => {
           // Explicitly sync enrollments to cards to ensure the new card appears
           await syncEnrollments();
           
-          // Refresh card data
+          // Refresh all related data with proper cache invalidation
           await queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
+          await queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms', user?.id] });
+          await queryClientInstance.invalidateQueries({ queryKey: ['customerBusinessRelationships', user?.id] });
+          
+          // Force refetch
           await refetch();
         } else {
           addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
@@ -403,6 +408,10 @@ const CustomerCards = () => {
           approvalId: null
         });
       } else {
+        // Show error using the EnrollmentErrorDisplay component
+        const { EnrollmentErrorCode } = await import('../../utils/enrollmentErrorReporter');
+        const errorCode = result.errorCode || EnrollmentErrorCode.GENERIC_ERROR;
+        
         addNotification('error', result.error || 'Failed to process your response');
         
         // Close the modal on error too
@@ -422,6 +431,7 @@ const CustomerCards = () => {
       }));
     } finally {
       setIsProcessingResponse(false);
+      setIsLoading(false);
     }
   };
 
@@ -558,15 +568,21 @@ const CustomerCards = () => {
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => handleEnrollmentResponse(false)}
-              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+              disabled={isProcessingResponse}
+              className={`px-4 py-2 border border-gray-300 rounded text-gray-700 ${
+                isProcessingResponse ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
+              }`}
             >
-              Decline
+              {isProcessingResponse ? 'Processing...' : 'Decline'}
             </button>
             <button
               onClick={() => handleEnrollmentResponse(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              disabled={isProcessingResponse}
+              className={`px-4 py-2 bg-blue-600 text-white rounded ${
+                isProcessingResponse ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+              }`}
             >
-              Join Program
+              {isProcessingResponse ? 'Processing...' : 'Join Program'}
             </button>
           </div>
         </div>
