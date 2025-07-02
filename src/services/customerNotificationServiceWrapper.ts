@@ -26,6 +26,7 @@ import {
   EnrollmentSuccessResponse,
   EnrollmentOperationResponse
 } from '../utils/enrollmentErrorHandler';
+import { ensureEnrollmentProcedureExists } from '../utils/db';
 
 /**
  * Enhanced response type for the safeRespondToApproval function
@@ -57,6 +58,9 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
   logger.info('Processing approval response with safe wrapper', { requestId, approved });
   
   try {
+    // Ensure the stored procedure exists
+    await ensureEnrollmentProcedureExists();
+    
     // 1. Get the approval request details first to ensure we have them for later steps
     const approvalRequestResult = await tryEnrollmentOperation(
       async () => {

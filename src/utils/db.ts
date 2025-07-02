@@ -411,4 +411,98 @@ export async function initializeDbSchema(): Promise<boolean> {
     await sql.rollback();
     return false;
   }
+}
+
+/**
+ * Checks if the process_enrollment_approval stored procedure exists and creates it if not
+ */
+export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
+  try {
+    // Check if the function exists
+    const functionExists = await sql`
+      SELECT EXISTS (
+        SELECT FROM pg_proc 
+        WHERE proname = 'process_enrollment_approval'
+      );
+    `;
+    
+    if (functionExists && functionExists[0] && functionExists[0].exists === true) {
+      return true;
+    }
+    
+    // Create the function if it doesn't exist
+    await sql`
+      CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
+      RETURNS BOOLEAN AS $$
+      DECLARE
+        customer_id_val INTEGER;
+        business_id_val INTEGER;
+        program_id_val TEXT;
+        enrollment_exists BOOLEAN;
+      BEGIN
+        -- Update the approval request status
+        UPDATE customer_approval_requests
+        SET status = CASE WHEN is_approved THEN 'APPROVED' ELSE 'REJECTED' END,
+            responded_at = NOW(),
+            updated_at = NOW()
+        WHERE id = request_id
+        RETURNING customer_id, business_id, entity_id INTO customer_id_val, business_id_val, program_id_val;
+        
+        -- If not approved, just return true (success)
+        IF NOT is_approved THEN
+          RETURN TRUE;
+        END IF;
+        
+        -- Check if already enrolled
+        SELECT EXISTS (
+          SELECT 1 FROM program_enrollments 
+          WHERE customer_id = customer_id_val 
+          AND program_id = program_id_val
+        ) INTO enrollment_exists;
+        
+        IF enrollment_exists THEN
+          -- Already enrolled, just update status if needed
+          UPDATE program_enrollments
+          SET status = 'ACTIVE', 
+              updated_at = NOW()
+          WHERE customer_id = customer_id_val 
+          AND program_id = program_id_val 
+          AND status != 'ACTIVE';
+        ELSE
+          -- Create enrollment record
+          INSERT INTO program_enrollments (
+            customer_id,
+            program_id,
+            business_id,
+            status,
+            current_points,
+            total_points_earned,
+            enrolled_at
+          ) VALUES (
+            customer_id_val,
+            program_id_val,
+            business_id_val,
+            'ACTIVE',
+            0,
+            0,
+            NOW()
+          );
+        END IF;
+        
+        -- Return success
+        RETURN TRUE;
+        
+      EXCEPTION WHEN OTHERS THEN
+        -- Log error and return false
+        RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
+        RETURN FALSE;
+      END;
+      $$ LANGUAGE plpgsql;
+    `;
+    
+    return true;
+  } catch (error) {
+    console.error('Error ensuring enrollment procedure exists:', error);
+    return false;
+  }
 } 

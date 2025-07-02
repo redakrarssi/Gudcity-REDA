@@ -8,6 +8,7 @@ import { CustomerNotificationService } from '../services/customerNotificationSer
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { deleteCustomerNotification } from '../services/customerNotificationDelete';
+import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
 
 interface CustomerNotification {
   id: string;
@@ -261,6 +262,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const respondToApproval = async (approvalId: string, approved: boolean): Promise<void> => {
     try {
+      // Show loading state in UI
+      const loadingNotificationId = `loading-${approvalId}`;
+      setNotifications(prev => [
+        {
+          id: loadingNotificationId,
+          customerId: user?.id?.toString() || '',
+          businessId: '',
+          type: 'SYSTEM',
+          title: 'Processing your request...',
+          message: `Please wait while we ${approved ? 'enroll you in' : 'decline'} the program.`,
+          requiresAction: false,
+          actionTaken: false,
+          isRead: true,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev
+      ]);
+
       // Update local state first for a snappy UI response
       setApprovalRequests(prev => 
         prev.map(a => a.id === approvalId ? { ...a, status: approved ? 'APPROVED' : 'REJECTED' } : a)
@@ -277,8 +296,40 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         );
       }
       
-      // Call API to update the approval status - this will handle enrollment logic
-      const success = await CustomerNotificationService.respondToApproval(approvalId, approved);
+      // Use the safe wrapper to handle enrollment with better error handling
+      const response = await safeRespondToApproval(approvalId, approved);
+      
+      // Remove loading notification
+      setNotifications(prev => prev.filter(n => n.id !== loadingNotificationId));
+      
+      const success = response.success;
+      
+      // If there was an error, show it as a notification
+      if (!success && response.message) {
+        const errorNotificationId = `error-${approvalId}-${Date.now()}`;
+        setNotifications(prev => [
+          {
+            id: errorNotificationId,
+            customerId: user?.id?.toString() || '',
+            businessId: '',
+            type: 'ERROR',
+            title: 'Error Processing Request',
+            message: response.message || 'An error occurred while processing your request.',
+            data: {
+              errorCode: response.errorCode,
+              errorLocation: response.errorLocation
+            },
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev
+        ]);
+        
+        // Increase unread count for the error notification
+        setUnreadCount(prev => prev + 1);
+      }
       
       if (success) {
         // If successful, invalidate relevant queries to refresh the UI
@@ -292,15 +343,42 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           queryClient.invalidateQueries({ 
             queryKey: ['customers', user!.id.toString(), 'cards']
           });
+          
+          // Remove the approval request from the list after successful processing
+          setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
         } else if (approval?.requestType === 'POINTS_DEDUCTION') {
           // Invalidate loyalty cards to show updated points
           queryClient.invalidateQueries({
             queryKey: ['customers', user!.id.toString(), 'cards']
           });
+          
+          // Remove the approval request from the list after successful processing
+          setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
         }
       }
     } catch (error) {
       console.error('Error responding to approval:', error);
+      
+      // Show error notification
+      const errorNotificationId = `error-${approvalId}-${Date.now()}`;
+      setNotifications(prev => [
+        {
+          id: errorNotificationId,
+          customerId: user?.id?.toString() || '',
+          businessId: '',
+          type: 'ERROR',
+          title: 'Unexpected Error',
+          message: 'An unexpected error occurred while processing your request. Please try again.',
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev
+      ]);
+      
+      // Increase unread count for the error notification
+      setUnreadCount(prev => prev + 1);
     }
   };
 
