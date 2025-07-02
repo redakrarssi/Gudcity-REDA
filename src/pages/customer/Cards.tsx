@@ -143,7 +143,7 @@ const CustomerCards = () => {
   }, [user?.id, addNotification, queryClientInstance]);
   
   // Fetch loyalty cards with sync
-  const { data: loyaltyCards = [], isLoading: loading, error, refetch } = useQuery({
+  const { data: loyaltyCards = [], isLoading, error, refetch } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -358,10 +358,13 @@ const CustomerCards = () => {
     if (!enrollmentRequestState.approvalId) return;
     
     try {
-      // First, use the LoyaltyProgramService to handle the enrollment approval
-      // This ensures the card is created and the customer is properly enrolled
-      const { LoyaltyProgramService } = await import('../../services/loyaltyProgramService');
-      const result = await LoyaltyProgramService.handleEnrollmentApproval(
+      // Show loading indicator (handled by isLoading state)
+      
+      // Import the safer wrapper service
+      const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+      
+      // Call the wrapper service with proper error handling
+      const result = await safeRespondToApproval(
         enrollmentRequestState.approvalId,
         approved
       );
@@ -374,27 +377,40 @@ const CustomerCards = () => {
           await syncEnrollments();
           
           // Refresh card data
-          refetch();
+          await refetch();
         } else {
-          addNotification('info', `You declined to join ${enrollmentRequestState.programName}`);
+          addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
         }
+        
+        // Close the modal
+        setEnrollmentRequestState({
+          isOpen: false,
+          businessId: null,
+          businessName: null,
+          programId: null,
+          programName: null,
+          notificationId: null,
+          approvalId: null
+        });
       } else {
-        addNotification('error', result.message || 'Failed to process your response');
+        addNotification('error', result.error || 'Failed to process your response');
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);
       addNotification('error', 'An error occurred while processing your response');
     } finally {
-      // Close the modal
-      setEnrollmentRequestState({
-        isOpen: false,
-        businessId: null,
-        businessName: null,
-        programId: null,
-        programName: null,
-        notificationId: null,
-        approvalId: null
-      });
+      // Close the modal on error too
+      if (enrollmentRequestState.isOpen) {
+        setEnrollmentRequestState({
+          isOpen: false,
+          businessId: null,
+          businessName: null,
+          programId: null,
+          programName: null,
+          notificationId: null,
+          approvalId: null
+        });
+      }
     }
   };
 
@@ -538,7 +554,7 @@ const CustomerCards = () => {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return <CustomerLayout><div>Loading...</div></CustomerLayout>;
   }
 
