@@ -78,6 +78,9 @@ const CustomerCards = () => {
   const [rotateCard, setRotateCard] = useState('');
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
+  const [hideEnrollmentInfo, setHideEnrollmentInfo] = useState<boolean>(
+    localStorage.getItem('hideEnrollmentInfo') === 'true'
+  );
   const [promoCodeState, setPromoCodeState] = useState<PromoCodeState>({
     isOpen: false,
     cardId: null,
@@ -110,6 +113,12 @@ const CustomerCards = () => {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
     }, 5000);
+  }, []);
+
+  // Function to hide enrollment info
+  const handleHideEnrollmentInfo = useCallback(() => {
+    setHideEnrollmentInfo(true);
+    localStorage.setItem('hideEnrollmentInfo', 'true');
   }, []);
 
   // Function to sync enrollments to cards
@@ -245,7 +254,8 @@ const CustomerCards = () => {
       }
       
       // New event for QR code scanning
-      if (event.name === 'qr_scan' && 
+      if (event.name && 
+          event.name.toString() === 'qr_scan' && 
           event.data && 
           event.data.customerId === user.id) {
         // Customer QR code is being scanned by a business
@@ -540,14 +550,32 @@ const CustomerCards = () => {
     <CustomerLayout>
       <div className="p-4 md:p-6 lg:p-8 space-y-8">
         {/* Total Enrollment Count */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4">
-          <div className="flex items-center">
-            <Info className="h-5 w-5 text-blue-500 mr-2" />
-            <p className="text-blue-700">
-              You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
-            </p>
-          </div>
-        </div>
+        <AnimatePresence>
+          {!hideEnrollmentInfo && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Info className="h-5 w-5 text-blue-500 mr-2" />
+                  <p className="text-blue-700">
+                    You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
+                  </p>
+                </div>
+                <button 
+                  onClick={handleHideEnrollmentInfo} 
+                  className="text-blue-500 hover:text-blue-700 focus:outline-none"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       
         {/* Notifications */}
         <AnimatePresence>
@@ -756,7 +784,7 @@ const CustomerCards = () => {
                             
                             {card.availableRewards?.length ? (
                               <div className="space-y-2">
-                                {card.availableRewards.map((reward, idx) => (
+                                {card.availableRewards.map((reward: {name: string, points: number}, idx: number) => (
                                   <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                     <div className="flex items-center">
                                       <div className="p-1.5 bg-blue-100 rounded-full mr-3">

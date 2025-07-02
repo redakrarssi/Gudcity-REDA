@@ -433,12 +433,19 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
     // Create the function if it doesn't exist
     await sql`
       CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
-      RETURNS BOOLEAN AS $$
+      RETURNS UUID AS $$
       DECLARE
         customer_id_val INTEGER;
         business_id_val INTEGER;
         program_id_val TEXT;
+        notification_id_val UUID;
         enrollment_exists BOOLEAN;
+        card_id_val UUID;
+        card_exists BOOLEAN;
+        card_number_val TEXT;
+        program_name_val TEXT;
+        business_name_val TEXT;
+        customer_name_val TEXT;
       BEGIN
         -- Update the approval request status
         UPDATE customer_approval_requests
@@ -446,11 +453,83 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             responded_at = NOW(),
             updated_at = NOW()
         WHERE id = request_id
-        RETURNING customer_id, business_id, entity_id INTO customer_id_val, business_id_val, program_id_val;
+        RETURNING customer_id, business_id, entity_id, notification_id INTO customer_id_val, business_id_val, program_id_val, notification_id_val;
         
-        -- If not approved, just return true (success)
+        -- If customer_id is null, the request wasn't found
+        IF customer_id_val IS NULL THEN
+          RAISE EXCEPTION 'Approval request not found: %', request_id;
+        END IF;
+        
+        -- Get program and business names for better notifications
+        SELECT name INTO program_name_val FROM loyalty_programs WHERE id = program_id_val::uuid;
+        SELECT name INTO business_name_val FROM users WHERE id = business_id_val;
+        SELECT name INTO customer_name_val FROM users WHERE id = customer_id_val;
+        
+        -- Mark notification as actioned
+        UPDATE customer_notifications
+        SET action_taken = TRUE,
+            is_read = TRUE,
+            read_at = NOW()
+        WHERE id = notification_id_val;
+        
+        -- Create a notification for the business about the customer's decision
+        INSERT INTO customer_notifications (
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          data,
+          requires_action,
+          action_taken,
+          is_read,
+          created_at
+        ) VALUES (
+          gen_random_uuid(),
+          business_id_val,
+          business_id_val,
+          CASE WHEN is_approved THEN 'ENROLLMENT_ACCEPTED' ELSE 'ENROLLMENT_REJECTED' END,
+          CASE WHEN is_approved THEN 'Customer Joined Program' ELSE 'Enrollment Declined' END,
+          CASE WHEN is_approved 
+               THEN COALESCE(customer_name_val, 'A customer') || ' has joined your ' || COALESCE(program_name_val, 'loyalty program')
+               ELSE COALESCE(customer_name_val, 'A customer') || ' has declined to join your ' || COALESCE(program_name_val, 'loyalty program')
+          END,
+          jsonb_build_object(
+            'programId', program_id_val,
+            'programName', program_name_val,
+            'customerId', customer_id_val,
+            'approved', is_approved
+          ),
+          FALSE,
+          FALSE,
+          FALSE,
+          NOW()
+        );
+        
+        -- Create or update customer-business relationship regardless of approval decision
+        -- For both approved and declined enrollments, we want to track the relationship
+        INSERT INTO customer_business_relationships (
+          customer_id,
+          business_id,
+          status,
+          created_at,
+          updated_at
+        ) VALUES (
+          customer_id_val::text,
+          business_id_val::text,
+          CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (customer_id, business_id) 
+        DO UPDATE SET 
+          status = CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
+          updated_at = NOW();
+        
+        -- If not approved, just return null (no card created)
         IF NOT is_approved THEN
-          RETURN TRUE;
+          RETURN NULL;
         END IF;
         
         -- Check if already enrolled
@@ -489,13 +568,100 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           );
         END IF;
         
-        -- Return success
-        RETURN TRUE;
+        -- Check if card exists
+        SELECT EXISTS (
+          SELECT 1 FROM loyalty_cards
+          WHERE customer_id = customer_id_val
+          AND program_id = program_id_val
+        ) INTO card_exists;
+        
+        -- Create card if it doesn't exist
+        IF NOT card_exists THEN
+          -- Generate a unique card number
+          card_number_val := 'GC-' || to_char(NOW(), 'YYMMDD') || '-' || floor(random() * 10000)::TEXT;
+          
+          -- Generate a new UUID for the card
+          card_id_val := gen_random_uuid();
+          
+          -- Create the card
+          INSERT INTO loyalty_cards (
+            id,
+            customer_id,
+            program_id,
+            business_id,
+            card_number,
+            status,
+            points,
+            card_type,
+            tier,
+            points_multiplier,
+            is_active,
+            created_at,
+            updated_at
+          ) VALUES (
+            card_id_val,
+            customer_id_val,
+            program_id_val,
+            business_id_val,
+            card_number_val,
+            'ACTIVE',
+            0,
+            'STANDARD',
+            'STANDARD',
+            1.0,
+            true,
+            NOW(),
+            NOW()
+          );
+        ELSE
+          -- Get the existing card ID
+          SELECT id INTO card_id_val
+          FROM loyalty_cards
+          WHERE customer_id = customer_id_val
+          AND program_id = program_id_val
+          LIMIT 1;
+        END IF;
+        
+        -- Create notification for customer about their new card
+        INSERT INTO customer_notifications (
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          data,
+          requires_action,
+          action_taken,
+          is_read,
+          created_at
+        ) VALUES (
+          gen_random_uuid(),
+          customer_id_val,
+          business_id_val,
+          'CARD_CREATED',
+          'Loyalty Card Created',
+          'Your loyalty card for ' || COALESCE(program_name_val, 'the loyalty program') || 
+          ' at ' || COALESCE(business_name_val, 'the business') || ' is ready',
+          jsonb_build_object(
+            'programId', program_id_val,
+            'programName', program_name_val,
+            'businessName', business_name_val,
+            'cardId', card_id_val
+          ),
+          FALSE,
+          FALSE,
+          FALSE,
+          NOW()
+        );
+        
+        -- Return the card ID
+        RETURN card_id_val;
         
       EXCEPTION WHEN OTHERS THEN
-        -- Log error and return false
+        -- Log error and re-raise
         RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
-        RETURN FALSE;
+        RAISE;
       END;
       $$ LANGUAGE plpgsql;
     `;

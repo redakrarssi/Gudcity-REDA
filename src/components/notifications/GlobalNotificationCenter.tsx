@@ -11,9 +11,11 @@ import {
   Gift,
   Tag,
   Award,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { EnrollmentErrorCode } from '../../utils/enrollmentErrorReporter';
 
 /**
  * Global notification center component that displays as a drawer/modal
@@ -32,6 +34,8 @@ const GlobalNotificationCenter: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'notifications' | 'approvals'>('notifications');
   const [processingApprovals, setProcessingApprovals] = useState<Record<string, boolean>>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   // Format date to relative time (e.g. "2 hours ago")
   const formatRelativeTime = (dateString: string) => {
@@ -258,8 +262,14 @@ const GlobalNotificationCenter: React.FC = () => {
                             onClick={async () => {
                               if (processingApprovals[approval.id]) return;
                               setProcessingApprovals(prev => ({ ...prev, [approval.id]: true }));
+                              setErrorMessage(null);
+                              setErrorCode(null);
                               try {
                                 await respondToApproval(approval.id, true);
+                              } catch (error: any) {
+                                console.error('Error approving request:', error);
+                                setErrorMessage(error?.message || 'The enrollment process was interrupted');
+                                setErrorCode(error?.code || EnrollmentErrorCode.TRANSACTION_FAILED);
                               } finally {
                                 setProcessingApprovals(prev => ({ ...prev, [approval.id]: false }));
                               }
@@ -289,8 +299,14 @@ const GlobalNotificationCenter: React.FC = () => {
                             onClick={async () => {
                               if (processingApprovals[approval.id]) return;
                               setProcessingApprovals(prev => ({ ...prev, [approval.id]: true }));
+                              setErrorMessage(null);
+                              setErrorCode(null);
                               try {
                                 await respondToApproval(approval.id, false);
+                              } catch (error: any) {
+                                console.error('Error declining request:', error);
+                                setErrorMessage(error?.message || 'The enrollment process was interrupted');
+                                setErrorCode(error?.code || EnrollmentErrorCode.TRANSACTION_FAILED);
                               } finally {
                                 setProcessingApprovals(prev => ({ ...prev, [approval.id]: false }));
                               }
@@ -317,6 +333,28 @@ const GlobalNotificationCenter: React.FC = () => {
                             )}
                           </button>
                         </div>
+
+                        {/* Error message display */}
+                        {errorMessage && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div className="flex items-start">
+                              <AlertTriangle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-red-800">
+                                  Error: {errorCode === EnrollmentErrorCode.TRANSACTION_FAILED ? 
+                                    'The enrollment process was interrupted' : 
+                                    'Failed to process your request'}
+                                </p>
+                                <p className="text-sm text-red-700 mt-1">
+                                  {errorMessage}
+                                </p>
+                                <p className="text-xs text-red-600 mt-2">
+                                  Error code: {errorCode}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

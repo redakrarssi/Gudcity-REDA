@@ -5,11 +5,12 @@ export type SyncEventType =
   | 'program_enrollments'
   | 'loyalty_cards'
   | 'customer_notifications'
-  | 'customer_approval_requests';
+  | 'customer_approval_requests'
+  | 'customer_business_relationships';
 
 export interface SyncEvent {
   table_name: SyncEventType;
-  operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  operation: 'INSERT' | 'UPDATE' | 'DELETE' | 'DECLINED';
   record_id: string;
   customer_id?: string;
   business_id?: string;
@@ -184,6 +185,12 @@ function invalidateQueriesForEvent(event: SyncEvent) {
         queryClient.invalidateQueries({ queryKey: ['customerApprovals', event.customer_id] });
       }
       break;
+      
+    case 'customer_business_relationships':
+      if (event.customer_id) {
+        queryClient.invalidateQueries({ queryKey: ['customerBusinessRelationships', event.customer_id] });
+      }
+      break;
   }
 }
 
@@ -293,6 +300,29 @@ export function createNotificationSyncEvent(
     data: {
       notification_id: notificationId,
       ...data
+    }
+  });
+}
+
+/**
+ * Create a sync event for business-customer relationship
+ * This is used to update the business dashboard with customer info
+ */
+export function createBusinessCustomerSyncEvent(
+  customerId: string,
+  businessId: string,
+  operation: 'INSERT' | 'UPDATE' | 'DELETE' | 'DECLINED' = 'INSERT'
+) {
+  triggerSyncEvent({
+    table_name: 'customer_business_relationships',
+    operation: operation === 'DECLINED' ? 'UPDATE' : operation,
+    record_id: `${customerId}-${businessId}`,
+    customer_id: customerId,
+    business_id: businessId,
+    data: {
+      customer_id: customerId,
+      business_id: businessId,
+      status: operation === 'DECLINED' ? 'DECLINED' : 'ACTIVE'
     }
   });
 }

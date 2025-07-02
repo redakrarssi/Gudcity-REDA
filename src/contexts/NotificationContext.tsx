@@ -304,7 +304,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       const success = response.success;
       
-      // If there was an error, show it as a notification
+      // If there was an error, show it as a notification and throw it to be caught by the UI
       if (!success && response.message) {
         const errorNotificationId = `error-${approvalId}-${Date.now()}`;
         setNotifications(prev => [
@@ -329,6 +329,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         // Increase unread count for the error notification
         setUnreadCount(prev => prev + 1);
+        
+        // Throw the error to be caught by the UI component
+        const error = new Error(response.message);
+        (error as any).code = response.errorCode;
+        (error as any).location = response.errorLocation;
+        throw error;
       }
       
       if (success) {
@@ -379,6 +385,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Increase unread count for the error notification
       setUnreadCount(prev => prev + 1);
+      
+      // Re-throw the error to be caught by the UI component
+      throw error;
     }
   };
 
