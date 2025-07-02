@@ -188,12 +188,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // CRITICAL FIX: Set a timeout to ensure the app doesn't get stuck loading
         const isProduction = window.location.hostname === 'gudcity-reda.vercel.app';
-        const timeout = isProduction ? 2000 : 5000; // 2s in prod, 5s in dev (reduced from 10s)
+        const timeout = isProduction ? 3000 : 5000; // 3s in prod, 5s in dev
         
         // Create a promise that resolves after the timeout
         const timeoutPromise = new Promise<void>(resolve => {
           setTimeout(() => {
             console.warn(`Authentication initialization timed out after ${timeout}ms`);
+            
+            // Check if we have a stored user ID before giving up
+            const storedUserId = localStorage.getItem('authUserId');
+            if (storedUserId) {
+              console.log('Using cached user data due to timeout');
+              // Try to use cached user data if available
+              const cachedUserData = localStorage.getItem('authUserData');
+              if (cachedUserData) {
+                try {
+                  const userData = JSON.parse(cachedUserData);
+                  setUser(userData);
+                } catch (e) {
+                  console.error('Failed to parse cached user data:', e);
+                }
+              }
+            }
+            
             setIsLoading(false);
             setInitialized(true);
             resolve();
@@ -226,6 +243,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (!dbUser) {
               console.warn('Stored user ID not found in database:', storedUserId);
               localStorage.removeItem('authUserId');
+              localStorage.removeItem('authUserData');
               setIsLoading(false);
               setInitialized(true);
               return;
@@ -235,6 +253,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (!validateUser(dbUser)) {
               console.warn('User account is not valid:', dbUser);
               localStorage.removeItem('authUserId');
+              localStorage.removeItem('authUserData');
               setIsLoading(false);
               setInitialized(true);
               return;
@@ -243,10 +262,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Convert DB user to app user
             const appUser = convertDbUserToUser(dbUser);
             
+            // Store user data in localStorage for quick access on page refresh
+            localStorage.setItem('authUserData', JSON.stringify(appUser));
+            
             // If business user, record login
             if (appUser.role === 'business') {
               try {
-                await recordBusinessLogin(appUser.id);
+                await recordBusinessLogin(Number(appUser.business_id));
               } catch (loginError) {
                 console.error('Error recording business login:', loginError);
                 // Non-critical error, continue
@@ -260,6 +282,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setInitialized(true);
           } catch (error) {
             console.error('Auth initialization error:', error);
+            
+            // Try to use cached user data if available
+            const storedUserId = localStorage.getItem('authUserId');
+            const cachedUserData = localStorage.getItem('authUserData');
+            
+            if (storedUserId && cachedUserData) {
+              try {
+                console.log('Using cached user data due to error');
+                const userData = JSON.parse(cachedUserData);
+                setUser(userData);
+              } catch (e) {
+                console.error('Failed to parse cached user data:', e);
+              }
+            }
+            
             setIsLoading(false);
             setInitialized(true);
           }
@@ -330,13 +367,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Store user in state
         setUser(appUser);
         
-        // Store user ID in localStorage
+        // Store user ID and data in localStorage
         localStorage.setItem('authUserId', String(dbUser.id));
+        localStorage.setItem('authUserData', JSON.stringify(appUser));
         
         // Record business login if applicable
         if (dbUser.user_type === 'business' && dbUser.business_id) {
           try {
-            await recordBusinessLogin(dbUser.business_id);
+            await recordBusinessLogin(Number(dbUser.business_id));
           } catch (error) {
             console.error('Failed to record business login:', error);
             // Non-critical error, continue with login
@@ -441,7 +479,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Create initial QR code for customer
         if (data.userType === 'customer') {
           try {
-            await UserQrCodeService.createInitialQrCodeForCustomer(dbUser.id);
+            // Check if the service has the method before calling it
+            if (UserQrCodeService && typeof UserQrCodeService.createInitialQrCodeForCustomer === 'function') {
+              await UserQrCodeService.createInitialQrCodeForCustomer(dbUser.id);
+            } else {
+              console.warn('createInitialQrCodeForCustomer method not available');
+            }
           } catch (error) {
             console.error('Failed to create initial QR code:', error);
             // Non-critical error, continue with registration
@@ -451,9 +494,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Create default loyalty program for business
         if (data.userType === 'business') {
           try {
-            const programId = await LoyaltyProgramService.createDefaultProgram(dbUser.id);
-            if (programId) {
-              await LoyaltyCardService.createDefaultCardTemplate(dbUser.id, programId);
+            // Check if the service has the method before calling it
+            if (LoyaltyProgramService && typeof LoyaltyProgramService.createDefaultProgram === 'function') {
+              const programId = await LoyaltyProgramService.createDefaultProgram(dbUser.id);
+              if (programId && LoyaltyCardService && typeof LoyaltyCardService.createDefaultCardTemplate === 'function') {
+                await LoyaltyCardService.createDefaultCardTemplate(dbUser.id, programId);
+              }
+            } else {
+              console.warn('createDefaultProgram method not available');
             }
           } catch (error) {
             console.error('Failed to create default loyalty program:', error);
@@ -514,6 +562,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const logout = () => {
     localStorage.removeItem('authUserId');
+    localStorage.removeItem('authUserData');
     setUser(null);
     navigate('/login');
   };

@@ -380,9 +380,16 @@ const CustomerCards = () => {
           await syncEnrollments();
           
           // Refresh card data
+          await queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+          await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
+          await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
           await refetch();
         } else {
           addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
+          
+          // Refresh notifications to remove the declined one
+          await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
+          await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
         }
         
         // Close the modal
