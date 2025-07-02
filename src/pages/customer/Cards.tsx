@@ -78,6 +78,7 @@ const CustomerCards = () => {
   const [rotateCard, setRotateCard] = useState('');
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
+  const [isProcessingResponse, setIsProcessingResponse] = useState(false);
   const [hideEnrollmentInfo, setHideEnrollmentInfo] = useState<boolean>(
     localStorage.getItem('hideEnrollmentInfo') === 'true'
   );
@@ -97,6 +98,7 @@ const CustomerCards = () => {
     notificationId: null,
     approvalId: null
   });
+  const [isLoading, setIsLoading] = useState(false);
   
   // Function to add notification
   const addNotification = useCallback((type: 'success' | 'error' | 'info' | 'scan', message: string) => {
@@ -143,7 +145,7 @@ const CustomerCards = () => {
   }, [user?.id, addNotification, queryClientInstance]);
   
   // Fetch loyalty cards with sync
-  const { data: loyaltyCards = [], isLoading, error, refetch } = useQuery({
+  const { data: loyaltyCards = [], isLoading: loyaltyCardsLoading, error, refetch } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -358,7 +360,8 @@ const CustomerCards = () => {
     if (!enrollmentRequestState.approvalId) return;
     
     try {
-      // Show loading indicator (handled by isLoading state)
+      // Show loading state
+      setIsProcessingResponse(true);
       
       // Import the safer wrapper service
       const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
@@ -373,7 +376,7 @@ const CustomerCards = () => {
         if (approved) {
           addNotification('success', `You've joined ${enrollmentRequestState.programName}`);
           
-          // Sync enrollments to cards to ensure the new card appears in UI
+          // Explicitly sync enrollments to cards to ensure the new card appears
           await syncEnrollments();
           
           // Refresh card data
@@ -394,23 +397,24 @@ const CustomerCards = () => {
         });
       } else {
         addNotification('error', result.error || 'Failed to process your response');
+        
+        // Close the modal on error too
+        setEnrollmentRequestState(prev => ({
+          ...prev,
+          isOpen: false
+        }));
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);
       addNotification('error', 'An error occurred while processing your response');
-    } finally {
+      
       // Close the modal on error too
-      if (enrollmentRequestState.isOpen) {
-        setEnrollmentRequestState({
-          isOpen: false,
-          businessId: null,
-          businessName: null,
-          programId: null,
-          programName: null,
-          notificationId: null,
-          approvalId: null
-        });
-      }
+      setEnrollmentRequestState(prev => ({
+        ...prev,
+        isOpen: false
+      }));
+    } finally {
+      setIsProcessingResponse(false);
     }
   };
 
@@ -526,7 +530,16 @@ const CustomerCards = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-          <h3 className="text-xl font-semibold mb-2">Program Enrollment Request</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xl font-semibold">Program Enrollment Request</h3>
+            <button 
+              onClick={() => setEnrollmentRequestState(prev => ({ ...prev, isOpen: false }))}
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           <p className="mb-4">
             <span className="font-medium">{enrollmentRequestState.businessName}</span> invites you to join their 
             <span className="font-medium"> {enrollmentRequestState.programName}</span> loyalty program.
