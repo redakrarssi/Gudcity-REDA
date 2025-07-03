@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { QrCodeService } from '../../services/qrCodeService';
 import { NotificationService } from '../../services/notificationService';
 import { ScanResult, QrCodeType } from '../../types/qrCode';
+import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
 
 // Define business analytics data interface
 interface BusinessAnalyticsData {
@@ -568,6 +569,13 @@ const BusinessDashboard = () => {
               />
             </div>
           </div>
+        </div>
+      )}
+      
+      {/* Enrollment Notifications */}
+      {user?.id && (
+        <div className="space-y-6">
+          <BusinessEnrollmentNotifications businessId={String(user.id)} />
         </div>
       )}
     </BusinessLayout>

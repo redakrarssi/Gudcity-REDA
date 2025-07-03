@@ -678,6 +678,55 @@ export class CustomerNotificationService {
     }
   }
 
+  /**
+   * Get notifications for a business, including enrollment responses
+   * @param businessId The business ID
+   */
+  static async getBusinessNotifications(businessId: string): Promise<CustomerNotification[]> {
+    try {
+      // Check if the table exists first
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'customer_notifications'
+        );
+      `;
+      
+      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
+        console.warn('Table customer_notifications does not exist');
+        return [];
+      }
+      
+      // Get notifications where the business is the recipient
+      const results = await sql`
+        SELECT 
+          cn.*,
+          u.name as customer_name,
+          lp.name as program_name
+        FROM customer_notifications cn
+        LEFT JOIN users u ON cn.customer_id = u.id
+        LEFT JOIN loyalty_programs lp ON 
+          (cn.data->>'programId')::text = lp.id::text OR 
+          CASE WHEN cn.reference_id IS NOT NULL THEN cn.reference_id::text = lp.id::text ELSE FALSE END
+        WHERE cn.business_id = ${parseInt(businessId)}
+        AND (
+          cn.type = 'ENROLLMENT_ACCEPTED' OR
+          cn.type = 'ENROLLMENT_REJECTED' OR
+          cn.type = 'NEW_ENROLLMENT' OR
+          cn.type = 'ENROLLMENT_REQUEST'
+        )
+        ORDER BY cn.created_at DESC
+        LIMIT 50
+      `;
+
+      return results.map(row => this.mapNotification(row));
+    } catch (error) {
+      console.error('Error fetching business notifications:', error);
+      return [];
+    }
+  }
+
   // Helper methods to map database results to typed objects
   private static mapNotification(row: any): CustomerNotification {
     return {
