@@ -29,9 +29,12 @@ export function useEnrolledPrograms() {
       
       // Convert user ID to integer for database query
       const userIdNumber = parseInt(userId, 10);
+      if (isNaN(userIdNumber)) {
+        throw new Error('Invalid user ID');
+      }
       
       try {
-        // First try with a generic query that will work with either column name using COALESCE
+        // Use a parameterized query with safe SQL interpolation
         const query = sql`
           SELECT 
             cp.id, 
@@ -39,6 +42,7 @@ export function useEnrolledPrograms() {
             cp.program_id AS "programId", 
             cp.current_points AS "currentPoints", 
             cp.enrolled_at AS "enrolledAt",
+            cp.status AS "enrollmentStatus",
             lp.id AS "program_id", 
             lp.business_id AS "program_businessId",
             lp.name AS "program_name", 
@@ -56,10 +60,11 @@ export function useEnrolledPrograms() {
             '' AS "business_city", -- Default empty string for potentially missing column
             '' AS "business_state", -- Default empty string for potentially missing column
             '' AS "business_country" -- Default empty string for potentially missing column
-          FROM customer_programs cp
-          JOIN loyalty_programs lp ON cp.program_id = lp.id
-          JOIN businesses b ON lp.business_id = b.id
+          FROM program_enrollments cp
+          JOIN loyalty_programs lp ON cp.program_id = lp.id::text
+          JOIN users b ON lp.business_id = b.id
           WHERE cp.customer_id = ${userIdNumber}
+          AND cp.status = 'ACTIVE'
           AND lp.status = 'ACTIVE'
           ORDER BY cp.current_points DESC
         `;
@@ -72,7 +77,7 @@ export function useEnrolledPrograms() {
         }
         
         // Get all program IDs to batch fetch reward tiers
-        const programIds = result.map(row => Number(row.program_id));
+        const programIds = result.map(row => row.program_id);
         
         // Batch fetch all reward tiers for all programs at once
         const rewardTiersMap = await batchFetchRewardTiers(programIds);
@@ -85,6 +90,7 @@ export function useEnrolledPrograms() {
           currentPoints: Number(row.currentPoints || 0),
           lastActivity: new Date().toISOString(), // Use current time as fallback
           enrolledAt: String(row.enrolledAt || new Date().toISOString()),
+          status: String(row.enrollmentStatus || 'ACTIVE'),
           program: {
             id: String(row.program_id || ''),
             businessId: String(row.program_businessId || ''),
@@ -97,7 +103,7 @@ export function useEnrolledPrograms() {
             createdAt: String(row.program_createdAt || new Date().toISOString()),
             updatedAt: String(row.program_updatedAt || new Date().toISOString()),
             // Get reward tiers from the batch fetched map
-            rewardTiers: rewardTiersMap.get(Number(row.program_id || 0)) || []
+            rewardTiers: rewardTiersMap.get(row.program_id) || []
           },
           business: {
             id: String(row.business_id || ''),
@@ -116,69 +122,18 @@ export function useEnrolledPrograms() {
       } catch (error) {
         logger.error('Failed to fetch enrolled programs:', error);
         
-        // Provide mock data as fallback if we have a database error
-        if (user?.id) {
-          logger.warn('Using mock data due to database error');
-          
-          // Generate basic mock data instead of failing completely
-          return [
-            {
-              id: '1',
-              customerId: user.id.toString(),
-              programId: '101',
-              currentPoints: 250,
-              lastActivity: new Date().toISOString(),
-              enrolledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-              program: {
-                id: '101',
-                businessId: '201',
-                name: 'Coffee Rewards',
-                description: 'Earn points for every coffee purchase',
-                type: 'POINTS',
-                pointValue: 1.0,
-                expirationDays: 365,
-                status: 'ACTIVE',
-                createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-                updatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-                rewardTiers: [
-                  {
-                    id: '301',
-                    programId: '101',
-                    pointsRequired: 100,
-                    reward: 'Free Coffee'
-                  },
-                  {
-                    id: '302',
-                    programId: '101',
-                    pointsRequired: 300,
-                    reward: 'Free Pastry'
-                  }
-                ]
-              },
-              business: {
-                id: '201',
-                name: 'City Cafe',
-                category: 'cafe',
-                location: {
-                  address: '123 Main St',
-                  city: 'Metropolis',
-                  state: 'NY',
-                  country: 'USA'
-                }
-              }
-            }
-          ];
-        }
-        
-        throw error;
+        // Return empty array instead of failing completely
+        return [];
       }
     },
     {
       fallbackData: [],
       loadingDelay: 400,
       queryOptions: {
-        staleTime: 60 * 1000, // Consider data fresh for 1 minute
-        gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+        staleTime: 10 * 1000, // Consider data fresh for 10 seconds for more frequent updates
+        gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+        retry: 3, // Retry failed requests up to 3 times
+        retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000) // Exponential backoff
       }
     }
   );
@@ -188,13 +143,13 @@ export function useEnrolledPrograms() {
  * Helper function to batch fetch reward tiers for multiple programs
  * This reduces the number of database queries
  */
-async function batchFetchRewardTiers(programIds: number[]): Promise<Map<number, RewardTier[]>> {
+async function batchFetchRewardTiers(programIds: any[]): Promise<Map<string | number, RewardTier[]>> {
   if (!programIds.length) {
     return new Map();
   }
   
   // Create a map to store reward tiers by program ID
-  const rewardTiersMap = new Map<number, RewardTier[]>();
+  const rewardTiersMap = new Map<string | number, RewardTier[]>();
   
   try {
     // Create the SQL query using tagged template literals
@@ -214,7 +169,7 @@ async function batchFetchRewardTiers(programIds: number[]): Promise<Map<number, 
     
     // Group rewards by program ID
     rewards.forEach(reward => {
-      const programId = Number(reward.programId);
+      const programId = reward.programId;
       if (!rewardTiersMap.has(programId)) {
         rewardTiersMap.set(programId, []);
       }

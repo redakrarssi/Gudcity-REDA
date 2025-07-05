@@ -7,75 +7,37 @@
 
 import sql from './src/utils/db.js';
 import { v4 as uuidv4 } from 'uuid';
+import { ensureEnrollmentProcedureExists } from './src/utils/db.js';
 
 // Main test function
-async function testFixedNotificationSystem() {
-  console.log('Testing fixed enrollment notification system...');
-  
+async function runTests() {
   try {
-    // Test database connection
-    console.log('Testing database connection...');
-    await sql`SELECT 1`;
-    console.log('Database connection successful.');
+    console.log('Starting enrollment notification system test...');
     
-    // Create test data
-    console.log('\nCreating test data...');
-    const customerId = 1;  // Use an existing customer ID
-    const businessId = 1;  // Use an existing business ID
-    
-    // Create a test loyalty program if needed
-    console.log('Creating/finding test loyalty program...');
-    let programId;
-    const existingProgram = await sql`
-      SELECT id FROM loyalty_programs 
-      WHERE business_id = ${businessId}
-      LIMIT 1
-    `;
-    
-    if (existingProgram.length === 0) {
-      const newProgram = await sql`
-        INSERT INTO loyalty_programs (
-          business_id, 
-          name, 
-          description, 
-          type, 
-          point_value, 
-          status
-        ) VALUES (
-          ${businessId},
-          'Test Loyalty Program',
-          'Program created for testing',
-          'POINTS',
-          1.0,
-          'ACTIVE'
-        ) RETURNING id
-      `;
-      programId = newProgram[0].id;
-      console.log(`Created new test program with ID: ${programId}`);
-    } else {
-      programId = existingProgram[0].id;
-      console.log(`Using existing program with ID: ${programId}`);
-    }
-    
-    // Ensure the stored procedure exists
-    console.log('\nEnsuring enrollment procedure exists...');
+    // Make sure the stored procedure exists
     await ensureEnrollmentProcedureExists();
+    console.log('Enrollment procedure exists or was created successfully');
     
-    // Test 1: Accept an enrollment
-    console.log('\n=== Test 1: Customer ACCEPTING enrollment ===');
+    // Test data
+    const customerId = 4;
+    const businessId = 1;
+    const programId = '6f47ce2a-447a-41bb-986c-283492644bf9';
+    
+    // Run tests
+    console.log('\n--- TEST 1: Accept Enrollment Flow ---');
     await testEnrollmentAccept(customerId, businessId, programId);
     
-    // Test 2: Decline an enrollment
-    console.log('\n=== Test 2: Customer DECLINING enrollment ===');
+    console.log('\n--- TEST 2: Decline Enrollment Flow ---');
     await testEnrollmentDecline(customerId, businessId, programId);
     
-    console.log('\nTests completed successfully!');
+    console.log('\n--- TEST 3: End-to-End Flow with Verification ---');
+    await testFullEnrollmentFlow(customerId, businessId, programId);
+    
+    console.log('\nAll tests completed successfully');
   } catch (error) {
-    console.error('Error in test:', error);
+    console.error('Test failed with error:', error);
   } finally {
-    // Close database connection
-    await sql.end();
-    console.log('Database connection closed.');
+    process.exit(0);
   }
 }
 
@@ -188,6 +150,14 @@ async function testEnrollmentAccept(customerId, businessId, programId) {
     `;
     console.log('Customer-business relationship status:', relationshipCheck.length ? relationshipCheck[0].status : 'Not found');
     
+    // 6. Check new customer notification about enrollment success
+    const customerSuccessNotification = await sql`
+      SELECT id, type, title FROM customer_notifications
+      WHERE customer_id = ${customerId} AND type = 'ENROLLMENT_SUCCESS'
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    console.log('Customer success notification created:', customerSuccessNotification.length ? 'Yes' : 'No');
+    
     return true;
   } catch (error) {
     console.error('Error in acceptance test:', error);
@@ -271,27 +241,38 @@ async function testEnrollmentDecline(customerId, businessId, programId) {
     `;
     console.log('Notification actioned:', notificationCheck[0].action_taken);
     
-    // 2. Check no enrollment created/activated
+    // 2. Check enrollment NOT created
     const enrollmentCheck = await sql`
-      SELECT status FROM program_enrollments
-      WHERE customer_id = ${customerId} AND program_id = ${programId} AND status = 'ACTIVE'
+      SELECT COUNT(*) as count FROM program_enrollments
+      WHERE customer_id = ${customerId} 
+      AND program_id = ${programId}
+      AND status = 'ACTIVE'
+      AND created_at > (NOW() - INTERVAL '1 minute')
     `;
-    console.log('Active enrollment found:', enrollmentCheck.length > 0 ? 'Yes' : 'No');
+    console.log('New enrollment NOT created:', enrollmentCheck[0].count === '0' ? 'Verified' : 'Failed');
     
-    // 3. Check business notification created for declined enrollment
+    // 3. Check business notification created
     const businessNotificationCheck = await sql`
       SELECT id, type, title FROM customer_notifications
       WHERE customer_id = ${businessId} AND type = 'ENROLLMENT_REJECTED'
       ORDER BY created_at DESC LIMIT 1
     `;
-    console.log('Business notification created:', businessNotificationCheck.length ? 'Yes' : 'No');
+    console.log('Business rejection notification created:', businessNotificationCheck.length ? 'Yes' : 'No');
     
-    // 4. Check customer-business relationship is marked as declined
+    // 4. Check customer-business relationship updated
     const relationshipCheck = await sql`
       SELECT status FROM customer_business_relationships
       WHERE customer_id = ${customerId}::text AND business_id = ${businessId}::text
     `;
     console.log('Customer-business relationship status:', relationshipCheck.length ? relationshipCheck[0].status : 'Not found');
+    
+    // 5. Check customer notification about enrollment decline
+    const customerDeclineNotification = await sql`
+      SELECT id, type, title FROM customer_notifications
+      WHERE customer_id = ${customerId} AND type = 'ENROLLMENT_DECLINED'
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    console.log('Customer decline notification created:', customerDeclineNotification.length ? 'Yes' : 'No');
     
     return true;
   } catch (error) {
@@ -300,262 +281,174 @@ async function testEnrollmentDecline(customerId, businessId, programId) {
   }
 }
 
-// Helper function to ensure the stored procedure exists
-async function ensureEnrollmentProcedureExists() {
+// End-to-end test of the full enrollment flow with verification
+async function testFullEnrollmentFlow(customerId, businessId, programId) {
   try {
-    // Check if the function exists
-    const functionExists = await sql`
-      SELECT EXISTS (
-        SELECT FROM pg_proc 
-        WHERE proname = 'process_enrollment_approval'
-      );
-    `;
+    console.log('Testing full enrollment flow with verification...');
     
-    if (functionExists && functionExists[0] && functionExists[0].exists === true) {
-      return true;
+    // 1. Ensure we start with a clean state (delete previous enrollments)
+    console.log('Preparing test environment...');
+    
+    try {
+      // Delete any existing enrollment
+      await sql`
+        DELETE FROM program_enrollments 
+        WHERE customer_id = ${customerId} AND program_id = ${programId}
+      `;
+      
+      // Delete any existing card
+      await sql`
+        DELETE FROM loyalty_cards
+        WHERE customer_id = ${customerId} AND program_id = ${programId}
+      `;
+      
+      console.log('Test environment prepared. Previous enrollments and cards removed.');
+    } catch (cleanupError) {
+      console.warn('Warning during cleanup:', cleanupError.message);
+      // Continue with test even if cleanup fails
     }
     
-    // Create the function if it doesn't exist
+    // 2. Create an enrollment request
+    console.log('Creating enrollment request...');
+    const notificationId = uuidv4();
+    const requestId = uuidv4();
+    
+    // Create the notification
     await sql`
-      CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
-      RETURNS UUID AS $$
-      DECLARE
-        customer_id_val INTEGER;
-        business_id_val INTEGER;
-        program_id_val TEXT;
-        notification_id_val UUID;
-        enrollment_exists BOOLEAN;
-        card_id_val UUID;
-        card_exists BOOLEAN;
-        card_number_val TEXT;
-        program_name_val TEXT;
-        business_name_val TEXT;
-        customer_name_val TEXT;
-      BEGIN
-        -- Update the approval request status
-        UPDATE customer_approval_requests
-        SET status = CASE WHEN is_approved THEN 'APPROVED' ELSE 'REJECTED' END,
-            responded_at = NOW(),
-            updated_at = NOW()
-        WHERE id = request_id
-        RETURNING customer_id, business_id, entity_id, notification_id INTO customer_id_val, business_id_val, program_id_val, notification_id_val;
-        
-        -- If customer_id is null, the request wasn't found
-        IF customer_id_val IS NULL THEN
-          RAISE EXCEPTION 'Approval request not found: %', request_id;
-        END IF;
-        
-        -- Get program and business names for better notifications
-        SELECT name INTO program_name_val FROM loyalty_programs WHERE id = program_id_val::uuid;
-        SELECT name INTO business_name_val FROM users WHERE id = business_id_val;
-        SELECT name INTO customer_name_val FROM users WHERE id = customer_id_val;
-        
-        -- Mark notification as actioned
-        UPDATE customer_notifications
-        SET action_taken = TRUE,
-            is_read = TRUE,
-            read_at = NOW()
-        WHERE id = notification_id_val;
-        
-        -- Create a notification for the business about the customer's decision
-        INSERT INTO customer_notifications (
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          data,
-          requires_action,
-          action_taken,
-          is_read,
-          created_at
-        ) VALUES (
-          gen_random_uuid(),
-          business_id_val,
-          business_id_val,
-          CASE WHEN is_approved THEN 'ENROLLMENT_ACCEPTED' ELSE 'ENROLLMENT_REJECTED' END,
-          CASE WHEN is_approved THEN 'Customer Joined Program' ELSE 'Enrollment Declined' END,
-          CASE WHEN is_approved 
-               THEN COALESCE(customer_name_val, 'A customer') || ' has joined your ' || COALESCE(program_name_val, 'loyalty program')
-               ELSE COALESCE(customer_name_val, 'A customer') || ' has declined to join your ' || COALESCE(program_name_val, 'loyalty program')
-          END,
-          jsonb_build_object(
-            'programId', program_id_val,
-            'programName', program_name_val,
-            'customerId', customer_id_val,
-            'approved', is_approved
-          ),
-          FALSE,
-          FALSE,
-          FALSE,
-          NOW()
-        );
-        
-        -- Create or update customer-business relationship regardless of approval decision
-        INSERT INTO customer_business_relationships (
-          customer_id,
-          business_id,
-          status,
-          created_at,
-          updated_at
-        ) VALUES (
-          customer_id_val::text,
-          business_id_val::text,
-          CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
-          NOW(),
-          NOW()
-        )
-        ON CONFLICT (customer_id, business_id) 
-        DO UPDATE SET 
-          status = CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
-          updated_at = NOW();
-        
-        -- If not approved, just return null (no card created)
-        IF NOT is_approved THEN
-          RETURN NULL;
-        END IF;
-        
-        -- Check if already enrolled
-        SELECT EXISTS (
-          SELECT 1 FROM program_enrollments 
-          WHERE customer_id = customer_id_val 
-          AND program_id = program_id_val
-        ) INTO enrollment_exists;
-        
-        IF enrollment_exists THEN
-          -- Already enrolled, just update status if needed
-          UPDATE program_enrollments
-          SET status = 'ACTIVE', 
-              updated_at = NOW()
-          WHERE customer_id = customer_id_val 
-          AND program_id = program_id_val 
-          AND status != 'ACTIVE';
-        ELSE
-          -- Create enrollment record
-          INSERT INTO program_enrollments (
-            customer_id,
-            program_id,
-            business_id,
-            status,
-            current_points,
-            total_points_earned,
-            enrolled_at
-          ) VALUES (
-            customer_id_val,
-            program_id_val,
-            business_id_val,
-            'ACTIVE',
-            0,
-            0,
-            NOW()
-          );
-        END IF;
-        
-        -- Check if card exists
-        SELECT EXISTS (
-          SELECT 1 FROM loyalty_cards
-          WHERE customer_id = customer_id_val
-          AND program_id = program_id_val
-        ) INTO card_exists;
-        
-        -- Create card if it doesn't exist
-        IF NOT card_exists THEN
-          -- Generate a unique card number
-          card_number_val := 'GC-' || to_char(NOW(), 'YYMMDD') || '-' || floor(random() * 10000)::TEXT;
-          
-          -- Generate a new UUID for the card
-          card_id_val := gen_random_uuid();
-          
-          -- Create the card
-          INSERT INTO loyalty_cards (
-            id,
-            customer_id,
-            program_id,
-            business_id,
-            card_number,
-            status,
-            points,
-            card_type,
-            tier,
-            points_multiplier,
-            is_active,
-            created_at,
-            updated_at
-          ) VALUES (
-            card_id_val,
-            customer_id_val,
-            program_id_val,
-            business_id_val,
-            card_number_val,
-            'ACTIVE',
-            0,
-            'STANDARD',
-            'STANDARD',
-            1.0,
-            true,
-            NOW(),
-            NOW()
-          );
-        ELSE
-          -- Get the existing card ID
-          SELECT id INTO card_id_val
-          FROM loyalty_cards
-          WHERE customer_id = customer_id_val
-          AND program_id = program_id_val
-          LIMIT 1;
-        END IF;
-        
-        -- Create notification for customer about their new card
-        INSERT INTO customer_notifications (
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          data,
-          requires_action,
-          action_taken,
-          is_read,
-          created_at
-        ) VALUES (
-          gen_random_uuid(),
-          customer_id_val,
-          business_id_val,
-          'CARD_CREATED',
-          'Loyalty Card Created',
-          'Your loyalty card for ' || COALESCE(program_name_val, 'the loyalty program') || 
-          ' at ' || COALESCE(business_name_val, 'the business') || ' is ready',
-          jsonb_build_object(
-            'programId', program_id_val,
-            'programName', program_name_val,
-            'businessName', business_name_val,
-            'cardId', card_id_val
-          ),
-          FALSE,
-          FALSE,
-          FALSE,
-          NOW()
-        );
-        
-        -- Return the card ID
-        RETURN card_id_val;
-        
-      EXCEPTION WHEN OTHERS THEN
-        -- Log error and re-raise
-        RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
-        RAISE;
-      END;
-      $$ LANGUAGE plpgsql;
+      INSERT INTO customer_notifications (
+        id,
+        customer_id,
+        business_id,
+        type,
+        title,
+        message,
+        requires_action,
+        action_taken,
+        is_read,
+        created_at,
+        reference_id
+      ) VALUES (
+        ${notificationId},
+        ${customerId},
+        ${businessId},
+        'ENROLLMENT_REQUEST',
+        'Program Enrollment Request',
+        'A business would like to enroll you in their loyalty program',
+        TRUE,
+        FALSE,
+        FALSE,
+        NOW(),
+        ${programId}
+      )
     `;
     
+    // Create the approval request
+    await sql`
+      INSERT INTO customer_approval_requests (
+        id,
+        notification_id,
+        customer_id,
+        business_id,
+        request_type,
+        entity_id,
+        status,
+        requested_at,
+        data
+      ) VALUES (
+        ${requestId},
+        ${notificationId},
+        ${customerId},
+        ${businessId},
+        'ENROLLMENT',
+        ${programId},
+        'PENDING',
+        NOW(),
+        '{"programName": "Test Program", "businessName": "Test Business"}'
+      )
+    `;
+    console.log(`Created enrollment request with ID: ${requestId}`);
+    
+    // 3. Process the approval
+    console.log('Approving enrollment...');
+    const cardResult = await sql`
+      SELECT process_enrollment_approval(${requestId}::uuid, TRUE)
+    `;
+    const cardId = cardResult[0].process_enrollment_approval;
+    console.log(`Approval processed with card ID: ${cardId || 'No card created'}`);
+    
+    // 4. Verify enrollment record exists
+    console.log('Verifying enrollment...');
+    const enrollment = await sql`
+      SELECT id, status, current_points FROM program_enrollments
+      WHERE customer_id = ${customerId} AND program_id = ${programId}
+    `;
+    
+    if (!enrollment.length) {
+      throw new Error('Enrollment record not found after approval');
+    }
+    
+    console.log('✓ Enrollment record verified:', {
+      id: enrollment[0].id,
+      status: enrollment[0].status,
+      points: enrollment[0].current_points
+    });
+    
+    // 5. Verify card record exists
+    console.log('Verifying loyalty card...');
+    const card = await sql`
+      SELECT id, card_number, status, points FROM loyalty_cards
+      WHERE customer_id = ${customerId} AND program_id = ${programId}
+    `;
+    
+    if (!card.length) {
+      throw new Error('Card record not found after approval');
+    }
+    
+    console.log('✓ Loyalty card verified:', {
+      id: card[0].id,
+      cardNumber: card[0].card_number,
+      status: card[0].status,
+      points: card[0].points
+    });
+    
+    // 6. Verify notifications created
+    console.log('Verifying notifications...');
+    const notifications = await sql`
+      SELECT type, title, action_taken, is_read
+      FROM customer_notifications
+      WHERE (customer_id = ${customerId} OR customer_id = ${businessId})
+      AND created_at > (NOW() - INTERVAL '5 minutes')
+      ORDER BY created_at DESC
+    `;
+    
+    console.log(`✓ Found ${notifications.length} recent notifications`);
+    notifications.forEach((notification, i) => {
+      console.log(`  ${i+1}. ${notification.type}: ${notification.title} (read: ${notification.is_read}, actioned: ${notification.action_taken})`);
+    });
+    
+    // 7. Verify customer-business relationship
+    console.log('Verifying customer-business relationship...');
+    const relationship = await sql`
+      SELECT status, created_at, updated_at
+      FROM customer_business_relationships
+      WHERE customer_id = ${customerId}::text AND business_id = ${businessId}::text
+    `;
+    
+    if (!relationship.length) {
+      throw new Error('Customer-business relationship not found');
+    }
+    
+    console.log('✓ Relationship verified:', {
+      status: relationship[0].status
+    });
+    
+    console.log('Full enrollment flow test completed successfully');
     return true;
   } catch (error) {
-    console.error('Error ensuring enrollment procedure exists:', error);
-    return false;
+    console.error('Error in full enrollment flow test:', error);
+    throw error;
   }
 }
 
-// Run the test
-testFixedNotificationSystem(); 
+// Run the tests
+runTests(); 

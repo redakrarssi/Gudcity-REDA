@@ -26,6 +26,29 @@ import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { queryClient } from '../utils/queryClient';
 
 /**
+ * Maximum retry attempts for database operations
+ */
+const MAX_RETRIES = 3;
+
+/**
+ * Helper function to retry database operations with exponential backoff
+ */
+async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    
+    // Wait with exponential backoff
+    const delay = Math.min(1000 * (2 ** (MAX_RETRIES - retries)), 5000);
+    logger.warn(`Operation failed, retrying in ${delay}ms`, { retriesLeft: retries, error });
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return withRetry(operation, retries - 1);
+  }
+}
+
+/**
  * Safely respond to an approval request with proper error handling and transaction support
  * Uses a stored procedure for enrollment approvals to ensure atomicity
  */
@@ -78,19 +101,21 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     
     if (requestType === 'ENROLLMENT') {
       try {
-        // Use the stored procedure for enrollment approvals with timeout handling
-        const result = await Promise.race([
-          sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`,
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database operation timed out')), 15000)
-          )
-        ]) as any;
+        // Use withRetry for database operation with timeout handling
+        const result = await withRetry(async () => {
+          return await Promise.race([
+            sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Database operation timed out')), 15000)
+            )
+          ]) as any;
+        });
         
         if (result && result[0] && result[0].process_enrollment_approval) {
           cardId = result[0].process_enrollment_approval;
         }
         
-        // Ensure notification is marked as actioned regardless of DB procedure success
+        // Double check the notification is marked as actioned
         if (notificationId) {
           try {
             await sql`
@@ -101,6 +126,68 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
           } catch (notifError) {
             logger.warn('Failed to update notification status', { notificationId, error: notifError });
             // Non-critical error, continue execution
+          }
+        }
+        
+        // Verify enrollment record exists if approved
+        if (approved) {
+          const enrollmentCheck = await sql`
+            SELECT id FROM program_enrollments
+            WHERE customer_id = ${customerId}
+            AND program_id = ${entityId}
+          `;
+          
+          if (!enrollmentCheck || enrollmentCheck.length === 0) {
+            logger.warn('Enrollment record not found after approval', { customerId, programId: entityId });
+            
+            // Try to create enrollment if missing
+            try {
+              await sql`
+                INSERT INTO program_enrollments (
+                  customer_id,
+                  program_id,
+                  business_id,
+                  status,
+                  current_points,
+                  total_points_earned,
+                  enrolled_at
+                ) VALUES (
+                  ${customerId},
+                  ${entityId},
+                  ${businessId},
+                  'ACTIVE',
+                  0,
+                  0,
+                  NOW()
+                )
+                ON CONFLICT (customer_id, program_id) 
+                DO UPDATE SET status = 'ACTIVE', updated_at = NOW()
+              `;
+              
+              logger.info('Created missing enrollment record', { customerId, programId: entityId });
+            } catch (fixError) {
+              logger.error('Failed to create missing enrollment record', { error: fixError });
+            }
+          }
+          
+          // Verify card record exists if approved
+          if (cardId) {
+            const cardCheck = await sql`
+              SELECT id FROM loyalty_cards
+              WHERE id = ${cardId}
+            `;
+            
+            if (!cardCheck || cardCheck.length === 0) {
+              logger.warn('Card record not found after approval', { cardId, customerId, programId: entityId });
+              
+              // Try to create card via service
+              try {
+                await LoyaltyCardService.syncEnrollmentsToCards(customerId.toString());
+                logger.info('Forced card creation through service', { customerId, programId: entityId });
+              } catch (cardError) {
+                logger.error('Failed to create card through service', { error: cardError });
+              }
+            }
           }
         }
         
@@ -194,17 +281,45 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
               programName: programName || 'Loyalty Program'
             }
           );
+        }
+        
+        // Create notification sync event
+        createNotificationSyncEvent(
+          String(customerId),
+          String(businessId),
+          'INSERT',
+          {
+            type: approved ? 'ENROLLMENT_ACCEPTED' : 'ENROLLMENT_REJECTED',
+            programId: String(entityId),
+            programName: programName || 'Loyalty Program'
+          }
+        );
           
-          // Ensure the card is properly linked in the UI by invalidating caches
-          if (typeof queryClient !== 'undefined') {
-            try {
+        // Ensure the card is properly linked in the UI by invalidating caches
+        if (typeof queryClient !== 'undefined') {
+          try {
+            // Invalidate all relevant queries to force UI refresh
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards', String(customerId)] });
+            queryClient.invalidateQueries({ queryKey: ['customerNotifications'] });
+            queryClient.invalidateQueries({ queryKey: ['customerNotifications', String(customerId)] });
+            queryClient.invalidateQueries({ queryKey: ['customerApprovals'] });
+            queryClient.invalidateQueries({ queryKey: ['customerApprovals', String(customerId)] });
+            
+            // Invalidate enrolled programs queries
+            queryClient.invalidateQueries({ queryKey: ['customers', 'programs'] });
+            queryClient.invalidateQueries({ queryKey: ['customers', 'programs', String(customerId)] });
+            
+            // Schedule another refresh after a delay to ensure DB operations complete
+            setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['loyaltyCards', String(customerId)] });
-              queryClient.invalidateQueries({ queryKey: ['customerNotifications', String(customerId)] });
+              queryClient.invalidateQueries({ queryKey: ['customers', 'programs', String(customerId)] });
               queryClient.invalidateQueries({ queryKey: ['customerApprovals', String(customerId)] });
-            } catch (cacheError) {
-              logger.warn('Failed to invalidate cache', { error: cacheError });
-              // Non-critical error, continue execution
-            }
+              queryClient.invalidateQueries({ queryKey: ['customerNotifications', String(customerId)] });
+            }, 500);
+          } catch (cacheError) {
+            logger.warn('Failed to invalidate cache', { error: cacheError });
+            // Non-critical error, continue execution
           }
         }
       }
@@ -221,8 +336,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     return {
       success: true,
       message: approved 
-        ? 'Successfully enrolled in the program' 
-        : 'Successfully declined the program enrollment',
+        ? `Successfully enrolled in ${programName || 'the program'}` 
+        : `Successfully declined enrollment in ${programName || 'the program'}`,
       cardId: cardId ? String(cardId) : undefined
     };
   } catch (error: any) {
@@ -249,7 +364,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     return { 
       success: false, 
       error: formatEnrollmentErrorForUser(detailedError),
-      errorCode
+      errorCode,
+      errorLocation: 'safeRespondToApproval'
     };
   }
 } 

@@ -11,7 +11,9 @@ import {
   Tag,
   Loader,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
@@ -62,124 +64,109 @@ interface CustomerNotification {
 
 interface ApprovalRequest {
   id: string;
-  notificationId?: string;
   customerId: string;
   businessId: string;
-  requestType: ApprovalRequestType;
+  businessName: string;
   entityId: string;
+  requestType: ApprovalRequestType;
   status: string;
-  data?: Record<string, any>;
-  requestedAt: string;
-  responseAt?: string;
+  createdAt: string;
   expiresAt?: string;
-  businessName?: string;
+  data?: Record<string, any>;
 }
 
-interface NotificationListProps {
-  showApprovalRequests?: boolean;
-}
-
-// Enhanced response status interface with more detailed error information
 interface ResponseStatus {
   id: string;
-  status: 'success' | 'error' | 'warning';
+  status: 'success' | 'error';
   message: string;
+  details?: string;
   errorCode?: string;
   errorLocation?: string;
-  details?: string;
   showDetails?: boolean;
 }
 
-const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequests = true }) => {
+interface NotificationListProps {
+  maxHeight?: string;
+  showHeader?: boolean;
+  showApprovals?: boolean;
+  onNotificationClick?: (notification: CustomerNotification) => void;
+}
+
+const createErrorResponse = (
+  id: string, 
+  error: any, 
+  location: string
+): ResponseStatus => {
+  return {
+    id,
+    status: 'error',
+    message: error.message || 'An unexpected error occurred',
+    details: error.details || JSON.stringify(error),
+    errorCode: error.code || EnrollmentErrorCode.UNKNOWN_ERROR,
+    errorLocation: location,
+    showDetails: false
+  };
+};
+
+const NotificationList: React.FC<NotificationListProps> = ({
+  maxHeight = '400px',
+  showHeader = true,
+  showApprovals = true,
+  onNotificationClick
+}) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeNotification, setActiveNotification] = useState<string | null>(null);
+  
   const [processingApprovalId, setProcessingApprovalId] = useState<string | null>(null);
   const [responseStatus, setResponseStatus] = useState<ResponseStatus | null>(null);
-  
-  // Fetch real notifications from the service
-  const { data: notificationsData, isLoading: notificationsLoading, error: notificationsError } = useQuery({
+
+  // Fetch notifications
+  const notificationsQuery = useQuery({
     queryKey: ['customerNotifications', user?.id],
     queryFn: async () => {
       if (!user?.id) return { notifications: [] };
-      
-      try {
-        const notifications = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
-        return { notifications };
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
-        // Return empty array on error instead of failing
-        return { notifications: [] };
-      }
+      const notifications = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
+      return { notifications };
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
-    retry: 3,
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
+    staleTime: 60 * 1000, // 1 minute
   });
-  
-  // Fetch real approval requests from the service
-  const { data: approvalsData, isLoading: approvalsLoading, error: approvalsError } = useQuery({
+
+  // Fetch approval requests
+  const approvalsQuery = useQuery({
     queryKey: ['customerApprovals', user?.id],
     queryFn: async () => {
       if (!user?.id) return { approvals: [] };
-      
-      try {
-        const approvals = await CustomerNotificationService.getPendingApprovals(user.id.toString());
-        return { approvals };
-      } catch (error) {
-        console.error('Error fetching approvals:', error);
-        // Return empty array on error instead of failing
-        return { approvals: [] };
-      }
+      const approvals = await CustomerNotificationService.getCustomerApprovalRequests(user.id.toString());
+      return { approvals };
     },
-    enabled: !!user?.id && showApprovalRequests,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
-    retry: 3,
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
+    enabled: !!user?.id && showApprovals,
+    staleTime: 60 * 1000, // 1 minute
   });
   
-  // Clear response status after showing it briefly
-  useEffect(() => {
-    if (responseStatus) {
-      const timer = setTimeout(() => {
-        setResponseStatus(null);
-      }, 5000);
-      return () => clearTimeout(timer);
+  const isLoading = notificationsQuery.isLoading || approvalsQuery.isLoading;
+  const notificationsData = notificationsQuery.data || { notifications: [] };
+  const approvalsData = approvalsQuery.data || { approvals: [] };
+  
+  const unreadNotificationCount = notificationsData.notifications.filter(
+    (n: CustomerNotification) => !n.isRead
+  ).length;
+  
+  const pendingApprovalCount = approvalsData.approvals?.filter(
+    (a: ApprovalRequest) => a.status === 'PENDING'
+  ).length || 0;
+  
+  const notifications = notificationsData.notifications || [];
+  
+  // Function to handle marking notification as read
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await CustomerNotificationService.markAsRead(id);
+      queryClient.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
     }
-  }, [responseStatus]);
-
-  // Function to create detailed error response
-  const createErrorResponse = (
-    id: string, 
-    error: any, 
-    location: string, 
-    fallbackMessage: string = 'An error occurred'
-  ): ResponseStatus => {
-    // If it's an enrollment error from our reporter
-    if (error && error.code) {
-      return {
-        id,
-        status: 'error',
-        message: formatEnrollmentErrorForUser(error),
-        errorCode: error.code,
-        errorLocation: location,
-        details: JSON.stringify(error.details, null, 2),
-        showDetails: false
-      };
-    }
-    
-    // For other errors
-    const errorMessage = error?.message || fallbackMessage;
-    return {
-      id,
-      status: 'error',
-      message: errorMessage,
-      errorLocation: location,
-      details: error ? JSON.stringify(error, null, 2) : undefined,
-      showDetails: false
-    };
   };
   
   // Toggle error details visibility
@@ -238,13 +225,24 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
                 : `You declined to join ${approval.data?.programName || 'the program'}`)
             });
             
-            // Invalidate related queries to refresh the data
+            // Invalidate ALL related queries to ensure UI updates properly
             queryClient.invalidateQueries({ queryKey: ['customerApprovals', user.id] });
             queryClient.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
             
-            // If it was approved and we have a card ID, also invalidate the cards query
-            if (approved && result.cardId) {
+            // Always invalidate these queries when enrollment is approved
+            if (approved) {
+              // Invalidate enrolled programs query to refresh the programs list
+              queryClient.invalidateQueries({ queryKey: ['customers', 'programs', user.id.toString()] });
+              
+              // Invalidate loyalty cards query
               queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+              queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+              
+              // Force refresh after a short delay to ensure DB operations complete
+              setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['customers', 'programs', user.id.toString()] });
+                queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+              }, 500);
             }
           } else {
             // Handle error case
@@ -330,17 +328,12 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
           ));
         }
       } catch (error) {
-        console.error('Error in CustomerNotificationService.respondToApproval:', error);
-        
-        // Report service error with location
+        // Handle error from service
+        console.error('Error responding to approval:', error);
         const reportedError = reportEnrollmentError(
-          EnrollmentErrorCode.TRANSACTION_FAILED,
-          'Exception thrown by CustomerNotificationService.respondToApproval',
-          createDetailedError(
-            error, 
-            'CustomerNotificationService.respondToApproval - Exception',
-            { approvalId, approved }
-          ),
+          EnrollmentErrorCode.SERVICE_ERROR,
+          'Error calling CustomerNotificationService.respondToApproval',
+          error,
           approvalId,
           user.id.toString(),
           approval.entityId
@@ -349,285 +342,275 @@ const NotificationList: React.FC<NotificationListProps> = ({ showApprovalRequest
         setResponseStatus(createErrorResponse(
           approvalId,
           reportedError,
-          'Notification service exception'
+          'CustomerNotificationService.respondToApproval'
         ));
+      } finally {
+        setProcessingApprovalId(null);
       }
     } catch (error) {
-      console.error('Error handling approval response:', error);
-      
-      // Report unknown error with location
-      const reportedError = reportEnrollmentError(
-        EnrollmentErrorCode.UNKNOWN_ERROR,
-        'Unhandled error in handleApproval',
-        createDetailedError(
-          error, 
-          'NotificationList.handleApproval - Outer try/catch',
-          { 
-            approvalId, 
-            customerId: user?.id?.toString(),
-            entityId: approvalsData?.approvals?.find(a => a.id === approvalId)?.entityId
-          }
-        ),
-        approvalId,
-        user?.id?.toString(),
-        approvalsData?.approvals?.find(a => a.id === approvalId)?.entityId
-      );
-      
-      setResponseStatus(createErrorResponse(
-        approvalId,
-        reportedError,
-        'Approval handling process'
-      ));
-    } finally {
+      console.error('Error in approval handling:', error);
       setProcessingApprovalId(null);
     }
   };
-  
-  // Get icon for notification
-  const getNotificationIcon = (type: CustomerNotificationType | ApprovalRequestType | string) => {
-    switch (type) {
-      case CustomerNotificationType.POINTS_ADDED:
-        return <Gift className="h-5 w-5 text-green-500" />;
-      case CustomerNotificationType.POINTS_DEDUCTED:
-        return <Gift className="h-5 w-5 text-orange-500" />;
-      case CustomerNotificationType.ENROLLMENT:
-        return <Award className="h-5 w-5 text-blue-500" />;
-      case CustomerNotificationType.ENROLLMENT_REQUEST:
-        return <Award className="h-5 w-5 text-blue-700" />;
-      case CustomerNotificationType.PROMO_CODE:
-        return <Tag className="h-5 w-5 text-purple-500" />;
-      case CustomerNotificationType.QR_SCANNED:
-        return <Bell className="h-5 w-5 text-blue-600" />;
-      case ApprovalRequestType.POINTS_DEDUCTION:
-        return <Gift className="h-5 w-5 text-red-500" />;
-      default:
-        return <Bell className="h-5 w-5 text-gray-500" />;
-    }
-  };
-  
-  // Format relative time (e.g. "2 hours ago")
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
-    
-    if (diffSec < 60) {
-      return 'just now';
-    } else if (diffMin < 60) {
-      return `${diffMin} min ago`;
-    } else if (diffHour < 24) {
-      return `${diffHour}h ago`;
-    } else if (diffDay < 30) {
-      return `${diffDay}d ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
-  };
 
-  // If loading show a loading indicator
-  if (notificationsLoading && approvalsLoading) {
+  // Clear response status after delay
+  useEffect(() => {
+    if (responseStatus && responseStatus.status === 'success') {
+      const timer = setTimeout(() => {
+        setResponseStatus(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [responseStatus]);
+
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-4">
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-sm text-gray-600">Loading notifications...</span>
+      <div className="p-4 flex justify-center">
+        <Loader className="w-6 h-6 animate-spin text-blue-600" />
       </div>
     );
   }
-  
-  // If error show error message
-  if (notificationsError || approvalsError) {
-    return (
-      <div className="p-4 bg-red-50 text-red-700 rounded-md flex items-start">
-        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-        <span>Failed to load notifications. Please try again later.</span>
-      </div>
-    );
-  }
-  
-  // Get data from queries
-  const notifications = notificationsData?.notifications || [];
-  const approvals = approvalsData?.approvals || [];
-  
-  // If empty show a message
-  if (notifications.length === 0 && approvals.length === 0) {
-    return (
-      <div className="p-4 text-center text-gray-500 border border-gray-200 rounded-md bg-gray-50">
-        <Bell className="h-6 w-6 mx-auto mb-2 text-gray-400" />
-        <p>No notifications yet</p>
-      </div>
-    );
-  }
-  
+
+  // Render notifications
   return (
-    <div className="space-y-3 mt-4">
-      {/* Approvals Section */}
-      {showApprovalRequests && approvals.length > 0 && (
-        <div className="border border-blue-100 bg-blue-50 rounded-md overflow-hidden">
-          <div className="bg-blue-100 p-2 flex items-center">
-            <Info className="h-4 w-4 text-blue-700 mr-2" />
-            <span className="text-sm font-medium text-blue-800">Actions Required</span>
-          </div>
-          
-          <div className="divide-y divide-blue-100">
-            {approvals.map(approval => (
-              <div
-                key={approval.id}
-                className="p-3 hover:bg-blue-100/50 transition-colors"
-              >
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mt-1">
-                    {getNotificationIcon(approval.requestType)}
-                  </div>
-                  
-                  <div className="ml-3 flex-1">
-                    <p className="font-medium text-gray-900">
-                      {approval.requestType === ApprovalRequestType.ENROLLMENT
-                        ? `${approval.businessName} invites you to join ${approval.data?.programName || 'their program'}`
-                        : `${approval.businessName} requests to deduct points`}
-                    </p>
-                    
-                    <p className="text-sm text-gray-600 mt-1">
-                      {approval.requestType === ApprovalRequestType.ENROLLMENT
-                        ? `Join ${approval.businessName}'s loyalty program to earn rewards and benefits`
-                        : `${approval.businessName} wants to deduct ${approval.data?.points || ''} points from your account`}
-                    </p>
-                    
-                    <div className="flex items-center mt-2">
-                      <span className="text-xs text-gray-500 mr-2">
-                        {formatRelativeTime(approval.requestedAt)}
-                      </span>
-                      
-                      {/* Expires indication if it's going to expire soon */}
-                      {approval.expiresAt && new Date(approval.expiresAt).getTime() - Date.now() < 86400000 * 2 && (
-                        <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
-                          Expires soon
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Show response status message */}
-                    {responseStatus && responseStatus.id === approval.id && (
-                      <EnrollmentErrorDisplay
-                        id={responseStatus.id}
-                        status={responseStatus.status}
-                        message={responseStatus.message}
-                        errorCode={responseStatus.errorCode}
-                        errorLocation={responseStatus.errorLocation}
-                        details={responseStatus.details}
-                        onRetry={responseStatus.status === 'error' ? () => handleApproval(approval.id, true) : undefined}
-                        onDismiss={() => setResponseStatus(null)}
-                      />
-                    )}
-                    
-                    {/* Action buttons */}
-                    {!responseStatus || responseStatus.id !== approval.id ? (
-                      <div className="flex space-x-2 mt-3">
-                        {/* Decline button */}
-                        <button
-                          onClick={() => handleApproval(approval.id, false)}
-                          disabled={processingApprovalId === approval.id}
-                          className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 text-sm hover:bg-gray-100 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {processingApprovalId === approval.id ? (
-                            <>
-                              <Loader className="h-3 w-3 mr-1 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <X className="h-3 w-3 mr-1" />
-                              Decline
-                            </>
-                          )}
-                        </button>
-                        
-                        {/* Accept button */}
-                        <button
-                          onClick={() => handleApproval(approval.id, true)}
-                          disabled={processingApprovalId === approval.id}
-                          className="px-3 py-1 bg-blue-600 rounded-md text-white text-sm hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {processingApprovalId === approval.id ? (
-                            <>
-                              <Loader className="h-3 w-3 mr-1 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="h-3 w-3 mr-1" />
-                              Accept
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      {showHeader && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+            <Bell className="h-5 w-5 mr-2 text-blue-600" />
+            {t('notifications')}
+            {unreadNotificationCount > 0 && (
+              <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                {unreadNotificationCount} new
+              </span>
+            )}
+          </h3>
+          {pendingApprovalCount > 0 && showApprovals && (
+            <span className="text-sm text-blue-600">
+              {pendingApprovalCount} {t('pendingApprovals')}
+            </span>
+          )}
         </div>
       )}
       
-      {/* Regular Notifications */}
-      <div className="divide-y divide-gray-100">
-        {notifications.map(notification => (
-          <div
-            key={notification.id}
-            className={`p-3 hover:bg-gray-50 transition-colors rounded-md ${
-              notification.isRead ? 'opacity-80' : 'bg-gray-50 border-l-2 border-blue-500'
+      {/* Response status message */}
+      <AnimatePresence>
+        {responseStatus && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`p-4 border-b ${
+              responseStatus.status === 'success' 
+                ? 'bg-green-50 border-green-100 text-green-800' 
+                : 'bg-red-50 border-red-100 text-red-800'
             }`}
-            onClick={() => {
-              if (!notification.isRead) {
-                CustomerNotificationService.markAsRead(notification.id);
-                queryClient.invalidateQueries({ queryKey: ['customerNotifications'] });
-              }
-              setActiveNotification(activeNotification === notification.id ? null : notification.id);
-            }}
           >
-            <div className="flex">
-              <div className="flex-shrink-0 mt-1">
-                {getNotificationIcon(notification.type as CustomerNotificationType)}
-              </div>
-              
-              <div className="ml-3 flex-1">
-                <div className="flex justify-between items-start">
-                  <p className={`font-medium ${notification.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
-                    {notification.title}
-                  </p>
-                  
-                  <div className="flex items-center">
-                    <span className="text-xs text-gray-500">
-                      {formatRelativeTime(notification.createdAt)}
-                    </span>
+            <div className="flex items-start">
+              {responseStatus.status === 'success' ? (
+                <Check className="h-5 w-5 mr-2 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+              )}
+              <div className="flex-1">
+                <p className="font-medium">{responseStatus.message}</p>
+                
+                {responseStatus.status === 'error' && (
+                  <div className="mt-2">
+                    <button
+                      onClick={toggleErrorDetails}
+                      className="text-sm flex items-center text-red-700 hover:text-red-900"
+                    >
+                      <Info className="h-4 w-4 mr-1" />
+                      {responseStatus.showDetails ? 'Hide details' : 'Show details'}
+                    </button>
                     
-                    {!notification.isRead && (
-                      <span className="ml-2 h-2 w-2 rounded-full bg-blue-600"></span>
+                    {responseStatus.showDetails && (
+                      <div className="mt-2 p-3 bg-red-100 rounded text-xs font-mono overflow-auto max-h-40">
+                        <EnrollmentErrorDisplay
+                          error={{
+                            code: responseStatus.errorCode || EnrollmentErrorCode.UNKNOWN_ERROR,
+                            message: responseStatus.message,
+                            details: responseStatus.details || '',
+                            location: responseStatus.errorLocation || ''
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
-                </div>
-                
-                <p className={`text-sm mt-1 ${notification.isRead ? 'text-gray-500' : 'text-gray-600'}`}>
-                  {notification.message}
-                </p>
-                
-                {notification.businessName && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    From: {notification.businessName}
-                  </p>
                 )}
               </div>
+              <button 
+                onClick={() => setResponseStatus(null)}
+                className="ml-3 flex-shrink-0 text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Notification list */}
+      <div 
+        className="divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto"
+        style={{ maxHeight }}
+      >
+        {/* Show pending approvals first if available */}
+        {showApprovals && approvalsData.approvals && approvalsData.approvals.length > 0 && (
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/30">
+            <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
+              {t('pendingApprovals')}
+            </h4>
+            
+            <div className="space-y-3">
+              {approvalsData.approvals.map(approval => (
+                <div
+                  key={approval.id}
+                  className="p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      {approval.requestType === 'ENROLLMENT' ? (
+                        <Award className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-orange-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {approval.requestType === 'ENROLLMENT'
+                          ? 'Program Enrollment Request'
+                          : 'Points Deduction Request'}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        {approval.requestType === 'ENROLLMENT'
+                          ? `${approval.businessName} wants to enroll you in ${approval.data?.programName || 'a program'}.`
+                          : `${approval.businessName} wants to deduct ${approval.data?.points || ''} points.`}
+                      </p>
+                      
+                      {/* Display benefits if available */}
+                      {approval.data?.benefits && (
+                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                          <p className="font-medium">Benefits:</p>
+                          <ul className="list-disc list-inside pl-2 mt-1">
+                            {approval.data.benefits.map((benefit: string, i: number) => (
+                              <li key={i}>{benefit}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display reason if available */}
+                      {approval.data?.reason && (
+                        <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                          <span className="font-medium">Reason: </span>
+                          {approval.data.reason}
+                        </p>
+                      )}
+                      
+                      {/* Approval actions */}
+                      <div className="mt-3 flex space-x-2">
+                        {processingApprovalId === approval.id ? (
+                          <div className="p-2 flex items-center justify-center text-gray-500">
+                            <Loader className="h-5 w-5 animate-spin mr-2" />
+                            <span className="text-sm">Processing...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleApproval(approval.id, true)}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md flex items-center transition"
+                            >
+                              <ThumbsUp className="h-4 w-4 mr-1" />
+                              {t('approve')}
+                            </button>
+                            <button
+                              onClick={() => handleApproval(approval.id, false)}
+                              className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm rounded-md flex items-center transition"
+                            >
+                              <ThumbsDown className="h-4 w-4 mr-1" />
+                              {t('decline')}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
+        )}
+        
+        {/* Regular notifications */}
+        {notifications.length === 0 ? (
+          <div className="text-center p-6 text-gray-500 dark:text-gray-400">
+            <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>{t('noNotifications')}</p>
+          </div>
+        ) : (
+          notifications.map(notification => (
+            <div 
+              key={notification.id}
+              className={`p-4 ${!notification.isRead ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+              onClick={() => {
+                handleMarkAsRead(notification.id);
+                if (onNotificationClick) {
+                  onNotificationClick(notification);
+                }
+              }}
+            >
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  {getNotificationIcon(notification.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start">
+                    <p className={`text-sm font-medium ${!notification.isRead ? 'text-blue-900 dark:text-blue-300' : 'text-gray-900 dark:text-white'}`}>
+                      {notification.title}
+                    </p>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                      {new Date(notification.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                    {notification.message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 };
+
+// Helper function to get the appropriate icon for notification type
+function getNotificationIcon(type: string) {
+  switch (type) {
+    case 'ENROLLMENT':
+    case 'ENROLLMENT_REQUEST':
+    case 'ENROLLMENT_ACCEPTED':
+    case 'ENROLLMENT_REJECTED':
+      return <Award className="h-5 w-5 text-blue-600" />;
+    case 'POINTS_ADDED':
+      return <Check className="h-5 w-5 text-green-600" />;
+    case 'POINTS_DEDUCTED':
+      return <Tag className="h-5 w-5 text-orange-600" />;
+    case 'PROMO_CODE':
+      return <Gift className="h-5 w-5 text-purple-600" />;
+    case 'CARD_CREATED':
+      return <Gift className="h-5 w-5 text-green-600" />;
+    case 'QR_SCANNED':
+      return <Check className="h-5 w-5 text-green-600" />;
+    case 'SYSTEM_ALERT':
+      return <AlertTriangle className="h-5 w-5 text-amber-600" />;
+    default:
+      return <Bell className="h-5 w-5 text-gray-600" />;
+  }
+}
 
 export default NotificationList;
 
