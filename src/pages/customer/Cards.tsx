@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +12,7 @@ import { queryClient } from '../../utils/queryClient';
 import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
 import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
+import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -100,6 +101,9 @@ const CustomerCards = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   
+  // Use our new enrollment notifications hook
+  const { pendingEnrollments, hasUnhandledRequests } = useEnrollmentNotifications();
+
   // Function to add notification
   const addNotification = useCallback((type: 'success' | 'error' | 'info' | 'scan', message: string) => {
     const newNotification = {
@@ -183,6 +187,11 @@ const CustomerCards = () => {
 
   // Check for pending enrollment requests and show modal
   useEffect(() => {
+    // Disable automatic popup of enrollment requests
+    // Users will access enrollment requests through the notification system instead
+    
+    // Keep this commented code for reference
+    /*
     if (pendingApprovals.length > 0) {
       // Find the first enrollment request that hasn't been shown yet
       const enrollmentRequest = pendingApprovals.find(
@@ -202,6 +211,7 @@ const CustomerCards = () => {
         });
       }
     }
+    */
   }, [pendingApprovals, enrollmentRequestState.isOpen]);
 
   // Subscribe to real-time events and sync updates
@@ -661,7 +671,36 @@ const CustomerCards = () => {
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center mb-4">
             <CreditCard className="mr-3 text-indigo-500" />
             {t('cards.myCards')}
-            </h1>
+            
+            {/* Notification badge for pending enrollment requests */}
+            {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
+              <div className="ml-3 relative">
+                <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse-slow">
+                  <Bell className="w-3.5 h-3.5 mr-1" />
+                  {pendingEnrollments.length} {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                </div>
+              </div>
+            )}
+          </h1>
+          
+          {/* Enrollment requests notification */}
+          {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 p-1.5 bg-blue-100 rounded-full">
+                  <Bell className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    You have {pendingEnrollments.length} pending enrollment {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                  </h3>
+                  <p className="mt-1 text-sm text-blue-600">
+                    Check your notifications to join new loyalty programs and get rewards!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loyaltyCards.map(card => (

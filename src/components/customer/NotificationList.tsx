@@ -467,7 +467,11 @@ const NotificationList: React.FC<NotificationListProps> = ({
               {approvalsData.approvals.map(approval => (
                 <div
                   key={approval.id}
-                  className="p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm"
+                  className={`p-4 rounded-lg border shadow-sm ${
+                    approval.requestType === 'ENROLLMENT' 
+                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 border-blue-200 dark:border-blue-800 animate-pulse-slow'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                  }`}
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-0.5">
@@ -478,7 +482,11 @@ const NotificationList: React.FC<NotificationListProps> = ({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <p className={`text-sm font-medium ${
+                        approval.requestType === 'ENROLLMENT' 
+                          ? 'text-blue-900 dark:text-blue-300' 
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
                         {approval.requestType === 'ENROLLMENT'
                           ? 'Program Enrollment Request'
                           : 'Points Deduction Request'}
@@ -520,10 +528,14 @@ const NotificationList: React.FC<NotificationListProps> = ({
                           <>
                             <button
                               onClick={() => handleApproval(approval.id, true)}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md flex items-center transition"
+                              className={`px-3 py-1.5 text-sm rounded-md flex items-center transition ${
+                                approval.requestType === 'ENROLLMENT'
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                  : 'bg-green-600 hover:bg-green-700 text-white'
+                              }`}
                             >
                               <ThumbsUp className="h-4 w-4 mr-1" />
-                              {t('approve')}
+                              {approval.requestType === 'ENROLLMENT' ? t('join') : t('approve')}
                             </button>
                             <button
                               onClick={() => handleApproval(approval.id, false)}
