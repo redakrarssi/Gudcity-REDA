@@ -82,6 +82,15 @@ export interface CardActivity {
   businessName?: string;
 }
 
+// Define the CustomerInfo interface
+export interface CustomerInfo {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  createdAt: string;
+}
+
 /**
  * Service for managing loyalty cards and rewards
  */
@@ -1140,6 +1149,43 @@ export class LoyaltyCardService {
       return null;
     } catch (error) {
       console.error('Error getting customer ID by user ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get customer information by customer ID
+   */
+  static async getCustomerInfo(customerId: string): Promise<CustomerInfo | null> {
+    try {
+      if (!customerId) {
+        return null;
+      }
+
+      const result = await sql`
+        SELECT 
+          id, 
+          name, 
+          email, 
+          phone, 
+          created_at
+        FROM customers
+        WHERE id = ${customerId}
+      `;
+
+      if (!result.length) {
+        return null;
+      }
+
+      return {
+        id: result[0].id.toString(),
+        name: result[0].name || 'Customer',
+        email: result[0].email,
+        phone: result[0].phone,
+        createdAt: result[0].created_at
+      };
+    } catch (error) {
+      console.error('Error fetching customer info:', error);
       return null;
     }
   }

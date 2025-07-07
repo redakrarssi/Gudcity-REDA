@@ -29,6 +29,7 @@ import { RedemptionModal } from '../../components/business/RedemptionModal';
 import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollmentModal';
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
+import { PointsAwardingModal } from '../../components/business/PointsAwardingModal';
 import { isCameraSupported, isQrScanningSupported } from '../../utils/browserSupport';
 
 // Define the interface for the component's scan result handling
@@ -59,7 +60,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
+  const [showPointsAwardingModal, setShowPointsAwardingModal] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerQrCodeData | null>(null);
+  const [selectedQrCodeData, setSelectedQrCodeData] = useState<LoyaltyCardQrCodeData | CustomerQrCodeData | null>(null);
 
   // Check for HTTPS and browser support on mount
   useEffect(() => {
@@ -156,10 +159,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setTimeout(() => setShowConfetti(false), 3000);
     }
     
-    // If it's a customer scan, show the customer details modal
+    // Handle different QR code types
     if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
       setSelectedCustomerData(result.data);
-      setShowCustomerDetailsModal(true);
+      setSelectedQrCodeData(result.data);
+      setShowPointsAwardingModal(true);
+    } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
+      setSelectedQrCodeData(result.data);
+      setShowPointsAwardingModal(true);
     }
     
     // Call the onScan prop if provided
@@ -918,6 +925,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             customerId={String(selectedResult.data.customerId || '')}
             businessId={user?.id ? String(user.id) : ''}
             initialData={selectedCustomerData}
+          />
+
+          {/* Points Awarding Modal */}
+          <PointsAwardingModal
+            isOpen={showPointsAwardingModal}
+            onClose={() => setShowPointsAwardingModal(false)}
+            scanData={selectedQrCodeData}
+            businessId={user?.id || ''}
           />
         </>
       )}
