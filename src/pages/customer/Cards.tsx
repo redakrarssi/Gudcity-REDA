@@ -212,110 +212,27 @@ const CustomerCards = () => {
     };
   }, [user?.id, syncEnrollments, refetch]);
   
-  // Add a background refresh mechanism to ensure cards are displayed after enrollment
+  // Schedule regular refresh attempts to ensure cards are displayed
   useEffect(() => {
     if (!user?.id) return;
     
-    // Create a more reliable refresh strategy with backoff
-    const refreshIntervals = [2000, 5000, 10000, 15000]; // Refresh after 2s, 5s, 10s, and 15s
-    const timeouts: number[] = [];
-    
-    const performMultiRefresh = () => {
-      console.log('Initiating multi-phase refresh strategy for cards');
+    // Create a recurring check for any missing cards
+    const intervalId = setInterval(() => {
+      // Only run if we have enrollments but no cards
+      const shouldSync = loyaltyCards.length === 0 || hasUnhandledRequests;
       
-      // Schedule multiple refreshes with different delays
-      refreshIntervals.forEach((delay, index) => {
-        const timeout = window.setTimeout(async () => {
-          console.log(`Running scheduled refresh ${index + 1}/${refreshIntervals.length}`);
-          try {
-            // First try to sync enrollments to ensure cards are created
-            await syncEnrollments();
-            // Then refresh card data
-            await refetch();
-          } catch (error) {
-            console.error(`Error in scheduled refresh ${index + 1}:`, error);
+      if (shouldSync) {
+        console.log('Scheduled card sync check running');
+        syncEnrollments().then(() => {
+          if (loyaltyCards.length === 0) {
+            refetch();
           }
-        }, delay);
-        
-        timeouts.push(timeout);
-      });
-    };
-    
-    // Run initial refresh
-    performMultiRefresh();
-    
-    // Clean up timeouts on unmount
-    return () => {
-      timeouts.forEach(window.clearTimeout);
-    };
-  }, [user?.id, syncEnrollments, refetch]);
-
-  // Add visibility detection for auto-refresh when returning to page
-  useEffect(() => {
-    let lastVisibilityChange = Date.now();
-    
-    const handleVisibilityChange = async () => {
-      // Only run if enough time has passed since last check (prevent duplicates)
-      const now = Date.now();
-      if (now - lastVisibilityChange < 1000) return;
-      
-      lastVisibilityChange = now;
-      
-      // When page becomes visible again
-      if (document.visibilityState === 'visible' && user?.id) {
-        console.log('Page became visible, refreshing cards data');
-        setIsLoading(true);
-        
-        try {
-          // Force sync enrollments and card creation
-          await syncEnrollments();
-          // Then refresh the card data
-          await refetch();
-        } catch (error) {
-          console.error('Error refreshing on visibility change:', error);
-        } finally {
-          setIsLoading(false);
-        }
+        });
       }
-    };
+    }, 10000); // Check every 10 seconds
     
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [user?.id, syncEnrollments, refetch]);
-
-  // Add response to notifications related to enrollments
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    // Monitor for notifications that might indicate enrollments have changed
-    const unsubscribeNotificationSync = subscribeToSync('customer_notifications', async (event: SyncEvent) => {
-      if (event.customer_id === user.id.toString()) {
-        // If it's an enrollment-related notification
-        if (
-          event.data?.type === 'ENROLLMENT_REQUEST' ||
-          event.data?.type === 'ENROLLMENT_ACCEPTED' ||
-          event.data?.type === 'ENROLLMENT' ||
-          event.data?.type === 'ENROLLMENT_REJECTED'
-        ) {
-          console.log('Enrollment notification detected, refreshing cards');
-          
-          // Wait a short delay to ensure backend processes are complete
-          setTimeout(async () => {
-            // Force sync enrollments to create any new cards
-            await syncEnrollments();
-            // Then refresh all card data
-            await refetch();
-          }, 1000);
-        }
-      }
-    });
-    
-    return () => {
-      unsubscribeNotificationSync();
-    };
-  }, [user?.id, syncEnrollments, refetch]);
+    return () => clearInterval(intervalId);
+  }, [user?.id, syncEnrollments, refetch, loyaltyCards.length, hasUnhandledRequests]);
 
   // Monitor for sync events and recent approvals
   useEffect(() => {
