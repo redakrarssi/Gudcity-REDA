@@ -115,10 +115,10 @@ const CustomerCards = () => {
     
     setNotifications(prev => [...prev, newNotification]);
     
-    // Auto-remove notification after 5 seconds
+    // Auto-remove notification after 8 seconds (increased from 5 seconds)
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== newNotification.id));
-    }, 5000);
+    }, 8000);
   }, []);
 
   // Function to hide enrollment info
@@ -186,6 +186,53 @@ const CustomerCards = () => {
     enabled: !!user?.id,
     refetchInterval: 15000, // Check for new approvals every 15 seconds
   });
+
+  // Auto refresh trigger for when coming back to the page
+  useEffect(() => {
+    // Fetch data immediately when the component mounts
+    if (user?.id) {
+      // Force sync enrollments to cards
+      syncEnrollments().then(() => {
+        // Then refresh the cards data
+        refetch();
+      });
+    }
+
+    // Setup visibility change listener to refresh when returning to the page
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user?.id) {
+        console.log('Page became visible, refreshing cards');
+        syncEnrollments().then(() => refetch());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id, syncEnrollments, refetch]);
+  
+  // Schedule regular refresh attempts to ensure cards are displayed
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Create a recurring check for any missing cards
+    const intervalId = setInterval(() => {
+      // Only run if we have enrollments but no cards
+      const shouldSync = loyaltyCards.length === 0 || hasUnhandledRequests;
+      
+      if (shouldSync) {
+        console.log('Scheduled card sync check running');
+        syncEnrollments().then(() => {
+          if (loyaltyCards.length === 0) {
+            refetch();
+          }
+        });
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(intervalId);
+  }, [user?.id, syncEnrollments, refetch, loyaltyCards.length, hasUnhandledRequests]);
 
   // Monitor for sync events and recent approvals
   useEffect(() => {
@@ -468,6 +515,7 @@ const CustomerCards = () => {
       // Show loading state
       setIsProcessingResponse(true);
       setIsLoading(true);
+      addNotification('info', 'Processing enrollment request...');
       
       // Import the safer wrapper service
       const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
@@ -492,8 +540,17 @@ const CustomerCards = () => {
           await queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerBusinessRelationships', user?.id] });
           
-          // Force refetch
+          // Force refetch immediately
           await refetch();
+          
+          // Schedule additional fetches to ensure all data is updated
+          setTimeout(() => {
+            syncEnrollments().then(() => refetch());
+          }, 1000);
+          
+          setTimeout(() => {
+            syncEnrollments().then(() => refetch());
+          }, 3000);
         } else {
           addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
           
@@ -524,6 +581,11 @@ const CustomerCards = () => {
           ...prev,
           isOpen: false
         }));
+        
+        // After a delay, try to sync again in case the error was temporary
+        setTimeout(() => {
+          syncEnrollments().then(() => refetch());
+        }, 3000);
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);
@@ -534,6 +596,11 @@ const CustomerCards = () => {
         ...prev,
         isOpen: false
       }));
+      
+      // After a delay, try to sync again in case the error was temporary
+      setTimeout(() => {
+        syncEnrollments().then(() => refetch());
+      }, 3000);
     } finally {
       setIsProcessingResponse(false);
       setIsLoading(false);

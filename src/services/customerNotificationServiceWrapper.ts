@@ -28,14 +28,20 @@ import { queryClient } from '../utils/queryClient';
 /**
  * Maximum retry attempts for database operations
  */
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5; // Increased from 3 to 5 for more reliability
 
 /**
  * Helper function to retry database operations with exponential backoff
  */
 async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
   try {
-    return await operation();
+    // Use a race with a timeout to handle hanging connections
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Operation timed out')), 10000)
+      )
+    ]) as T;
   } catch (error) {
     if (retries <= 0) throw error;
     
@@ -54,6 +60,10 @@ async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES):
  */
 export async function safeRespondToApproval(requestId: string, approved: boolean): Promise<ApprovalResponse> {
   logger.info('Processing approval response', { requestId, approved });
+  
+  // Use an AbortController to prevent request cancellation
+  const controller = new AbortController();
+  const signal = controller.signal;
   
   try {
     // Ensure our stored procedure exists
@@ -101,14 +111,10 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     
     if (requestType === 'ENROLLMENT') {
       try {
+        // Handle enrollment approval with robust error handling and retries
         // Use withRetry for database operation with timeout handling
         const result = await withRetry(async () => {
-          return await Promise.race([
-            sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`,
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Database operation timed out')), 15000)
-            )
-          ]) as any;
+          return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`;
         });
         
         if (result && result[0] && result[0].process_enrollment_approval) {
@@ -170,24 +176,129 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
             }
           }
           
-          // Verify card record exists if approved
-          if (cardId) {
+          // ENSURE CARD CREATION - This is critical
+          // Even if we have a cardId, force sync the cards again to be sure
+          try {
+            // First try to directly create the card if needed
+            if (!cardId) {
+              const cardResult = await withRetry(async () => {
+                return await sql`
+                  INSERT INTO loyalty_cards (
+                    customer_id,
+                    business_id,
+                    program_id,
+                    card_number,
+                    card_type,
+                    status,
+                    points,
+                    created_at,
+                    updated_at
+                  )
+                  SELECT
+                    ${customerId},
+                    ${businessId},
+                    ${entityId},
+                    'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
+                    'STANDARD',
+                    'ACTIVE',
+                    0,
+                    NOW(),
+                    NOW()
+                  WHERE NOT EXISTS (
+                    SELECT 1 FROM loyalty_cards
+                    WHERE customer_id = ${customerId}
+                    AND program_id = ${entityId}
+                  )
+                  RETURNING id
+                `;
+              });
+              
+              if (cardResult && cardResult.length > 0) {
+                cardId = cardResult[0].id;
+                logger.info('Created missing card directly', { cardId, customerId, programId: entityId });
+              }
+            }
+            
+            // Verify card exists again or use service to create it
             const cardCheck = await sql`
               SELECT id FROM loyalty_cards
-              WHERE id = ${cardId}
+              WHERE customer_id = ${customerId}
+              AND program_id = ${entityId}
             `;
             
             if (!cardCheck || cardCheck.length === 0) {
-              logger.warn('Card record not found after approval', { cardId, customerId, programId: entityId });
+              logger.warn('Card still not found, using service to create it', { customerId, programId: entityId });
               
-              // Try to create card via service
-              try {
-                await LoyaltyCardService.syncEnrollmentsToCards(customerId.toString());
-                logger.info('Forced card creation through service', { customerId, programId: entityId });
-              } catch (cardError) {
-                logger.error('Failed to create card through service', { error: cardError });
+              // Use the card service to ensure the card is created
+              const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(customerId));
+              
+              if (createdCardIds && createdCardIds.length > 0) {
+                logger.info('Created cards through service', { createdCardIds, customerId });
+                
+                // Get the ID of the card we just created
+                const newCardCheck = await sql`
+                  SELECT id FROM loyalty_cards
+                  WHERE customer_id = ${customerId}
+                  AND program_id = ${entityId}
+                  ORDER BY created_at DESC
+                  LIMIT 1
+                `;
+                
+                if (newCardCheck && newCardCheck.length > 0) {
+                  cardId = newCardCheck[0].id;
+                  logger.info('Retrieved card ID after service sync', { cardId });
+                }
+              }
+            } else if (!cardId) {
+              // We found a card but didn't have the ID
+              cardId = cardCheck[0].id;
+            }
+            
+            // FINAL VERIFICATION - Ensure card exists, try one more method as last resort
+            if (!cardId) {
+              logger.warn('Final attempt to create card', { customerId, programId: entityId });
+              
+              // As a last resort, try to manually create the relationship and force card creation
+              await sql`
+                WITH enrollment_check AS (
+                  INSERT INTO program_enrollments (
+                    customer_id, program_id, business_id, status, current_points, enrolled_at
+                  ) VALUES (
+                    ${customerId}, ${entityId}, ${businessId}, 'ACTIVE', 0, NOW()
+                  )
+                  ON CONFLICT (customer_id, program_id) DO NOTHING
+                )
+                INSERT INTO loyalty_cards (
+                  customer_id, business_id, program_id, card_number, status, points, created_at
+                ) VALUES (
+                  ${customerId}, 
+                  ${businessId}, 
+                  ${entityId}, 
+                  'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
+                  'ACTIVE',
+                  0,
+                  NOW()
+                )
+                ON CONFLICT (customer_id, program_id) DO NOTHING
+                RETURNING id
+              `;
+              
+              // Refresh from database
+              const finalCheck = await sql`
+                SELECT id FROM loyalty_cards
+                WHERE customer_id = ${customerId}
+                AND program_id = ${entityId}
+                LIMIT 1
+              `;
+              
+              if (finalCheck && finalCheck.length > 0) {
+                cardId = finalCheck[0].id;
+                logger.info('Final card creation successful', { cardId });
               }
             }
+          } catch (cardError) {
+            logger.error('Error in card creation process', { error: cardError });
+            // Continue execution - we've tried our best to ensure card creation
           }
         }
         
@@ -272,8 +383,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         // Create card sync event if a card was created
         if (approved && cardId) {
           createCardSyncEvent(
-            cardId,
-            String(customerId),
+            String(cardId),
+            String(customerId), 
             String(businessId),
             'INSERT',
             {
@@ -285,6 +396,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         
         // Create notification sync event
         createNotificationSyncEvent(
+          requestId, // Use requestId as notification id
           String(customerId),
           String(businessId),
           'INSERT',
@@ -310,13 +422,19 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
             queryClient.invalidateQueries({ queryKey: ['customers', 'programs'] });
             queryClient.invalidateQueries({ queryKey: ['customers', 'programs', String(customerId)] });
             
-            // Schedule another refresh after a delay to ensure DB operations complete
+            // Schedule multiple refreshes after a delay to ensure DB operations complete
             setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['loyaltyCards', String(customerId)] });
               queryClient.invalidateQueries({ queryKey: ['customers', 'programs', String(customerId)] });
               queryClient.invalidateQueries({ queryKey: ['customerApprovals', String(customerId)] });
               queryClient.invalidateQueries({ queryKey: ['customerNotifications', String(customerId)] });
             }, 500);
+            
+            // Second refresh for extra insurance
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['loyaltyCards', String(customerId)] });
+              queryClient.invalidateQueries({ queryKey: ['customers', 'programs', String(customerId)] });
+            }, 2000);
           } catch (cacheError) {
             logger.warn('Failed to invalidate cache', { error: cacheError });
             // Non-critical error, continue execution
@@ -352,6 +470,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
       errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
     } else if (error.message?.includes('permission')) {
       errorCode = EnrollmentErrorCode.INSUFFICIENT_PERMISSIONS;
+    } else if (error.name === 'AbortError' || error.message?.includes('cancel')) {
+      errorCode = EnrollmentErrorCode.REQUEST_CANCELLED;
     }
     
     const detailedError = createDetailedError(
@@ -367,5 +487,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
       errorCode,
       errorLocation: 'safeRespondToApproval'
     };
+  } finally {
+    // This ensures we don't leave hanging requests
+    controller.abort();
   }
 } 

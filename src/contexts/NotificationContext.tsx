@@ -68,6 +68,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [latestNotification, setLatestNotification] = useState<CustomerNotification | null>(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   // Fetch initial notifications and approval requests
   useEffect(() => {
@@ -261,6 +262,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const respondToApproval = async (approvalId: string, approved: boolean): Promise<void> => {
+    // Prevent duplicate processing of the same request
+    if (processingRequestId === approvalId) {
+      console.log('Request already being processed:', approvalId);
+      return;
+    }
+    
+    // Mark this request as being processed
+    setProcessingRequestId(approvalId);
+    
+    // Reference to cleanup timeouts
+    const timeouts: number[] = [];
+    
     try {
       // Show loading state in UI
       const loadingNotificationId = `loading-${approvalId}`;
@@ -377,7 +390,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           queryClient.invalidateQueries({ queryKey: ['customerNotifications', user!.id.toString()] });
           
           // Short delay before removing the request to ensure sync between UI and backend
-          setTimeout(() => {
+          const timeout1 = window.setTimeout(() => {
             // Remove the approval request from the list after successful processing
             setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
             
@@ -386,6 +399,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
             queryClient.invalidateQueries({ queryKey: ['customerApprovals', user!.id.toString()] });
           }, 500);
+          timeouts.push(timeout1);
+          
+          // Schedule additional refreshes to ensure data is fully updated
+          const timeout2 = window.setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user!.id.toString()] });
+            queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
+          }, 2000);
+          timeouts.push(timeout2);
         } else if (approval?.requestType === 'POINTS_DEDUCTION') {
           // Invalidate loyalty cards to show updated points
           queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
@@ -421,6 +442,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Re-throw the error to be caught by the UI component
       throw error;
+    } finally {
+      // Reset processing flag
+      setProcessingRequestId(null);
+      
+      // Clear any pending timeouts to prevent memory leaks if component unmounts
+      timeouts.forEach(window.clearTimeout);
     }
   };
 

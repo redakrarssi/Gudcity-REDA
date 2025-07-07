@@ -291,7 +291,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                       // Close the notification center after a short delay to show feedback
                                       setTimeout(() => {
                                         toggleNotificationCenter();
-                                      }, 1500);
+                                      }, 5000);
                                     } catch (error: any) {
                                       console.error('Error approving request:', error);
                                       setErrorMessage(error?.message || 'The enrollment process was interrupted');
@@ -346,7 +346,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                       // Close the notification center after a short delay
                                       setTimeout(() => {
                                         toggleNotificationCenter();
-                                      }, 1500);
+                                      }, 5000);
                                     } catch (error: any) {
                                       console.error('Error declining request:', error);
                                       setErrorMessage(error?.message || 'The enrollment process was interrupted');
