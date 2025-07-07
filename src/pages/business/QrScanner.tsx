@@ -159,14 +159,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setTimeout(() => setShowConfetti(false), 3000);
     }
     
-    // Handle different QR code types
+    // Always show customer details first for customer QR codes
     if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
       setSelectedCustomerData(result.data);
       setSelectedQrCodeData(result.data);
-      setShowPointsAwardingModal(true);
+      setShowCustomerDetailsModal(true);
     } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
       setSelectedQrCodeData(result.data);
-      setShowPointsAwardingModal(true);
+      setShowCustomerDetailsModal(true);
     }
     
     // Call the onScan prop if provided
@@ -397,6 +397,97 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
           <Keyboard className="inline-block mr-2" size={16} />
           Switch to Manual Entry
         </button>
+      </div>
+    );
+  };
+
+  const renderScanResultActions = (result: UnifiedScanResult) => {
+    if (!result || !result.data) return null;
+    
+    return (
+      <div className="flex flex-col space-y-2">
+        {result.type === 'customer' && isCustomerQrCodeData(result.data) && (
+          <>
+            <button
+              onClick={() => {
+                setSelectedCustomerData(result.data as CustomerQrCodeData);
+                setShowCustomerDetailsModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <User className="w-5 h-5 mr-2" />
+              {t('Show Customer Details')}
+            </button>
+            
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as CustomerQrCodeData);
+                setShowPointsAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('Award Points')}
+            </button>
+            
+            <button
+              onClick={() => {
+                setSelectedCustomerData(result.data as CustomerQrCodeData);
+                setShowProgramModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-blue-400 text-white rounded-lg hover:bg-blue-500 transition-colors"
+            >
+              <Users className="w-5 h-5 mr-2" />
+              {t('Join Program')}
+            </button>
+            
+            <button
+              onClick={() => {
+                setSelectedCustomerData(result.data as CustomerQrCodeData);
+                setShowRewardModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+            >
+              <Trophy className="w-5 h-5 mr-2" />
+              {t('Give Reward')}
+            </button>
+          </>
+        )}
+        
+        {result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data) && (
+          <>
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as LoyaltyCardQrCodeData);
+                setShowPointsAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('Award Points')}
+            </button>
+            
+            <button
+              onClick={() => {
+                setShowRewardModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+            >
+              <Trophy className="w-5 h-5 mr-2" />
+              {t('Give Reward')}
+            </button>
+          </>
+        )}
+        
+        {result.type === 'promoCode' && isPromoCodeQrCodeData(result.data) && (
+          <button
+            onClick={() => setShowRedeemModal(true)}
+            className="flex items-center justify-center w-full py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          >
+            <Check className="w-5 h-5 mr-2" />
+            {t('Redeem Promo Code')}
+          </button>
+        )}
       </div>
     );
   };
@@ -735,47 +826,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                       {t('Actions')}:
                     </h3>
                     
-                    {selectedResult.type === 'customer' && (
-                      <div className="grid grid-cols-1 gap-2">
-                        <button 
-                          onClick={() => setShowCustomerDetailsModal(true)}
-                          className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                        >
-                          <User className="w-4 h-4 mr-2" />
-                          {t('Show Customer Details & Actions')}
-                        </button>
-                        <div className="grid grid-cols-2 gap-2 mt-1">
-                          <button 
-                            onClick={() => setShowProgramModal(true)}
-                            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                          >
-                            <Users className="w-4 h-4 mr-1" />
-                            {t('Join Program')}
-                          </button>
-                          <button 
-                            onClick={() => setShowRewardModal(true)}
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                          >
-                            <Award className="w-4 h-4 mr-1" />
-                            {t('Give Reward')}
-                          </button>
-                          <button
-                            onClick={() => setShowRedeemModal(true)}
-                            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all"
-                          >
-                            <KeyRound className="w-4 h-4 mr-1" />
-                            {t('Redeem Points')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedResult.type === 'promoCode' && (
-                      <button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white py-2.5 rounded-lg text-sm flex items-center justify-center shadow-sm hover:shadow-md transition-all">
-                        <Badge className="w-4 h-4 mr-2" />
-                        {t('Apply Promotion')}
-                      </button>
-                    )}
+                    {renderScanResultActions(selectedResult)}
                   </div>
                 </div>
               ) : (

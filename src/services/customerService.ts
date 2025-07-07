@@ -236,27 +236,129 @@ export class CustomerService {
     isEnrolled: boolean;
     programIds: string[];
     totalPoints: number;
+    customerName?: string;
+    businessName?: string;
+    programs?: { id: string, name: string, points: number }[];
   }> {
     try {
+      console.log(`Checking enrollment status for customer ${customerId} with business ${businessId}`);
+      
+      // First check for enrollments in loyalty programs
       const enrollments = await sql`
         SELECT 
           pe.program_id,
           pe.current_points,
-          lp.name as program_name
+          lp.name as program_name,
+          c.name as customer_name,
+          b.name as business_name
         FROM program_enrollments pe
         JOIN loyalty_programs lp ON pe.program_id = lp.id
+        JOIN users c ON pe.customer_id = c.id::text
+        JOIN users b ON lp.business_id = b.id::text
         WHERE pe.customer_id = ${customerId} 
           AND lp.business_id = ${businessId}
           AND pe.status = 'ACTIVE'
       `;
       
+      // If no enrollments found, also check the customer_business_relationships table
+      // as a fallback, which might indicate a relationship without specific program enrollment
+      let isEnrolled = enrollments.length > 0;
+      let customerName = enrollments.length > 0 ? enrollments[0].customer_name : undefined;
+      let businessName = enrollments.length > 0 ? enrollments[0].business_name : undefined;
+      
+      if (!isEnrolled) {
+        console.log(`No active program enrollments found, checking business relationships`);
+        
+        const relationships = await sql`
+          SELECT 
+            cbr.*,
+            c.name as customer_name,
+            b.name as business_name
+          FROM customer_business_relationships cbr
+          JOIN users c ON cbr.customer_id = c.id::text
+          JOIN users b ON cbr.business_id = b.id::text
+          WHERE cbr.customer_id = ${customerId}
+            AND cbr.business_id = ${businessId}
+            AND cbr.status = 'ACTIVE'
+        `;
+        
+        if (relationships.length > 0) {
+          console.log(`Found business relationship without program enrollment`);
+          isEnrolled = true;
+          customerName = relationships[0].customer_name;
+          businessName = relationships[0].business_name;
+        }
+      }
+
+      // If still no enrollment, check loyalty cards directly
+      // This is another fallback in case program enrollment records are missing
+      if (!isEnrolled) {
+        console.log(`No active business relationship found, checking loyalty cards`);
+        
+        const cards = await sql`
+          SELECT 
+            lc.*,
+            c.name as customer_name,
+            b.name as business_name,
+            lp.id as program_id,
+            lp.name as program_name
+          FROM loyalty_cards lc
+          JOIN users c ON lc.customer_id = c.id::text
+          JOIN users b ON lc.business_id = b.id::text
+          LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
+          WHERE lc.customer_id = ${customerId}
+            AND lc.business_id = ${businessId}
+            AND lc.is_active = true
+        `;
+        
+        if (cards.length > 0) {
+          console.log(`Found active loyalty cards without program enrollment`);
+          isEnrolled = true;
+          customerName = cards[0].customer_name;
+          businessName = cards[0].business_name;
+          
+          // Use these cards to determine programIds
+          const cardProgramIds = cards.map(card => card.program_id?.toString()).filter(Boolean);
+          if (cardProgramIds.length > 0) {
+            // If we found program IDs from cards, add them to enrollments
+            // This creates synthetic enrollments based on card data
+            for (const card of cards) {
+              if (card.program_id) {
+                enrollments.push({
+                  program_id: card.program_id,
+                  current_points: card.points || 0,
+                  program_name: card.program_name || 'Unknown Program'
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // If we found any form of enrollment, log it
+      if (isEnrolled) {
+        console.log(`Customer ${customerId} is enrolled with business ${businessId}`);
+      } else {
+        console.log(`Customer ${customerId} is NOT enrolled with business ${businessId}`);
+      }
+
+      // Process enrollments to get program IDs and points
       const programIds = enrollments.map(e => e.program_id.toString());
-      const totalPoints = enrollments.reduce((sum, e) => sum + (e.current_points || 0), 0);
+      const totalPoints = enrollments.reduce((sum, e) => sum + (parseFloat(e.current_points) || 0), 0);
+
+      const programs = enrollments.map(e => ({
+        id: e.program_id.toString(),
+        name: e.program_name || 'Unknown Program',
+        points: parseFloat(e.current_points) || 0
+      }));
       
       return {
-        isEnrolled: enrollments.length > 0,
+        isEnrolled,
         programIds,
-        totalPoints
+        totalPoints,
+        customerName,
+        businessName,
+        programs: programs.length > 0 ? programs : undefined
       };
     } catch (error) {
       console.error('Error getting customer enrollment status:', error);
