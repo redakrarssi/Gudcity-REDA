@@ -37,6 +37,20 @@ const GlobalNotificationCenter: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [successMessages, setSuccessMessages] = useState<Record<string, string>>({});
+  
+  // Filter out any approval requests that might have an actioned notification
+  const filteredApprovalRequests = approvalRequests.filter(approval => {
+    // Check if there's a notification with matching referenceId that's already actioned
+    const matchingNotification = notifications.find(
+      n => n.referenceId === approval.id && n.actionTaken === true
+    );
+    return !matchingNotification;
+  });
+  
+  // Also filter out any approval requests with status other than PENDING
+  const validApprovalRequests = filteredApprovalRequests.filter(
+    approval => approval.status === 'PENDING'
+  );
 
   // Format date to relative time (e.g. "2 hours ago")
   const formatRelativeTime = (dateString: string) => {
@@ -125,7 +139,7 @@ const GlobalNotificationCenter: React.FC = () => {
                       : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
                   }`}
                 >
-                  Approvals ({approvalRequests.length})
+                  Approvals ({validApprovalRequests.length})
                 </button>
               </div>
               
@@ -149,8 +163,10 @@ const GlobalNotificationCenter: React.FC = () => {
                                 : 'border-blue-200 dark:border-blue-700'
                             }`}
                           >
+                            {/* Notification content remains unchanged */}
                             <div className="flex justify-between">
                               <div className="flex items-start">
+                                {/* Icon sections remain unchanged */}
                                 <div className="mr-3 mt-1">
                                   {notification.type === 'ERROR' && (
                                     <div className="bg-red-100 dark:bg-red-900 p-1 rounded-full">
@@ -211,14 +227,14 @@ const GlobalNotificationCenter: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {approvalRequests.length === 0 ? (
+                    {validApprovalRequests.length === 0 ? (
                       <div className="text-center p-6 text-gray-500 dark:text-gray-400">
                         <ThumbsUp className="mx-auto mb-3 w-12 h-12 opacity-30" />
                         <p>No pending approvals</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {approvalRequests.map(approval => (
+                        {validApprovalRequests.map(approval => (
                           <div 
                             key={approval.id}
                             className={`p-4 rounded-lg shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 ${
@@ -288,10 +304,11 @@ const GlobalNotificationCenter: React.FC = () => {
                                         [approval.id]: `Successfully enrolled in ${approval.data?.programName || 'the program'}` 
                                       }));
                                       
-                                      // Close the notification center after a short delay to show feedback
+                                      // Close the notification center after a slightly longer delay (8 seconds)
+                                      // to give user more time to see the success message
                                       setTimeout(() => {
                                         toggleNotificationCenter();
-                                      }, 5000);
+                                      }, 8000);
                                     } catch (error: any) {
                                       console.error('Error approving request:', error);
                                       setErrorMessage(error?.message || 'The enrollment process was interrupted');
@@ -343,10 +360,10 @@ const GlobalNotificationCenter: React.FC = () => {
                                         [approval.id]: `Declined enrollment in ${approval.data?.programName || 'the program'}` 
                                       }));
                                       
-                                      // Close the notification center after a short delay
+                                      // Close the notification center after a slightly longer delay (8 seconds)
                                       setTimeout(() => {
                                         toggleNotificationCenter();
-                                      }, 5000);
+                                      }, 8000);
                                     } catch (error: any) {
                                       console.error('Error declining request:', error);
                                       setErrorMessage(error?.message || 'The enrollment process was interrupted');

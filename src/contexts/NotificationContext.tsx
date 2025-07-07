@@ -9,6 +9,7 @@ import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { deleteCustomerNotification } from '../services/customerNotificationDelete';
 import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
+import { cleanupStaleApprovalRequests } from '../services/safeRespondToApproval';
 
 interface CustomerNotification {
   id: string;
@@ -69,6 +70,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [latestNotification, setLatestNotification] = useState<CustomerNotification | null>(null);
   const [showPopup, setShowPopup] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [cleanupPerformed, setCleanupPerformed] = useState(false);
+
+  // Clean up stale approval requests on component mount
+  useEffect(() => {
+    if (!user?.id || cleanupPerformed) return;
+    
+    const runCleanup = async () => {
+      try {
+        // Clean up any stale approval requests
+        const cleanedCount = await cleanupStaleApprovalRequests(user.id.toString());
+        if (cleanedCount > 0) {
+          console.log(`Cleaned up ${cleanedCount} stale approval requests`);
+          // Refresh our data
+          const notificationsData = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
+          const approvalsData = await CustomerNotificationService.getPendingApprovals(user.id.toString());
+          
+          setNotifications(notificationsData);
+          setApprovalRequests(approvalsData);
+          
+          const unreadCount = notificationsData.filter(n => !n.isRead).length;
+          setUnreadCount(unreadCount);
+        }
+        setCleanupPerformed(true);
+      } catch (error) {
+        console.error('Error cleaning up stale approval requests:', error);
+      }
+    };
+    
+    runCleanup();
+  }, [user?.id, cleanupPerformed]);
 
   // Fetch initial notifications and approval requests
   useEffect(() => {
