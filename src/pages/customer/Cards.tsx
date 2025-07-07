@@ -129,7 +129,7 @@ const CustomerCards = () => {
 
   // Function to sync enrollments to cards
   const syncEnrollments = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) return [];
     
     try {
       console.log('Syncing enrollments to cards for customer:', user.id);
@@ -139,14 +139,16 @@ const CustomerCards = () => {
         console.log(`Created ${createdCardIds.length} new cards from enrollments`);
         addNotification('success', `${createdCardIds.length} new loyalty card(s) created from your program enrollments`);
         
-        // Refresh card data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        // Return created card IDs for further processing
+        return createdCardIds;
       }
+      return [];
     } catch (error) {
       console.error('Error syncing enrollments to cards:', error);
       addNotification('error', 'Failed to sync enrollments to cards');
+      return [];
     }
-  }, [user?.id, addNotification, queryClientInstance]);
+  }, [user?.id, addNotification]);
   
   // Fetch loyalty cards with sync
   const { data: loyaltyCards = [], isLoading: loyaltyCardsLoading, error, refetch } = useQuery({
@@ -184,6 +186,100 @@ const CustomerCards = () => {
     enabled: !!user?.id,
     refetchInterval: 15000, // Check for new approvals every 15 seconds
   });
+
+  // Monitor for sync events and recent approvals
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Set up a sync listener for loyalty card changes
+    const unsubscribeCardSync = subscribeToSync('loyalty_cards', (event: SyncEvent) => {
+      // Check if this is a card that belongs to this user
+      if (event.customer_id === user.id.toString()) {
+        console.log('Received card sync event:', event);
+        
+        // Refetch cards on INSERT or UPDATE events
+        if (event.operation === 'INSERT' || event.operation === 'UPDATE') {
+          queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+          
+          // If this is a new card, show notification
+          if (event.operation === 'INSERT') {
+            const businessName = event.data?.businessName || 'Business';
+            const programName = event.data?.programName || 'Program';
+            
+            addNotification(
+              'success', 
+              `New card created for ${programName} from ${businessName}`
+            );
+          }
+        }
+      }
+    });
+    
+    // Set up a sync listener for enrollment changes
+    const unsubscribeEnrollmentSync = subscribeToSync('program_enrollments', (event: SyncEvent) => {
+      // Check if this is an enrollment that belongs to this user
+      if (event.customer_id === user.id.toString()) {
+        console.log('Received enrollment sync event:', event);
+        
+        // Refetch all related data
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+        queryClientInstance.invalidateQueries({ queryKey: ['customers', user.id.toString(), 'programs'] });
+        
+        // Force sync enrollments to cards on INSERT events
+        if (event.operation === 'INSERT') {
+          // Delay slightly to ensure backend processes have completed
+          setTimeout(() => {
+            syncEnrollments().then(() => {
+              // Then force a full refetch of cards to show new ones
+              refetch();
+            });
+          }, 500);
+        }
+      }
+    });
+    
+    return () => {
+      unsubscribeCardSync();
+      unsubscribeEnrollmentSync();
+    };
+  }, [user?.id, addNotification, queryClientInstance, syncEnrollments, refetch]);
+
+  // Handle pending approvals becoming active in the system
+  useEffect(() => {
+    // Track approval IDs that have been processed
+    const processedApprovalIds = new Set<string>();
+    
+    // Check for recently completed approvals
+    const checkForCompletedEnrollments = async () => {
+      if (!user?.id) return;
+      
+      // Get current pending approvals
+      const currentPendingIds = new Set(pendingApprovals.map(a => a.id));
+      
+      // Look for approvals that are no longer pending (were processed)
+      const recentlyProcessed = Array.from(processedApprovalIds).filter(id => !currentPendingIds.has(id));
+      
+      if (recentlyProcessed.length > 0) {
+        console.log('Detected recently processed enrollments:', recentlyProcessed);
+        
+        // Force sync to ensure we get newly created cards
+        await syncEnrollments();
+        
+        // Refetch cards to show new ones
+        await refetch();
+        
+        // Clear processed IDs that we've now handled
+        recentlyProcessed.forEach(id => processedApprovalIds.delete(id));
+      }
+      
+      // Update our tracking of current pending IDs
+      pendingApprovals.forEach(a => processedApprovalIds.add(a.id));
+    };
+    
+    checkForCompletedEnrollments();
+    
+    // Rerun this effect whenever pendingApprovals changes
+  }, [pendingApprovals, user?.id, syncEnrollments, refetch]);
 
   // Check for pending enrollment requests and show modal
   useEffect(() => {
@@ -346,7 +442,6 @@ const CustomerCards = () => {
     };
   }, [user?.id, addNotification, queryClientInstance, syncEnrollments]);
 
-  // Handle manual refresh
   const handleRefresh = useCallback(() => {
     if (!user?.id) return;
     
@@ -975,5 +1070,4 @@ const CustomerCards = () => {
   );
 };
 
-// Export the safe wrapper instead of the component directly
 export default CustomerCardsSafeWrapper; 

@@ -280,9 +280,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         ...prev
       ]);
 
-      // Update local state first for a snappy UI response
+      // Find the approval request for program info before updating state
+      const approvalRequest = approvalRequests.find(a => a.id === approvalId);
+      const programName = approvalRequest?.data?.programName || 'the program';
+
+      // Update local state first for a snappy UI response but DON'T remove the request yet
+      // Instead, just update its status to prevent duplicate processing
       setApprovalRequests(prev => 
-        prev.map(a => a.id === approvalId ? { ...a, status: approved ? 'APPROVED' : 'REJECTED' } : a)
+        prev.map(a => a.id === approvalId ? { ...a, status: approved ? 'PROCESSING' : 'PROCESSING' } : a)
       );
       
       // Mark any related notifications as actioned
@@ -338,25 +343,53 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       
       if (success) {
+        // Add a success notification
+        const successNotificationId = `success-${approvalId}-${Date.now()}`;
+        setNotifications(prev => [
+          {
+            id: successNotificationId,
+            customerId: user?.id?.toString() || '',
+            businessId: '',
+            type: 'SUCCESS',
+            title: approved ? 'Enrollment Successful' : 'Enrollment Declined',
+            message: approved ? 
+              `You have been successfully enrolled in ${programName}. Your card is being prepared.` :
+              `You have declined enrollment in ${programName}.`,
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev
+        ]);
+        setUnreadCount(prev => prev + 1);
+
         // If successful, invalidate relevant queries to refresh the UI
         const approval = approvalRequests.find(a => a.id === approvalId);
         
         if (approval?.requestType === 'ENROLLMENT') {
-          // Invalidate programs list to show the new enrollment
-          queryClient.invalidateQueries({ 
-            queryKey: ['customers', user!.id.toString(), 'programs'] 
-          });
-          queryClient.invalidateQueries({ 
-            queryKey: ['customers', user!.id.toString(), 'cards']
-          });
+          // Invalidate all relevant queries to show updated data
+          queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'programs'] });
+          queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
+          queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+          queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user!.id.toString()] });
+          queryClient.invalidateQueries({ queryKey: ['customerApprovals', user!.id.toString()] });
+          queryClient.invalidateQueries({ queryKey: ['customerNotifications', user!.id.toString()] });
           
-          // Remove the approval request from the list after successful processing
-          setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
+          // Short delay before removing the request to ensure sync between UI and backend
+          setTimeout(() => {
+            // Remove the approval request from the list after successful processing
+            setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
+            
+            // Additional invalidation after a delay to ensure data is updated
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user!.id.toString()] });
+            queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
+            queryClient.invalidateQueries({ queryKey: ['customerApprovals', user!.id.toString()] });
+          }, 500);
         } else if (approval?.requestType === 'POINTS_DEDUCTION') {
           // Invalidate loyalty cards to show updated points
-          queryClient.invalidateQueries({
-            queryKey: ['customers', user!.id.toString(), 'cards']
-          });
+          queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
+          queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user!.id.toString()] });
           
           // Remove the approval request from the list after successful processing
           setApprovalRequests(prev => prev.filter(a => a.id !== approvalId));
