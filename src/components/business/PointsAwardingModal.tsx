@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, X, Star, AlertCircle, Check, RefreshCw, Bug } from 'lucide-react';
+import { Award, X, Star, AlertCircle, Check, RefreshCw, Bug, Info, ArrowRight, Database } from 'lucide-react';
 import { LoyaltyCardQrCodeData, CustomerQrCodeData, QrCodeData } from '../../types/qrCode';
 import { LoyaltyProgram } from '../../types/loyalty';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
@@ -12,6 +12,7 @@ import { queryClient } from '../../utils/queryClient';
 import sql from '../../utils/db';
 import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
+import { logger } from '../../utils/logger';
 
 interface PointsAwardingModalProps {
   isOpen: boolean;
@@ -41,6 +42,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   const [hasRetried, setHasRetried] = useState<boolean>(false);
   const [isCreatingEnrollment, setIsCreatingEnrollment] = useState<boolean>(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const MAX_RETRIES = 3;
 
   // Reset states when modal opens
@@ -54,6 +57,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       setPointsToAward(10);
       setProcessingStatus('');
       setIsCreatingEnrollment(false);
+      setDiagnosticInfo(null);
+      setShowDiagnostics(false);
     }
   }, [isOpen]);
 
@@ -139,26 +144,36 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     setDetailedError(null);
     setSuccess(null);
     setProcessingStatus('Starting point award process...');
+    setDiagnosticInfo(null);
     
     try {
-      console.log('Starting point award process', {
+      const diagnostics: any = {
         scanType: scanData.type,
         customerId,
         businessId,
         programId: selectedProgramId,
-        points: pointsToAward
-      });
+        points: pointsToAward,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('Starting point award process', diagnostics);
       
       let result = false;
       
       // STEP 1: Check if loyalty card exists for this program
       setProcessingStatus('Checking for existing loyalty card...');
       let card = await getLoyaltyCardWithRetry(customerId, businessId, selectedProgramId);
+      diagnostics.cardFound = !!card;
+      if (card) {
+        diagnostics.cardId = card.id;
+        diagnostics.currentPoints = card.points;
+      }
       
       // STEP 2: If no card exists, check if customer is enrolled in program
       if (!card) {
         setProcessingStatus('No card found, checking enrollment status...');
         const enrollmentStatus = await getEnrollmentStatusWithRetry(customerId, businessId, selectedProgramId);
+        diagnostics.enrollmentStatus = enrollmentStatus;
         
         // STEP 3: If not enrolled, create enrollment and card
         if (!enrollmentStatus.isEnrolled) {
@@ -168,6 +183,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           try {
             // Create direct enrollment and card
             card = await createEnrollmentAndCardWithRetry(customerId, businessId, selectedProgramId);
+            diagnostics.enrollmentCreated = !!card;
+            if (card) diagnostics.createdCardId = card.id;
             
             if (!card) {
               throw new Error('Failed to create card for customer');
@@ -176,7 +193,9 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
             setProcessingStatus('Enrollment and card created successfully!');
           } catch (enrollError) {
             console.error('Failed to create enrollment:', enrollError);
-            setDetailedError(`Failed to create enrollment: ${enrollError instanceof Error ? enrollError.message : 'Unknown error'}`);
+            const errorMsg = enrollError instanceof Error ? enrollError.message : 'Unknown error';
+            setDetailedError(`Failed to create enrollment: ${errorMsg}`);
+            diagnostics.enrollmentError = errorMsg;
             throw new Error('Failed to create enrollment for customer');
           } finally {
             setIsCreatingEnrollment(false);
@@ -185,8 +204,10 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           // STEP 4: If enrolled but no card, create card
           setProcessingStatus('Customer enrolled but no card found, creating card...');
           card = await createCardForEnrolledCustomer(customerId, businessId, selectedProgramId);
+          diagnostics.cardCreatedForEnrolled = !!card;
           
           if (!card) {
+            diagnostics.finalError = 'Failed to create card for enrolled customer';
             throw new Error('Failed to create card for enrolled customer');
           }
         }
@@ -195,6 +216,17 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       // STEP 5: Award points to the card
       if (card) {
         setProcessingStatus('Awarding points to card...');
+        
+        // Save transaction information for error reporting
+        diagnostics.awardingPoints = {
+          cardId: card.id,
+          points: pointsToAward,
+          source: 'SCAN',
+          description: 'Points awarded via QR code scan',
+          transactionRef: `qr-scan-${Date.now()}`,
+          businessId
+        };
+        
         result = await awardPointsWithRetry(
           card.id,
           pointsToAward,
@@ -203,6 +235,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           `qr-scan-${Date.now()}`,
           businessId
         );
+        
+        diagnostics.pointsAwarded = result;
       } else {
         // This should never happen with our retry logic, but as a final fallback use QrCodeService
         setProcessingStatus('Using QR code service as fallback...');
@@ -216,9 +250,12 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         );
         
         result = processingResult.success;
+        diagnostics.fallbackUsed = true;
+        diagnostics.fallbackResult = result;
         
         if (!result && processingResult.message) {
           setDetailedError(processingResult.message);
+          diagnostics.fallbackError = processingResult.message;
         }
       }
       
@@ -256,6 +293,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           }));
         } catch (eventError) {
           console.error('Error broadcasting points awarded event:', eventError);
+          diagnostics.eventError = eventError instanceof Error ? eventError.message : String(eventError);
         }
         
         setTimeout(() => {
@@ -267,9 +305,48 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         console.error('Failed to award points');
         setError('Failed to award points to the customer');
       }
+      
+      // Save diagnostic info for troubleshooting
+      setDiagnosticInfo(diagnostics);
     } catch (err) {
       console.error('Error in award points process:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      
+      // Set detailed diagnostic information
+      try {
+        const diagnosticData = {
+          timestamp: new Date().toISOString(),
+          customer: {
+            id: scanData?.customerId,
+            scanType: scanData?.type
+          },
+          business: {
+            id: businessId
+          },
+          program: {
+            id: selectedProgramId
+          },
+          points: pointsToAward,
+          error: {
+            message: errorMessage,
+            type: err instanceof Error ? err.constructor.name : typeof err
+          }
+        };
+        
+        // Log to console
+        console.error('Point award diagnostic data:', diagnosticData);
+        
+        // Save for UI
+        setDiagnosticInfo(diagnosticData);
+        
+        // Log to server if logger is available
+        if (logger && typeof logger.error === 'function') {
+          logger.error('Points award failure', diagnosticData);
+        }
+      } catch (logError) {
+        console.error('Error logging diagnostic data:', logError);
+      }
     } finally {
       setIsProcessing(false);
       setRetryCount(0); // Reset retry count after completion
@@ -637,6 +714,10 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     handleAwardPoints();
   };
 
+  const toggleDiagnostics = () => {
+    setShowDiagnostics(!showDiagnostics);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -687,7 +768,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
                       <p className="mt-1 ml-7 text-sm text-red-700">{detailedError}</p>
                     )}
                     
-                    <div className="mt-3 ml-7">
+                    <div className="mt-3 flex gap-3 ml-7">
                       <button
                         onClick={handleRetry}
                         disabled={isProcessing}
@@ -696,7 +777,25 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
                         <RefreshCw className="w-4 h-4 mr-1" />
                         {t('Try Again')}
                       </button>
+                      
+                      <button
+                        onClick={toggleDiagnostics}
+                        disabled={isProcessing || !diagnosticInfo}
+                        className="flex items-center text-sm font-medium text-blue-700 hover:text-blue-900"
+                      >
+                        <Bug className="w-4 h-4 mr-1" />
+                        {showDiagnostics ? t('Hide Diagnostics') : t('Show Diagnostics')}
+                      </button>
                     </div>
+                    
+                    {showDiagnostics && diagnosticInfo && (
+                      <div className="mt-3 ml-7 p-2 bg-gray-50 rounded-md border border-gray-200 text-xs font-mono overflow-x-auto">
+                        <div className="text-gray-800 font-medium mb-1">Diagnostic Information:</div>
+                        <pre className="text-gray-600">
+                          {JSON.stringify(diagnosticInfo, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -726,102 +825,65 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
                     {t('Loyalty Program')}
                   </label>
                   <select
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     value={selectedProgramId}
                     onChange={(e) => setSelectedProgramId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     disabled={isProcessing || programs.length === 0}
                   >
-                    {programs.length === 0 && (
+                    {programs.length === 0 ? (
                       <option value="">{t('No programs available')}</option>
+                    ) : (
+                      programs.map((program) => (
+                        <option key={program.id} value={program.id}>
+                          {program.name}
+                        </option>
+                      ))
                     )}
-                    {programs.map((program) => (
-                      <option key={program.id} value={program.id}>
-                        {program.name}
-                      </option>
-                    ))}
                   </select>
-                  {programs.length === 0 && !isLoading && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {t('No loyalty programs found. Please create a program first.')}
-                    </p>
-                  )}
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('Points to Award')}
                   </label>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => setPointsToAward(Math.max(1, pointsToAward - 1))}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-l-md transition-colors"
-                      disabled={isProcessing || pointsToAward <= 1}
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={pointsToAward}
-                      onChange={(e) => setPointsToAward(Math.max(1, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 border-t border-b border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent text-center"
-                      disabled={isProcessing || programs.length === 0}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPointsToAward(pointsToAward + 1)}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-r-md transition-colors"
-                      disabled={isProcessing}
-                    >
-                      +
-                    </button>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {t('Enter the number of points to award to this customer')}
+                  <input
+                    type="number"
+                    value={pointsToAward}
+                    onChange={(e) => setPointsToAward(Math.max(1, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    disabled={isProcessing}
+                  />
+                </div>
+                
+                <div className="pt-4">
+                  <button
+                    onClick={handleAwardPoints}
+                    disabled={isProcessing || !selectedProgramId || pointsToAward <= 0 || !scanData?.customerId}
+                    className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="mr-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {t('Processing...')}
+                      </>
+                    ) : (
+                      <>
+                        <Award className="w-5 h-5 mr-2" />
+                        {t('Award Points')}
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="text-center pt-2">
+                  <p className="text-xs text-gray-500">
+                    {t('Points will be added to the customer\'s loyalty card for the selected program')}
                   </p>
                 </div>
               </div>
             </>
           )}
-        </div>
-        
-        <div className="border-t p-4 flex justify-end space-x-3">
-          {/* Add Troubleshoot button for advanced users */}
-          {process.env.NODE_ENV !== 'production' && (
-            <button
-              onClick={handleTroubleshoot}
-              disabled={isProcessing || !selectedProgramId || programs.length === 0}
-              className="px-4 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors flex items-center"
-              title="Run diagnostic tool to troubleshoot point awarding issues"
-            >
-              <Bug className="w-4 h-4 mr-2" />
-              {t('Troubleshoot')}
-            </button>
-          )}
-          
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
-            disabled={isProcessing}
-          >
-            {t('Cancel')}
-          </button>
-          
-          <button
-            onClick={handleAwardPoints}
-            disabled={isProcessing || !selectedProgramId || programs.length === 0}
-            className={`px-4 py-2 bg-green-500 text-white rounded-lg transition-colors flex items-center ${
-              isProcessing || !selectedProgramId || programs.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-600'
-            }`}
-          >
-            {isProcessing ? (
-              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-            ) : (
-              <Star className="w-4 h-4 mr-2" />
-            )}
-            {isProcessing ? t('Awarding...') : t('Award Points')}
-          </button>
         </div>
       </div>
     </div>

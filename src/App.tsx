@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthProvider, ProtectedRoute, AdminProtectedRoute, useAuth } from './contexts/AuthContext';
@@ -41,6 +41,7 @@ import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 import { FallbackProvider } from './components/FallbackIndicator';
+import { registerNotificationListeners } from './utils/notificationHandler';
 
 // Custom route component to redirect based on user type
 const UserTypeRedirect = () => {
@@ -91,6 +92,15 @@ const AppErrorFallback = () => (
 
 function App() {
   const { t } = useTranslation();
+
+  // Register notification listeners for real-time updates
+  useEffect(() => {
+    // Register notification listeners for rewards and points
+    registerNotificationListeners();
+    
+    // Log that listeners were initialized
+    console.log('Notification listeners registered for points and rewards');
+  }, []);
 
   return (
     <ErrorBoundary fallback={<AppErrorFallback />}>

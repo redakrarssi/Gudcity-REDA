@@ -546,15 +546,25 @@ export class LoyaltyCardService {
     businessId: string = ''
   ): Promise<boolean> {
     if (points <= 0) {
+      console.warn('Invalid points value:', points);
       return false;
     }
 
     try {
+      // Input validation
+      if (!cardId) {
+        console.error('Error awarding points: No card ID provided');
+        return false;
+      }
+
+      console.log(`Starting point award process for card ${cardId}, points: ${points}, source: ${source}`);
+
       // Start transaction
       const transaction = await sql.begin();
 
       try {
         // First get card details to get customer_id and program info
+        console.log('Retrieving card details for ID:', cardId);
         const cardDetails = await transaction`
           SELECT 
             lc.*,
@@ -572,6 +582,14 @@ export class LoyaltyCardService {
           return false;
         }
 
+        console.log('Card found, details:', {
+          cardId,
+          customerId: cardDetails[0].customer_id,
+          programId: cardDetails[0].program_id,
+          programName: cardDetails[0].program_name,
+          businessName: cardDetails[0].business_name
+        });
+
         const card = cardDetails[0];
         const customerId = card.customer_id;
         const programId = card.program_id;
@@ -579,18 +597,29 @@ export class LoyaltyCardService {
         const businessName = card.business_name;
 
         // Update card points balance - make sure we update both points and points_balance
-        await transaction`
+        console.log(`Updating points balance for card ${cardId}, adding ${points} points`);
+        const updateResult = await transaction`
           UPDATE loyalty_cards
           SET 
-            points = points + ${points},
+            points = COALESCE(points, 0) + ${points},
             points_balance = COALESCE(points_balance, 0) + ${points},
             total_points_earned = COALESCE(total_points_earned, 0) + ${points},
             updated_at = NOW()
           WHERE id = ${cardId}
+          RETURNING id, points, points_balance, total_points_earned
         `;
 
+        if (!updateResult || updateResult.length === 0) {
+          await transaction.rollback();
+          console.error('Failed to update card points. No rows affected.');
+          return false;
+        }
+
+        console.log('Points update successful:', updateResult[0]);
+
         // Record the transaction
-        await transaction`
+        console.log('Recording points transaction');
+        const txId = await transaction`
           INSERT INTO loyalty_transactions (
             card_id,
             transaction_type,
@@ -610,20 +639,31 @@ export class LoyaltyCardService {
             ${source},
             ${description},
             ${transactionRef || `scan-${Date.now()}`},
-            ${businessId || null},
+            ${businessId || card.business_id},
             NOW(),
             ${customerId},
             ${programId}
           )
+          RETURNING id
         `;
+
+        if (!txId || txId.length === 0) {
+          await transaction.rollback();
+          console.error('Failed to record transaction. No transaction ID returned.');
+          return false;
+        }
+
+        console.log('Transaction recorded successfully:', txId[0]);
 
         // Commit transaction
         await transaction.commit();
+        console.log('Transaction committed successfully');
         
         // After successful transaction, send notification to customer
         try {
+          console.log('Sending notification to customer:', customerId);
           // Create notification in customer notification system
-          await CustomerNotificationService.createNotification({
+          const notification = await CustomerNotificationService.createNotification({
             customerId: customerId.toString(),
             businessId: (businessId || card.business_id).toString(),
             type: 'POINTS_ADDED',
@@ -634,12 +674,15 @@ export class LoyaltyCardService {
               cardId: cardId,
               programId: programId.toString(),
               programName: programName,
-              source: source
+              source: source,
+              transactionId: txId[0]?.id
             },
             requiresAction: false,
             actionTaken: false,
             isRead: false
           });
+
+          console.log('Notification created:', notification?.id || 'No ID returned');
 
           // Use localStorage to trigger UI updates on the customer side
           localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
@@ -663,6 +706,7 @@ export class LoyaltyCardService {
               programName: programName
             }
           );
+          console.log('Sync events created successfully');
         } catch (notificationError) {
           console.error('Failed to send points notification:', notificationError);
           // Continue even if notification fails - the points were already awarded
@@ -671,10 +715,18 @@ export class LoyaltyCardService {
         return true;
       } catch (error) {
         await transaction.rollback();
+        console.error('Transaction error in awardPointsToCard:', error);
         throw error;
       }
     } catch (error) {
       console.error('Error awarding points to card:', error);
+      // Check if error is related to foreign key constraint
+      const errorString = String(error);
+      if (errorString.includes('foreign key constraint') || errorString.includes('violates foreign key')) {
+        console.error('Foreign key constraint violation. This may indicate a problem with customer, program, or card IDs.');
+      } else if (errorString.includes('column') && errorString.includes('does not exist')) {
+        console.error('Database schema issue. A required column does not exist.');
+      }
       return false;
     }
   }
@@ -1728,6 +1780,80 @@ export class LoyaltyCardService {
     } catch (error) {
       logger.error('Error synchronizing enrollments to cards:', error);
       return [];
+    }
+  }
+
+  /**
+   * Create a loyalty card for a customer who is already enrolled in a program
+   * but doesn't have a card yet
+   */
+  static async createCardForEnrolledCustomer(
+    customerId: string,
+    businessId: string,
+    programId: string
+  ): Promise<LoyaltyCard | null> {
+    try {
+      // Verify customer is enrolled in this program
+      console.log(`Verifying enrollment for customer ${customerId} in program ${programId}`);
+      const enrollmentCheck = await sql`
+        SELECT * FROM customer_programs 
+        WHERE customer_id = ${parseInt(customerId.toString())}
+        AND program_id = ${parseInt(programId.toString())}
+      `;
+      
+      if (!enrollmentCheck.length) {
+        console.error('Customer is not enrolled in this program');
+        return null;
+      }
+      
+      console.log('Enrollment verified, creating card');
+      
+      // Generate unique card number
+      const cardNumber = await this.generateUniqueCardNumber(customerId, businessId);
+      
+      // Create card with starting tier
+      const cardId = await sql`
+        INSERT INTO loyalty_cards (
+          id,
+          customer_id,
+          business_id,
+          program_id,
+          card_number,
+          points,
+          points_balance,
+          tier,
+          status,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${uuidv4()},
+          ${parseInt(customerId.toString())},
+          ${parseInt(businessId.toString())},
+          ${parseInt(programId.toString())},
+          ${cardNumber},
+          0,
+          0,
+          'STANDARD',
+          'ACTIVE',
+          NOW(),
+          NOW()
+        )
+        RETURNING *
+      `;
+      
+      if (!cardId.length) {
+        console.error('Failed to create card for enrolled customer');
+        return null;
+      }
+      
+      console.log(`Card created successfully with ID ${cardId[0].id}`);
+      
+      // Format and return the newly created card
+      return this.formatCard(cardId[0]);
+    } catch (error) {
+      console.error('Error creating card for enrolled customer:', error);
+      return null;
     }
   }
 }
