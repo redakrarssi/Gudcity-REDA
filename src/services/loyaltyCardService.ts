@@ -554,12 +554,37 @@ export class LoyaltyCardService {
       const transaction = await sql.begin();
 
       try {
-        // Update card points balance
+        // First get card details to get customer_id and program info
+        const cardDetails = await transaction`
+          SELECT 
+            lc.*,
+            lp.name as program_name,
+            u.name as business_name
+          FROM loyalty_cards lc
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lp.business_id = u.id
+          WHERE lc.id = ${cardId}
+        `;
+
+        if (!cardDetails.length) {
+          await transaction.rollback();
+          console.error('Card not found:', cardId);
+          return false;
+        }
+
+        const card = cardDetails[0];
+        const customerId = card.customer_id;
+        const programId = card.program_id;
+        const programName = card.program_name;
+        const businessName = card.business_name;
+
+        // Update card points balance - make sure we update both points and points_balance
         await transaction`
           UPDATE loyalty_cards
           SET 
-            points_balance = points_balance + ${points},
-            total_points_earned = total_points_earned + ${points},
+            points = points + ${points},
+            points_balance = COALESCE(points_balance, 0) + ${points},
+            total_points_earned = COALESCE(total_points_earned, 0) + ${points},
             updated_at = NOW()
           WHERE id = ${cardId}
         `;
@@ -574,7 +599,9 @@ export class LoyaltyCardService {
             description,
             transaction_ref,
             business_id,
-            created_at
+            created_at,
+            customer_id,
+            program_id
           )
           VALUES (
             ${cardId},
@@ -582,14 +609,65 @@ export class LoyaltyCardService {
             ${points},
             ${source},
             ${description},
-            ${transactionRef},
+            ${transactionRef || `scan-${Date.now()}`},
             ${businessId || null},
-            NOW()
+            NOW(),
+            ${customerId},
+            ${programId}
           )
         `;
 
         // Commit transaction
         await transaction.commit();
+        
+        // After successful transaction, send notification to customer
+        try {
+          // Create notification in customer notification system
+          await CustomerNotificationService.createNotification({
+            customerId: customerId.toString(),
+            businessId: (businessId || card.business_id).toString(),
+            type: 'POINTS_ADDED',
+            title: 'Points Added',
+            message: `You've received ${points} points from ${businessName} in ${programName}`,
+            data: {
+              points: points,
+              cardId: cardId,
+              programId: programId.toString(),
+              programName: programName,
+              source: source
+            },
+            requiresAction: false,
+            actionTaken: false,
+            isRead: false
+          });
+
+          // Use localStorage to trigger UI updates on the customer side
+          localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
+            customerId: customerId.toString(),
+            businessId: (businessId || card.business_id).toString(),
+            cardId: cardId,
+            programId: programId.toString(),
+            points: points,
+            timestamp: new Date().toISOString(),
+            type: 'POINTS_ADDED'
+          }));
+
+          // Create sync event for React Query invalidation
+          createCardSyncEvent(
+            cardId,
+            customerId.toString(),
+            (businessId || card.business_id).toString(),
+            'UPDATE',
+            {
+              points: points,
+              programName: programName
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send points notification:', notificationError);
+          // Continue even if notification fails - the points were already awarded
+        }
+
         return true;
       } catch (error) {
         await transaction.rollback();
@@ -748,10 +826,17 @@ export class LoyaltyCardService {
     try {
       // Get card details including business name
       const cardResult = await sql`
-        SELECT c.*, b.name as business_name 
-        FROM loyalty_cards c
-        JOIN businesses b ON c.business_id = b.id
-        WHERE c.id = ${cardId}
+        SELECT 
+          lc.*,
+          u.name as business_name,
+          lp.name as program_name,
+          c.name as customer_name,
+          c.email as customer_email
+        FROM loyalty_cards lc
+        JOIN users u ON lc.business_id = u.id
+        JOIN loyalty_programs lp ON lc.program_id = lp.id
+        JOIN customers c ON lc.customer_id = c.id
+        WHERE lc.id = ${cardId}
       `;
       
       if (cardResult.length === 0) {
@@ -760,70 +845,193 @@ export class LoyaltyCardService {
       
       const card = cardResult[0];
       
-      // Find the reward in the card's available rewards
-      const availableRewards = card.available_rewards || [];
-      const reward = availableRewards.find((r: any) => r.name === rewardName);
+      // Get available rewards for this program
+      const programRewards = await sql`
+        SELECT * FROM loyalty_rewards 
+        WHERE program_id = ${card.program_id} 
+        AND is_active = true
+      `;
+      
+      // Find the specific reward by name
+      const reward = programRewards.find((r: any) => r.name === rewardName);
       
       if (!reward) {
         return { success: false, message: 'Reward not found' };
       }
       
-      if (reward.isRedeemable === false) {
-        return { success: false, message: 'This reward cannot be redeemed directly' };
+      if (reward.is_redeemable === false) {
+        return { success: false, message: 'This reward cannot be redeemed' };
       }
       
       // If sufficient points, redeem the reward
-      if (card.points >= reward.points) {
-        // Deduct points from card
-        await sql`
-          UPDATE loyalty_cards
-          SET 
-            points = points - ${reward.points},
-            total_points_spent = total_points_spent + ${reward.points},
-            updated_at = NOW()
-          WHERE id = ${cardId}
-        `;
+      const currentPoints = parseFloat(card.points) || 0;
+      const requiredPoints = parseFloat(reward.points) || 0;
+      
+      if (currentPoints >= requiredPoints) {
+        // Start transaction
+        const transaction = await sql.begin();
         
-        // Record redemption activity
-        await sql`
-          INSERT INTO card_activities (
-            card_id,
-            activity_type,
-            points,
-            description,
-            created_at
-          ) VALUES (
-            ${cardId},
-            'REDEEM_POINTS',
-            ${reward.points},
-            ${`Redeemed ${rewardName}`},
-            NOW()
-          )
-        `;
-        
-        // Emit points redeemed event
-        emitPointsRedeemedEvent(
-          card.customer_id,
-          card.business_id,
-          card.business_name || 'Business',
-          reward.points,
-          cardId,
-          rewardName
-        );
-        
-        // Get updated card
-        const updatedCard = await this.getCustomerCard(card.customer_id, card.business_id);
-        
-        return {
-          success: true,
-          message: `Successfully redeemed ${rewardName} for ${reward.points} points`,
-          updatedCard,
-          reward
-        };
+        try {
+          // Deduct points from card
+          await transaction`
+            UPDATE loyalty_cards
+            SET 
+              points = points - ${requiredPoints},
+              points_balance = COALESCE(points_balance, 0) - ${requiredPoints},
+              total_points_spent = COALESCE(total_points_spent, 0) + ${requiredPoints},
+              updated_at = NOW()
+            WHERE id = ${cardId}
+          `;
+          
+          // Generate a unique redemption reference
+          const redemptionId = uuidv4();
+          const customerId = String(card.customer_id);
+          const businessId = String(card.business_id);
+          const programId = String(card.program_id);
+          const programName = String(card.program_name || '');
+          const customerName = String(card.customer_name || 'Customer');
+          const businessName = String(card.business_name || 'Business');
+          
+          // Record redemption activity
+          await transaction`
+            INSERT INTO loyalty_transactions (
+              card_id,
+              customer_id,
+              business_id,
+              program_id,
+              transaction_type,
+              points,
+              source,
+              description,
+              transaction_ref,
+              created_at
+            ) VALUES (
+              ${cardId},
+              ${card.customer_id},
+              ${card.business_id},
+              ${card.program_id},
+              'REDEEM',
+              ${requiredPoints},
+              'CUSTOMER',
+              ${`Redeemed reward: ${rewardName}`},
+              ${redemptionId},
+              NOW()
+            )
+          `;
+          
+          await transaction.commit();
+          
+          // Send notification to customer
+          try {
+            await CustomerNotificationService.createNotification({
+              customerId: customerId,
+              businessId: businessId,
+              type: 'REWARD_REDEEMED',
+              title: 'Reward Redeemed',
+              message: `You successfully redeemed your reward: ${rewardName}`,
+              data: {
+                rewardName: rewardName,
+                points: requiredPoints,
+                cardId: cardId,
+                programId: programId,
+                programName: programName
+              },
+              requiresAction: false,
+              actionTaken: true,
+              isRead: false
+            });
+            
+            // Send notification to business owner
+            await CustomerNotificationService.createNotification({
+              customerId: businessId, // Using business ID as recipient
+              businessId: businessId,
+              type: 'BUSINESS_REWARD_REDEMPTION',
+              title: 'Reward Redemption',
+              message: `Customer ${customerName} has redeemed a ${rewardName}. Please fulfill the reward.`,
+              data: {
+                rewardName: rewardName,
+                points: requiredPoints,
+                cardId: cardId,
+                programId: programId,
+                programName: programName,
+                customerName: customerName,
+                customerId: customerId,
+                redemptionId: redemptionId
+              },
+              requiresAction: true,
+              actionTaken: false,
+              isRead: false
+            });
+          } catch (notificationError) {
+            console.error('Error sending redemption notifications:', notificationError);
+            // Continue even if notification fails
+          }
+          
+          // Emit points redeemed event
+          try {
+            emitPointsRedeemedEvent(
+              card.customer_id,
+              card.business_id,
+              businessName,
+              requiredPoints,
+              cardId,
+              rewardName
+            );
+            
+            // Create sync event for React Query invalidation
+            createCardSyncEvent(
+              cardId,
+              customerId,
+              businessId,
+              'UPDATE',
+              {
+                points: currentPoints - requiredPoints,
+                rewardRedeemed: rewardName,
+                redemptionId: redemptionId
+              }
+            );
+            
+            // Use localStorage to trigger UI updates
+            localStorage.setItem(`reward_redeemed_${Date.now()}`, JSON.stringify({
+              customerId: customerId,
+              businessId: businessId,
+              cardId: cardId,
+              programId: programId,
+              rewardName: rewardName,
+              points: requiredPoints,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (eventError) {
+            console.error('Error emitting redemption events:', eventError);
+            // Continue even if event emission fails
+          }
+          
+          // Get updated card
+          const updatedCard = await this.getCustomerCard(customerId, businessId);
+          
+          return {
+            success: true,
+            message: `Successfully redeemed ${rewardName} for ${requiredPoints} points`,
+            updatedCard,
+            reward: {
+              id: reward.id,
+              name: reward.name,
+              description: reward.description,
+              points: parseFloat(reward.points),
+              programId: reward.program_id,
+              isActive: reward.is_active,
+              imageUrl: reward.image_url,
+              isRedeemable: reward.is_redeemable
+            }
+          };
+        } catch (txError) {
+          await transaction.rollback();
+          throw txError;
+        }
       } else {
         return { 
           success: false, 
-          message: `Not enough points. You need ${reward.points - card.points} more points to redeem this reward.`
+          message: `Not enough points. You need ${requiredPoints - currentPoints} more points to redeem this reward.`
         };
       }
     } catch (error) {

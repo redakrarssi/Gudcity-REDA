@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine } from 'lucide-react';
+import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine, Sparkles, Check } from 'lucide-react';
 import { LoyaltyCard as LoyaltyCardType, Reward } from '../../services/loyaltyCardService';
 import { QrCodeService } from '../../services/qrCodeService';
 import { createStandardLoyaltyCardQRCode } from '../../utils/standardQrCodeGenerator';
@@ -53,6 +53,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
+  const [showRewards, setShowRewards] = useState(false);
   
   const tierColors = CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
   
@@ -97,6 +98,13 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
       setQrCodeError('Missing required card information');
     }
   }, [card.id, card.customerId, card.programId, card.businessId, programName, businessName]);
+
+  // Automatically show rewards section if any reward is available
+  useEffect(() => {
+    if (card.availableRewards?.some(reward => getRewardAvailability(reward).available)) {
+      setShowRewards(true);
+    }
+  }, [card.availableRewards, card.points]);
   
   // Reset copied state after 3 seconds
   useEffect(() => {
@@ -117,6 +125,12 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
     if (onShareCode && card.promoCode) {
       onShareCode(card.promoCode);
       setShowPromoCode(false);
+    }
+  };
+
+  const handleRedeemReward = (rewardName: string) => {
+    if (onRedeemReward) {
+      onRedeemReward(rewardName);
     }
   };
   
@@ -193,6 +207,11 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
     }
   };
   
+  // Check if there are any available rewards
+  const hasAvailableRewards = card.availableRewards?.some(
+    reward => getRewardAvailability(reward).available
+  );
+  
   return (
     <div className={`rounded-xl overflow-hidden shadow-md ${className}`}>
       {/* Card Header */}
@@ -240,6 +259,82 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
                 }}
               ></div>
             </div>
+          </div>
+        )}
+        
+        {/* Available Rewards */}
+        {card.availableRewards && card.availableRewards.length > 0 && (
+          <div className="mb-4">
+            <button 
+              onClick={() => setShowRewards(!showRewards)}
+              className={`w-full flex justify-between items-center p-3 rounded-lg transition-colors ${
+                hasAvailableRewards 
+                  ? "bg-green-50 text-green-700 hover:bg-green-100" 
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              <div className="flex items-center">
+                <Gift className="w-5 h-5 mr-2" />
+                <span>
+                  {hasAvailableRewards 
+                    ? t('Available Rewards!') 
+                    : t('Rewards')}
+                </span>
+                {hasAvailableRewards && (
+                  <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                    {t('Redeem now!')}
+                  </span>
+                )}
+              </div>
+              {showRewards ? (
+                <ChevronDown className="w-5 h-5" />
+              ) : (
+                <ChevronRight className="w-5 h-5" />
+              )}
+            </button>
+            
+            {showRewards && (
+              <div className="mt-2 space-y-2">
+                {card.availableRewards.map((reward, index) => {
+                  const { available, reason } = getRewardAvailability(reward);
+                  return (
+                    <div key={`${reward.id || index}`} 
+                      className={`border rounded-lg p-3 ${
+                        available 
+                          ? 'border-green-200 bg-green-50' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-gray-800">{reward.name}</h4>
+                          <p className="text-sm text-gray-600">{reward.description}</p>
+                          <div className="flex items-center mt-1">
+                            <Star className="w-4 h-4 text-amber-500 mr-1" />
+                            <span className="text-sm font-medium">
+                              {t('{{points}} points', { points: reward.points })}
+                            </span>
+                          </div>
+                        </div>
+                        {available ? (
+                          <button
+                            onClick={() => handleRedeemReward(reward.name)}
+                            className="flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md text-sm transition-colors"
+                          >
+                            <Sparkles className="w-4 h-4 mr-1" />
+                            {t('Redeem')}
+                          </button>
+                        ) : (
+                          <div className="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded-md">
+                            {reason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         
