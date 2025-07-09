@@ -42,7 +42,7 @@
     "bcryptjs": "^3.0.2",
     "canvas-confetti": "^1.9.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "framer-motion": "^12.18.1",
     "glob": "^11.0.2",

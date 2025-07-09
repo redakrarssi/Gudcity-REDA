@@ -550,18 +550,84 @@ export class LoyaltyCardService {
       return { success: false, error: 'Points must be greater than zero' };
     }
 
+    const diagnostics: any = {
+      method: 'awardPointsToCard',
+      cardId,
+      points,
+      source,
+      transactionRef,
+      businessId,
+      timestamp: new Date().toISOString()
+    };
+
     try {
       // Input validation
       if (!cardId) {
         console.error('Error awarding points: No card ID provided');
-        return { success: false, error: 'No card ID provided' };
+        return { success: false, error: 'No card ID provided', diagnostics };
       }
 
       console.log(`Starting point award process for card ${cardId}, points: ${points}, source: ${source}`);
 
+      // First verify that the card exists with correct relationships
+      try {
+        const verifyCard = await sql`
+          SELECT 
+            lc.id, 
+            lc.customer_id, 
+            lc.business_id, 
+            lc.program_id,
+            lc.points,
+            lp.name as program_name,
+            u.name as business_name,
+            c.name as customer_name
+          FROM loyalty_cards lc
+          LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
+          LEFT JOIN users u ON lp.business_id = u.id
+          LEFT JOIN customers c ON lc.customer_id = c.id
+          WHERE lc.id = ${cardId}
+        `;
+        
+        if (!verifyCard || verifyCard.length === 0) {
+          const error = `Card ID ${cardId} not found in database`;
+          console.error(error);
+          return { 
+            success: false, 
+            error, 
+            diagnostics: { ...diagnostics, checkPerformed: 'card_existence' }
+          };
+        }
+        
+        // Store card details in diagnostics
+        diagnostics.cardDetails = {
+          customerId: verifyCard[0].customer_id,
+          businessId: verifyCard[0].business_id,
+          programId: verifyCard[0].program_id,
+          currentPoints: verifyCard[0].points || 0,
+          programName: verifyCard[0].program_name,
+          businessName: verifyCard[0].business_name,
+          customerName: verifyCard[0].customer_name
+        };
+        
+        // Verify business relationship if businessId is provided
+        if (businessId && verifyCard[0].business_id != businessId) {
+          const error = `Card ${cardId} belongs to business ${verifyCard[0].business_id}, not ${businessId}`;
+          console.error(error);
+          return { 
+            success: false, 
+            error, 
+            diagnostics: { ...diagnostics, checkPerformed: 'business_relationship' }
+          };
+        }
+      } catch (verifyError) {
+        console.error('Error verifying card relationships:', verifyError);
+        diagnostics.verificationError = verifyError instanceof Error ? verifyError.message : String(verifyError);
+        // Continue anyway - we'll try the update as a last resort
+      }
+
       // Start transaction
       const transaction = await sql.begin();
-      const diagnosticData: any = { cardId, points, source, transactionRef };
+      diagnostics.transactionStarted = true;
 
       try {
         // First get card details to get customer_id and program info
@@ -580,7 +646,11 @@ export class LoyaltyCardService {
         if (!cardDetails.length) {
           await transaction.rollback();
           console.error('Card not found:', cardId);
-          return { success: false, error: `Card not found with ID: ${cardId}` };
+          return { 
+            success: false, 
+            error: `Card not found with ID: ${cardId}`,
+            diagnostics: { ...diagnostics, transactionRolledBack: true }
+          };
         }
 
         console.log('Card found, details:', {
@@ -591,10 +661,12 @@ export class LoyaltyCardService {
           businessName: cardDetails[0].business_name
         });
 
-        diagnosticData.cardDetails = {
+        diagnostics.cardFound = true;
+        diagnostics.cardDetails = {
           customerId: cardDetails[0].customer_id,
           programId: cardDetails[0].program_id,
-          programName: cardDetails[0].program_name
+          programName: cardDetails[0].program_name,
+          businessName: cardDetails[0].business_name
         };
 
         const card = cardDetails[0];
@@ -625,7 +697,7 @@ export class LoyaltyCardService {
 
           if (!updateResult || updateResult.length === 0) {
             // Try fallback update if the first one failed - might be missing some columns
-            diagnosticData.fallbackUpdate = true;
+            diagnostics.fallbackUpdate = true;
             const simpleUpdateResult = await transaction`
               UPDATE loyalty_cards
               SET 
@@ -641,16 +713,16 @@ export class LoyaltyCardService {
               return { 
                 success: false, 
                 error: 'Failed to update card points. No rows affected.',
-                diagnostics: diagnosticData
+                diagnostics: { ...diagnostics, updateFailed: true, transactionRolledBack: true }
               };
             }
             
-            diagnosticData.pointsUpdated = {
+            diagnostics.pointsUpdated = {
               id: simpleUpdateResult[0].id,
               points: simpleUpdateResult[0].points
             };
           } else {
-            diagnosticData.pointsUpdated = {
+            diagnostics.pointsUpdated = {
               id: updateResult[0].id,
               points: updateResult[0].points,
               points_balance: updateResult[0].points_balance,
@@ -659,7 +731,7 @@ export class LoyaltyCardService {
           }
         } catch (updateError) {
           console.error('Error updating card points:', updateError);
-          diagnosticData.updateError = updateError instanceof Error ? updateError.message : String(updateError);
+          diagnostics.updateError = updateError instanceof Error ? updateError.message : String(updateError);
           
           // Try with just the points column as absolute fallback
           try {
@@ -674,7 +746,7 @@ export class LoyaltyCardService {
               throw new Error('Failed to update card points even with fallback approach');
             }
             
-            diagnosticData.lastResortUpdate = {
+            diagnostics.lastResortUpdate = {
               id: lastResortUpdate[0].id,
               points: lastResortUpdate[0].points
             };
@@ -684,53 +756,37 @@ export class LoyaltyCardService {
               success: false, 
               error: 'Database error updating points: ' + 
                 (finalError instanceof Error ? finalError.message : String(finalError)),
-              diagnostics: diagnosticData
+              diagnostics: { ...diagnostics, finalUpdateError: true, transactionRolledBack: true }
             };
           }
         }
 
+        // Check if loyalty_transactions table exists
+        const tableCheck = await transaction`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = 'loyalty_transactions'
+          ) as exists_check
+        `;
+        
+        diagnostics.transactionTableExists = tableCheck[0].exists_check;
+
         // Record the transaction in loyalty_transactions
         console.log('Recording points transaction');
         try {
-          const txId = await transaction`
-            INSERT INTO loyalty_transactions (
-              card_id,
-              transaction_type,
-              points,
-              source,
-              description,
-              transaction_ref,
-              business_id,
-              created_at,
-              customer_id,
-              program_id
-            )
-            VALUES (
-              ${cardId},
-              'CREDIT',
-              ${points},
-              ${source},
-              ${description || 'Points awarded'},
-              ${transactionRef || `scan-${Date.now()}`},
-              ${businessId || card.business_id},
-              NOW(),
-              ${customerId},
-              ${programId}
-            )
-            RETURNING id
-          `;
-
-          if (!txId || txId.length === 0) {
-            // Try with minimal fields if first attempt fails
-            diagnosticData.fallbackTransaction = true;
-            const simpleTxId = await transaction`
+          if (tableCheck[0].exists_check) {
+            const txId = await transaction`
               INSERT INTO loyalty_transactions (
                 card_id,
                 transaction_type,
                 points,
                 source,
                 description,
-                created_at
+                transaction_ref,
+                business_id,
+                created_at,
+                customer_id,
+                program_id
               )
               VALUES (
                 ${cardId},
@@ -738,27 +794,54 @@ export class LoyaltyCardService {
                 ${points},
                 ${source},
                 ${description || 'Points awarded'},
-                NOW()
+                ${transactionRef || `scan-${Date.now()}`},
+                ${businessId || card.business_id},
+                NOW(),
+                ${customerId},
+                ${programId}
               )
               RETURNING id
             `;
 
-            if (!simpleTxId || simpleTxId.length === 0) {
-              // If transaction recording fails, try to continue anyway
-              // Don't roll back the whole transaction just for logging
-              console.error('Failed to record transaction. No transaction ID returned.');
-              diagnosticData.transactionRecordingFailed = true;
+            if (txId && txId.length > 0) {
+              diagnostics.transactionId = txId[0].id;
             } else {
-              diagnosticData.transactionId = simpleTxId[0].id;
+              diagnostics.transactionRecordingIssue = 'No transaction ID returned';
             }
           } else {
-            diagnosticData.transactionId = txId[0].id;
+            // Try card_activities as fallback
+            try {
+              await transaction`
+                INSERT INTO card_activities (
+                  card_id,
+                  activity_type,
+                  points,
+                  description,
+                  transaction_reference,
+                  created_at
+                )
+                VALUES (
+                  ${cardId},
+                  'EARN_POINTS',
+                  ${points},
+                  ${description || 'Points awarded'},
+                  ${transactionRef || `scan-${Date.now()}`},
+                  NOW()
+                )
+              `;
+              diagnostics.activityRecorded = true;
+            } catch (activityError) {
+              console.error('Failed to record card activity:', activityError);
+              diagnostics.activityRecordingError = activityError instanceof Error 
+                ? activityError.message : String(activityError);
+              // Continue anyway - the points were already awarded
+            }
           }
         } catch (txError) {
           // If transaction recording fails, log the error but continue
           // (points were already awarded, just logging failed)
           console.error('Failed to record transaction:', txError);
-          diagnosticData.transactionRecordingError = txError instanceof Error 
+          diagnostics.transactionRecordingError = txError instanceof Error 
             ? txError.message 
             : String(txError);
           
@@ -782,10 +865,10 @@ export class LoyaltyCardService {
                 NOW()
               )
             `;
-            diagnosticData.activityRecorded = true;
+            diagnostics.activityRecorded = true;
           } catch (activityError) {
             console.error('Failed to record card activity:', activityError);
-            diagnosticData.activityRecordingError = activityError instanceof Error 
+            diagnostics.activityRecordingError = activityError instanceof Error 
               ? activityError.message 
               : String(activityError);
           }
@@ -794,6 +877,7 @@ export class LoyaltyCardService {
         // Commit transaction
         await transaction.commit();
         console.log('Transaction committed successfully');
+        diagnostics.transactionCommitted = true;
         
         // After successful transaction, send notification to customer
         try {
@@ -811,56 +895,92 @@ export class LoyaltyCardService {
               programId: programId.toString(),
               programName: programName,
               source: source,
-              transactionId: diagnosticData.transactionId
+              transactionId: diagnostics.transactionId
             },
             requiresAction: false,
             actionTaken: false,
             isRead: false
           });
 
-          diagnosticData.notificationCreated = !!notification;
+          diagnostics.notificationCreated = !!notification;
+          if (notification) {
+            diagnostics.notificationId = notification.id;
+          }
 
           // Use localStorage to trigger UI updates on the customer side
-          localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
-            customerId: customerId.toString(),
-            businessId: (businessId || card.business_id).toString(),
-            cardId: cardId,
-            programId: programId.toString(),
-            points: points,
-            timestamp: new Date().toISOString(),
-            type: 'POINTS_ADDED'
-          }));
+          try {
+            localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
+              customerId: customerId.toString(),
+              businessId: (businessId || card.business_id).toString(),
+              cardId: cardId,
+              programId: programId.toString(),
+              points: points,
+              timestamp: new Date().toISOString(),
+              type: 'POINTS_ADDED'
+            }));
+            diagnostics.localStorageUpdated = true;
+          } catch (storageError) {
+            console.warn('localStorage update failed:', storageError);
+            diagnostics.localStorageError = storageError instanceof Error 
+              ? storageError.message : String(storageError);
+          }
 
           // Create sync event for React Query invalidation
-          createCardSyncEvent(
-            cardId,
-            customerId.toString(),
-            (businessId || card.business_id).toString(),
-            'UPDATE',
-            {
-              points: points,
-              programName: programName
-            }
-          );
+          try {
+            createCardSyncEvent(
+              cardId,
+              customerId.toString(),
+              (businessId || card.business_id).toString(),
+              'UPDATE',
+              {
+                points: points,
+                programName: programName
+              }
+            );
+            diagnostics.syncEventCreated = true;
+          } catch (syncError) {
+            console.warn('Sync event creation failed:', syncError);
+            diagnostics.syncEventError = syncError instanceof Error 
+              ? syncError.message : String(syncError);
+          }
+          
           console.log('Sync events created successfully');
         } catch (notificationError) {
           console.error('Failed to send points notification:', notificationError);
           // Continue even if notification fails - the points were already awarded
-          diagnosticData.notificationError = notificationError instanceof Error
+          diagnostics.notificationError = notificationError instanceof Error
             ? notificationError.message
             : String(notificationError);
         }
 
-        return { success: true, diagnostics: diagnosticData };
+        return { success: true, diagnostics };
       } catch (error) {
         await transaction.rollback();
         console.error('Transaction error in awardPointsToCard:', error);
+        
+        // Check for specific error types
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        let errorType = 'unknown';
+        
+        if (errorMsg.includes('foreign key constraint') || errorMsg.includes('violates foreign key')) {
+          errorType = 'foreign_key_violation';
+        } else if (errorMsg.includes('duplicate key') || errorMsg.includes('unique constraint')) {
+          errorType = 'duplicate_key';
+        } else if (errorMsg.includes('column') && errorMsg.includes('does not exist')) {
+          errorType = 'schema_mismatch';
+        } else if (errorMsg.includes('permission denied')) {
+          errorType = 'permission_denied';
+        }
+        
         return { 
           success: false, 
-          error: error instanceof Error ? error.message : 'Unknown database error',
+          error: errorMsg,
           diagnostics: {
-            ...diagnosticData,
-            transactionError: error instanceof Error ? error.message : String(error)
+            ...diagnostics,
+            transactionRolledBack: true,
+            errorType,
+            sqlState: (error as any)?.sqlState,
+            code: (error as any)?.code
           }
         };
       }
@@ -869,11 +989,17 @@ export class LoyaltyCardService {
       // Check if error is related to foreign key constraint
       const errorString = String(error);
       let errorMessage = 'Unknown error awarding points';
+      let errorType = 'unknown';
       
       if (errorString.includes('foreign key constraint') || errorString.includes('violates foreign key')) {
         errorMessage = 'Foreign key constraint violation. This may indicate a problem with customer, program, or card IDs.';
+        errorType = 'foreign_key_violation';
       } else if (errorString.includes('column') && errorString.includes('does not exist')) {
         errorMessage = 'Database schema issue. A required column does not exist.';
+        errorType = 'schema_mismatch';
+      } else if (errorString.includes('duplicate key') || errorString.includes('unique constraint')) {
+        errorMessage = 'Duplicate key violation. This transaction may already exist.';
+        errorType = 'duplicate_key';
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
@@ -881,7 +1007,12 @@ export class LoyaltyCardService {
       return { 
         success: false, 
         error: errorMessage,
-        diagnostics: { error: errorString, cardId, points, source }
+        diagnostics: { 
+          ...diagnostics, 
+          errorType,
+          error: errorString,
+          stack: error instanceof Error ? error.stack : undefined
+        }
       };
     }
   }

@@ -134,7 +134,7 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
       }
       
       // 5. Award points to the card
-      const result = await LoyaltyCardService.awardPointsToCard(
+      const pointsResult = await LoyaltyCardService.awardPointsToCard(
         cardId,
         points,
         source as any,
@@ -152,34 +152,61 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         businessId: businessIdStr
       };
       
-      if (result.success) {
+      if (pointsResult.success) {
         fullData.pointsAwarded = true;
+        fullData.pointsAwardDetails = pointsResult.diagnostics;
         
         return res.status(200).json({
           success: true,
           message: `Successfully awarded ${points} points to customer ${customerId}`,
           data: {
             ...fullData,
-            timestamp: new Date().toISOString(),
-            diagnostics: result.diagnostics
+            timestamp: new Date().toISOString()
           }
         });
       } else {
         fullData.pointsAwarded = false;
-        fullData.error = result.error;
-        fullData.diagnostics = result.diagnostics;
+        fullData.error = pointsResult.error;
+        fullData.diagnostics = pointsResult.diagnostics;
         
         logger.error('Failed to award points to card', { 
-          error: result.error, 
+          error: pointsResult.error, 
           cardId, 
-          customerId: customerIdStr
+          customerId: customerIdStr,
+          diagnostics: pointsResult.diagnostics
         });
         
-        return res.status(500).json({
+        // Check for specific error types to provide better error messages
+        let statusCode = 500;
+        let errorCode = 'POINTS_AWARD_ERROR';
+        
+        if (pointsResult.diagnostics?.errorType === 'foreign_key_violation') {
+          statusCode = 400;
+          errorCode = 'FOREIGN_KEY_VIOLATION';
+        } else if (pointsResult.diagnostics?.errorType === 'duplicate_key') {
+          statusCode = 409;
+          errorCode = 'DUPLICATE_TRANSACTION';
+        } else if (pointsResult.diagnostics?.errorType === 'schema_mismatch') {
+          statusCode = 500;
+          errorCode = 'SCHEMA_ERROR';
+        } else if (pointsResult.diagnostics?.errorType === 'permission_denied') {
+          statusCode = 403;
+          errorCode = 'PERMISSION_DENIED';
+        }
+        
+        return res.status(statusCode).json({
           success: false,
-          error: result.error || 'Failed to award points to card',
-          code: 'POINTS_AWARD_ERROR',
-          diagnostics: fullData
+          error: pointsResult.error || 'Failed to award points to card',
+          code: errorCode,
+          diagnostics: {
+            cardId,
+            customerId: customerIdStr,
+            businessId: businessIdStr,
+            programId: programIdStr,
+            points,
+            errorDetails: pointsResult.diagnostics,
+            timestamp: new Date().toISOString()
+          }
         });
       }
     } catch (error) {
@@ -332,4 +359,4 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
   }
 });
 
-export default router; 
+export default router;
