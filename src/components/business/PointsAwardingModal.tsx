@@ -9,6 +9,7 @@ import { QrCodeService } from '../../services/qrCodeService';
 import { CustomerService } from '../../services/customerService';
 import { Confetti } from '../ui/Confetti';
 import { queryClient } from '../../utils/queryClient';
+import { awardPointsDirectly } from '../../utils/sqlTransactionHelper';
 import sql from '../../utils/db';
 import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
@@ -159,6 +160,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       console.log('Starting point award process', diagnostics);
       
       let result = false;
+      let cardId: string | null = null;
+      let detailedResult: any = null;
       
       // STEP 1: Check if loyalty card exists for this program
       setProcessingStatus('Checking for existing loyalty card...');
@@ -167,6 +170,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       if (card) {
         diagnostics.cardId = card.id;
         diagnostics.currentPoints = card.points;
+        cardId = card.id;
       }
       
       // STEP 2: If no card exists, check if customer is enrolled in program
@@ -184,7 +188,10 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
             // Create direct enrollment and card
             card = await createEnrollmentAndCardWithRetry(customerId, businessId, selectedProgramId);
             diagnostics.enrollmentCreated = !!card;
-            if (card) diagnostics.createdCardId = card.id;
+            if (card) {
+              diagnostics.createdCardId = card.id;
+              cardId = card.id;
+            }
             
             if (!card) {
               throw new Error('Failed to create card for customer');
@@ -210,11 +217,13 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
             diagnostics.finalError = 'Failed to create card for enrolled customer';
             throw new Error('Failed to create card for enrolled customer');
           }
+          
+          cardId = card.id;
         }
       }
       
       // STEP 5: Award points to the card
-      if (card) {
+      if (card && cardId) {
         setProcessingStatus('Awarding points to card...');
         
         // Save transaction information for error reporting
@@ -227,16 +236,48 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           businessId
         };
         
-        result = await awardPointsWithRetry(
-          card.id,
-          pointsToAward,
-          'SCAN',
-          'Points awarded via QR code scan',
-          `qr-scan-${Date.now()}`,
-          businessId
-        );
-        
-        diagnostics.pointsAwarded = result;
+        // Use the direct SQL helper function
+        try {
+          // First try the LoyaltyCardService
+          const serviceResult = await LoyaltyCardService.awardPointsToCard(
+            cardId,
+            pointsToAward,
+            'SCAN',
+            'Points awarded via QR code scan',
+            `qr-scan-${Date.now()}`,
+            businessId
+          );
+          
+          if (serviceResult.success) {
+            result = true;
+            diagnostics.pointsAwarded = true;
+            diagnostics.pointsAwardDetails = serviceResult.diagnostics;
+          } else {
+            // If service method fails, try direct SQL approach
+            console.log('Service method failed, trying direct SQL approach');
+            const directResult = await awardPointsDirectly(
+              cardId,
+              pointsToAward,
+              'SCAN',
+              'Points awarded via QR code scan',
+              `qr-scan-${Date.now()}`,
+              businessId
+            );
+            
+            result = directResult;
+            diagnostics.pointsAwarded = directResult;
+            diagnostics.pointsAwardMethod = 'direct_sql';
+            
+            if (!directResult) {
+              setDetailedError('Failed to award points using both service and direct SQL methods');
+              diagnostics.pointsAwardError = 'Both award methods failed';
+            }
+          }
+        } catch (awardError) {
+          console.error('Error awarding points:', awardError);
+          setDetailedError(awardError instanceof Error ? awardError.message : String(awardError));
+          diagnostics.pointsAwardError = awardError instanceof Error ? awardError.message : String(awardError);
+        }
       } else {
         // This should never happen with our retry logic, but as a final fallback use QrCodeService
         setProcessingStatus('Using QR code service as fallback...');
@@ -595,117 +636,6 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       return null;
     }
   };
-
-  /**
-   * Award points with automatic retry on failure
-   */
-  const awardPointsWithRetry = async (
-    cardId: string,
-    points: number,
-    source: 'PURCHASE' | 'SCAN' | 'WELCOME' | 'PROMOTION' | 'MANUAL' | 'OTHER',
-    description: string = '',
-    transactionRef: string = '',
-    businessId: string = ''
-  ): Promise<boolean> => {
-    let currentAttempt = 0;
-    const maxAttempts = 3;
-    
-    while (currentAttempt < maxAttempts) {
-      try {
-        console.log(`Attempt ${currentAttempt + 1} of ${maxAttempts} to award points to card ${cardId}`);
-        
-        // Try the direct service method first
-        const result = await LoyaltyCardService.awardPointsToCard(
-          cardId,
-          points,
-          source,
-          description,
-          transactionRef,
-          businessId
-        );
-        
-        if (result) {
-          console.log(`Successfully awarded ${points} points to card ${cardId}`);
-          return true;
-        }
-        
-        // If service method fails, try direct SQL approach
-        try {
-          console.log('Using direct SQL approach for awarding points');
-          
-          // Start transaction for direct SQL approach
-          const transaction = await sql.begin();
-          
-          try {
-            // Update card points balance directly
-            await transaction`
-              UPDATE loyalty_cards
-              SET 
-                points_balance = points_balance + ${points},
-                points = points + ${points},
-                total_points_earned = total_points_earned + ${points},
-                updated_at = NOW()
-              WHERE id = ${cardId}
-            `;
-            
-            // Record the transaction directly
-            await transaction`
-              INSERT INTO loyalty_transactions (
-                card_id,
-                transaction_type,
-                points,
-                source,
-                description,
-                transaction_ref,
-                business_id,
-                created_at
-              )
-              VALUES (
-                ${cardId},
-                'CREDIT',
-                ${points},
-                ${source},
-                ${description},
-                ${transactionRef},
-                ${businessId || null},
-                NOW()
-              )
-            `;
-            
-            // Commit transaction
-            await transaction.commit();
-            
-            console.log(`Successfully awarded ${points} points via direct SQL approach`);
-            return true;
-          } catch (sqlError) {
-            await transaction.rollback();
-            throw sqlError;
-          }
-        } catch (directError) {
-          console.error('Direct SQL approach failed:', directError);
-        }
-        
-        console.log(`Failed to award points on attempt ${currentAttempt + 1}`);
-        currentAttempt++;
-        
-        // Wait before retry
-        if (currentAttempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } catch (error) {
-        console.error(`Error on attempt ${currentAttempt + 1}:`, error);
-        currentAttempt++;
-        
-        // Wait before retry
-        if (currentAttempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    }
-    
-    console.error(`Failed to award points after ${maxAttempts} attempts`);
-    return false;
-  };
   
   const handleRetry = () => {
     setHasRetried(true);
@@ -722,7 +652,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      {showConfetti && <Confetti />}
+      {showConfetti && <Confetti active={showConfetti} />}
       
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-5 border-b">

@@ -70,10 +70,20 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
       `;
       
       let cardId: string;
+      let fullData: any = {
+        customerId: customerIdStr,
+        businessId: businessIdStr,
+        programId: programIdStr,
+        points,
+        source
+      };
       
       if (!enrollmentStatus.length) {
         // Customer not enrolled, enroll them and create card
-        logger.info('Customer not enrolled, creating enrollment and card', { customerId: customerIdStr, programId: programIdStr });
+        logger.info('Customer not enrolled, creating enrollment and card', { 
+          customerId: customerIdStr, 
+          programId: programIdStr 
+        });
         
         const card = await LoyaltyCardService.enrollCustomerInProgram(
           customerIdStr,
@@ -86,6 +96,8 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         }
         
         cardId = card.id;
+        fullData.cardId = cardId;
+        fullData.cardCreated = true;
       } else {
         // Customer is enrolled, find card
         const cardResult = await sql`
@@ -96,7 +108,10 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         
         if (!cardResult.length) {
           // Enrolled but no card, create a card
-          logger.info('Customer enrolled but no card found, creating card', { customerId: customerIdStr, programId: programIdStr });
+          logger.info('Customer enrolled but no card found, creating card', { 
+            customerId: customerIdStr, 
+            programId: programIdStr 
+          });
           
           const card = await LoyaltyCardService.createCardForEnrolledCustomer(
             customerIdStr,
@@ -109,13 +124,17 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
           }
           
           cardId = card.id;
+          fullData.cardId = cardId;
+          fullData.cardCreatedForEnrolled = true;
         } else {
           cardId = cardResult[0].id;
+          fullData.cardId = cardId;
+          fullData.cardFound = true;
         }
       }
       
       // 5. Award points to the card
-      const pointsAwarded = await LoyaltyCardService.awardPointsToCard(
+      const result = await LoyaltyCardService.awardPointsToCard(
         cardId,
         points,
         source as any,
@@ -124,21 +143,44 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         businessIdStr
       );
       
-      if (pointsAwarded) {
+      fullData.awardingPoints = {
+        cardId,
+        points,
+        source,
+        description: description || 'Points awarded by business',
+        transactionRef: `api-${Date.now()}`,
+        businessId: businessIdStr
+      };
+      
+      if (result.success) {
+        fullData.pointsAwarded = true;
+        
         return res.status(200).json({
           success: true,
           message: `Successfully awarded ${points} points to customer ${customerId}`,
           data: {
-            customerId: customerIdStr,
-            businessId: businessIdStr,
-            programId: programIdStr,
-            points,
-            cardId,
-            timestamp: new Date().toISOString()
+            ...fullData,
+            timestamp: new Date().toISOString(),
+            diagnostics: result.diagnostics
           }
         });
       } else {
-        throw new Error('Failed to award points to card');
+        fullData.pointsAwarded = false;
+        fullData.error = result.error;
+        fullData.diagnostics = result.diagnostics;
+        
+        logger.error('Failed to award points to card', { 
+          error: result.error, 
+          cardId, 
+          customerId: customerIdStr
+        });
+        
+        return res.status(500).json({
+          success: false,
+          error: result.error || 'Failed to award points to card',
+          code: 'POINTS_AWARD_ERROR',
+          diagnostics: fullData
+        });
       }
     } catch (error) {
       logger.error('Error in point award process', { 
@@ -171,6 +213,7 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
     }
     
     return res.status(500).json({ 
+      success: false,
       error: errorMessage,
       code: errorCode
     });
