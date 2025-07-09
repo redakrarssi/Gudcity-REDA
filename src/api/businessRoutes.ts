@@ -55,7 +55,29 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
         fullData.customerSource = 'customers_fallback';
         logger.warn(`Customer ID ${customerIdStr} found in 'customers' table but not in 'users' as a customer.`);
       } else {
-        return res.status(404).json({ success: false, error: 'Customer not found' });
+        // Try to find the customer in the users table without the user_type restriction
+        const userFallback = await sql`
+          SELECT name FROM users WHERE id = ${customerIdStr}
+        `;
+        
+        if (userFallback.length > 0) {
+          customerName = userFallback[0].name;
+          fullData.customerSource = 'users_fallback_no_type';
+          logger.warn(`Customer ID ${customerIdStr} found in 'users' table but without customer type.`);
+        } else {
+          // If we still can't find the customer, check loyalty_cards table to see if they exist there
+          const cardFallback = await sql`
+            SELECT customer_id FROM loyalty_cards WHERE customer_id = ${customerIdStr} LIMIT 1
+          `;
+          
+          if (cardFallback.length > 0) {
+            customerName = "Customer #" + customerIdStr;
+            fullData.customerSource = 'loyalty_cards_fallback';
+            logger.warn(`Customer ID ${customerIdStr} found only in loyalty_cards table.`);
+          } else {
+            return res.status(404).json({ success: false, error: 'Customer not found' });
+          }
+        }
       }
     }
     fullData.customerName = customerName;

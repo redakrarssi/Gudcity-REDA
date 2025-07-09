@@ -14,13 +14,13 @@ import { Confetti } from '../ui/Confetti';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
 import { Spinner } from '../ui/spinner';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { queryClient } from '../../utils/queryClient';
 import { awardPointsDirectly } from '../../utils/sqlTransactionHelper';
 import sql from '../../utils/db';
 import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 interface PointsAwardingModalProps {
   isOpen: boolean;
@@ -249,34 +249,49 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           body: JSON.stringify({ customerId, programId: selectedProgramId, points: pointsToAward, description: 'Points awarded via QR code scan', source: 'SCAN' }),
         });
 
-        const rawText = await response.text();
-        let result: any = {};
-
         diagnostics.httpStatus = response.status;
+        
+        // First get the raw text to avoid JSON parsing errors
+        const rawText = await response.text();
         diagnostics.rawResponse = rawText;
-
-        if (rawText) {
+        
+        let result: any = {};
+        
+        // Only try to parse if we have content
+        if (rawText && rawText.trim()) {
           try {
             result = JSON.parse(rawText);
+            diagnostics.apiResponse = result;
           } catch (parseErr) {
             console.warn('Failed to parse JSON response:', parseErr);
             diagnostics.parseError = `Failed to parse: ${rawText}`;
-            // If parsing fails, the raw text is likely the most useful error message.
-            result = { error: `Server returned non-JSON response: ${rawText}` };
+            // If parsing fails, create a result object with the error
+            result = { 
+              success: false, 
+              error: `Server returned invalid JSON: ${rawText.substring(0, 100)}${rawText.length > 100 ? '...' : ''}` 
+            };
+          }
+        } else {
+          // Handle empty response
+          diagnostics.emptyResponse = true;
+          if (!response.ok) {
+            result = { 
+              success: false, 
+              error: `Request failed with status ${response.status}` 
+            };
+          } else {
+            // Empty but successful response
+            result = { 
+              success: true, 
+              message: 'Points awarded (no content returned)' 
+            };
           }
         }
 
-        diagnostics.apiResponse = result;
-
         if (!response.ok) {
-          // Use the error from the parsed JSON, or the raw text, or a default message.
-          const errorMessage = result?.error || rawText || `Request failed with status ${response.status}`;
+          // Use the error from the parsed JSON, or a default message
+          const errorMessage = result?.error || `Request failed with status ${response.status}`;
           throw new Error(errorMessage);
-        }
-
-        // If response is OK but body is empty, treat as success.
-        if (!rawText) {
-          result = { success: true, message: 'Points awarded (no content)' };
         }
 
         if (result.success) {
