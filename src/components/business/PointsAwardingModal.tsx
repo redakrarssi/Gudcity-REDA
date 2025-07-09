@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Award, X, Star, AlertCircle, Check, RefreshCw, Bug, Info, ArrowRight, Database } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoyaltyCardQrCodeData, CustomerQrCodeData, QrCodeData } from '../../types/qrCode';
 import { LoyaltyProgram } from '../../types/loyalty';
-import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../../services/loyaltyCardService';
-import { QrCodeService } from '../../services/qrCodeService';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { CustomerService } from '../../services/customerService';
+import { useAuth } from '../../contexts/AuthContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
+import { Button } from '../ui/Button';
 import { Confetti } from '../ui/Confetti';
+import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
+import { Spinner } from '../ui/Spinner';
 import { queryClient } from '../../utils/queryClient';
 import { awardPointsDirectly } from '../../utils/sqlTransactionHelper';
 import sql from '../../utils/db';
@@ -46,6 +52,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const MAX_RETRIES = 3;
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState<boolean>(false);
+  const { token } = useAuth();
 
   // Reset states when modal opens
   useEffect(() => {
@@ -72,29 +80,32 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   }, [isOpen, businessId, scanData]);
 
   const loadPrograms = async () => {
-    if (!businessId) return;
+    if (!scanData) return;
     
-    setIsLoading(true);
-    setError(null);
+    const customerId = scanData.customerId?.toString();
+    if (!customerId || !businessId) return;
     
     try {
-      console.log('Loading business programs for businessId:', businessId);
-      const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
-      console.log(`Found ${businessPrograms.length} programs for business ${businessId}`);
-      setPrograms(businessPrograms);
+      setIsLoadingPrograms(true);
       
-      // Set default program if available
-      if (businessPrograms.length > 0) {
-        console.log('Setting default program:', businessPrograms[0].id);
-        setSelectedProgramId(businessPrograms[0].id);
+      // Get all programs for this business that the customer is enrolled in
+      const enrolledPrograms = await LoyaltyProgramService.getCustomerEnrolledProgramsForBusiness(
+        customerId,
+        businessId.toString()
+      );
+      
+      if (enrolledPrograms && enrolledPrograms.length > 0) {
+        setPrograms(enrolledPrograms);
+        console.log(`Loaded ${enrolledPrograms.length} programs that customer is enrolled in`);
       } else {
-        console.log('No programs found for business');
+        console.log('No enrolled programs found for this customer and business');
+        setPrograms([]);
       }
-    } catch (err) {
-      console.error('Error fetching business programs:', err);
+    } catch (error) {
+      console.error('Error loading programs:', error);
       setError('Failed to load loyalty programs');
     } finally {
-      setIsLoading(false);
+      setIsLoadingPrograms(false);
     }
   };
 
@@ -159,13 +170,23 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     try {
       // STEP 1: Get customer details
       setProcessingStatus('Retrieving customer information...');
-      const customerDetails = await CustomerService.getCustomerById(customerId);
-      
-      if (!customerDetails) {
-        throw new Error('Customer not found');
+      let customerDetails;
+      try {
+        customerDetails = await CustomerService.getCustomerById(customerId);
+        
+        if (customerDetails) {
+          diagnostics.customerName = customerDetails.name;
+        } else {
+          console.warn(`Customer details not found for ID ${customerId}, continuing with process`);
+          diagnostics.customerWarning = 'Customer details not found, continuing with process';
+        }
+      } catch (customerError) {
+        console.warn(`Error fetching customer details: ${customerError}, continuing with process`);
+        diagnostics.customerError = customerError instanceof Error ? customerError.message : String(customerError);
       }
       
-      diagnostics.customerName = customerDetails.name;
+      // Use a fallback customer name if needed
+      const customerName = customerDetails?.name || 'Customer';
       
       // STEP 2: Get program details
       setProcessingStatus('Retrieving program details...');
@@ -193,6 +214,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       let cardId;
       
       try {
+        // Use the function we defined above
         card = await LoyaltyCardService.getCustomerCardForProgram(
           customerId,
           selectedProgramId
@@ -251,7 +273,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           diagnostics.pointsAwarded = true;
           
           // Update UI
-          setSuccess(`Successfully awarded ${pointsToAward} points to ${customerDetails.name}`);
+          setSuccess(`Successfully awarded ${pointsToAward} points to ${customerName}`);
           setShowConfetti(true);
           
           // Invalidate queries to refresh data
@@ -266,7 +288,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
               businessId: businessId.toString(),
               programId: selectedProgramId,
               programName: programDetails.name,
-              businessName: businessName || 'Business',
+              businessName: customerName || 'Business',
               points: pointsToAward,
               cardId: result.data?.cardId || cardId,
               source: 'SCAN'

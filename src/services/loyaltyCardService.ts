@@ -2226,6 +2226,61 @@ export class LoyaltyCardService {
       return null;
     }
   }
+
+  /**
+   * Get a customer's loyalty card for a specific program
+   * @param customerId ID of the customer
+   * @param programId ID of the loyalty program
+   * @returns The customer's loyalty card for the program or null if not found
+   */
+  static async getCustomerCardForProgram(
+    customerId: string,
+    programId: string
+  ): Promise<LoyaltyCard | null> {
+    try {
+      // Convert IDs to strings to ensure proper format
+      const customerIdStr = String(customerId);
+      const programIdStr = String(programId);
+      
+      const cards = await sql`
+        SELECT 
+          lc.*,
+          lp.name as program_name,
+          lp.business_id,
+          b.name as business_name
+        FROM loyalty_cards lc
+        JOIN loyalty_programs lp ON lc.program_id = lp.id
+        LEFT JOIN users b ON lp.business_id = b.id
+        WHERE lc.customer_id = ${customerIdStr}
+        AND lc.program_id = ${programIdStr}
+      `;
+      
+      if (!cards.length) {
+        return null;
+      }
+      
+      const card = cards[0];
+      
+      return {
+        id: card.id.toString(),
+        customerId: card.customer_id.toString(),
+        programId: card.program_id.toString(),
+        businessId: card.business_id?.toString() || '',
+        cardNumber: card.card_number || '',
+        points: parseInt(card.points || '0', 10),
+        pointsBalance: parseInt(card.points_balance || '0', 10),
+        tier: card.tier || 'STANDARD',
+        status: card.status || 'ACTIVE',
+        programName: card.program_name || '',
+        businessName: card.business_name || '',
+        createdAt: card.created_at ? new Date(card.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: card.updated_at ? new Date(card.updated_at).toISOString() : new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error fetching customer card for program:', error);
+      return null;
+    }
+  }
 }
 
 export default LoyaltyCardService; 

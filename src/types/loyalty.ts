@@ -21,6 +21,22 @@ export interface RewardTier {
   reward: string;
 }
 
+export interface LoyaltyCard {
+  id: string;
+  customerId: string;
+  programId: string;
+  businessId: string;
+  cardNumber: string;
+  points: number;
+  pointsBalance: number;
+  tier: string;
+  status: string;
+  programName: string;
+  businessName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CustomerProgram {
   id: string;
   customerId: string;
@@ -41,6 +57,20 @@ export interface Transaction {
   rewardId?: string; // For redemptions
   createdAt: string;
   businessName?: string; // Add businessName field for display purposes
+}
+
+export interface RedemptionNotification {
+  id: string;
+  customerId: string;
+  customerName: string;
+  businessId: string;
+  programId: string;
+  programName: string;
+  points: number;
+  reward: string;
+  rewardId: string;
+  timestamp: string;
+  status: 'PENDING' | 'COMPLETED' | 'REJECTED';
 }
 
 export interface Business {

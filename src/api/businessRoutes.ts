@@ -71,7 +71,7 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
     
     // Get customer name for notifications
     const customerInfo = await sql`
-      SELECT name FROM customers WHERE id = ${customerIdStr}
+      SELECT name FROM users WHERE id = ${customerIdStr} AND user_type = 'customer'
     `;
     
     const customerName = customerInfo.length ? customerInfo[0].name : 'Customer';

@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -10,12 +10,14 @@ import {
   Settings, 
   LogOut, 
   QrCode,
-  Bell,
   X,
   Menu
 } from 'lucide-react';
+import { IconBell } from '../icons/IconBell';
+import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { NotificationService } from '../../services/notificationService';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -24,8 +26,41 @@ interface BusinessLayoutProps {
 export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hasNotifications, setHasNotifications] = useState(false);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+
+  useEffect(() => {
+    // Check for pending redemption notifications
+    const checkNotifications = async () => {
+      if (user?.id) {
+        try {
+          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          if (result.success) {
+            // Check if there are any pending notifications
+            const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
+            setHasNotifications(pendingNotifications.length > 0);
+          }
+        } catch (error) {
+          console.error('Error checking notifications:', error);
+        }
+      }
+    };
+
+    checkNotifications();
+
+    // Listen for real-time notification updates
+    const handleNotificationEvent = () => {
+      checkNotifications();
+    };
+
+    window.addEventListener('redemption-notification', handleNotificationEvent);
+
+    return () => {
+      window.removeEventListener('redemption-notification', handleNotificationEvent);
+    };
+  }, [user]);
 
   const menuItems = [
     { 
@@ -55,7 +90,14 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
     },
     { 
       name: t('QR Scanner'), 
-      icon: <QrCode className="w-5 h-5" />, 
+      icon: (
+        <div className="relative">
+          <QrCode className="w-5 h-5" />
+          {hasNotifications && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white"></span>
+          )}
+        </div>
+      ), 
       path: '/business/qr-scanner' 
     },
     { 
@@ -92,7 +134,16 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
             <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
             <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
           </div>
-          <ThemeToggle variant="icon" />
+          <div className="flex items-center space-x-2">
+            <button
+              className="relative p-1"
+              onClick={() => setShowNotificationCenter(true)}
+              aria-label="Notifications"
+            >
+              <IconBell showNotification={hasNotifications} />
+            </button>
+            <ThemeToggle variant="icon" />
+          </div>
         </div>
 
         <nav className="flex-1 px-4 pb-4 space-y-1">
@@ -130,8 +181,12 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
             <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
             <div className="flex items-center">
               <ThemeToggle variant="icon" className="mr-2" />
-              <button className="p-1 mr-2 text-gray-600">
-                <Bell className="w-6 h-6" />
+              <button
+                className="p-1 mr-2 text-gray-600 relative"
+                onClick={() => setShowNotificationCenter(true)}
+                aria-label="Notifications"
+              >
+                <IconBell showNotification={hasNotifications} className="w-6 h-6" />
               </button>
               <button 
                 className="p-1 text-gray-600"
@@ -185,6 +240,12 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
             {children}
           </div>
         </main>
+
+        {/* Notification Drawer */}
+        <BusinessNotificationCenter
+          isOpen={showNotificationCenter}
+          onClose={() => setShowNotificationCenter(false)}
+        />
       </div>
     </div>
   );

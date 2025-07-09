@@ -15,6 +15,8 @@ import { QrCodeService } from '../../services/qrCodeService';
 import { NotificationService } from '../../services/notificationService';
 import { ScanResult, QrCodeType } from '../../types/qrCode';
 import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
+import { BusinessRedemptionNotifications } from '../../components/business/BusinessRedemptionNotifications';
+import { IconBell } from '../../components/icons/IconBell';
 
 // Define business analytics data interface
 interface BusinessAnalyticsData {
@@ -52,6 +54,38 @@ const BusinessDashboard = () => {
   const [animateStats, setAnimateStats] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [businessHasIncompleteSettings, setBusinessHasIncompleteSettings] = useState(false);
+  const [hasNotifications, setHasNotifications] = useState(false);
+
+  useEffect(() => {
+    // Check for pending redemption notifications
+    const checkNotifications = async () => {
+      if (user?.id) {
+        try {
+          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          if (result.success) {
+            // Check if there are any pending notifications
+            const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
+            setHasNotifications(pendingNotifications.length > 0);
+          }
+        } catch (error) {
+          console.error('Error checking notifications:', error);
+        }
+      }
+    };
+
+    checkNotifications();
+
+    // Listen for real-time notification updates
+    const handleNotificationEvent = () => {
+      checkNotifications();
+    };
+
+    window.addEventListener('redemption-notification', handleNotificationEvent);
+
+    return () => {
+      window.removeEventListener('redemption-notification', handleNotificationEvent);
+    };
+  }, [user]);
 
   useEffect(() => {
     async function loadBusinessData() {
@@ -83,7 +117,8 @@ const BusinessDashboard = () => {
         }
         
         console.log('Successfully loaded analytics data:', analytics);
-        setBusinessData(analytics);
+        // Cast analytics to BusinessAnalyticsData for now to satisfy state type
+        setBusinessData(analytics as unknown as BusinessAnalyticsData);
         
         // Mock program data (will be replaced with real data later)
         setPrograms([
@@ -137,7 +172,7 @@ const BusinessDashboard = () => {
     setPeriod(newPeriod);
   };
 
-  const handleScan = async (result: ScanResult) => {
+  const handleScan = async (result: any) => {
     // Process QR code data
     setScannerMessage(`Scanned: ${result.rawData || 'unknown'}`);
     
@@ -168,14 +203,9 @@ const BusinessDashboard = () => {
       
       // Process the QR code scan
       const scanResult = await QrCodeService.processQrCodeScan(
-        scanType,
-        user.id,
-        result.data,
-        {
-          customerId,
-          programId: programId || (result.type === 'loyaltyCard' && 'programId' in result.data ? String(result.data.programId) : undefined),
-          pointsToAward: 10 // Default points to award
-        }
+        result.data as any,
+        String(user.id),
+        10 // Default points to award
       );
       
       if (scanResult.success) {
@@ -292,8 +322,15 @@ const BusinessDashboard = () => {
               onClick={() => setShowScanner(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors"
             >
-              <QrCode className="h-5 w-5 mr-2" />
-              {t('Scan QR')}
+              <div className="flex items-center">
+                <QrCode className="h-5 w-5 mr-2" />
+                {t('Scan QR')}
+                {hasNotifications && (
+                  <div className="ml-2">
+                    <IconBell showNotification={true} className="h-4 w-4" />
+                  </div>
+                )}
+              </div>
             </button>
             <button
               onClick={() => { setShowProgramBuilder(true); setSelectedProgram(null); }}
@@ -443,7 +480,6 @@ const BusinessDashboard = () => {
             <BusinessAnalyticsDashboard 
               businessId={user?.id?.toString() || ''}
               currency={currency}
-              period={period}
             />
           </div>
         </div>
@@ -576,6 +612,7 @@ const BusinessDashboard = () => {
       {user?.id && (
         <div className="space-y-6">
           <BusinessEnrollmentNotifications businessId={String(user.id)} />
+          <BusinessRedemptionNotifications />
         </div>
       )}
     </BusinessLayout>

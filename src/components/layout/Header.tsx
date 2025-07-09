@@ -1,13 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { IconBell } from '../icons/IconBell';
+import { NotificationService } from '../../services/notificationService';
 
 const Header: React.FC = () => {
   const { t } = useTranslation();
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hasNotifications, setHasNotifications] = useState(false);
+  
+  useEffect(() => {
+    // Check for notifications if user is authenticated
+    const checkNotifications = async () => {
+      if (user?.id && user.role === 'business') {
+        try {
+          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          if (result.success) {
+            const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
+            setHasNotifications(pendingNotifications.length > 0);
+          }
+        } catch (error) {
+          console.error('Error checking notifications:', error);
+        }
+      }
+    };
+
+    if (isAuthenticated) {
+      checkNotifications();
+      
+      // Listen for real-time notification updates
+      const handleNotificationEvent = () => {
+        checkNotifications();
+      };
+
+      window.addEventListener('redemption-notification', handleNotificationEvent);
+
+      return () => {
+        window.removeEventListener('redemption-notification', handleNotificationEvent);
+      };
+    }
+  }, [user, isAuthenticated]);
   
   const navItems = [
     { name: t('Home'), path: '/' },
@@ -43,7 +78,12 @@ const Header: React.FC = () => {
           {/* Auth Buttons / User Menu */}
           <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
-              <div className="relative group">
+              <div className="relative group flex items-center">
+                {user?.role === 'business' && (
+                  <div className="mr-3">
+                    <IconBell showNotification={hasNotifications} />
+                  </div>
+                )}
                 <button className="flex items-center space-x-2 text-gray-700 hover:text-blue-600">
                   <span>{user?.name}</span>
                   <ChevronDown className="h-4 w-4" />

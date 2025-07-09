@@ -476,4 +476,253 @@ export class NotificationService {
       };
     }
   }
+
+  /**
+   * Get redemption notifications for a business
+   * @param businessId ID of the business
+   * @returns List of redemption notifications
+   */
+  static async getBusinessRedemptionNotifications(businessId: string): Promise<{
+    success: boolean;
+    notifications: any[];
+    error?: string;
+  }> {
+    try {
+      const result = await sql`
+        SELECT 
+          rn.id,
+          rn.customer_id,
+          u.name as customer_name,
+          rn.business_id,
+          rn.program_id,
+          lp.name as program_name,
+          rn.points,
+          rn.reward,
+          rn.reward_id,
+          rn.created_at as timestamp,
+          rn.status,
+          rn.is_read
+        FROM redemption_notifications rn
+        JOIN users u ON rn.customer_id = u.id
+        JOIN loyalty_programs lp ON rn.program_id = lp.id
+        WHERE rn.business_id = ${businessId}
+        ORDER BY rn.created_at DESC
+        LIMIT 50
+      `;
+      
+      // Format the notifications
+      const notifications = result.map(item => ({
+        id: item.id.toString(),
+        customerId: item.customer_id.toString(),
+        customerName: item.customer_name || 'Customer',
+        businessId: item.business_id.toString(),
+        programId: item.program_id.toString(),
+        programName: item.program_name || 'Loyalty Program',
+        points: parseInt(item.points || '0'),
+        reward: item.reward || 'Reward',
+        rewardId: item.reward_id?.toString() || '',
+        timestamp: item.timestamp ? new Date(item.timestamp).toISOString() : new Date().toISOString(),
+        status: item.status || 'PENDING',
+        isRead: !!item.is_read
+      }));
+      
+      return {
+        success: true,
+        notifications
+      };
+    } catch (error) {
+      console.error('Error fetching redemption notifications:', error);
+      return {
+        success: false,
+        notifications: [],
+        error: 'Failed to fetch redemption notifications'
+      };
+    }
+  }
+  
+  /**
+   * Update the status of a redemption notification
+   * @param notificationId ID of the notification
+   * @param status New status (COMPLETED or REJECTED)
+   * @param businessId ID of the business making the update
+   * @returns Success status
+   */
+  static async updateRedemptionStatus(
+    notificationId: string,
+    status: 'COMPLETED' | 'REJECTED',
+    businessId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // First check if the notification exists and belongs to this business
+      const check = await sql`
+        SELECT * FROM redemption_notifications
+        WHERE id = ${notificationId}
+        AND business_id = ${businessId}
+      `;
+      
+      if (!check.length) {
+        return {
+          success: false,
+          error: 'Notification not found or not authorized'
+        };
+      }
+      
+      // Update the status
+      await sql`
+        UPDATE redemption_notifications
+        SET status = ${status}, updated_at = NOW(), is_read = TRUE
+        WHERE id = ${notificationId}
+      `;
+      
+      // Get the notification details for the event
+      const notification = check[0];
+      
+      // Create a notification for the customer
+      const customerNotification = {
+        customerId: notification.customer_id.toString(),
+        type: status === 'COMPLETED' ? 'REDEMPTION_COMPLETED' : 'REDEMPTION_REJECTED',
+        title: status === 'COMPLETED' ? 'Redemption Completed' : 'Redemption Rejected',
+        message: status === 'COMPLETED' 
+          ? 'Your reward redemption has been completed' 
+          : 'Your reward redemption has been rejected',
+        data: {
+          notificationId,
+          programId: notification.program_id,
+          points: notification.points,
+          reward: notification.reward
+        }
+      };
+      
+      // Send notification to customer
+      await this.createNotification(
+        notification.customer_id.toString(),
+        customerNotification.type,
+        customerNotification.title,
+        customerNotification.message,
+        customerNotification.data
+      );
+      
+      // Emit event for real-time updates
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('redemption-status-updated', {
+          detail: {
+            notificationId,
+            status,
+            customerId: notification.customer_id.toString()
+          }
+        });
+        window.dispatchEvent(event);
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating redemption status:', error);
+      return {
+        success: false,
+        error: 'Failed to update redemption status'
+      };
+    }
+  }
+  
+  /**
+   * Create a redemption notification when a customer redeems points
+   * @param redemptionData Redemption details
+   * @returns Success status
+   */
+  static async createRedemptionNotification(redemptionData: {
+    customerId: string;
+    customerName: string;
+    businessId: string;
+    programId: string;
+    programName: string;
+    points: number;
+    reward: string;
+    rewardId: string;
+  }): Promise<{ success: boolean; notificationId?: string; error?: string }> {
+    try {
+      // Ensure the redemption_notifications table exists
+      await sql`
+        CREATE TABLE IF NOT EXISTS redemption_notifications (
+          id SERIAL PRIMARY KEY,
+          customer_id VARCHAR(255) NOT NULL,
+          business_id VARCHAR(255) NOT NULL,
+          program_id VARCHAR(255) NOT NULL,
+          points INTEGER NOT NULL,
+          reward TEXT NOT NULL,
+          reward_id VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'PENDING',
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      // Create the notification
+      const result = await sql`
+        INSERT INTO redemption_notifications (
+          customer_id,
+          business_id,
+          program_id,
+          points,
+          reward,
+          reward_id,
+          created_at
+        ) VALUES (
+          ${redemptionData.customerId},
+          ${redemptionData.businessId},
+          ${redemptionData.programId},
+          ${redemptionData.points},
+          ${redemptionData.reward},
+          ${redemptionData.rewardId},
+          NOW()
+        ) RETURNING id
+      `;
+      
+      if (!result.length) {
+        return {
+          success: false,
+          error: 'Failed to create redemption notification'
+        };
+      }
+      
+      const notificationId = result[0].id.toString();
+      
+      // Create a notification for the business owner
+      await this.createNotification(
+        redemptionData.businessId,
+        'REDEMPTION_REQUEST',
+        'New Redemption Request',
+        `${redemptionData.customerName} redeemed ${redemptionData.points} points for ${redemptionData.reward}`,
+        {
+          notificationId,
+          customerId: redemptionData.customerId,
+          programId: redemptionData.programId,
+          points: redemptionData.points,
+          reward: redemptionData.reward
+        }
+      );
+      
+      // Emit event for real-time updates
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('redemption-notification', {
+          detail: {
+            notificationId,
+            ...redemptionData
+          }
+        });
+        window.dispatchEvent(event);
+      }
+      
+      return {
+        success: true,
+        notificationId
+      };
+    } catch (error) {
+      console.error('Error creating redemption notification:', error);
+      return {
+        success: false,
+        error: 'Failed to create redemption notification'
+      };
+    }
+  }
 } 

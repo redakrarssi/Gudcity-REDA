@@ -1050,4 +1050,48 @@ export class LoyaltyProgramService {
       return { isEnrolled: false };
     }
   }
+
+  /**
+   * Get all programs a customer is enrolled in for a specific business
+   * @param customerId ID of the customer
+   * @param businessId ID of the business
+   * @returns Array of loyalty programs the customer is enrolled in
+   */
+  static async getCustomerEnrolledProgramsForBusiness(
+    customerId: string,
+    businessId: string
+  ): Promise<LoyaltyProgram[]> {
+    try {
+      // First get all enrollments for this customer
+      const enrollments = await sql`
+        SELECT cp.program_id
+        FROM program_enrollments cp
+        JOIN loyalty_programs lp ON cp.program_id = lp.id
+        WHERE cp.customer_id = ${customerId}
+        AND lp.business_id = ${businessId}
+        AND cp.status = 'ACTIVE'
+      `;
+      
+      if (!enrollments.length) {
+        return [];
+      }
+      
+      // Get full program details for each enrolled program
+      const programs: LoyaltyProgram[] = [];
+      
+      for (const enrollment of enrollments) {
+        const programId = enrollment.program_id;
+        const program = await this.getProgramById(programId);
+        
+        if (program) {
+          programs.push(program);
+        }
+      }
+      
+      return programs;
+    } catch (error) {
+      console.error('Error fetching customer enrolled programs:', error);
+      return [];
+    }
+  }
 } 

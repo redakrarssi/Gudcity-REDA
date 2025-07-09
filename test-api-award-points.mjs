@@ -1,28 +1,23 @@
-// Test script for award points API endpoint
-import { config } from 'dotenv';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
 // Load environment variables
-config();
+dotenv.config();
 
-// Test function
-async function testAwardPointsApi() {
+async function testApiAwardPoints() {
+  console.log('Testing award points API endpoint...');
+  
   try {
-    // Get command line arguments
-    const args = process.argv.slice(2);
-    const customerId = args[0] || '4'; // Default to customer ID 4
-    const programId = args[1] || '12'; // Default to program ID 12
-    const points = parseInt(args[2] || '100'); // Default to 100 points
-    const token = process.env.TEST_TOKEN; // Get token from environment
+    // Test parameters
+    const customerId = '27';
+    const programId = '11';
+    const pointsToAward = 103;
+    const token = process.env.TEST_AUTH_TOKEN || 'your-auth-token-here'; // Replace with a valid token
     
-    if (!token) {
-      console.error('Error: TEST_TOKEN environment variable not set');
-      console.log('Please set TEST_TOKEN in your .env file');
-      process.exit(1);
-    }
+    console.log(`Test parameters: Customer ID ${customerId}, Program ID ${programId}, Points ${pointsToAward}`);
     
-    console.log(`Testing award points API for customer ${customerId}, program ${programId} with ${points} points...`);
-    
-    // Call the API
+    // Make API request
+    console.log('Sending API request...');
     const response = await fetch('http://localhost:3000/api/businesses/award-points', {
       method: 'POST',
       headers: {
@@ -32,27 +27,57 @@ async function testAwardPointsApi() {
       body: JSON.stringify({
         customerId,
         programId,
-        points,
-        description: 'Test API award points',
-        source: 'TEST'
+        points: pointsToAward,
+        description: 'Points awarded via test script',
+        source: 'TEST',
+        transactionRef: `test-${Date.now()}`
       })
     });
     
-    // Parse response
     const result = await response.json();
     
-    console.log('Response status:', response.status);
-    console.log('Result:', JSON.stringify(result, null, 2));
+    console.log('\nAPI Response:');
+    console.log('Status:', response.status);
+    console.log('Body:', JSON.stringify(result, null, 2));
     
     if (response.ok && result.success) {
-      console.log(`✅ Successfully awarded ${points} points to customer ${customerId}`);
+      console.log('\n✅ Test completed successfully!');
+      return {
+        success: true,
+        customerId,
+        programId,
+        pointsAwarded: pointsToAward,
+        apiResponse: result
+      };
     } else {
-      console.log(`❌ Failed to award points: ${result.error || 'Unknown error'}`);
+      console.error('\n❌ API request failed!');
+      return {
+        success: false,
+        error: result.error || 'Unknown error',
+        customerId,
+        programId,
+        pointsAwarded: false,
+        apiResponse: result
+      };
     }
   } catch (error) {
-    console.error('Test failed with error:', error);
+    console.error('\n❌ Test failed:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      pointsAwarded: false
+    };
   }
 }
 
 // Run the test
-testAwardPointsApi(); 
+testApiAwardPoints()
+  .then(result => {
+    console.log('\nDiagnostic Information:');
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(result.success ? 0 : 1);
+  })
+  .catch(error => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+  }); 
