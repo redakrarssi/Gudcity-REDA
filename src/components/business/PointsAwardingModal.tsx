@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Award, X, Star, AlertCircle, Check, RefreshCw, Bug, Info, ArrowRight, Database } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,18 +8,19 @@ import { LoyaltyCardService } from '../../services/loyaltyCardService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { CustomerService } from '../../services/customerService';
 import { useAuth } from '../../contexts/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
-import { Button } from '../ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Button } from '../ui/button';
 import { Confetti } from '../ui/Confetti';
-import { Select } from '../ui/Select';
-import { Input } from '../ui/Input';
-import { Spinner } from '../ui/Spinner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Input } from '../ui/input';
+import { Spinner } from '../ui/spinner';
 import { queryClient } from '../../utils/queryClient';
 import { awardPointsDirectly } from '../../utils/sqlTransactionHelper';
 import sql from '../../utils/db';
 import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 interface PointsAwardingModalProps {
   isOpen: boolean;
@@ -53,7 +54,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const MAX_RETRIES = 3;
   const [isLoadingPrograms, setIsLoadingPrograms] = useState<boolean>(false);
-  const { token } = useAuth();
+  const { user } = useAuth();
 
   // Reset states when modal opens
   useEffect(() => {
@@ -242,47 +243,42 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       const transactionRef = `qr-scan-${Date.now()}`;
       
       try {
-        // Call the API endpoint to award points
         const response = await fetch('/api/businesses/award-points', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            customerId,
-            programId: selectedProgramId,
-            points: pointsToAward,
-            description: 'Points awarded via QR code scan',
-            source: 'SCAN',
-            transactionRef
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId, programId: selectedProgramId, points: pointsToAward, description: 'Points awarded via QR code scan', source: 'SCAN' }),
         });
-        
-        // Safely parse JSON (handle empty responses)
+
         const rawText = await response.text();
         let result: any = {};
+
+        diagnostics.httpStatus = response.status;
+        diagnostics.rawResponse = rawText;
+
         if (rawText) {
           try {
             result = JSON.parse(rawText);
           } catch (parseErr) {
             console.warn('Failed to parse JSON response:', parseErr);
-            result = { error: rawText };
+            diagnostics.parseError = `Failed to parse: ${rawText}`;
+            // If parsing fails, the raw text is likely the most useful error message.
+            result = { error: `Server returned non-JSON response: ${rawText}` };
           }
         }
-        
-        // Update diagnostics with API response
+
         diagnostics.apiResponse = result;
-        
+
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to award points');
+          // Use the error from the parsed JSON, or the raw text, or a default message.
+          const errorMessage = result?.error || rawText || `Request failed with status ${response.status}`;
+          throw new Error(errorMessage);
         }
 
-        // If no body but response OK, fabricate success
+        // If response is OK but body is empty, treat as success.
         if (!rawText) {
-          result = { success: true, message: 'Points awarded' };
+          result = { success: true, message: 'Points awarded (no content)' };
         }
-        
+
         if (result.success) {
           // Points awarded successfully
           diagnostics.pointsAwarded = true;
