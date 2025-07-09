@@ -259,13 +259,28 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           })
         });
         
-        const result = await response.json();
+        // Safely parse JSON (handle empty responses)
+        const rawText = await response.text();
+        let result: any = {};
+        if (rawText) {
+          try {
+            result = JSON.parse(rawText);
+          } catch (parseErr) {
+            console.warn('Failed to parse JSON response:', parseErr);
+            result = { error: rawText };
+          }
+        }
         
         // Update diagnostics with API response
         diagnostics.apiResponse = result;
         
         if (!response.ok) {
           throw new Error(result.error || 'Failed to award points');
+        }
+
+        // If no body but response OK, fabricate success
+        if (!rawText) {
+          result = { success: true, message: 'Points awarded' };
         }
         
         if (result.success) {
