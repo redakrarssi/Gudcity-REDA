@@ -9,14 +9,16 @@ import { QrCodeService } from '../../services/qrCodeService';
 import { CustomerService } from '../../services/customerService';
 import { Confetti } from '../ui/Confetti';
 import { queryClient } from '../../utils/queryClient';
+import { awardPointsDirectly } from '../../utils/sqlTransactionHelper';
 import sql from '../../utils/db';
-import { diagnoseCardIssue, attemptCardFix } from '../../utils/cardDiagnostics';
+import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
+import { logger } from '../../utils/logger';
 
 interface PointsAwardingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  scanData: QrCodeData | null;
+  scanData: LoyaltyCardQrCodeData | CustomerQrCodeData | null;
   businessId: string;
 }
 
@@ -27,38 +29,92 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   businessId
 }) => {
   const { t } = useTranslation();
+  const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
-  const [loyaltyPrograms, setLoyaltyPrograms] = useState<LoyaltyProgram[]>([]);
-  const [pointsToAward, setPointsToAward] = useState<number>(1);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [pointsToAward, setPointsToAward] = useState<number>(10);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [detailedError, setDetailedError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
+  const [customerName, setCustomerName] = useState<string>('Customer');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [detailedError, setDetailedError] = useState<string | null>(null);
+  const [hasRetried, setHasRetried] = useState<boolean>(false);
+  const [isCreatingEnrollment, setIsCreatingEnrollment] = useState<boolean>(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
-  const [fixAttempted, setFixAttempted] = useState<boolean>(false);
-  const [fixResult, setFixResult] = useState<any>(null);
+  const MAX_RETRIES = 3;
 
+  // Reset states when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setSuccess(null);
+      setDetailedError(null);
+      setRetryCount(0);
+      setHasRetried(false);
+      setPointsToAward(10);
+      setProcessingStatus('');
+      setIsCreatingEnrollment(false);
+      setDiagnosticInfo(null);
+      setShowDiagnostics(false);
+    }
+  }, [isOpen]);
+
+  // Load business programs
   useEffect(() => {
     if (isOpen && businessId) {
-      loadLoyaltyPrograms();
+      loadPrograms();
+      loadCustomerInfo();
     }
-  }, [isOpen, businessId]);
+  }, [isOpen, businessId, scanData]);
 
-  const loadLoyaltyPrograms = async () => {
+  const loadPrograms = async () => {
+    if (!businessId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      const programs = await LoyaltyProgramService.getLoyaltyProgramsByBusiness(businessId);
-      setLoyaltyPrograms(programs);
+      console.log('Loading business programs for businessId:', businessId);
+      const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
+      console.log(`Found ${businessPrograms.length} programs for business ${businessId}`);
+      setPrograms(businessPrograms);
       
-      // Auto-select the first program if there's only one
-      if (programs.length === 1) {
-        setSelectedProgramId(programs[0].id.toString());
+      // Set default program if available
+      if (businessPrograms.length > 0) {
+        console.log('Setting default program:', businessPrograms[0].id);
+        setSelectedProgramId(businessPrograms[0].id);
+      } else {
+        console.log('No programs found for business');
       }
-    } catch (error) {
-      console.error('Error loading loyalty programs:', error);
+    } catch (err) {
+      console.error('Error fetching business programs:', err);
       setError('Failed to load loyalty programs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadCustomerInfo = async () => {
+    if (!scanData) return;
+    
+    const customerId = scanData.customerId?.toString();
+    if (!customerId) return;
+    
+    try {
+      console.log('Loading customer info for customerId:', customerId);
+      const customer = await LoyaltyCardService.getCustomerInfo(customerId);
+      if (customer && customer.name) {
+        console.log('Customer found:', customer.name);
+        setCustomerName(customer.name);
+      } else {
+        console.log('Customer found but no name available');
+      }
+    } catch (err) {
+      console.error('Error fetching customer info:', err);
     }
   };
 
@@ -89,11 +145,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     setDetailedError(null);
     setSuccess(null);
     setProcessingStatus('Starting point award process...');
-    setDiagnosticInfo(null);
-    setFixAttempted(false);
-    setFixResult(null);
+    setDiagnosticInfo({});
     
-    // Create a diagnostics object to track the process
     const diagnostics: any = {
       scanType: scanData.type,
       customerId,
@@ -103,295 +156,273 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       timestamp: new Date().toISOString()
     };
     
-    let result = false;
-    
     try {
-      // STEP 1: Check if customer exists
-      setProcessingStatus('Verifying customer...');
-      const customer = await CustomerService.getCustomerById(customerId);
+      // STEP 1: Get customer details
+      setProcessingStatus('Retrieving customer information...');
+      const customerDetails = await CustomerService.getCustomerById(customerId);
       
-      if (!customer) {
-        setError('Customer not found');
-        setDiagnosticInfo({
-          ...diagnostics,
-          error: 'Customer not found'
-        });
-        setIsProcessing(false);
-        return;
+      if (!customerDetails) {
+        throw new Error('Customer not found');
       }
       
-      diagnostics.customerFound = true;
+      diagnostics.customerName = customerDetails.name;
       
-      // STEP 2: Check if program exists
-      setProcessingStatus('Verifying loyalty program...');
-      const program = await LoyaltyProgramService.getLoyaltyProgramById(selectedProgramId);
+      // STEP 2: Get program details
+      setProcessingStatus('Retrieving program details...');
+      const programDetails = await LoyaltyProgramService.getProgramById(selectedProgramId);
       
-      if (!program) {
-        setError('Loyalty program not found');
-        setDiagnosticInfo({
-          ...diagnostics,
-          error: 'Loyalty program not found'
-        });
-        setIsProcessing(false);
-        return;
+      if (!programDetails) {
+        throw new Error('Program not found');
       }
       
-      diagnostics.programFound = true;
+      diagnostics.programName = programDetails.name;
       
-      // STEP 3: Check if customer is enrolled in program
+      // STEP 3: Check enrollment status
       setProcessingStatus('Checking enrollment status...');
-      const enrollmentStatus = await getEnrollmentStatusWithRetry(customerId, businessId, selectedProgramId);
+      const enrollmentStatus = await getEnrollmentStatusWithRetry(
+        customerId,
+        businessId.toString(),
+        selectedProgramId
+      );
       
-      if (!enrollmentStatus.isEnrolled) {
-        setError('Customer is not enrolled in this loyalty program');
-        setDiagnosticInfo({
-          ...diagnostics,
-          error: 'Customer not enrolled in program',
-          enrollmentStatus
-        });
-        setIsProcessing(false);
-        return;
-      }
+      diagnostics.enrollmentStatus = enrollmentStatus;
       
-      diagnostics.isEnrolled = true;
-      
-      // STEP 4: Get or create loyalty card for this customer and program
-      setProcessingStatus('Retrieving loyalty card...');
-      let card = null;
-      let cardId = null;
+      // STEP 4: Find or create card
+      setProcessingStatus('Finding or creating loyalty card...');
+      let card;
+      let cardId;
       
       try {
-        // First try to get existing card
-        card = await LoyaltyCardService.getCardByCustomerAndProgram(customerId, selectedProgramId);
+        card = await LoyaltyCardService.getCustomerCardForProgram(
+          customerId,
+          selectedProgramId
+        );
         
         if (card) {
           cardId = card.id;
           diagnostics.cardFound = true;
           diagnostics.cardId = cardId;
-          diagnostics.currentPoints = card.points || 0;
+          diagnostics.currentPoints = card.points;
         } else {
-          // If no card exists, create one
-          setProcessingStatus('Creating new loyalty card...');
-          card = await LoyaltyCardService.createCardForEnrolledCustomer(
-            customerId,
-            businessId,
-            selectedProgramId
-          );
-          
-          if (card) {
-            cardId = card.id;
-            diagnostics.cardFound = true;
-            diagnostics.cardId = cardId;
-            diagnostics.currentPoints = 0;
-            diagnostics.cardCreated = true;
-          } else {
-            setError('Failed to create loyalty card');
-            setDiagnosticInfo({
-              ...diagnostics,
-              error: 'Failed to create loyalty card'
-            });
-            setIsProcessing(false);
-            return;
-          }
+          // No card found, will be created by the API
+          diagnostics.cardFound = false;
         }
       } catch (cardError) {
-        console.error('Error getting/creating card:', cardError);
-        setError('Error retrieving loyalty card');
-        setDetailedError(cardError instanceof Error ? cardError.message : String(cardError));
-        setDiagnosticInfo({
-          ...diagnostics,
-          error: 'Error retrieving loyalty card',
-          cardError: cardError instanceof Error ? cardError.message : String(cardError)
-        });
-        setIsProcessing(false);
-        return;
+        console.error('Error finding card:', cardError);
+        diagnostics.cardError = cardError instanceof Error ? cardError.message : String(cardError);
+        // Continue anyway, the API will handle card creation
       }
       
-      // STEP 5: Award points to the card
-      if (card && cardId) {
-        setProcessingStatus('Awarding points to card...');
-        
-        // Save transaction information for error reporting
-        diagnostics.awardingPoints = {
-          cardId: card.id,
-          points: pointsToAward,
-          source: 'SCAN',
-          description: 'Points awarded via QR code scan',
-          transactionRef: `qr-scan-${Date.now()}`,
-          businessId
-        };
-        
-        // First run a diagnostic check on the card
-        const cardDiagnosis = await diagnoseCardIssue(
-          cardId, 
-          customerId, 
-          businessId, 
-          selectedProgramId
-        );
-        
-        diagnostics.cardDiagnosis = cardDiagnosis;
-        
-        // If there's a relationship issue, try to fix it before awarding points
-        if (!cardDiagnosis.success) {
-          setProcessingStatus('Detected card relationship issue, attempting to fix...');
-          
-          const fixAttempt = await attemptCardFix(
-            cardId,
+      // STEP 5: Award points via API
+      setProcessingStatus('Awarding points...');
+      
+      // Generate a unique transaction reference
+      const transactionRef = `qr-scan-${Date.now()}`;
+      
+      try {
+        // Call the API endpoint to award points
+        const response = await fetch('/api/businesses/award-points', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
             customerId,
-            businessId,
-            selectedProgramId
-          );
-          
-          setFixAttempted(true);
-          setFixResult(fixAttempt);
-          diagnostics.fixAttempt = fixAttempt;
-          
-          if (!fixAttempt.success) {
-            setProcessingStatus('Could not fix card relationship issue automatically');
-          } else if (fixAttempt.fixed) {
-            setProcessingStatus('Successfully fixed card relationship issue');
-          }
+            programId: selectedProgramId,
+            points: pointsToAward,
+            description: 'Points awarded via QR code scan',
+            source: 'SCAN',
+            transactionRef
+          })
+        });
+        
+        const result = await response.json();
+        
+        // Update diagnostics with API response
+        diagnostics.apiResponse = result;
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to award points');
         }
         
-        // Use the LoyaltyCardService to award points
-        try {
-          // First try the LoyaltyCardService
-          const serviceResult = await LoyaltyCardService.awardPointsToCard(
-            cardId,
-            pointsToAward,
-            'SCAN',
-            'Points awarded via QR code scan',
-            `qr-scan-${Date.now()}`,
-            businessId
-          );
+        if (result.success) {
+          // Points awarded successfully
+          diagnostics.pointsAwarded = true;
           
-          if (serviceResult.success) {
-            result = true;
-            diagnostics.pointsAwarded = true;
-            diagnostics.pointsAwardDetails = serviceResult.diagnostics;
-            diagnostics.pointsAwardMethod = 'service';
-          } else {
-            // If service method fails, log the error and try direct SQL approach
-            console.log('Service method failed:', serviceResult.error);
-            console.log('Details:', serviceResult.diagnostics);
-            setProcessingStatus('Primary method failed, trying alternative approach...');
-            
-            // Try direct SQL approach as fallback
-            try {
-              // Use a simple direct SQL update as last resort
-              const updateResult = await sql`
-                UPDATE loyalty_cards
-                SET points = COALESCE(points, 0) + ${pointsToAward}
-                WHERE id = ${cardId}
-                RETURNING id, points
-              `;
-              
-              if (updateResult && updateResult.length > 0) {
-                result = true;
-                diagnostics.pointsAwarded = true;
-                diagnostics.pointsAwardMethod = 'emergency_fallback';
-                diagnostics.fallbackResult = {
-                  id: updateResult[0].id,
-                  newPoints: updateResult[0].points
-                };
-                console.log('Emergency fallback succeeded:', updateResult[0]);
-                
-                // Try to record the transaction
-                try {
-                  await sql`
-                    INSERT INTO loyalty_transactions (
-                      card_id,
-                      transaction_type,
-                      points,
-                      source,
-                      description,
-                      transaction_ref,
-                      business_id,
-                      created_at,
-                      customer_id,
-                      program_id
-                    )
-                    VALUES (
-                      ${cardId},
-                      'CREDIT',
-                      ${pointsToAward},
-                      'SCAN',
-                      'Points awarded via QR code scan (emergency fallback)',
-                      ${`emergency-${Date.now()}`},
-                      ${businessId},
-                      NOW(),
-                      ${customerId},
-                      ${selectedProgramId}
-                    )
-                  `;
-                  diagnostics.transactionRecorded = true;
-                } catch (txError) {
-                  console.error('Failed to record transaction (non-critical):', txError);
-                  diagnostics.transactionError = txError instanceof Error ? 
-                    txError.message : String(txError);
-                }
-              } else {
-                setDetailedError('Emergency fallback failed: No rows updated');
-                diagnostics.pointsAwarded = false;
-                diagnostics.pointsAwardMethod = 'emergency_fallback';
-                diagnostics.pointsAwardError = 'No rows updated';
-              }
-            } catch (fallbackError) {
-              console.error('Emergency fallback failed:', fallbackError);
-              setDetailedError(fallbackError instanceof Error ? 
-                fallbackError.message : 'Unknown error in emergency fallback');
-              diagnostics.pointsAwarded = false;
-              diagnostics.pointsAwardMethod = 'emergency_fallback';
-              diagnostics.pointsAwardError = fallbackError instanceof Error ? 
-                fallbackError.message : String(fallbackError);
+          // Update UI
+          setSuccess(`Successfully awarded ${pointsToAward} points to ${customerDetails.name}`);
+          setShowConfetti(true);
+          
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+          queryClient.invalidateQueries({ queryKey: ['customerPoints'] });
+          queryClient.invalidateQueries({ queryKey: ['businessCustomers'] });
+          
+          // Dispatch event for real-time updates
+          const pointsEvent = new CustomEvent('points-awarded', {
+            detail: {
+              customerId,
+              businessId: businessId.toString(),
+              programId: selectedProgramId,
+              programName: programDetails.name,
+              businessName: businessName || 'Business',
+              points: pointsToAward,
+              cardId: result.data?.cardId || cardId,
+              source: 'SCAN'
             }
-          }
-        } catch (awardError) {
-          console.error('Error awarding points:', awardError);
-          setDetailedError(awardError instanceof Error ? awardError.message : String(awardError));
-          diagnostics.pointsAwardError = awardError instanceof Error ? awardError.message : String(awardError);
+          });
+          window.dispatchEvent(pointsEvent);
+          
+          // Reset form
+          setPointsToAward(1);
+          setSelectedProgramId('');
+        } else {
+          // API returned success: false
           diagnostics.pointsAwarded = false;
+          diagnostics.apiError = result.error;
+          
+          throw new Error(result.error || 'Failed to award points');
         }
-      } else {
-        setError('Card information is missing');
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        setError('Failed to award points to the customer – Try Again');
+        setDetailedError(apiError instanceof Error ? apiError.message : String(apiError));
         diagnostics.pointsAwarded = false;
-        diagnostics.error = 'Card information is missing';
-      }
-      
-      // STEP 6: Handle result
-      if (result) {
-        setSuccess(`Successfully awarded ${pointsToAward} points to ${customer.name}`);
-        setShowConfetti(true);
-        
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries(['customerCards', customerId]);
-        queryClient.invalidateQueries(['customerPrograms', customerId]);
-        queryClient.invalidateQueries(['businessCustomers', businessId]);
-        
-        // Show success toast
-        toast.success(`${pointsToAward} points awarded to ${customer.name}`);
-        
-        // Close modal after delay
-        setTimeout(() => {
-          onClose();
-        }, 3000);
-      } else {
-        setError('Failed to award points to the customer');
-        
-        if (diagnostics.pointsAwardError) {
-          setDetailedError(`Error: ${diagnostics.pointsAwardError}`);
-        }
+        diagnostics.pointsAwardError = apiError instanceof Error ? apiError.message : String(apiError);
       }
     } catch (error) {
-      console.error('Error in points awarding process:', error);
-      setError('An unexpected error occurred');
+      console.error('Error in award points process:', error);
+      setError('Failed to award points to the customer');
       setDetailedError(error instanceof Error ? error.message : String(error));
       
+      // Add error to diagnostics
       diagnostics.error = error instanceof Error ? error.message : String(error);
+      diagnostics.pointsAwarded = false;
     } finally {
       setIsProcessing(false);
       setDiagnosticInfo(diagnostics);
     }
+  };
+
+  /**
+   * Troubleshoot points awarding with the diagnostic tool
+   */
+  const handleTroubleshoot = async () => {
+    if (!scanData) {
+      toast.error('No scan data available');
+      return;
+    }
+    
+    const customerId = scanData.customerId?.toString();
+    if (!customerId) {
+      toast.error('Customer ID not found in scan data');
+      return;
+    }
+    
+    if (!selectedProgramId) {
+      toast.error('Please select a loyalty program');
+      return;
+    }
+    
+    setIsProcessing(true);
+    toast.loading('Running diagnostic test...');
+    
+    try {
+      const result = await testPointAwarding(
+        customerId,
+        businessId,
+        selectedProgramId,
+        pointsToAward
+      );
+      
+      if (result.success) {
+        toast.success(result.message);
+        
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+        queryClient.invalidateQueries({ queryKey: ['customerPoints'] });
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCard'] });
+        
+        setSuccess(result.message);
+      } else {
+        toast.error(result.message);
+        setError(result.message);
+        if (result.details) {
+          setDetailedError(JSON.stringify(result.details));
+        }
+      }
+    } catch (error) {
+      toast.error('Diagnostic test failed');
+      setError('Diagnostic test failed');
+      setDetailedError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsProcessing(false);
+      toast.dismiss();
+    }
+  };
+
+  /**
+   * Get a loyalty card with retry logic
+   */
+  const getLoyaltyCardWithRetry = async (
+    customerId: string,
+    businessId: string,
+    programId: string
+  ) => {
+    let attempts = 0;
+    
+    while (attempts < 3) {
+      try {
+        // First try standard service method
+        const card = await LoyaltyCardService.getCustomerCard(customerId, businessId);
+        
+        if (card) return card;
+        
+        // If that fails, try direct query with specific program
+        const cardResult = await sql`
+          SELECT * FROM loyalty_cards
+          WHERE customer_id = ${customerId}
+          AND business_id = ${businessId}
+          AND program_id = ${programId}
+          AND is_active = true
+        `;
+        
+        if (cardResult.length > 0) {
+          return {
+            id: cardResult[0].id?.toString() || '',
+            customerId: cardResult[0].customer_id?.toString() || '',
+            businessId: cardResult[0].business_id?.toString() || '',
+            programId: cardResult[0].program_id?.toString() || '',
+            cardType: cardResult[0].card_type || 'STANDARD',
+            tier: cardResult[0].tier || 'STANDARD',
+            points: parseFloat(cardResult[0].points?.toString() || '0') || 0,
+            pointsMultiplier: parseFloat(cardResult[0].points_multiplier?.toString() || '1') || 1,
+            promoCode: cardResult[0].promo_code || null,
+            nextReward: null,
+            pointsToNext: null,
+            expiryDate: cardResult[0].expiry_date || null,
+            benefits: [],
+            lastUsed: cardResult[0].last_used || null,
+            isActive: true,
+            availableRewards: [],
+            createdAt: cardResult[0].created_at?.toString() || new Date().toISOString(),
+            updatedAt: cardResult[0].updated_at?.toString() || new Date().toISOString(),
+            cardNumber: cardResult[0].card_number?.toString() || ''
+          };
+        }
+        
+        return null;
+      } catch (error) {
+        console.error(`Error getting loyalty card (attempt ${attempts + 1}):`, error);
+        attempts++;
+        if (attempts < 3) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
+    return null;
   };
 
   /**
@@ -419,23 +450,108 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         console.error(`Error getting enrollment status (attempt ${attempts + 1}):`, error);
         attempts++;
         if (attempts < 3) {
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
     
-    return { isEnrolled: false, programIds: [] };
+    return { isEnrolled: false, programIds: [], totalPoints: 0 };
   };
 
-  const handleTryAgain = () => {
+  /**
+   * Create enrollment and card with retry
+   */
+  const createEnrollmentAndCardWithRetry = async (
+    customerId: string,
+    businessId: string,
+    programId: string
+  ) => {
+    let attempts = 0;
+    
+    while (attempts < 3) {
+      try {
+        // Create direct enrollment and card
+        const card = await LoyaltyCardService.enrollCustomerInProgram(
+          customerId,
+          businessId,
+          programId
+        );
+        
+        return card;
+      } catch (error) {
+        console.error(`Error creating enrollment (attempt ${attempts + 1}):`, error);
+        attempts++;
+        if (attempts < 3) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  /**
+   * Create card for already enrolled customer
+   */
+  const createCardForEnrolledCustomer = async (
+    customerId: string,
+    businessId: string,
+    programId: string
+  ) => {
+    try {
+      // Generate a unique card number
+      const cardNumber = `GC-${Math.floor(100000 + Math.random() * 900000)}-C`;
+      
+      // Create the card directly
+      const cardResult = await sql`
+        INSERT INTO loyalty_cards (
+          customer_id, business_id, program_id, card_number,
+          points, points_balance, total_points_earned,
+          tier, is_active, created_at, updated_at
+        ) VALUES (
+          ${customerId}, ${businessId}, ${programId}, ${cardNumber},
+          0, 0, 0, 'STANDARD', true, NOW(), NOW()
+        ) RETURNING id
+      `;
+      
+      if (cardResult.length === 0) {
+        throw new Error('Failed to create card');
+      }
+      
+      const cardId = cardResult[0].id?.toString() || '';
+      
+      return {
+        id: cardId,
+        customerId: customerId,
+        businessId: businessId,
+        programId: programId,
+        cardType: 'STANDARD',
+        tier: 'STANDARD',
+        points: 0,
+        pointsMultiplier: 1,
+        promoCode: null,
+        nextReward: null,
+        pointsToNext: null,
+        expiryDate: null,
+        benefits: [],
+        lastUsed: null,
+        isActive: true,
+        availableRewards: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        cardNumber: cardNumber
+      };
+    } catch (error) {
+      console.error('Error creating card for enrolled customer:', error);
+      return null;
+    }
+  };
+  
+  const handleRetry = () => {
+    setHasRetried(true);
     setError(null);
     setDetailedError(null);
-    setSuccess(null);
-    setShowConfetti(false);
-    setDiagnosticInfo(null);
-    setFixAttempted(false);
-    setFixResult(null);
+    handleAwardPoints();
   };
 
   const toggleDiagnostics = () => {
@@ -449,168 +565,164 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       {showConfetti && <Confetti active={showConfetti} />}
       
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold flex items-center">
-            <Award className="mr-2 text-blue-600" size={24} />
+        <div className="flex justify-between items-center p-5 border-b">
+          <h3 className="text-lg font-semibold flex items-center">
+            <Award className="w-5 h-5 mr-2 text-green-500" />
             {t('Award Points')}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-            aria-label="Close"
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-gray-500 focus:outline-none"
+            disabled={isProcessing}
           >
-            <X size={24} />
+            <X className="w-5 h-5" />
           </button>
         </div>
         
-        <div className="p-4">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-start">
-              <AlertCircle className="mr-2 flex-shrink-0 mt-0.5" size={18} />
-              <div>
-                <p className="font-medium">{error}</p>
-                {detailedError && <p className="text-sm mt-1">{detailedError}</p>}
-                {fixAttempted && (
-                  <div className="mt-2 text-sm">
-                    <p className="font-medium">Automatic fix attempted:</p>
-                    <p>{fixResult?.success ? 'Fix succeeded' : 'Fix failed'}</p>
-                    {fixResult?.action && <p>Action: {fixResult.action}</p>}
-                    {fixResult?.error && <p>Error: {fixResult.error}</p>}
-                  </div>
-                )}
-                <button 
-                  onClick={handleTryAgain}
-                  className="mt-2 flex items-center text-sm font-medium text-red-700 hover:text-red-900"
-                >
-                  <RefreshCw className="mr-1" size={14} />
-                  Try Again
-                </button>
-              </div>
+        <div className="p-5 space-y-4">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+              <div className="w-8 h-8 border-4 border-t-green-500 border-gray-200 rounded-full animate-spin"></div>
+              <p className="text-gray-500">Loading program information...</p>
             </div>
-          )}
-          
-          {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start">
-              <Check className="mr-2 flex-shrink-0 mt-0.5" size={18} />
-              <div>
-                <p className="font-medium">{success}</p>
-              </div>
-            </div>
-          )}
-          
-          {!success && !error && (
+          ) : (
             <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Customer')}
-                </label>
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                  <p className="font-medium">
-                    {scanData?.customerName || 'Unknown Customer'} 
-                    {scanData?.customerId && <span className="text-gray-500 ml-1">#{scanData.customerId}</span>}
+              {isProcessing && processingStatus && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded">
+                  <div className="flex items-center">
+                    <div className="mr-3 w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-blue-800">{processingStatus}</p>
+                  </div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded">
+                  <div className="flex flex-col">
+                    <div className="flex items-center">
+                      <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
+                      <p className="text-red-800 font-medium">{error}</p>
+                    </div>
+                    
+                    {detailedError && (
+                      <p className="mt-1 ml-7 text-sm text-red-700">{detailedError}</p>
+                    )}
+                    
+                    <div className="mt-3 flex gap-3 ml-7">
+                      <button
+                        onClick={handleRetry}
+                        disabled={isProcessing}
+                        className="flex items-center text-sm font-medium text-red-700 hover:text-red-900"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        {t('Try Again')}
+                      </button>
+                      
+                      <button
+                        onClick={toggleDiagnostics}
+                        disabled={isProcessing || !diagnosticInfo}
+                        className="flex items-center text-sm font-medium text-blue-700 hover:text-blue-900"
+                      >
+                        <Bug className="w-4 h-4 mr-1" />
+                        {showDiagnostics ? t('Hide Diagnostics') : t('Show Diagnostics')}
+                      </button>
+                    </div>
+                    
+                    {showDiagnostics && diagnosticInfo && (
+                      <div className="mt-3 ml-7 p-2 bg-gray-50 rounded-md border border-gray-200 text-xs font-mono overflow-x-auto">
+                        <div className="text-gray-800 font-medium mb-1">Diagnostic Information:</div>
+                        <pre className="text-gray-600">
+                          {JSON.stringify(diagnosticInfo, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {success && (
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4 rounded">
+                  <div className="flex items-center">
+                    <Check className="w-5 h-5 text-green-500 mr-2" />
+                    <p className="text-green-800">{success}</p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Customer')}
+                  </label>
+                  <div className="bg-gray-50 p-3 rounded-md border border-gray-200 flex items-center">
+                    <span className="font-medium">{customerName}</span>
+                    {scanData?.customerId && <span className="text-gray-500 ml-2 text-sm">#{scanData.customerId.toString()}</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Loyalty Program')}
+                  </label>
+                  <select
+                    value={selectedProgramId}
+                    onChange={(e) => setSelectedProgramId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    disabled={isProcessing || programs.length === 0}
+                  >
+                    {programs.length === 0 ? (
+                      <option value="">{t('No programs available')}</option>
+                    ) : (
+                      programs.map((program) => (
+                        <option key={program.id} value={program.id}>
+                          {program.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('Points to Award')}
+                  </label>
+                  <input
+                    type="number"
+                    value={pointsToAward}
+                    onChange={(e) => setPointsToAward(Math.max(1, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    min="1"
+                    disabled={isProcessing}
+                  />
+                </div>
+                
+                <div className="pt-4">
+                  <button
+                    onClick={handleAwardPoints}
+                    disabled={isProcessing || !selectedProgramId || pointsToAward <= 0 || !scanData?.customerId}
+                    className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="mr-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {t('Processing...')}
+                      </>
+                    ) : (
+                      <>
+                        <Award className="w-5 h-5 mr-2" />
+                        {t('Award Points')}
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="text-center pt-2">
+                  <p className="text-xs text-gray-500">
+                    {t('Points will be added to the customer\'s loyalty card for the selected program')}
                   </p>
                 </div>
               </div>
-              
-              <div className="mb-4">
-                <label htmlFor="loyaltyProgram" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Loyalty Program')}
-                </label>
-                <select
-                  id="loyaltyProgram"
-                  value={selectedProgramId}
-                  onChange={(e) => setSelectedProgramId(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isProcessing}
-                >
-                  <option value="">{t('Select a loyalty program')}</option>
-                  {loyaltyPrograms.map((program) => (
-                    <option key={program.id} value={program.id.toString()}>
-                      {program.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="mb-4">
-                <label htmlFor="pointsToAward" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Points to Award')}
-                </label>
-                <input
-                  id="pointsToAward"
-                  type="number"
-                  min="1"
-                  value={pointsToAward}
-                  onChange={(e) => setPointsToAward(parseInt(e.target.value) || 0)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isProcessing}
-                />
-              </div>
-              
-              <button
-                onClick={handleAwardPoints}
-                disabled={isProcessing}
-                className={`w-full p-3 rounded-md font-medium flex justify-center items-center ${
-                  isProcessing
-                    ? 'bg-gray-300 text-gray-700 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="animate-spin mr-2" size={18} />
-                    {processingStatus || t('Processing...')}
-                  </>
-                ) : (
-                  <>
-                    <Award className="mr-2" size={18} />
-                    {t('Award Points')}
-                  </>
-                )}
-              </button>
             </>
-          )}
-          
-          {diagnosticInfo && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={toggleDiagnostics}
-                  className="text-sm text-gray-500 flex items-center"
-                >
-                  {showDiagnostics ? (
-                    <>
-                      <Bug size={16} className="mr-1" />
-                      Hide Diagnostics
-                    </>
-                  ) : (
-                    <>
-                      <Bug size={16} className="mr-1" />
-                      Show Diagnostics
-                    </>
-                  )}
-                </button>
-                
-                {diagnosticInfo.pointsAwarded === false && (
-                  <button
-                    onClick={handleTryAgain}
-                    className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    <RefreshCw className="mr-1" size={14} />
-                    Try Again
-                  </button>
-                )}
-              </div>
-              
-              {showDiagnostics && (
-                <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-md text-xs font-mono overflow-x-auto">
-                  <div className="font-medium mb-1 text-gray-700">Diagnostic Information:</div>
-                  <pre className="text-gray-800">
-                    {JSON.stringify(diagnosticInfo, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
           )}
         </div>
       </div>

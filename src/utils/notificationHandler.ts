@@ -46,6 +46,7 @@ export async function handlePointsAwarded(
     // Set localStorage event to trigger UI updates
     if (typeof window !== 'undefined') {
       try {
+        // Store in localStorage for persistence across page refreshes
         localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify({
           type: 'POINTS_ADDED',
           customerId,
@@ -63,10 +64,29 @@ export async function handlePointsAwarded(
             customerId,
             businessId,
             points,
-            programName
+            programName,
+            cardId
           }
         });
         window.dispatchEvent(event);
+        
+        // Also dispatch the specific points-awarded event
+        const pointsEvent = new CustomEvent('points-awarded', {
+          detail: {
+            customerId,
+            businessId,
+            programId,
+            programName,
+            businessName,
+            points,
+            cardId,
+            source
+          }
+        });
+        window.dispatchEvent(pointsEvent);
+        
+        // Trigger card refresh
+        triggerCardRefresh(customerId);
       } catch (storageError) {
         logger.warn('Failed to save notification to localStorage', {
           error: storageError instanceof Error ? storageError.message : 'Unknown error'
@@ -176,10 +196,16 @@ export async function handleRewardRedeemed(
             businessId,
             rewardName,
             customerName,
-            points
+            points,
+            cardId,
+            programId,
+            programName
           }
         });
         window.dispatchEvent(event);
+        
+        // Trigger card refresh for the customer
+        triggerCardRefresh(customerId);
       } catch (storageError) {
         logger.warn('Failed to save redemption event to localStorage', {
           error: storageError instanceof Error ? storageError.message : 'Unknown error'
@@ -196,6 +222,32 @@ export async function handleRewardRedeemed(
       programId
     });
     return false;
+  }
+}
+
+/**
+ * Trigger a refresh of the customer's cards
+ * This will force React Query to refetch card data
+ */
+export function triggerCardRefresh(customerId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Set a flag in localStorage to trigger refetch
+    localStorage.setItem('force_card_refresh', Date.now().toString());
+    localStorage.setItem(`refresh_cards_${customerId}`, Date.now().toString());
+    
+    // Dispatch a custom event that the Cards component can listen for
+    const refreshEvent = new CustomEvent('refresh-customer-cards', {
+      detail: { customerId }
+    });
+    window.dispatchEvent(refreshEvent);
+    
+    logger.info('Triggered card refresh for customer', { customerId });
+  } catch (error) {
+    logger.warn('Failed to trigger card refresh', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 }
 
@@ -257,4 +309,45 @@ export function registerNotificationListeners(): void {
       });
     }
   });
+  
+  // Listen for storage events to detect changes across tabs
+  window.addEventListener('storage', (event) => {
+    // Check for card refresh events
+    if (event.key?.startsWith('refresh_cards_') || event.key === 'force_card_refresh') {
+      // Invalidate card queries if React Query is available
+      if (typeof window.queryClient !== 'undefined' && window.queryClient.invalidateQueries) {
+        window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+        window.queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+      }
+      
+      // Dispatch refresh event
+      const refreshEvent = new CustomEvent('refresh-customer-cards', {
+        detail: { timestamp: Date.now() }
+      });
+      window.dispatchEvent(refreshEvent);
+    }
+    
+    // Check for point notification events
+    if (event.key?.startsWith('points_notification_') && event.newValue) {
+      try {
+        const data = JSON.parse(event.newValue);
+        const pointsEvent = new CustomEvent('customer-notification', {
+          detail: {
+            type: 'POINTS_ADDED',
+            ...data
+          }
+        });
+        window.dispatchEvent(pointsEvent);
+      } catch (error) {
+        logger.warn('Error parsing points notification from storage event', { error });
+      }
+    }
+  });
+} 
+
+// Add a global type declaration for queryClient
+declare global {
+  interface Window {
+    queryClient?: any;
+  }
 } 

@@ -42,6 +42,13 @@ import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 import { FallbackProvider } from './components/FallbackIndicator';
 import { registerNotificationListeners } from './utils/notificationHandler';
+import { queryClient } from './utils/queryClient';
+import { toast } from 'react-hot-toast';
+
+// Make queryClient available globally for cross-tab synchronization
+if (typeof window !== 'undefined') {
+  window.queryClient = queryClient;
+}
 
 // Custom route component to redirect based on user type
 const UserTypeRedirect = () => {
@@ -95,11 +102,50 @@ function App() {
 
   // Register notification listeners for real-time updates
   useEffect(() => {
-    // Register notification listeners for rewards and points
-    registerNotificationListeners();
-    
-    // Log that listeners were initialized
-    console.log('Notification listeners registered for points and rewards');
+    try {
+      // Register notification listeners for rewards and points
+      registerNotificationListeners();
+      
+      // Log that listeners were initialized
+      console.log('Notification listeners registered for points and rewards');
+      
+      // Set up storage event listener for cross-tab communication
+      const handleStorageEvent = (event: StorageEvent) => {
+        if (event.key?.startsWith('points_notification_') || 
+            event.key?.startsWith('sync_points_') || 
+            event.key === 'force_card_refresh' ||
+            event.key?.startsWith('refresh_cards_')) {
+          
+          // Show toast notification for points
+          if ((event.key?.startsWith('points_notification_') || 
+               event.key?.startsWith('sync_points_')) && 
+              event.newValue) {
+            try {
+              const data = JSON.parse(event.newValue);
+              if (data.points && data.programName) {
+                toast.success(`You've received ${data.points} points in ${data.programName}`);
+              }
+            } catch (error) {
+              console.warn('Error parsing notification data', error);
+            }
+          }
+          
+          // Invalidate queries if queryClient is available
+          if (window.queryClient?.invalidateQueries) {
+            window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+            window.queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+          }
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageEvent);
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageEvent);
+      };
+    } catch (error) {
+      console.error('Error setting up notification listeners:', error);
+    }
   }, []);
 
   return (
@@ -396,6 +442,13 @@ function App() {
       </Router>
     </ErrorBoundary>
   );
+}
+
+// Add global type declaration for window
+declare global {
+  interface Window {
+    queryClient: typeof queryClient;
+  }
 }
 
 export default App;

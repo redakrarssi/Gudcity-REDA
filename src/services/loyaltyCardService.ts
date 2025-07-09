@@ -545,89 +545,29 @@ export class LoyaltyCardService {
     transactionRef: string = '',
     businessId: string = ''
   ): Promise<{ success: boolean; error?: string; diagnostics?: any }> {
+    if (!cardId) {
+      console.error('Error awarding points: No card ID provided');
+      return { success: false, error: 'No card ID provided' };
+    }
+
     if (points <= 0) {
       console.warn('Invalid points value:', points);
       return { success: false, error: 'Points must be greater than zero' };
     }
 
-    const diagnostics: any = {
-      method: 'awardPointsToCard',
-      cardId,
-      points,
-      source,
+    const diagnosticData: any = { 
+      cardId, 
+      points, 
+      source, 
       transactionRef,
-      businessId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString() 
     };
 
     try {
-      // Input validation
-      if (!cardId) {
-        console.error('Error awarding points: No card ID provided');
-        return { success: false, error: 'No card ID provided', diagnostics };
-      }
-
       console.log(`Starting point award process for card ${cardId}, points: ${points}, source: ${source}`);
-
-      // First verify that the card exists with correct relationships
-      try {
-        const verifyCard = await sql`
-          SELECT 
-            lc.id, 
-            lc.customer_id, 
-            lc.business_id, 
-            lc.program_id,
-            lc.points,
-            lp.name as program_name,
-            u.name as business_name,
-            c.name as customer_name
-          FROM loyalty_cards lc
-          LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-          LEFT JOIN users u ON lp.business_id = u.id
-          LEFT JOIN customers c ON lc.customer_id = c.id
-          WHERE lc.id = ${cardId}
-        `;
-        
-        if (!verifyCard || verifyCard.length === 0) {
-          const error = `Card ID ${cardId} not found in database`;
-          console.error(error);
-          return { 
-            success: false, 
-            error, 
-            diagnostics: { ...diagnostics, checkPerformed: 'card_existence' }
-          };
-        }
-        
-        // Store card details in diagnostics
-        diagnostics.cardDetails = {
-          customerId: verifyCard[0].customer_id,
-          businessId: verifyCard[0].business_id,
-          programId: verifyCard[0].program_id,
-          currentPoints: verifyCard[0].points || 0,
-          programName: verifyCard[0].program_name,
-          businessName: verifyCard[0].business_name,
-          customerName: verifyCard[0].customer_name
-        };
-        
-        // Verify business relationship if businessId is provided
-        if (businessId && verifyCard[0].business_id != businessId) {
-          const error = `Card ${cardId} belongs to business ${verifyCard[0].business_id}, not ${businessId}`;
-          console.error(error);
-          return { 
-            success: false, 
-            error, 
-            diagnostics: { ...diagnostics, checkPerformed: 'business_relationship' }
-          };
-        }
-      } catch (verifyError) {
-        console.error('Error verifying card relationships:', verifyError);
-        diagnostics.verificationError = verifyError instanceof Error ? verifyError.message : String(verifyError);
-        // Continue anyway - we'll try the update as a last resort
-      }
 
       // Start transaction
       const transaction = await sql.begin();
-      diagnostics.transactionStarted = true;
 
       try {
         // First get card details to get customer_id and program info
@@ -636,55 +576,52 @@ export class LoyaltyCardService {
           SELECT 
             lc.*,
             lp.name as program_name,
-            u.name as business_name
+            u.name as business_name,
+            c.name as customer_name
           FROM loyalty_cards lc
           JOIN loyalty_programs lp ON lc.program_id = lp.id
           JOIN users u ON lp.business_id = u.id
+          LEFT JOIN customers c ON lc.customer_id = c.id
           WHERE lc.id = ${cardId}
         `;
 
         if (!cardDetails.length) {
           await transaction.rollback();
           console.error('Card not found:', cardId);
-          return { 
-            success: false, 
-            error: `Card not found with ID: ${cardId}`,
-            diagnostics: { ...diagnostics, transactionRolledBack: true }
-          };
+          return { success: false, error: `Card not found with ID: ${cardId}` };
         }
-
-        console.log('Card found, details:', {
-          cardId,
-          customerId: cardDetails[0].customer_id,
-          programId: cardDetails[0].program_id,
-          programName: cardDetails[0].program_name,
-          businessName: cardDetails[0].business_name
-        });
-
-        diagnostics.cardFound = true;
-        diagnostics.cardDetails = {
-          customerId: cardDetails[0].customer_id,
-          programId: cardDetails[0].program_id,
-          programName: cardDetails[0].program_name,
-          businessName: cardDetails[0].business_name
-        };
 
         const card = cardDetails[0];
         const customerId = card.customer_id;
         const programId = card.program_id;
-        const programName = card.program_name;
-        const businessName = card.business_name;
+        const programName = card.program_name || 'Loyalty Program';
+        const businessName = card.business_name || 'Business';
+        const customerName = card.customer_name || 'Customer';
 
-        // Check if card has required columns
-        const pointsBalance = card.points_balance !== undefined ? card.points_balance : card.points;
-        const totalPointsEarned = card.total_points_earned !== undefined ? card.total_points_earned : 0;
+        diagnosticData.cardDetails = {
+          customerId,
+          programId,
+          programName,
+          businessName,
+          customerName
+        };
+
+        console.log('Card found, details:', {
+          cardId,
+          customerId,
+          programId,
+          programName
+        });
 
         // Update card points balance - make sure we handle both points and points_balance
         console.log(`Updating points balance for card ${cardId}, adding ${points} points`);
         
+        // Try updating with all possible column combinations
+        let updateResult;
+        
         try {
-          // First try with both fields
-          const updateResult = await transaction`
+          // First try with all standard columns
+          updateResult = await transaction`
             UPDATE loyalty_cards
             SET 
               points = COALESCE(points, 0) + ${points},
@@ -694,99 +631,102 @@ export class LoyaltyCardService {
             WHERE id = ${cardId}
             RETURNING id, points, points_balance, total_points_earned
           `;
-
-          if (!updateResult || updateResult.length === 0) {
-            // Try fallback update if the first one failed - might be missing some columns
-            diagnostics.fallbackUpdate = true;
-            const simpleUpdateResult = await transaction`
+        } catch (columnError) {
+          console.warn('Column error in first update attempt:', columnError);
+          diagnosticData.firstUpdateError = columnError instanceof Error ? columnError.message : String(columnError);
+          
+          try {
+            // Try with just points and points_balance
+            updateResult = await transaction`
               UPDATE loyalty_cards
               SET 
                 points = COALESCE(points, 0) + ${points},
+                points_balance = COALESCE(points_balance, 0) + ${points},
                 updated_at = NOW()
               WHERE id = ${cardId}
-              RETURNING id, points
+              RETURNING id, points, points_balance
             `;
-
-            if (!simpleUpdateResult || simpleUpdateResult.length === 0) {
-              await transaction.rollback();
-              console.error('Failed to update card points. No rows affected.');
-              return { 
-                success: false, 
-                error: 'Failed to update card points. No rows affected.',
-                diagnostics: { ...diagnostics, updateFailed: true, transactionRolledBack: true }
-              };
-            }
+          } catch (secondError) {
+            console.warn('Column error in second update attempt:', secondError);
+            diagnosticData.secondUpdateError = secondError instanceof Error ? secondError.message : String(secondError);
             
-            diagnostics.pointsUpdated = {
-              id: simpleUpdateResult[0].id,
-              points: simpleUpdateResult[0].points
-            };
-          } else {
-            diagnostics.pointsUpdated = {
-              id: updateResult[0].id,
-              points: updateResult[0].points,
-              points_balance: updateResult[0].points_balance,
-              total_points_earned: updateResult[0].total_points_earned
-            };
-          }
-        } catch (updateError) {
-          console.error('Error updating card points:', updateError);
-          diagnostics.updateError = updateError instanceof Error ? updateError.message : String(updateError);
-          
-          // Try with just the points column as absolute fallback
-          try {
-            const lastResortUpdate = await transaction`
+            // Last resort - just update points
+            updateResult = await transaction`
               UPDATE loyalty_cards
-              SET points = points + ${points}
+              SET 
+                points = COALESCE(points, 0) + ${points}
               WHERE id = ${cardId}
               RETURNING id, points
             `;
-            
-            if (!lastResortUpdate || lastResortUpdate.length === 0) {
-              throw new Error('Failed to update card points even with fallback approach');
-            }
-            
-            diagnostics.lastResortUpdate = {
-              id: lastResortUpdate[0].id,
-              points: lastResortUpdate[0].points
-            };
-          } catch (finalError) {
-            await transaction.rollback();
-            return { 
-              success: false, 
-              error: 'Database error updating points: ' + 
-                (finalError instanceof Error ? finalError.message : String(finalError)),
-              diagnostics: { ...diagnostics, finalUpdateError: true, transactionRolledBack: true }
-            };
           }
         }
 
-        // Check if loyalty_transactions table exists
-        const tableCheck = await transaction`
-          SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables 
-            WHERE table_name = 'loyalty_transactions'
-          ) as exists_check
-        `;
-        
-        diagnostics.transactionTableExists = tableCheck[0].exists_check;
+        if (!updateResult || updateResult.length === 0) {
+          await transaction.rollback();
+          console.error('Failed to update card points. No rows affected.');
+          return { 
+            success: false, 
+            error: 'Failed to update card points. No rows affected.',
+            diagnostics: diagnosticData
+          };
+        }
 
-        // Record the transaction in loyalty_transactions
+        diagnosticData.pointsUpdated = {
+          id: updateResult[0].id,
+          points: updateResult[0].points,
+          points_balance: updateResult[0].points_balance,
+          total_points_earned: updateResult[0].total_points_earned
+        };
+
+        console.log('Points update successful:', updateResult[0]);
+
+        // Record the transaction - try different table schemas
         console.log('Recording points transaction');
+        let txId;
+        
         try {
-          if (tableCheck[0].exists_check) {
-            const txId = await transaction`
+          // First try with all fields
+          txId = await transaction`
+            INSERT INTO loyalty_transactions (
+              card_id,
+              transaction_type,
+              points,
+              source,
+              description,
+              transaction_ref,
+              business_id,
+              created_at,
+              customer_id,
+              program_id
+            )
+            VALUES (
+              ${cardId},
+              'CREDIT',
+              ${points},
+              ${source},
+              ${description || 'Points awarded'},
+              ${transactionRef || `scan-${Date.now()}`},
+              ${businessId || card.business_id},
+              NOW(),
+              ${customerId},
+              ${programId}
+            )
+            RETURNING id
+          `;
+        } catch (txError) {
+          console.warn('Error in first transaction record attempt:', txError);
+          diagnosticData.firstTxError = txError instanceof Error ? txError.message : String(txError);
+          
+          try {
+            // Try with minimal fields
+            txId = await transaction`
               INSERT INTO loyalty_transactions (
                 card_id,
                 transaction_type,
                 points,
                 source,
                 description,
-                transaction_ref,
-                business_id,
-                created_at,
-                customer_id,
-                program_id
+                created_at
               )
               VALUES (
                 ${cardId},
@@ -794,24 +734,17 @@ export class LoyaltyCardService {
                 ${points},
                 ${source},
                 ${description || 'Points awarded'},
-                ${transactionRef || `scan-${Date.now()}`},
-                ${businessId || card.business_id},
-                NOW(),
-                ${customerId},
-                ${programId}
+                NOW()
               )
               RETURNING id
             `;
-
-            if (txId && txId.length > 0) {
-              diagnostics.transactionId = txId[0].id;
-            } else {
-              diagnostics.transactionRecordingIssue = 'No transaction ID returned';
-            }
-          } else {
-            // Try card_activities as fallback
+          } catch (secondTxError) {
+            console.warn('Error in second transaction record attempt:', secondTxError);
+            diagnosticData.secondTxError = secondTxError instanceof Error ? secondTxError.message : String(secondTxError);
+            
+            // If transaction table doesn't exist or has issues, try card_activities as fallback
             try {
-              await transaction`
+              const activityId = await transaction`
                 INSERT INTO card_activities (
                   card_id,
                   activity_type,
@@ -828,60 +761,34 @@ export class LoyaltyCardService {
                   ${transactionRef || `scan-${Date.now()}`},
                   NOW()
                 )
+                RETURNING id
               `;
-              diagnostics.activityRecorded = true;
+              
+              txId = activityId;
+              diagnosticData.usedCardActivities = true;
             } catch (activityError) {
-              console.error('Failed to record card activity:', activityError);
-              diagnostics.activityRecordingError = activityError instanceof Error 
-                ? activityError.message : String(activityError);
-              // Continue anyway - the points were already awarded
+              // Log but continue - points were already awarded
+              console.warn('Failed to record activity:', activityError);
+              diagnosticData.activityError = activityError instanceof Error ? activityError.message : String(activityError);
             }
-          }
-        } catch (txError) {
-          // If transaction recording fails, log the error but continue
-          // (points were already awarded, just logging failed)
-          console.error('Failed to record transaction:', txError);
-          diagnostics.transactionRecordingError = txError instanceof Error 
-            ? txError.message 
-            : String(txError);
-          
-          // Try to log to card_activities as fallback
-          try {
-            await transaction`
-              INSERT INTO card_activities (
-                card_id,
-                activity_type,
-                points,
-                description,
-                transaction_reference,
-                created_at
-              )
-              VALUES (
-                ${cardId},
-                'EARN_POINTS',
-                ${points},
-                ${description || 'Points awarded'},
-                ${transactionRef || `scan-${Date.now()}`},
-                NOW()
-              )
-            `;
-            diagnostics.activityRecorded = true;
-          } catch (activityError) {
-            console.error('Failed to record card activity:', activityError);
-            diagnostics.activityRecordingError = activityError instanceof Error 
-              ? activityError.message 
-              : String(activityError);
           }
         }
 
-        // Commit transaction
+        if (txId && txId.length > 0) {
+          diagnosticData.transactionId = txId[0].id;
+        } else {
+          console.warn('No transaction ID returned, but continuing');
+          diagnosticData.noTransactionId = true;
+        }
+
+        // Commit transaction - points have been awarded
         await transaction.commit();
         console.log('Transaction committed successfully');
-        diagnostics.transactionCommitted = true;
         
         // After successful transaction, send notification to customer
         try {
           console.log('Sending notification to customer:', customerId);
+          
           // Create notification in customer notification system
           const notification = await CustomerNotificationService.createNotification({
             customerId: customerId.toString(),
@@ -895,34 +802,49 @@ export class LoyaltyCardService {
               programId: programId.toString(),
               programName: programName,
               source: source,
-              transactionId: diagnostics.transactionId
+              transactionId: diagnosticData.transactionId
             },
             requiresAction: false,
             actionTaken: false,
             isRead: false
           });
 
-          diagnostics.notificationCreated = !!notification;
-          if (notification) {
-            diagnostics.notificationId = notification.id;
-          }
+          diagnosticData.notificationCreated = !!notification;
+          diagnosticData.notificationId = notification?.id;
 
           // Use localStorage to trigger UI updates on the customer side
-          try {
-            localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
-              customerId: customerId.toString(),
-              businessId: (businessId || card.business_id).toString(),
-              cardId: cardId,
-              programId: programId.toString(),
-              points: points,
-              timestamp: new Date().toISOString(),
-              type: 'POINTS_ADDED'
-            }));
-            diagnostics.localStorageUpdated = true;
-          } catch (storageError) {
-            console.warn('localStorage update failed:', storageError);
-            diagnostics.localStorageError = storageError instanceof Error 
-              ? storageError.message : String(storageError);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
+                customerId: customerId.toString(),
+                businessId: (businessId || card.business_id).toString(),
+                cardId: cardId,
+                programId: programId.toString(),
+                points: points,
+                timestamp: new Date().toISOString(),
+                type: 'POINTS_ADDED'
+              }));
+              
+              // Also dispatch a custom event
+              const event = new CustomEvent('points-awarded', {
+                detail: {
+                  customerId: customerId.toString(),
+                  businessId: (businessId || card.business_id).toString(),
+                  programId: programId.toString(),
+                  programName: programName,
+                  businessName: businessName,
+                  points: points,
+                  cardId: cardId,
+                  source: source
+                }
+              });
+              window.dispatchEvent(event);
+              
+              diagnosticData.eventDispatched = true;
+            } catch (storageError) {
+              console.warn('Error setting localStorage:', storageError);
+              diagnosticData.storageError = storageError instanceof Error ? storageError.message : String(storageError);
+            }
           }
 
           // Create sync event for React Query invalidation
@@ -937,82 +859,133 @@ export class LoyaltyCardService {
                 programName: programName
               }
             );
-            diagnostics.syncEventCreated = true;
+            diagnosticData.syncEventCreated = true;
           } catch (syncError) {
-            console.warn('Sync event creation failed:', syncError);
-            diagnostics.syncEventError = syncError instanceof Error 
-              ? syncError.message : String(syncError);
+            console.warn('Error creating sync event:', syncError);
+            diagnosticData.syncError = syncError instanceof Error ? syncError.message : String(syncError);
           }
           
-          console.log('Sync events created successfully');
+          console.log('Notification and sync events created successfully');
         } catch (notificationError) {
           console.error('Failed to send points notification:', notificationError);
+          diagnosticData.notificationError = notificationError instanceof Error ? notificationError.message : String(notificationError);
           // Continue even if notification fails - the points were already awarded
-          diagnostics.notificationError = notificationError instanceof Error
-            ? notificationError.message
-            : String(notificationError);
         }
 
-        return { success: true, diagnostics };
+        // Invalidate any relevant queries
+        if (typeof queryClient !== 'undefined' && queryClient.invalidateQueries) {
+          try {
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+            queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+            queryClient.invalidateQueries({ queryKey: ['customerPoints'] });
+            diagnosticData.queriesInvalidated = true;
+          } catch (queryError) {
+            console.warn('Error invalidating queries:', queryError);
+          }
+        }
+
+        return { success: true, diagnostics: diagnosticData };
       } catch (error) {
+        // Rollback transaction on error
         await transaction.rollback();
         console.error('Transaction error in awardPointsToCard:', error);
-        
-        // Check for specific error types
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        let errorType = 'unknown';
-        
-        if (errorMsg.includes('foreign key constraint') || errorMsg.includes('violates foreign key')) {
-          errorType = 'foreign_key_violation';
-        } else if (errorMsg.includes('duplicate key') || errorMsg.includes('unique constraint')) {
-          errorType = 'duplicate_key';
-        } else if (errorMsg.includes('column') && errorMsg.includes('does not exist')) {
-          errorType = 'schema_mismatch';
-        } else if (errorMsg.includes('permission denied')) {
-          errorType = 'permission_denied';
-        }
-        
         return { 
           success: false, 
-          error: errorMsg,
+          error: error instanceof Error ? error.message : 'Unknown database error',
           diagnostics: {
-            ...diagnostics,
-            transactionRolledBack: true,
-            errorType,
-            sqlState: (error as any)?.sqlState,
-            code: (error as any)?.code
+            ...diagnosticData,
+            transactionError: error instanceof Error ? error.message : String(error)
           }
         };
       }
     } catch (error) {
       console.error('Error awarding points to card:', error);
+      
       // Check if error is related to foreign key constraint
       const errorString = String(error);
       let errorMessage = 'Unknown error awarding points';
-      let errorType = 'unknown';
       
       if (errorString.includes('foreign key constraint') || errorString.includes('violates foreign key')) {
         errorMessage = 'Foreign key constraint violation. This may indicate a problem with customer, program, or card IDs.';
-        errorType = 'foreign_key_violation';
       } else if (errorString.includes('column') && errorString.includes('does not exist')) {
         errorMessage = 'Database schema issue. A required column does not exist.';
-        errorType = 'schema_mismatch';
-      } else if (errorString.includes('duplicate key') || errorString.includes('unique constraint')) {
-        errorMessage = 'Duplicate key violation. This transaction may already exist.';
-        errorType = 'duplicate_key';
       } else if (error instanceof Error) {
         errorMessage = error.message;
+      }
+      
+      // Try direct update as fallback when all else fails
+      try {
+        console.log('Attempting direct update as fallback');
+        const directUpdate = await sql`
+          UPDATE loyalty_cards
+          SET points = points + ${points}
+          WHERE id = ${cardId}
+          RETURNING id, points
+        `;
+        
+        if (directUpdate && directUpdate.length > 0) {
+          console.log('Direct update successful:', directUpdate[0]);
+          
+          // Try to create notification
+          try {
+            const cardInfo = await sql`
+              SELECT 
+                lc.*,
+                lp.name as program_name,
+                u.name as business_name
+              FROM loyalty_cards lc
+              JOIN loyalty_programs lp ON lc.program_id = lp.id
+              JOIN users u ON lp.business_id = u.id
+              WHERE lc.id = ${cardId}
+            `;
+            
+            if (cardInfo && cardInfo.length > 0) {
+              const card = cardInfo[0];
+              const customerId = card.customer_id;
+              const programName = card.program_name || 'Loyalty Program';
+              const businessName = card.business_name || 'Business';
+              
+              // Create notification
+              await CustomerNotificationService.createNotification({
+                customerId: customerId.toString(),
+                businessId: (businessId || card.business_id).toString(),
+                type: 'POINTS_ADDED',
+                title: 'Points Added',
+                message: `You've received ${points} points from ${businessName} in ${programName}`,
+                data: {
+                  points: points,
+                  cardId: cardId,
+                  programId: card.program_id.toString(),
+                  programName: programName,
+                  source: source
+                },
+                requiresAction: false,
+                actionTaken: false,
+                isRead: false
+              });
+            }
+          } catch (notifError) {
+            console.warn('Error creating notification in fallback:', notifError);
+          }
+          
+          return { 
+            success: true, 
+            diagnostics: { 
+              usedDirectFallback: true,
+              points,
+              cardId,
+              updatedPoints: directUpdate[0].points
+            }
+          };
+        }
+      } catch (directError) {
+        console.error('Direct update fallback failed:', directError);
       }
       
       return { 
         success: false, 
         error: errorMessage,
-        diagnostics: { 
-          ...diagnostics, 
-          errorType,
-          error: errorString,
-          stack: error instanceof Error ? error.stack : undefined
-        }
+        diagnostics: { error: errorString, cardId, points, source }
       };
     }
   }
@@ -1210,16 +1183,16 @@ export class LoyaltyCardService {
         const transaction = await sql.begin();
         
         try {
-          // Deduct points from card
+        // Deduct points from card
           await transaction`
-            UPDATE loyalty_cards
-            SET 
+          UPDATE loyalty_cards
+          SET 
               points = points - ${requiredPoints},
               points_balance = COALESCE(points_balance, 0) - ${requiredPoints},
               total_points_spent = COALESCE(total_points_spent, 0) + ${requiredPoints},
-              updated_at = NOW()
-            WHERE id = ${cardId}
-          `;
+            updated_at = NOW()
+          WHERE id = ${cardId}
+        `;
           
           // Generate a unique redemption reference
           const redemptionId = uuidv4();
@@ -1229,22 +1202,22 @@ export class LoyaltyCardService {
           const programName = String(card.program_name || '');
           const customerName = String(card.customer_name || 'Customer');
           const businessName = String(card.business_name || 'Business');
-          
-          // Record redemption activity
+        
+        // Record redemption activity
           await transaction`
             INSERT INTO loyalty_transactions (
-              card_id,
+            card_id,
               customer_id,
               business_id,
               program_id,
               transaction_type,
-              points,
+            points,
               source,
-              description,
+            description,
               transaction_ref,
-              created_at
-            ) VALUES (
-              ${cardId},
+            created_at
+          ) VALUES (
+            ${cardId},
               ${card.customer_id},
               ${card.business_id},
               ${card.program_id},
@@ -1253,9 +1226,9 @@ export class LoyaltyCardService {
               'CUSTOMER',
               ${`Redeemed reward: ${rewardName}`},
               ${redemptionId},
-              NOW()
-            )
-          `;
+            NOW()
+          )
+        `;
           
           await transaction.commit();
           
@@ -1304,17 +1277,17 @@ export class LoyaltyCardService {
             console.error('Error sending redemption notifications:', notificationError);
             // Continue even if notification fails
           }
-          
-          // Emit points redeemed event
+        
+        // Emit points redeemed event
           try {
-            emitPointsRedeemedEvent(
-              card.customer_id,
-              card.business_id,
+        emitPointsRedeemedEvent(
+          card.customer_id,
+          card.business_id,
               businessName,
               requiredPoints,
-              cardId,
-              rewardName
-            );
+          cardId,
+          rewardName
+        );
             
             // Create sync event for React Query invalidation
             createCardSyncEvent(
@@ -1343,14 +1316,14 @@ export class LoyaltyCardService {
             console.error('Error emitting redemption events:', eventError);
             // Continue even if event emission fails
           }
-          
-          // Get updated card
+        
+        // Get updated card
           const updatedCard = await this.getCustomerCard(customerId, businessId);
-          
-          return {
-            success: true,
+        
+        return {
+          success: true,
             message: `Successfully redeemed ${rewardName} for ${requiredPoints} points`,
-            updatedCard,
+          updatedCard,
             reward: {
               id: reward.id,
               name: reward.name,

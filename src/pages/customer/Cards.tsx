@@ -357,137 +357,113 @@ const CustomerCards = () => {
     */
   }, [pendingApprovals, enrollmentRequestState.isOpen]);
 
-  // Subscribe to real-time events and sync updates
+  // Listen for real-time updates
   useEffect(() => {
-    if (!user?.id) return;
-    
-    // 1. Listen to telemetry events for notifications
-    const telemetryUnsubscribe = subscribeToEvents((event: Event) => {
-      // Check if the event is relevant to this customer's cards
-      if (event.name && 
-          event.data && 
-          event.data.type === LOYALTY_EVENT.POINTS_ADDED && 
-          event.data.customerId === user.id) {
-        // Points were added to a card
-        addNotification('success', `${event.data.points} points added to your ${event.data.businessName || 'loyalty'} card!`);
-        
-        // Refresh card data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-      }
+    // Listen for customer notifications
+    const handleCustomerNotification = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (!detail) return;
       
-      if (event.name && 
-          event.data && 
-          event.data.type === LOYALTY_EVENT.POINTS_REDEEMED && 
-          event.data.customerId === user.id) {
-        // Points were redeemed
-        addNotification('info', `${event.data.points} points redeemed from your ${event.data.businessName || 'loyalty'} card.`);
-        
-        // Refresh card data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-      }
+      console.log('Received customer notification:', detail);
       
-      if (event.name && 
-          event.data && 
-          event.data.type === LOYALTY_EVENT.ENROLLMENT_NEW && 
-          event.data.customerId === user.id) {
-        // Customer enrolled in a new loyalty program
-        addNotification('success', `You've joined the ${event.data.programName || 'loyalty'} program!`);
-        
-        // Sync enrollments to cards
-        syncEnrollments();
-      }
-      
-      if (event.name && 
-          event.data && 
-          event.data.type === LOYALTY_EVENT.PROMO_CODE_GENERATED && 
-          event.data.customerId === user.id) {
-        // Business granted a promo code
-        addNotification('success', `${event.data.businessName || 'A business'} has granted you a promo code!`);
-        
-        // Refresh card data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-      }
-      
-      // New event for QR code scanning
-      if (event.name && 
-          event.name.toString() === 'qr_scan' && 
-          event.data && 
-          event.data.customerId === user.id) {
-        // Customer QR code is being scanned by a business
-        addNotification('scan', `${event.data.businessName || 'A business'} is scanning your QR code`);
-      }
-    });
-    
-    // 2. Subscribe to loyalty card real-time sync events
-    const cardSyncUnsubscribe = subscribeToSync('loyalty_cards', (event: SyncEvent) => {
-      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
-        console.log('Loyalty card sync event received:', event);
-        
-        // Refresh cards data
-        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-        
-        // Show notification based on operation type
-        if (event.operation === 'INSERT') {
-          addNotification('success', 'New loyalty card added! Pull down to refresh.');
-        } else if (event.operation === 'UPDATE') {
-          const businessName = event.data?.businessName || 'A business';
-          const pointsChange = event.data?.pointsChange;
+      // Check if this notification is for the current user
+      if (user && detail.customerId === user.id.toString()) {
+        if (detail.type === 'POINTS_ADDED') {
+          // Show notification
+          addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
           
-          if (pointsChange && pointsChange > 0) {
-            addNotification('success', `${pointsChange} points added to your ${businessName} card!`);
-          } else {
-            addNotification('info', `Your ${businessName} loyalty card has been updated.`);
+          // Refresh cards data
+          refetch();
+        }
+      }
+    };
+    
+    // Listen for refresh events
+    const handleRefreshCards = (event: CustomEvent) => {
+      console.log('Received refresh cards event');
+      refetch();
+    };
+    
+    // Register event listeners
+    window.addEventListener('customer-notification', handleCustomerNotification as EventListener);
+    window.addEventListener('refresh-customer-cards', handleRefreshCards as EventListener);
+    window.addEventListener('points-awarded', handleRefreshCards as EventListener);
+    
+    // Check localStorage for recent notifications
+    const checkLocalStorage = () => {
+      // Look for points notifications
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('points_notification_') || key.startsWith('sync_points_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key) || '{}');
+            
+            // Check if this notification is for the current user and is recent (last 30 seconds)
+            const timestamp = new Date(data.timestamp || 0);
+            const isRecent = Date.now() - timestamp.getTime() < 30000; // 30 seconds
+            
+            if (user && data.customerId === user.id.toString() && isRecent) {
+              addNotification('success', `You've received ${data.points} points in ${data.programName || 'your loyalty program'}`);
+              refetch();
+              
+              // Remove the notification to prevent showing it again
+              localStorage.removeItem(key);
+            }
+          } catch (error) {
+            console.warn('Error parsing notification from localStorage:', error);
           }
         }
-      }
-    }, String(user.id));
-    
-    // 3. Subscribe to customer notifications real-time sync events
-    const notificationSyncUnsubscribe = subscribeToSync('customer_notifications', (event: SyncEvent) => {
-      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
-        console.log('Customer notification sync event received:', event);
-        
-        // Show notification based on event data
-        if (event.data?.type === 'QR_SCAN') {
-          const businessName = event.data?.businessName || 'A business';
-          addNotification('scan', `${businessName} scanned your QR code`);
-        } else if (event.data?.type === 'POINTS_ADDED') {
-          const businessName = event.data?.businessName || 'A business';
-          const points = event.data?.points || 0;
-          addNotification('success', `${points} points added to your ${businessName} card!`);
-          
-          // Refresh card data
-          queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
-        }
-        
-        // Refresh notifications data
-        queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user.id] });
-      }
-    }, String(user.id));
-    
-    // 4. Subscribe to program enrollments real-time sync events
-    const enrollmentSyncUnsubscribe = subscribeToSync('program_enrollments', (event: SyncEvent) => {
-      if (event.customer_id && user.id && event.customer_id === String(user.id)) {
-        console.log('Program enrollment sync event received:', event);
-        
-        // When a new enrollment is created, sync it to cards
-        if (event.operation === 'INSERT') {
-          syncEnrollments();
-        }
-      }
-    }, String(user.id));
-    
-    // Run initial sync on component mount
-    syncEnrollments();
-    
-    // Clean up subscriptions
-    return () => {
-      telemetryUnsubscribe();
-      cardSyncUnsubscribe();
-      notificationSyncUnsubscribe();
-      enrollmentSyncUnsubscribe();
+      });
     };
-  }, [user?.id, addNotification, queryClientInstance, syncEnrollments]);
+    
+    // Check for notifications on mount
+    checkLocalStorage();
+    
+    // Set up periodic checking
+    const intervalId = setInterval(checkLocalStorage, 5000);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('customer-notification', handleCustomerNotification as EventListener);
+      window.removeEventListener('refresh-customer-cards', handleRefreshCards as EventListener);
+      window.removeEventListener('points-awarded', handleRefreshCards as EventListener);
+      clearInterval(intervalId);
+    };
+  }, [user, addNotification, refetch]);
+  
+  // Listen for storage events (for cross-tab synchronization)
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (!event.key) return;
+      
+      // Check for card refresh events
+      if (event.key === 'force_card_refresh' || 
+          (event.key.startsWith('refresh_cards_') && user && event.key.includes(user.id.toString()))) {
+        console.log('Storage event triggered card refresh');
+        refetch();
+      }
+      
+      // Check for point notifications
+      if (event.key.startsWith('points_notification_') || event.key.startsWith('sync_points_')) {
+        try {
+          const data = JSON.parse(event.newValue || '{}');
+          
+          // Check if this notification is for the current user
+          if (user && data.customerId === user.id.toString()) {
+            addNotification('success', `You've received ${data.points} points in ${data.programName || 'your loyalty program'}`);
+            refetch();
+          }
+        } catch (error) {
+          console.warn('Error parsing notification from storage event:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [user, addNotification, refetch]);
 
   const handleRefresh = useCallback(() => {
     if (!user?.id) return;

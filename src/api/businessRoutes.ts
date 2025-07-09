@@ -47,7 +47,7 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
     
     // 3. Verify the business owns the program
     const programOwnership = await sql`
-      SELECT id FROM loyalty_programs 
+      SELECT id, name FROM loyalty_programs 
       WHERE id = ${programIdStr} 
       AND business_id = ${businessIdStr}
     `;
@@ -59,6 +59,22 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         code: 'PROGRAM_OWNERSHIP_ERROR' 
       });
     }
+    
+    const programName = programOwnership[0].name;
+    
+    // Get business name for notifications
+    const businessInfo = await sql`
+      SELECT name FROM users WHERE id = ${businessIdStr} AND user_type = 'business'
+    `;
+    
+    const businessName = businessInfo.length ? businessInfo[0].name : 'Business';
+    
+    // Get customer name for notifications
+    const customerInfo = await sql`
+      SELECT name FROM customers WHERE id = ${customerIdStr}
+    `;
+    
+    const customerName = customerInfo.length ? customerInfo[0].name : 'Customer';
     
     // 4. Find or create a card for this customer in this program
     try {
@@ -75,7 +91,11 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         businessId: businessIdStr,
         programId: programIdStr,
         points,
-        source
+        source,
+        timestamp: new Date().toISOString(),
+        programName,
+        businessName,
+        customerName
       };
       
       if (!enrollmentStatus.length) {
@@ -85,19 +105,35 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
           programId: programIdStr 
         });
         
-        const card = await LoyaltyCardService.enrollCustomerInProgram(
-          customerIdStr,
-          businessIdStr,
-          programIdStr
-        );
-        
-        if (!card || !card.id) {
-          throw new Error('Failed to create loyalty card for customer');
+        try {
+          const card = await LoyaltyCardService.enrollCustomerInProgram(
+            customerIdStr,
+            businessIdStr,
+            programIdStr
+          );
+          
+          if (!card || !card.id) {
+            throw new Error('Failed to create loyalty card for customer');
+          }
+          
+          cardId = String(card.id);
+          fullData.cardId = cardId;
+          fullData.cardCreated = true;
+          fullData.enrollmentCreated = true;
+        } catch (enrollError) {
+          logger.error('Failed to enroll customer', {
+            error: enrollError instanceof Error ? enrollError.message : 'Unknown error',
+            customerId: customerIdStr,
+            programId: programIdStr
+          });
+          
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to enroll customer in the program',
+            code: 'ENROLLMENT_ERROR',
+            details: enrollError instanceof Error ? enrollError.message : 'Unknown error'
+          });
         }
-        
-        cardId = card.id;
-        fullData.cardId = cardId;
-        fullData.cardCreated = true;
       } else {
         // Customer is enrolled, find card
         const cardResult = await sql`
@@ -113,33 +149,70 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
             programId: programIdStr 
           });
           
-          const card = await LoyaltyCardService.createCardForEnrolledCustomer(
-            customerIdStr,
-            businessIdStr,
-            programIdStr
-          );
-          
-          if (!card) {
-            throw new Error('Failed to create loyalty card for enrolled customer');
+          try {
+            const card = await LoyaltyCardService.createCardForEnrolledCustomer(
+              customerIdStr,
+              businessIdStr,
+              programIdStr
+            );
+            
+            if (!card || !card.id) {
+              throw new Error('Failed to create loyalty card for enrolled customer');
+            }
+            
+            cardId = String(card.id);
+            fullData.cardId = cardId;
+            fullData.cardCreatedForEnrolled = true;
+          } catch (cardError) {
+            logger.error('Failed to create card for enrolled customer', {
+              error: cardError instanceof Error ? cardError.message : 'Unknown error',
+              customerId: customerIdStr,
+              programId: programIdStr
+            });
+            
+            // Try one more time with a direct insert
+            try {
+              const insertResult = await sql`
+                INSERT INTO loyalty_cards (
+                  customer_id, program_id, business_id, points, points_balance, created_at
+                ) VALUES (
+                  ${customerIdStr}, ${programIdStr}, ${businessIdStr}, 0, 0, NOW()
+                ) RETURNING id
+              `;
+              
+              if (insertResult && insertResult.length > 0) {
+                cardId = String(insertResult[0].id);
+                fullData.cardId = cardId;
+                fullData.cardCreatedDirectly = true;
+              } else {
+                throw new Error('Direct card creation failed');
+              }
+            } catch (directError) {
+              return res.status(500).json({
+                success: false,
+                error: 'Failed to create loyalty card for enrolled customer',
+                code: 'CARD_CREATION_ERROR',
+                details: directError instanceof Error ? directError.message : 'Unknown error'
+              });
+            }
           }
-          
-          cardId = card.id;
-          fullData.cardId = cardId;
-          fullData.cardCreatedForEnrolled = true;
         } else {
-          cardId = cardResult[0].id;
+          cardId = String(cardResult[0].id);
           fullData.cardId = cardId;
           fullData.cardFound = true;
         }
       }
       
       // 5. Award points to the card
-      const pointsResult = await LoyaltyCardService.awardPointsToCard(
+      const transactionRef = `api-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      fullData.transactionRef = transactionRef;
+      
+      const result = await LoyaltyCardService.awardPointsToCard(
         cardId,
         points,
         source as any,
-        description || 'Points awarded by business',
-        `api-${Date.now()}`,
+        description || `Points awarded by ${businessName}`,
+        transactionRef,
         businessIdStr
       );
       
@@ -147,66 +220,83 @@ router.post('/businesses/award-points', auth, async (req: Request, res: Response
         cardId,
         points,
         source,
-        description: description || 'Points awarded by business',
-        transactionRef: `api-${Date.now()}`,
+        description: description || `Points awarded by ${businessName}`,
+        transactionRef,
         businessId: businessIdStr
       };
       
-      if (pointsResult.success) {
+      if (result.success) {
         fullData.pointsAwarded = true;
-        fullData.pointsAwardDetails = pointsResult.diagnostics;
+        
+        // Ensure notification is sent
+        try {
+          // Import at the top of the file
+          const { handlePointsAwarded } = require('../utils/notificationHandler');
+          
+          // Create notification
+          await handlePointsAwarded(
+            customerIdStr,
+            businessIdStr,
+            programIdStr,
+            programName,
+            businessName,
+            points,
+            cardId,
+            source
+          );
+          
+          fullData.notificationSent = true;
+          
+          // Dispatch a custom event for real-time UI updates
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('points-awarded', {
+              detail: {
+                customerId: customerIdStr,
+                businessId: businessIdStr,
+                programId: programIdStr,
+                programName,
+                businessName,
+                points,
+                cardId,
+                source
+              }
+            });
+            window.dispatchEvent(event);
+            fullData.eventDispatched = true;
+          }
+        } catch (notificationError) {
+          logger.warn('Failed to send notification, but points were awarded', {
+            error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+            cardId,
+            customerId: customerIdStr
+          });
+          fullData.notificationError = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+        }
         
         return res.status(200).json({
           success: true,
-          message: `Successfully awarded ${points} points to customer ${customerId}`,
+          message: `Successfully awarded ${points} points to customer ${customerName}`,
           data: {
             ...fullData,
-            timestamp: new Date().toISOString()
+            diagnostics: result.diagnostics
           }
         });
       } else {
         fullData.pointsAwarded = false;
-        fullData.error = pointsResult.error;
-        fullData.diagnostics = pointsResult.diagnostics;
+        fullData.error = result.error;
+        fullData.diagnostics = result.diagnostics;
         
         logger.error('Failed to award points to card', { 
-          error: pointsResult.error, 
+          error: result.error, 
           cardId, 
-          customerId: customerIdStr,
-          diagnostics: pointsResult.diagnostics
+          customerId: customerIdStr
         });
         
-        // Check for specific error types to provide better error messages
-        let statusCode = 500;
-        let errorCode = 'POINTS_AWARD_ERROR';
-        
-        if (pointsResult.diagnostics?.errorType === 'foreign_key_violation') {
-          statusCode = 400;
-          errorCode = 'FOREIGN_KEY_VIOLATION';
-        } else if (pointsResult.diagnostics?.errorType === 'duplicate_key') {
-          statusCode = 409;
-          errorCode = 'DUPLICATE_TRANSACTION';
-        } else if (pointsResult.diagnostics?.errorType === 'schema_mismatch') {
-          statusCode = 500;
-          errorCode = 'SCHEMA_ERROR';
-        } else if (pointsResult.diagnostics?.errorType === 'permission_denied') {
-          statusCode = 403;
-          errorCode = 'PERMISSION_DENIED';
-        }
-        
-        return res.status(statusCode).json({
+        return res.status(500).json({
           success: false,
-          error: pointsResult.error || 'Failed to award points to card',
-          code: errorCode,
-          diagnostics: {
-            cardId,
-            customerId: customerIdStr,
-            businessId: businessIdStr,
-            programId: programIdStr,
-            points,
-            errorDetails: pointsResult.diagnostics,
-            timestamp: new Date().toISOString()
-          }
+          error: result.error || 'Failed to award points to card',
+          code: 'POINTS_AWARD_ERROR',
+          diagnostics: fullData
         });
       }
     } catch (error) {
@@ -359,4 +449,4 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+export default router; 
