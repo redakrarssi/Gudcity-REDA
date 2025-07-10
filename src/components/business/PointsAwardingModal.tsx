@@ -243,13 +243,42 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       const transactionRef = `qr-scan-${Date.now()}`;
       
       try {
-        const response = await fetch('/api/businesses/award-points', {
+        // Improved error handling - add explicit URL path
+        const apiUrl = '/api/businesses/award-points';
+        diagnostics.requestUrl = apiUrl;
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerId, programId: selectedProgramId, points: pointsToAward, description: 'Points awarded via QR code scan', source: 'SCAN' }),
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json' 
+          },
+          credentials: 'same-origin', // Include credentials for authentication
+          body: JSON.stringify({ 
+            customerId, 
+            programId: selectedProgramId, 
+            points: pointsToAward, 
+            description: 'Points awarded via QR code scan', 
+            source: 'SCAN',
+            transactionRef
+          }),
         });
 
         diagnostics.httpStatus = response.status;
+        diagnostics.httpStatusText = response.statusText;
+        
+        // Handle 405 Method Not Allowed error specifically
+        if (response.status === 405) {
+          console.error('405 Method Not Allowed error. API endpoint might be misconfigured.');
+          diagnostics.error405 = true;
+          diagnostics.requestedMethod = 'POST';
+          diagnostics.allowedMethods = response.headers.get('Allow');
+          
+          // Try to recover by examining response headers
+          setProcessingStatus('Encountered 405 error - checking allowed methods...');
+          
+          throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
+        }
         
         // First get the raw text to avoid JSON parsing errors
         const rawText = await response.text();
@@ -277,7 +306,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
           if (!response.ok) {
             result = { 
               success: false, 
-              error: `Request failed with status ${response.status}` 
+              error: `Request failed with status ${response.status} (${response.statusText})` 
             };
           } else {
             // Empty but successful response
@@ -290,7 +319,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
 
         if (!response.ok) {
           // Use the error from the parsed JSON, or a default message
-          const errorMessage = result?.error || `Request failed with status ${response.status}`;
+          const errorMessage = result?.error || `Request failed with status ${response.status} (${response.statusText})`;
           throw new Error(errorMessage);
         }
 

@@ -32,81 +32,128 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
   };
 
   try {
+    // Log request details for debugging the 405 issue
+    console.log(`Award points request: customer=${customerIdStr}, program=${programIdStr}, points=${points}, business=${businessIdStr}`);
+    
     // 1. Validate inputs
     if (!customerId || !programId || !points) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
     
-    // 2. Get customer name (with fallback)
-    let customerName: string;
+    // 2. Get customer name with expanded fallback logic
+    let customerName = "Customer #" + customerIdStr; // Default name in case no name is found
+    let customerFound = false;
+    
+    // Try multiple tables to find customer with comprehensive checks
+    fullData.customerLookup = {};
+    
+    // First try users table with customer type
     let customerResult = await sql`
-      SELECT name FROM users WHERE id = ${customerIdStr} AND user_type = 'customer'
+      SELECT id, name FROM users WHERE id = ${customerIdStr} AND user_type = 'customer'
     `;
 
     if (customerResult.length > 0) {
-      customerName = customerResult[0].name;
+      customerName = String(customerResult[0].name || customerName);
       fullData.customerSource = 'users';
+      customerFound = true;
     } else {
-      const customerFallback = await sql`
-        SELECT name FROM customers WHERE id = ${customerIdStr}
+      // Try users table without type restriction
+      customerResult = await sql`
+        SELECT id, name FROM users WHERE id = ${customerIdStr}
       `;
-      if (customerFallback.length > 0) {
-        customerName = customerFallback[0].name;
-        fullData.customerSource = 'customers_fallback';
-        logger.warn(`Customer ID ${customerIdStr} found in 'customers' table but not in 'users' as a customer.`);
+      
+      if (customerResult.length > 0) {
+        customerName = String(customerResult[0].name || customerName);
+        fullData.customerSource = 'users_no_type';
+        customerFound = true;
       } else {
-        // Try to find the customer in the users table without the user_type restriction
-        const userFallback = await sql`
-          SELECT name FROM users WHERE id = ${customerIdStr}
+        // Try customers table
+        const customerFallback = await sql`
+          SELECT id, name FROM customers WHERE id = ${customerIdStr}
         `;
         
-        if (userFallback.length > 0) {
-          customerName = userFallback[0].name;
-          fullData.customerSource = 'users_fallback_no_type';
-          logger.warn(`Customer ID ${customerIdStr} found in 'users' table but without customer type.`);
+        if (customerFallback.length > 0) {
+          customerName = String(customerFallback[0].name || customerName);
+          fullData.customerSource = 'customers_table';
+          customerFound = true;
         } else {
-          // If we still can't find the customer, check loyalty_cards table to see if they exist there
+          // Last resort - check if they exist in loyalty_cards
           const cardFallback = await sql`
-            SELECT customer_id FROM loyalty_cards WHERE customer_id = ${customerIdStr} LIMIT 1
+            SELECT DISTINCT customer_id FROM loyalty_cards 
+            WHERE customer_id = ${customerIdStr} LIMIT 1
           `;
           
           if (cardFallback.length > 0) {
-            customerName = "Customer #" + customerIdStr;
-            fullData.customerSource = 'loyalty_cards_fallback';
-            logger.warn(`Customer ID ${customerIdStr} found only in loyalty_cards table.`);
+            fullData.customerSource = 'loyalty_cards_only';
+            customerFound = true;
           } else {
-            return res.status(404).json({ success: false, error: 'Customer not found' });
+            // Check one last place - customer_programs table
+            const programFallback = await sql`
+              SELECT DISTINCT customer_id FROM customer_programs
+              WHERE customer_id = ${customerIdStr} LIMIT 1
+            `;
+            
+            if (programFallback.length > 0) {
+              fullData.customerSource = 'customer_programs_only';
+              customerFound = true;
+            }
           }
         }
       }
     }
+    
+    // Return error if customer not found anywhere
+    if (!customerFound) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Customer not found in any tables', 
+        details: fullData
+      });
+    }
+    
     fullData.customerName = customerName;
 
-    // 3. Get business and program names
-    const businessResult = await sql`SELECT name FROM users WHERE id = ${businessIdStr}`;
-    const businessName = businessResult.length ? businessResult[0].name : 'Business';
-    fullData.businessName = businessName;
-
-    const programOwnership = await sql`
+    // 3. Verify program ownership
+    const programResult = await sql`
       SELECT id, name FROM loyalty_programs 
       WHERE id = ${programIdStr} AND business_id = ${businessIdStr}
     `;
 
-    if (!programOwnership.length) {
-      return res.status(403).json({ error: 'Program does not belong to this business' });
+    if (programResult.length === 0) {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Program does not belong to this business',
+        code: 'PROGRAM_OWNERSHIP_ERROR'
+      });
     }
     
-    const programName = programOwnership[0].name;
+    const programName = programResult[0].name;
     fullData.programName = programName;
+    
+    // Get business name
+    const businessResult = await sql`
+      SELECT name FROM users WHERE id = ${businessIdStr}
+    `;
+    const businessName = businessResult.length ? businessResult[0].name : 'Business';
+    fullData.businessName = businessName;
 
     // 4. Find or create a card for this customer in this program
     try {
       let cardId: string;
       
-      // Check if customer is enrolled
-      const enrollmentStatus = await CustomerService.isCustomerEnrolledInProgram(customerIdStr, programIdStr);
+      // Check if customer is enrolled with more thorough query
+      const enrollmentCheck = await sql`
+        SELECT EXISTS (
+          SELECT 1 FROM customer_programs 
+          WHERE customer_id = ${customerIdStr}
+          AND program_id = ${programIdStr}
+        ) AS is_enrolled
+      `;
+      
+      const isEnrolled = enrollmentCheck[0]?.is_enrolled === true;
+      fullData.isEnrolled = isEnrolled;
 
-      if (!enrollmentStatus) {
+      if (!isEnrolled) {
         // Not enrolled, so enroll them and create a card
         try {
           const card = await LoyaltyCardService.enrollCustomerInProgram(

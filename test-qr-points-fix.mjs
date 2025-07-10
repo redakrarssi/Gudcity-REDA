@@ -1,280 +1,204 @@
-import postgres from 'postgres';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fs from 'fs';
+#!/usr/bin/env node
 
-// Load environment variables from .env file
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+import { Pool } from '@neondatabase/serverless';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+import fs from 'fs/promises';
+
+// Load environment variables
 dotenv.config();
 
-// Set up database connection
-const sql = postgres(process.env.DATABASE_URL, {
-  ssl: { rejectUnauthorized: false },
-  max: 10
-});
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const DATABASE_URL = process.env.VITE_DATABASE_URL || process.env.DATABASE_URL;
 
 /**
- * Test script for verifying QR code point awarding system
- * 
- * This script performs the following tests:
- * 1. Verify customer exists
- * 2. Verify business exists
- * 3. Verify loyalty programs exist
- * 4. Check enrollment status
- * 5. Create enrollment if needed
- * 6. Verify loyalty card exists
- * 7. Create loyalty card if needed
- * 8. Test awarding points
+ * Script to test and fix customer point awarding issues with the 405 error
  */
 async function main() {
+  console.log('🔍 Starting point awarding system diagnosis');
+  
+  if (!DATABASE_URL) {
+    console.error('❌ Database URL not found in environment variables');
+    process.exit(1);
+  }
+  
+  const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: true
+  });
+  
   try {
-    // Configuration
-    const TEST_CUSTOMER_ID = process.argv[2] || '4';
-    const TEST_BUSINESS_ID = process.argv[3] || '2';
-    const TEST_PROGRAM_ID = process.argv[4];
+    // Get customer ID 4 details as seen in the diagnostic script
+    console.log('Checking customer ID 4 details...');
     
-    console.log('=== QR Code Points System Verification ===');
-    console.log(`Testing with Customer ID: ${TEST_CUSTOMER_ID}, Business ID: ${TEST_BUSINESS_ID}`);
+    const customerResult = await pool.query(`
+      SELECT * FROM users WHERE id = 4
+    `);
     
-    // Step 1: Verify customer exists
-    console.log('\n1. Verifying customer...');
-    const customer = await sql`
-      SELECT id, name, email, user_type FROM users 
-      WHERE id = ${TEST_CUSTOMER_ID} AND user_type = 'customer'
-    `;
-    
-    if (customer.length === 0) {
-      console.error('❌ Customer not found!');
-      return;
-    }
-    
-    console.log(`✅ Customer found: ${customer[0].name} (${customer[0].email})`);
-    
-    // Step 2: Verify business exists
-    console.log('\n2. Verifying business...');
-    const business = await sql`
-      SELECT id, name, email FROM users 
-      WHERE id = ${TEST_BUSINESS_ID} AND user_type = 'business'
-    `;
-    
-    if (business.length === 0) {
-      console.error('❌ Business not found!');
-      return;
-    }
-    
-    console.log(`✅ Business found: ${business[0].name}`);
-    
-    // Step 3: Check loyalty programs
-    console.log('\n3. Checking loyalty programs...');
-    const programs = await sql`
-      SELECT id, name, description, status, welcome_points
-      FROM loyalty_programs
-      WHERE business_id = ${TEST_BUSINESS_ID} AND status = 'active'
-    `;
-    
-    if (programs.length === 0) {
-      console.error('❌ No active loyalty programs found for this business!');
-      return;
-    }
-    
-    console.log(`✅ Found ${programs.length} active loyalty programs:`);
-    programs.forEach(program => {
-      console.log(`   - ${program.name} (ID: ${program.id})`);
-    });
-    
-    // Use first program if none specified
-    const programId = TEST_PROGRAM_ID || programs[0].id;
-    console.log(`\nUsing program ID: ${programId}`);
-    
-    // Step 4: Check enrollment status
-    console.log('\n4. Checking enrollment status...');
-    const enrollments = await sql`
-      SELECT * FROM program_enrollments
-      WHERE customer_id = ${TEST_CUSTOMER_ID}
-      AND program_id = ${programId}
-      AND status = 'ACTIVE'
-    `;
-    
-    let isEnrolled = enrollments.length > 0;
-    console.log(`Enrollment status: ${isEnrolled ? '✅ Enrolled' : '❌ Not enrolled'}`);
-    
-    // Step 5: Create enrollment if needed
-    if (!isEnrolled) {
-      console.log('\n5. Creating enrollment...');
-      try {
-        await sql`
-          INSERT INTO program_enrollments (
-            customer_id, program_id, status, 
-            current_points, total_points_earned, 
-            created_at, updated_at
-          )
-          VALUES (
-            ${TEST_CUSTOMER_ID}, ${programId}, 'ACTIVE',
-            0, 0,
-            NOW(), NOW()
-          )
-          ON CONFLICT (customer_id, program_id) 
-          DO UPDATE SET 
-            status = 'ACTIVE',
-            updated_at = NOW()
-        `;
-        console.log('✅ Enrollment created or updated successfully');
-        isEnrolled = true;
-      } catch (error) {
-        console.error('❌ Failed to create enrollment:', error.message);
-      }
-    } else {
-      console.log('\n5. Enrollment already exists, skipping creation');
-    }
-    
-    // Step 6: Check for loyalty card
-    console.log('\n6. Checking loyalty card...');
-    const cards = await sql`
-      SELECT * FROM loyalty_cards
-      WHERE customer_id = ${TEST_CUSTOMER_ID}
-      AND business_id = ${TEST_BUSINESS_ID}
-      AND program_id = ${programId}
-      AND is_active = true
-    `;
-    
-    let cardId = null;
-    if (cards.length > 0) {
-      cardId = cards[0].id;
-      console.log(`✅ Loyalty card exists, ID: ${cardId}`);
-      console.log(`   Current points: ${cards[0].points_balance || cards[0].points || 0}`);
-    } else {
-      console.log('❌ No active loyalty card found');
-    }
-    
-    // Step 7: Create card if needed
-    if (!cardId) {
-      console.log('\n7. Creating loyalty card...');
-      try {
-        // Generate a unique card number
-        const cardNumber = `TEST-${Math.floor(100000 + Math.random() * 900000)}-QR`;
-        
-        const cardResult = await sql`
-          INSERT INTO loyalty_cards (
-            customer_id, business_id, program_id, card_number,
-            points, points_balance, total_points_earned,
-            tier, is_active, created_at, updated_at
-          ) VALUES (
-            ${TEST_CUSTOMER_ID}, ${TEST_BUSINESS_ID}, ${programId}, ${cardNumber},
-            0, 0, 0, 'STANDARD', true, NOW(), NOW()
-          ) RETURNING id
-        `;
-        
-        if (cardResult.length > 0) {
-          cardId = cardResult[0].id;
-          console.log(`✅ Loyalty card created, ID: ${cardId}`);
-        } else {
-          console.error('❌ Failed to create loyalty card - no ID returned');
-        }
-      } catch (error) {
-        console.error('❌ Failed to create loyalty card:', error.message);
-      }
-    } else {
-      console.log('\n7. Card already exists, skipping creation');
-    }
-    
-    // Step 8: Test awarding points
-    if (cardId) {
-      console.log('\n8. Testing point awarding...');
-      const testPoints = 5;
+    if (customerResult.rows.length === 0) {
+      console.log('❌ Customer ID 4 not found in users table');
       
+      // Try the customers table
+      const customersFallback = await pool.query(`
+        SELECT * FROM customers WHERE id = 4
+      `);
+      
+      if (customersFallback.rows.length > 0) {
+        console.log('✅ Customer ID 4 found in customers table');
+        console.log(customersFallback.rows[0]);
+      } else {
+        console.log('❌ Customer ID 4 not found in customers table either');
+      }
+    } else {
+      console.log('✅ Customer ID 4 found in users table');
+      console.log(customerResult.rows[0]);
+    }
+    
+    // Check program enrollment
+    console.log('\nChecking program enrollments for customer ID 4...');
+    
+    const enrollments = await pool.query(`
+      SELECT * FROM customer_programs
+      WHERE customer_id = '4'
+    `);
+    
+    if (enrollments.rows.length === 0) {
+      console.log('❌ Customer ID 4 is not enrolled in any programs');
+    } else {
+      console.log(`✅ Customer ID 4 is enrolled in ${enrollments.rows.length} programs:`);
+      enrollments.rows.forEach((enrollment, idx) => {
+        console.log(`${idx + 1}: Program ID ${enrollment.program_id}, Points: ${enrollment.current_points}`);
+      });
+      
+      // Let's check the first program to use for our test
+      const testProgramId = enrollments.rows[0].program_id;
+      
+      // Check if loyalty card exists for this program
+      const cardCheck = await pool.query(`
+        SELECT * FROM loyalty_cards
+        WHERE customer_id = '4' AND program_id = $1
+      `, [testProgramId]);
+      
+      if (cardCheck.rows.length === 0) {
+        console.log(`❌ No loyalty card found for customer 4 in program ${testProgramId}`);
+      } else {
+        console.log(`✅ Found loyalty card for customer 4 in program ${testProgramId}:`);
+        console.log(cardCheck.rows[0]);
+      }
+      
+      // Test award points API directly
       try {
-        // Start transaction
-        const transaction = await sql.begin();
+        console.log(`\nTesting award points API for customer 4, program ${testProgramId}...`);
         
+        // First get authentication - use a business owner account
+        // This part would need to be adapted to your authentication system
+        // For now, let's try to read a token from a file
+        let token;
         try {
-          // Update card points balance
-          await transaction`
-            UPDATE loyalty_cards
-            SET 
-              points_balance = points_balance + ${testPoints},
-              points = points + ${testPoints},
-              total_points_earned = total_points_earned + ${testPoints},
-              updated_at = NOW()
-            WHERE id = ${cardId}
-          `;
-
-          // Record the transaction
-          await transaction`
-            INSERT INTO loyalty_transactions (
-              card_id,
-              transaction_type,
-              points,
-              source,
-              description,
-              created_at
-            )
-            VALUES (
-              ${cardId},
-              'CREDIT',
-              ${testPoints},
-              'SCAN',
-              'Test QR code scan points',
-              NOW()
-            )
-          `;
-
-          // Commit transaction
-          await transaction.commit();
-          console.log(`✅ Successfully awarded ${testPoints} points to card ${cardId}`);
-          
-          // Verify updated balance
-          const updatedCard = await sql`
-            SELECT points_balance, points FROM loyalty_cards WHERE id = ${cardId}
-          `;
-          
-          if (updatedCard.length > 0) {
-            console.log(`   New points balance: ${updatedCard[0].points_balance || updatedCard[0].points || 0}`);
-          }
-        } catch (error) {
-          await transaction.rollback();
-          throw error;
+          token = await fs.readFile('test-token.txt', 'utf8');
+          console.log('✅ Read authentication token from file');
+        } catch (err) {
+          console.log('❌ Could not read authentication token, skipping API test');
+          console.log('👉 To test the API, create a file called test-token.txt with a valid JWT token');
         }
-      } catch (error) {
-        console.error(`❌ Error awarding points:`, error.message);
+        
+        if (token) {
+          console.log('Calling award-points API...');
+          
+          const response = await fetch('http://localhost:3000/api/businesses/award-points', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token.trim()}`
+            },
+            body: JSON.stringify({
+              customerId: '4',
+              programId: testProgramId,
+              points: 1,
+              description: 'Test points from diagnostic script',
+              source: 'MANUAL'
+            })
+          });
+          
+          const status = response.status;
+          console.log(`API Response Status: ${status}`);
+          
+          if (status === 405) {
+            console.log('❌ Got 405 Method Not Allowed - API route may be misconfigured');
+            console.log('Allowed methods:', response.headers.get('Allow'));
+          }
+          
+          let data;
+          try {
+            data = await response.json();
+          } catch (err) {
+            console.log('❌ Failed to parse JSON response');
+            const text = await response.text();
+            console.log('Raw response:', text);
+            data = { error: 'Failed to parse JSON' };
+          }
+          
+          console.log('API Response:', JSON.stringify(data, null, 2));
+          
+          if (status === 200 && data.success) {
+            console.log('✅ Successfully awarded points to customer!');
+          } else {
+            console.log('❌ Failed to award points. See details above.');
+          }
+          
+          // Check if points were actually added in the database
+          console.log('\nVerifying points were added in the database...');
+          
+          const pointsCheck = await pool.query(`
+            SELECT * FROM customer_programs
+            WHERE customer_id = '4' AND program_id = $1
+          `, [testProgramId]);
+          
+          if (pointsCheck.rows.length > 0) {
+            console.log(`Current points for customer 4 in program ${testProgramId}: ${pointsCheck.rows[0].current_points}`);
+          }
+        }
+      } catch (apiError) {
+        console.error('❌ Error calling API:', apiError);
       }
-    } else {
-      console.error('\n8. Cannot test point awarding - no valid card ID');
     }
     
-    // Final status
-    console.log('\n=== Summary ===');
-    console.log(`Customer: ${customer[0].name} (ID: ${TEST_CUSTOMER_ID})`);
-    console.log(`Business: ${business[0].name} (ID: ${TEST_BUSINESS_ID})`);
-    console.log(`Program ID: ${programId}`);
-    console.log(`Card ID: ${cardId || 'None'}`);
-    console.log(`Enrollment Status: ${isEnrolled ? 'Enrolled' : 'Not enrolled'}`);
+    // Check for programmatic issues
+    console.log('\nChecking for potential issues in the system...');
     
-    if (cardId) {
-      // Final card check
-      const finalCard = await sql`
-        SELECT points_balance, points, total_points_earned
-        FROM loyalty_cards WHERE id = ${cardId}
-      `;
-      
-      if (finalCard.length > 0) {
-        console.log(`Points Balance: ${finalCard[0].points_balance || finalCard[0].points || 0}`);
-        console.log(`Total Points Earned: ${finalCard[0].total_points_earned || 0}`);
-      }
+    // Check API route configuration
+    try {
+      const routes = await fs.readFile('src/api/api.ts', 'utf8');
+      console.log('✅ Found API client configuration file');
+    } catch (err) {
+      console.log('❌ Could not read API configuration file');
     }
     
-    console.log('\nTest completed successfully!');
+    try {
+      const businessRoutes = await fs.readFile('src/api/businessRoutes.ts', 'utf8');
+      if (businessRoutes.includes('router.post(\'/award-points\'')) {
+        console.log('✅ Found award-points POST route in businessRoutes.ts');
+      } else {
+        console.log('❌ Could not find award-points POST route in businessRoutes.ts');
+      }
+    } catch (err) {
+      console.log('❌ Could not read business routes file');
+    }
+    
+    // Provide recommendations
+    console.log('\n📋 Recommendations:');
+    console.log('1. Ensure all enrollments have corresponding loyalty_cards');
+    console.log('2. Verify API authentication is working properly');
+    console.log('3. Check that the route handler for award-points is properly registered');
+    console.log('4. Ensure the web server is not blocking POST requests to this endpoint');
+    console.log('5. Check for middleware that might be interfering with the request');
+    
   } catch (error) {
-    console.error('Test failed with error:', error);
+    console.error('❌ Error during diagnosis:', error);
   } finally {
-    // Close database connection
-    await sql.end();
+    await pool.end();
   }
 }
 
-main().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-}); 
+main().catch(console.error); 
