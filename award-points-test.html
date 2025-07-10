@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Award Points Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2563eb;
+        }
+        .card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .error {
+            color: #dc2626;
+            background-color: #fee2e2;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .success {
+            color: #16a34a;
+            background-color: #dcfce7;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .hidden {
+            display: none;
+        }
+        pre {
+            background-color: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Award Points Test Tool</h1>
+    <p>Use this tool to test awarding points directly to a customer in a program.</p>
+
+    <div class="card">
+        <h2>API Authentication</h2>
+        <div class="form-group">
+            <label for="token">Authentication Token</label>
+            <input type="text" id="token" placeholder="Bearer token">
+        </div>
+        <div class="form-group">
+            <label for="api-url">API Base URL</label>
+            <input type="text" id="api-url" value="/api" placeholder="e.g., /api or https://your-api.com/api">
+        </div>
+        <button onclick="saveToken()">Save Token</button>
+    </div>
+
+    <div class="card">
+        <h2>Award Points</h2>
+        <div id="error-message" class="error hidden"></div>
+        <div id="success-message" class="success hidden"></div>
+        
+        <div class="form-group">
+            <label for="customer-id">Customer ID</label>
+            <input type="text" id="customer-id" value="27" placeholder="e.g., 27">
+        </div>
+        
+        <div class="form-group">
+            <label for="program-id">Program ID</label>
+            <input type="text" id="program-id" value="11" placeholder="e.g., 11">
+        </div>
+        
+        <div class="form-group">
+            <label for="points">Points to Award</label>
+            <input type="number" id="points" value="10" min="1" placeholder="e.g., 10">
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description</label>
+            <input type="text" id="description" value="Points awarded via test tool" placeholder="e.g., Points awarded via test tool">
+        </div>
+        
+        <div class="form-group">
+            <label for="source">Source</label>
+            <select id="source">
+                <option value="MANUAL">MANUAL</option>
+                <option value="SCAN">SCAN</option>
+                <option value="PURCHASE">PURCHASE</option>
+                <option value="WELCOME">WELCOME</option>
+                <option value="PROMOTION">PROMOTION</option>
+                <option value="OTHER">OTHER</option>
+            </select>
+        </div>
+        
+        <button onclick="awardPoints()">Award Points</button>
+    </div>
+
+    <div class="card">
+        <h2>Response</h2>
+        <pre id="response">No response yet</pre>
+    </div>
+
+    <div class="card">
+        <h2>Debug Info</h2>
+        <div class="form-group">
+            <label for="debug-url">Debug URL</label>
+            <input type="text" id="debug-url" value="/api/businesses/award-points" placeholder="e.g., /api/businesses/award-points">
+        </div>
+        <div class="form-group">
+            <label for="debug-method">HTTP Method</label>
+            <select id="debug-method">
+                <option value="POST">POST</option>
+                <option value="GET">GET</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="OPTIONS">OPTIONS</option>
+            </select>
+        </div>
+        <button onclick="testEndpoint()">Test Endpoint</button>
+        <pre id="debug-response">No debug response yet</pre>
+    </div>
+
+    <script>
+        // Save token to localStorage
+        function saveToken() {
+            const token = document.getElementById('token').value;
+            if (token) {
+                localStorage.setItem('token', token);
+                alert('Token saved to localStorage');
+            } else {
+                alert('Please enter a token');
+            }
+        }
+
+        // Award points function
+        async function awardPoints() {
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            const source = document.getElementById('source').value;
+            const apiUrl = document.getElementById('api-url').value;
+            
+            // Validate inputs
+            if (!customerId || !programId || isNaN(points) || points <= 0) {
+                showError('Please fill in all required fields with valid values');
+                return;
+            }
+
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showError('No authentication token found. Please set a token first.');
+                return;
+            }
+
+            try {
+                // Show loading state
+                document.getElementById('response').textContent = 'Loading...';
+                
+                // Make the API request
+                const response = await fetch(`${apiUrl}/businesses/award-points`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        customerId,
+                        programId,
+                        points,
+                        description,
+                        source
+                    })
+                });
+
+                // Get response as text first
+                const responseText = await response.text();
+                
+                // Try to parse as JSON
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = { rawText: responseText };
+                }
+                
+                // Display the response
+                document.getElementById('response').textContent = JSON.stringify(responseData, null, 2);
+                
+                // Show success or error message
+                if (response.ok) {
+                    showSuccess(`Successfully awarded ${points} points to customer ${customerId} in program ${programId}`);
+                } else {
+                    showError(`Failed to award points: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Error awarding points:', error);
+                showError(`Error: ${error.message}`);
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Test endpoint function for debugging
+        async function testEndpoint() {
+            const url = document.getElementById('debug-url').value;
+            const method = document.getElementById('debug-method').value;
+            const token = localStorage.getItem('token');
+            
+            if (!url) {
+                alert('Please enter a URL to test');
+                return;
+            }
+            
+            try {
+                document.getElementById('debug-response').textContent = 'Loading...';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    credentials: 'same-origin',
+                    ...(method !== 'GET' && method !== 'HEAD' ? {
+                        body: JSON.stringify({
+                            customerId: document.getElementById('customer-id').value,
+                            programId: document.getElementById('program-id').value,
+                            points: parseInt(document.getElementById('points').value),
+                            description: document.getElementById('description').value,
+                            source: document.getElementById('source').value
+                        })
+                    } : {})
+                });
+                
+                // Get response as text first
+                const responseText = await response.text();
+                
+                // Try to parse as JSON
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = { rawText: responseText };
+                }
+                
+                // Display debug info
+                const debugInfo = {
+                    url,
+                    method,
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries([...response.headers.entries()]),
+                    data: responseData
+                };
+                
+                document.getElementById('debug-response').textContent = JSON.stringify(debugInfo, null, 2);
+            } catch (error) {
+                console.error('Error testing endpoint:', error);
+                document.getElementById('debug-response').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Helper functions for UI
+        function showError(message) {
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+            document.getElementById('success-message').classList.add('hidden');
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorElement.classList.add('hidden');
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const successElement = document.getElementById('success-message');
+            successElement.textContent = message;
+            successElement.classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                successElement.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load token from localStorage if available
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('token').value = token;
+            }
+        });
+    </script>
+</body>
+</html> 

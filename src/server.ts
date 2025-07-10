@@ -49,6 +49,9 @@ if (isBrowser) {
   import feedbackRoutes from './api/feedbackRoutes';
   import notificationRoutes from './api/notificationRoutes';
   import debugRoutes from './api/debugRoutes';
+  
+  // Import custom middleware
+  import { apiRequestLogger, corsMiddleware, methodNotAllowedHandler } from './middleware/apiErrorHandler';
 
   // Create Express server
   const app: any = express();
@@ -69,6 +72,11 @@ if (isBrowser) {
     app.use(helmet() as any); // Security headers
     app.use(cors() as any); // CORS support
     app.use((express.json() as unknown) as any); // Parse JSON request bodies
+    
+    // Add our custom API request logging middleware
+    app.use(apiRequestLogger);
+    app.use(corsMiddleware);
+    app.use(methodNotAllowedHandler);
   } catch (error) {
     console.warn('Error applying middleware:', error);
   }
@@ -88,7 +96,7 @@ if (isBrowser) {
 
   // API routes
   try {
-    app.use('/api', businessRoutes);
+    app.use('/api/businesses', businessRoutes);
     app.use('/api', feedbackRoutes);
     app.use('/api', notificationRoutes);
     app.use('/api', debugRoutes);

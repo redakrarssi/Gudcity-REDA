@@ -19,6 +19,11 @@ router.use((req: Request, res: Response, next: NextFunction) => {
  * Award points to a customer's loyalty card
  */
 router.post('/award-points', auth, async (req: Request, res: Response) => {
+  // Debug log for 405 error
+  console.log('ROUTE ACCESSED: POST /api/businesses/award-points');
+  console.log('Request body:', req.body);
+  console.log('Request headers:', req.headers);
+  
   const { customerId, programId, points, description, source, transactionRef: clientTxRef } = req.body;
   const businessIdStr = String(req.user!.id);
   const customerIdStr = String(customerId);
