@@ -1,5 +1,7 @@
 import { CustomerNotificationService } from '../services/customerNotificationService';
 import { logger } from './logger';
+import { LoyaltyCardService } from '../services/loyaltyCardService';
+import { createCardSyncEvent } from './realTimeSync';
 
 /**
  * Handler for customer point notifications
@@ -94,6 +96,26 @@ export async function handlePointsAwarded(
       }
     }
 
+    // Ensure card is properly updated and synced
+    try {
+      // Create sync event for React Query invalidation
+      createCardSyncEvent(
+        cardId,
+        customerId,
+        businessId,
+        'UPDATE',
+        {
+          pointsAdded: points,
+          programId,
+          programName
+        }
+      );
+    } catch (syncError) {
+      logger.warn('Failed to create card sync event', {
+        error: syncError instanceof Error ? syncError.message : 'Unknown error'
+      });
+    }
+
     return !!notification;
   } catch (error) {
     logger.error('Failed to create points notification', {
@@ -102,7 +124,96 @@ export async function handlePointsAwarded(
       businessId,
       programId
     });
+    
+    // Even if we fail to create a notification, try a fallback method
+    try {
+      // Try importing sql directly
+      const { default: sql } = await import('../utils/db');
+      
+      // Create a simplified notification directly in the database
+      await sql`
+        INSERT INTO customer_notifications (
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          requires_action,
+          action_taken,
+          is_read,
+          created_at
+        ) VALUES (
+          ${crypto.randomUUID()},
+          ${parseInt(customerId)},
+          ${parseInt(businessId)},
+          'POINTS_ADDED',
+          'Points Added',
+          ${`You've received ${points} points from ${businessName} in ${programName}`},
+          false,
+          false,
+          false,
+          ${new Date().toISOString()}
+        )
+      `;
+      
+      logger.info('Created fallback notification successfully');
+    } catch (fallbackError) {
+      logger.error('Fallback notification creation also failed', {
+        error: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+      });
+    }
     return false;
+  }
+}
+
+/**
+ * Fallback method to create a notification
+ */
+async function createFallbackNotification(
+  customerId: string,
+  businessId: string,
+  points: number,
+  programName: string,
+  businessName: string
+): Promise<void> {
+  try {
+    // Try importing sql directly
+    const { default: sql } = await import('../utils/db');
+    
+    // Create a simplified notification directly in the database
+    await sql`
+      INSERT INTO customer_notifications (
+        id,
+        customer_id,
+        business_id,
+        type,
+        title,
+        message,
+        requires_action,
+        action_taken,
+        is_read,
+        created_at
+      ) VALUES (
+        ${crypto.randomUUID()},
+        ${parseInt(customerId)},
+        ${parseInt(businessId)},
+        'POINTS_ADDED',
+        'Points Added',
+        ${`You've received ${points} points from ${businessName} in ${programName}`},
+        false,
+        false,
+        false,
+        ${new Date().toISOString()}
+      )
+    `;
+    
+    logger.info('Created fallback notification successfully');
+  } catch (error) {
+    logger.error('Failed to create fallback notification', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
   }
 }
 
@@ -233,17 +344,17 @@ export function triggerCardRefresh(customerId: string): void {
   if (typeof window === 'undefined') return;
   
   try {
-    // Set a flag in localStorage to trigger refetch
-    localStorage.setItem('force_card_refresh', Date.now().toString());
-    localStorage.setItem(`refresh_cards_${customerId}`, Date.now().toString());
+    const storageKey = `cards_update_${customerId}`;
+    localStorage.setItem(storageKey, Date.now().toString());
     
-    // Dispatch a custom event that the Cards component can listen for
-    const refreshEvent = new CustomEvent('refresh-customer-cards', {
-      detail: { customerId }
-    });
-    window.dispatchEvent(refreshEvent);
-    
-    logger.info('Triggered card refresh for customer', { customerId });
+    // Clean up after 5 seconds to avoid storage quota issues
+    setTimeout(() => {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (_) {
+        // Ignore errors during cleanup
+      }
+    }, 5000);
   } catch (error) {
     logger.warn('Failed to trigger card refresh', {
       error: error instanceof Error ? error.message : 'Unknown error'

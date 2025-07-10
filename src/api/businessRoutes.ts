@@ -6,6 +6,7 @@ import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { logger } from '../utils/logger';
 import sql from '../utils/db';
 import { CustomerService } from '../services/customerService';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
@@ -22,7 +23,6 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
   // Debug log for 405 error
   console.log('ROUTE ACCESSED: POST /api/businesses/award-points');
   console.log('Request body:', req.body);
-  console.log('Request headers:', req.headers);
   
   const { customerId, programId, points, description, source, transactionRef: clientTxRef } = req.body;
   const businessIdStr = String(req.user!.id);
@@ -37,12 +37,19 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
   };
 
   try {
-    // Log request details for debugging the 405 issue
+    // Log request details for debugging
     console.log(`Award points request: customer=${customerIdStr}, program=${programIdStr}, points=${points}, business=${businessIdStr}`);
     
     // 1. Validate inputs
     if (!customerId || !programId || !points) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+    
+    if (isNaN(points) || points <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Points must be a positive number' 
+      });
     }
     
     // 2. Get customer name with expanded fallback logic
@@ -56,293 +63,253 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
     let customerResult = await sql`
       SELECT id, name FROM users WHERE id = ${customerIdStr} AND user_type = 'customer'
     `;
-
+    
     if (customerResult.length > 0) {
-      customerName = String(customerResult[0].name || customerName);
-      fullData.customerSource = 'users';
+      customerName = customerResult[0].name;
       customerFound = true;
+      fullData.customerLookup.usersTable = true;
     } else {
-      // Try users table without type restriction
-      customerResult = await sql`
-        SELECT id, name FROM users WHERE id = ${customerIdStr}
-      `;
-      
-      if (customerResult.length > 0) {
-        customerName = String(customerResult[0].name || customerName);
-        fullData.customerSource = 'users_no_type';
-        customerFound = true;
-      } else {
-        // Try customers table
-        const customerFallback = await sql`
-          SELECT id, name FROM customers WHERE id = ${customerIdStr}
-        `;
+      // Try customers table as fallback
+      try {
+        customerResult = await sql`SELECT id, name FROM customers WHERE id = ${customerIdStr}`;
         
-        if (customerFallback.length > 0) {
-          customerName = String(customerFallback[0].name || customerName);
-          fullData.customerSource = 'customers_table';
+        if (customerResult.length > 0) {
+          customerName = customerResult[0].name;
           customerFound = true;
-        } else {
-          // Last resort - check if they exist in loyalty_cards
-          const cardFallback = await sql`
-            SELECT DISTINCT customer_id FROM loyalty_cards 
-            WHERE customer_id = ${customerIdStr} LIMIT 1
-          `;
-          
-          if (cardFallback.length > 0) {
-            fullData.customerSource = 'loyalty_cards_only';
-            customerFound = true;
-          } else {
-            // Check one last place - customer_programs table
-            const programFallback = await sql`
-              SELECT DISTINCT customer_id FROM customer_programs
-              WHERE customer_id = ${customerIdStr} LIMIT 1
-            `;
-            
-            if (programFallback.length > 0) {
-              fullData.customerSource = 'customer_programs_only';
-              customerFound = true;
-            }
-          }
+          fullData.customerLookup.customersTable = true;
         }
+      } catch (customerLookupError) {
+        // Continue even if this lookup fails
+        console.warn('Customer lookup in customers table failed:', customerLookupError);
+        fullData.customerLookup.customersTableError = true;
       }
     }
     
-    // Return error if customer not found anywhere
     if (!customerFound) {
+      console.warn(`Customer with ID ${customerIdStr} not found in any table`);
+      fullData.customerLookup.found = false;
+      // We'll continue anyway, just using the default name
+    } else {
+      fullData.customerLookup.found = true;
+      fullData.customerLookup.name = customerName;
+    }
+    
+    // 3. Get program details
+    const programResult = await sql`
+      SELECT p.*, b.name as business_name
+      FROM loyalty_programs p
+      JOIN users b ON p.business_id = b.id
+      WHERE p.id = ${programIdStr}
+    `;
+    
+    if (programResult.length === 0) {
       return res.status(404).json({ 
         success: false, 
-        error: 'Customer not found in any tables', 
-        details: fullData
+        error: `Program with ID ${programIdStr} not found` 
       });
     }
     
-    fullData.customerName = customerName;
-
-    // 3. Verify program ownership
-    const programResult = await sql`
-      SELECT id, name FROM loyalty_programs 
-      WHERE id = ${programIdStr} AND business_id = ${businessIdStr}
-    `;
-
-    if (programResult.length === 0) {
+    const program = programResult[0];
+    const programName = program.name;
+    const businessName = program.business_name;
+    
+    // 4. Check if the program belongs to the business
+    if (program.business_id !== parseInt(businessIdStr)) {
       return res.status(403).json({ 
-        success: false,
-        error: 'Program does not belong to this business',
-        code: 'PROGRAM_OWNERSHIP_ERROR'
+        success: false, 
+        error: 'You do not have permission to award points for this program' 
       });
     }
     
-    const programName = programResult[0].name;
-    fullData.programName = programName;
+    // 5. Find customer card for this program or create one if needed
+    let cardId: string;
+    let cardExists = true;
     
-    // Get business name
-    const businessResult = await sql`
-      SELECT name FROM users WHERE id = ${businessIdStr}
+    const cardResult = await sql`
+      SELECT id FROM loyalty_cards
+      WHERE customer_id = ${customerIdStr}::integer
+      AND program_id = ${programIdStr}::integer
+      LIMIT 1
     `;
-    const businessName = businessResult.length ? businessResult[0].name : 'Business';
-    fullData.businessName = businessName;
-
-    // 4. Find or create a card for this customer in this program
-    try {
-      let cardId: string;
+    
+    if (cardResult.length === 0) {
+      // No card exists, create one
+      cardExists = false;
       
-      // Check if customer is enrolled with more thorough query
-      const enrollmentCheck = await sql`
-        SELECT EXISTS (
-          SELECT 1 FROM customer_programs 
-          WHERE customer_id = ${customerIdStr}
-          AND program_id = ${programIdStr}
-        ) AS is_enrolled
-      `;
+      // Generate a UUID for the new card
+      const newCardId = uuidv4();
       
-      const isEnrolled = enrollmentCheck[0]?.is_enrolled === true;
-      fullData.isEnrolled = isEnrolled;
-
-      if (!isEnrolled) {
-        // Not enrolled, so enroll them and create a card
-        try {
-          const card = await LoyaltyCardService.enrollCustomerInProgram(
-            customerIdStr,
-            businessIdStr,
-            programIdStr
-          );
-          
-          if (!card || !card.id) {
-            throw new Error('Failed to create loyalty card for customer');
-          }
-          
-          cardId = String(card.id);
-          fullData.cardId = cardId;
-          fullData.cardCreated = true;
-          fullData.enrollmentCreated = true;
-        } catch (enrollError) {
-          logger.error('Failed to enroll customer', {
-            error: enrollError instanceof Error ? enrollError.message : 'Unknown error',
-            customerId: customerIdStr,
-            programId: programIdStr
-          });
-          
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to enroll customer in the program',
-            code: 'ENROLLMENT_ERROR',
-            details: enrollError instanceof Error ? enrollError.message : 'Unknown error'
-          });
-        }
-      } else {
-        // Customer is enrolled, find card
-        const cardResult = await sql`
-          SELECT id FROM loyalty_cards
-          WHERE customer_id = ${customerIdStr}
-          AND program_id = ${programIdStr}
+      try {
+        await sql`
+          INSERT INTO loyalty_cards (
+            id,
+            customer_id,
+            program_id,
+            business_id,
+            points,
+            points_balance,
+            total_points_earned,
+            created_at,
+            updated_at
+          ) VALUES (
+            ${newCardId},
+            ${customerIdStr}::integer,
+            ${programIdStr}::integer,
+            ${businessIdStr}::integer,
+            0,
+            0,
+            0,
+            NOW(),
+            NOW()
+          )
         `;
         
-        if (!cardResult.length) {
-          // Enrolled but no card, create a card
-          logger.info('Customer enrolled but no card found, creating card', { 
-            customerId: customerIdStr, 
-            programId: programIdStr 
-          });
-          
-          try {
-            const card = await LoyaltyCardService.createCardForEnrolledCustomer(
-              customerIdStr,
-              businessIdStr,
-              programIdStr
-            );
-            
-            if (!card || !card.id) {
-              throw new Error('Failed to create loyalty card for enrolled customer');
-            }
-            
-            cardId = String(card.id);
-            fullData.cardId = cardId;
-            fullData.cardCreatedForEnrolled = true;
-          } catch (cardError) {
-            logger.error('Failed to create card for enrolled customer', {
-              error: cardError instanceof Error ? cardError.message : 'Unknown error',
-              customerId: customerIdStr,
-              programId: programIdStr
-            });
-            
-            // Try one more time with a direct insert
-            try {
-              const insertResult = await sql`
-                INSERT INTO loyalty_cards (
-                  customer_id, program_id, business_id, points, points_balance, created_at
-                ) VALUES (
-                  ${customerIdStr}, ${programIdStr}, ${businessIdStr}, 0, 0, NOW()
-                ) RETURNING id
-              `;
-              
-              if (insertResult && insertResult.length > 0) {
-                cardId = String(insertResult[0].id);
-                fullData.cardId = cardId;
-                fullData.cardCreatedDirectly = true;
-              } else {
-                throw new Error('Direct card creation failed');
-              }
-            } catch (directError) {
-              return res.status(500).json({
-                success: false,
-                error: 'Failed to create loyalty card for enrolled customer',
-                code: 'CARD_CREATION_ERROR',
-                details: directError instanceof Error ? directError.message : 'Unknown error'
-              });
-            }
-          }
-        } else {
-          cardId = String(cardResult[0].id);
-          fullData.cardId = cardId;
-          fullData.cardFound = true;
-        }
-      }
-      
-      // 5. Award points to the card
-      const transactionRef = `api-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-      fullData.transactionRef = transactionRef;
-      
-      const result = await LoyaltyCardService.awardPointsToCard(
-        cardId,
-        points,
-        source as any,
-        description || `Points awarded by ${businessName}`,
-        transactionRef,
-        businessIdStr
-      );
-      
-      fullData.awardingPoints = {
-        cardId,
-        points,
-        source,
-        description: description || `Points awarded by ${businessName}`,
-        transactionRef,
-        businessId: businessIdStr
-      };
-      
-      if (result.success) {
-        fullData.pointsAwarded = true;
-        
-        // Ensure notification is sent
-        try {
-          const { handlePointsAwarded } = require('../utils/notificationHandler');
-          
-          await handlePointsAwarded(
-            customerIdStr,
-            businessIdStr,
-            programIdStr,
-            programName,
-            businessName,
-            points,
-            cardId,
-            source
-          );
-          
-          fullData.notificationSent = true;
-        } catch (notificationError) {
-          logger.warn('Failed to send notification, but points were awarded', {
-            error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
-            cardId,
-            customerId: customerIdStr
-          });
-          fullData.notificationError = notificationError instanceof Error ? notificationError.message : 'Unknown error';
-        }
-        
-        return res.status(200).json({
-          success: true,
-          message: `Successfully awarded ${points} points to customer ${customerName}`,
-          data: {
-            ...fullData,
-            diagnostics: result.diagnostics
-          }
+        cardId = newCardId;
+        fullData.cardCreated = true;
+      } catch (cardCreationError) {
+        console.error('Failed to create loyalty card:', cardCreationError);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to create loyalty card for customer', 
+          code: 'CARD_CREATION_ERROR',
+          details: cardCreationError instanceof Error ? cardCreationError.message : String(cardCreationError)
         });
-      } else {
-        fullData.pointsAwarded = false;
-        fullData.error = result.error;
-        fullData.diagnostics = result.diagnostics;
+      }
+    } else {
+      // Card exists
+      cardId = cardResult[0].id;
+      fullData.cardExists = true;
+    }
+    
+    // 6. Award points to the card
+    const transactionRef = clientTxRef || `txn-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    fullData.awardingPoints = {
+      cardId,
+      points,
+      source,
+      description: description || `Points awarded by ${businessName}`,
+      transactionRef,
+      businessId: businessIdStr
+    };
+    
+    // Use the LoyaltyCardService to award points
+    const { LoyaltyCardService } = await import('../services/loyaltyCardService');
+    
+    const result = await LoyaltyCardService.awardPointsToCard(
+      cardId,
+      points,
+      source || 'MANUAL',
+      description || `Points awarded by ${businessName}`,
+      transactionRef,
+      businessIdStr
+    );
+    
+    if (result.success) {
+      fullData.pointsAwarded = true;
+      
+      // Ensure notification is sent
+      try {
+        const { handlePointsAwarded } = await import('../utils/notificationHandler');
         
-        logger.error('Failed to award points to card', { 
-          error: result.error, 
-          cardId, 
+        await handlePointsAwarded(
+          customerIdStr,
+          businessIdStr,
+          programIdStr,
+          programName,
+          businessName,
+          points,
+          cardId,
+          source || 'MANUAL'
+        );
+        
+        fullData.notificationSent = true;
+      } catch (notificationError) {
+        logger.warn('Failed to send notification, but points were awarded', {
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+          cardId,
           customerId: customerIdStr
         });
+        fullData.notificationError = notificationError instanceof Error ? notificationError.message : 'Unknown error';
         
-        return res.status(500).json({
-          success: false,
-          error: result.error || 'Failed to award points to card',
-          code: 'POINTS_AWARD_ERROR',
-          diagnostics: fullData
-        });
+        // Try a direct notification insertion as a fallback
+        try {
+          const notificationId = uuidv4();
+          
+          await sql`
+            INSERT INTO customer_notifications (
+              id,
+              customer_id,
+              business_id,
+              type,
+              title,
+              message,
+              data,
+              reference_id,
+              requires_action,
+              action_taken,
+              is_read,
+              created_at
+            ) VALUES (
+              ${notificationId},
+              ${parseInt(customerIdStr)},
+              ${parseInt(businessIdStr)},
+              'POINTS_ADDED',
+              'Points Added',
+              ${`You've received ${points} points from ${businessName} in ${programName}`},
+              ${JSON.stringify({
+                points: points,
+                cardId: cardId,
+                programId: programIdStr,
+                programName: programName,
+                source: source || 'MANUAL',
+                timestamp: new Date().toISOString()
+              })},
+              ${cardId},
+              false,
+              false,
+              false,
+              ${new Date().toISOString()}
+            )
+          `;
+          
+          fullData.directNotificationCreated = true;
+        } catch (directNotificationError) {
+          console.error('Failed to create direct notification:', directNotificationError);
+          fullData.directNotificationError = directNotificationError instanceof Error ? 
+            directNotificationError.message : 'Unknown error';
+        }
       }
-    } catch (error) {
-      logger.error('Error in point award process', { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        customerId: customerIdStr,
-        businessId: businessIdStr,
-        programId: programIdStr
+      
+      return res.status(200).json({
+        success: true,
+        message: `Successfully awarded ${points} points to customer ${customerName}`,
+        data: {
+          customerId: customerIdStr,
+          programId: programIdStr,
+          points,
+          cardId,
+          ...fullData,
+          diagnostics: result.diagnostics
+        }
+      });
+    } else {
+      fullData.pointsAwarded = false;
+      fullData.error = result.error;
+      fullData.diagnostics = result.diagnostics;
+      
+      logger.error('Failed to award points to card', { 
+        error: result.error, 
+        cardId, 
+        customerId: customerIdStr
       });
       
-      throw error;
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to award points to card',
+        code: 'POINTS_AWARD_ERROR',
+        diagnostics: fullData
+      });
     }
   } catch (error) {
     console.error('Error awarding points:', error);

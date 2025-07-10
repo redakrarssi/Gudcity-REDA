@@ -1,28 +1,74 @@
-import sql from './src/utils/db';
+import postgres from 'postgres';
+import * as dotenv from 'dotenv';
 
-async function checkTables() {
+// Load environment variables
+dotenv.config();
+
+// Create database connection
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: { rejectUnauthorized: false },
+  max: 10
+});
+
+async function checkNotificationTables() {
+  console.log('Checking notification tables...');
+  
   try {
-    console.log('Checking notification tables...');
-    
-    const result = await sql`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('customer_notifications', 'customer_approval_requests', 'customer_notification_preferences')
+    // Check if table exists
+    const tableExists = await sql`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'customer_notifications'
+      );
     `;
     
-    console.log('Tables found:', result.map(r => r.table_name));
-    
-    if (result.length < 3) {
-      console.log('Missing tables:', [
-        'customer_notifications', 
-        'customer_approval_requests', 
-        'customer_notification_preferences'
-      ].filter(table => !result.map(r => r.table_name).includes(table)));
+    if (!tableExists[0].exists) {
+      console.error('❌ customer_notifications table does not exist!');
+      return false;
     }
-  } catch (err) {
-    console.error('Error checking tables:', err);
+    
+    console.log('✅ customer_notifications table exists');
+    
+    // Get table schema
+    const tableColumns = await sql`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'customer_notifications';
+    `;
+    
+    console.log('Table structure:');
+    tableColumns.forEach(col => {
+      console.log(`${col.column_name} (${col.data_type})`);
+    });
+    
+    // Check if we can query the table
+    const testQuery = await sql`
+      SELECT COUNT(*) FROM customer_notifications;
+    `;
+    
+    console.log(`Total notifications in table: ${testQuery[0].count}`);
+    
+    return true;
+  } catch (error) {
+    console.error('Error checking notification tables:', error);
+    return false;
+  } finally {
+    await sql.end();
   }
 }
 
-checkTables(); 
+// Run the function
+checkNotificationTables()
+  .then(success => {
+    if (success) {
+      console.log('Notification tables check completed successfully');
+    } else {
+      console.error('Notification tables check failed');
+      process.exit(1);
+    }
+  })
+  .catch(err => {
+    console.error('Fatal error:', err);
+    process.exit(1);
+  }); 

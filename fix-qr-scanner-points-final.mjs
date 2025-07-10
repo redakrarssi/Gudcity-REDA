@@ -1,149 +1,373 @@
 #!/usr/bin/env node
 
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
+import postgres from 'postgres';
+import { v4 as uuidv4 } from 'uuid';
+import * as dotenv from 'dotenv';
 
-import sql from './src/utils/db.js';
-import fs from 'fs/promises';
-import path from 'path';
-import { v4 as uuid } from 'uuid';
+// Load environment variables
+dotenv.config();
 
-const prisma = new PrismaClient();
+// Create database connection
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: { rejectUnauthorized: false },
+  max: 10
+});
 
-/**
- * Script to fix QR scanner, notifications, and real-time sync issues
- * - Ensures notifications are sent and delivered properly
- * - Verifies customer dashboard reflects all programs and cards
- * - Syncs business customers view with actual enrollments
- */
 async function main() {
-  console.log('🔧 Starting QR scanner and notification sync fix');
+  console.log('🔧 Starting award points system fix...');
   
   try {
-    // 1. Fix socket connection issues
-    await fixSocketConnection();
+    // Check that required tables exist
+    await checkRequiredTables();
     
-    // 2. Fix customer notification delivery
-    await fixNotificationDelivery();
+    // 1. Fix the award points process
+    await fixAwardPointsProcess();
     
-    // 3. Fix business-customer linking
-    await fixBusinessCustomerLinking();
+    // 2. Fix the notification system
+    await fixNotificationSystem();
     
-    // 4. Fix customer dashboard sync
-    await fixCustomerDashboardSync();
+    // 3. Test the award points system
+    await testAwardPointsSystem();
     
-    // 5. Fix loyalty program enrollment notifications
-    await fixLoyaltyProgramEnrollment();
-    
-    // 6. Fix QR code scanning points sync
-    await fixQrScanningPointsSync();
-    
-    // 7. Create any missing database tables and indexes
-    await createMissingTablesAndIndexes();
-    
-    console.log('✅ QR scanner and notification sync fixes applied successfully!');
+    console.log('✅ Award points system fix completed successfully!');
   } catch (error) {
-    console.error('❌ Error applying fixes:', error);
+    console.error('❌ Error during fix process:', error);
     process.exit(1);
+  } finally {
+    await sql.end();
   }
 }
 
 /**
- * Fix socket connection for real-time updates
+ * Check that all required tables exist
  */
-async function fixSocketConnection() {
-  console.log('📡 Fixing socket connection for real-time updates...');
+async function checkRequiredTables() {
+  console.log('🔍 Checking required tables...');
   
-  try {
-    // Update socket utility to properly handle disconnects and reconnects
-    const socketUtilPath = './src/utils/socket.ts';
+  const requiredTables = [
+    'users',
+    'loyalty_cards',
+    'loyalty_programs',
+    'program_enrollments',
+    'customer_notifications',
+    'customer_programs'  // This could be a view that maps to program_enrollments
+  ];
+  
+  // Get list of tables in database
+  const tables = await sql`
+    SELECT table_name 
+    FROM information_schema.tables 
+    WHERE table_schema = 'public'
+  `;
+  
+  const tableNames = tables.map(t => t.table_name);
+  const missingTables = requiredTables.filter(t => !tableNames.includes(t));
+  
+  if (missingTables.length > 0) {
+    console.log('⚠️ Missing tables:', missingTables);
     
-    // Already fixed in our prior update
-    console.log('✅ Socket connection fixes already applied');
-  } catch (error) {
-    console.error('❌ Error fixing socket connection:', error);
-    throw error;
+    // If customer_programs is missing but program_enrollments exists, we'll create a view
+    if (missingTables.includes('customer_programs') && tableNames.includes('program_enrollments')) {
+      console.log('Creating customer_programs view to map to program_enrollments...');
+      
+      await sql`
+        CREATE OR REPLACE VIEW customer_programs AS
+        SELECT 
+          id,
+          customer_id,
+          program_id,
+          current_points,
+          enrolled_at,
+          updated_at
+        FROM program_enrollments
+      `;
+      
+      console.log('✅ Created customer_programs view');
+      
+      // Remove from missing tables list
+      missingTables.splice(missingTables.indexOf('customer_programs'), 1);
+    }
+    
+    // Check if we still have missing tables
+    if (missingTables.length > 0) {
+      throw new Error(`Required tables are missing: ${missingTables.join(', ')}`);
+    }
   }
+  
+  console.log('✅ All required tables exist or have been created');
 }
 
 /**
- * Fix notification delivery system
+ * Fix the award points process
  */
-async function fixNotificationDelivery() {
-  console.log('🔔 Fixing notification delivery system...');
+async function fixAwardPointsProcess() {
+  console.log('🔧 Fixing award points process...');
   
-  try {
-    // Check if the notification tables exist
-    const notificationTableExists = await checkTableExists('customer_notifications');
-    const approvalTableExists = await checkTableExists('customer_approval_requests');
+  // Check if table has customer_id as varchar or integer
+  const customerProgramsCols = await sql`
+    SELECT column_name, data_type 
+    FROM information_schema.columns 
+    WHERE table_name = 'customer_programs'
+  `;
+  
+  const customerIdType = customerProgramsCols.find(c => c.column_name === 'customer_id')?.data_type;
+  console.log(`customer_id column type in customer_programs: ${customerIdType}`);
+  
+  // Create/Replace the award_points procedure to handle both varchar and integer types
+  console.log('Creating/replacing award_points stored procedure...');
+  
+  await sql`
+    CREATE OR REPLACE PROCEDURE award_points(
+      p_customer_id TEXT,
+      p_business_id TEXT,
+      p_program_id TEXT,
+      p_points INTEGER,
+      p_source TEXT DEFAULT 'MANUAL'
+    )
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      v_customer_id_int INTEGER;
+      v_business_id_int INTEGER;
+      v_program_id_int INTEGER;
+      v_card_id TEXT;
+      v_enrollment_exists BOOLEAN;
+      v_card_exists BOOLEAN;
+      v_business_name TEXT;
+      v_program_name TEXT;
+      v_notification_id UUID;
+    BEGIN
+      -- Convert IDs to integers
+      BEGIN
+        v_customer_id_int := p_customer_id::INTEGER;
+        v_business_id_int := p_business_id::INTEGER;
+        v_program_id_int := p_program_id::INTEGER;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'Invalid ID format: %', SQLERRM;
+      END;
+      
+      -- Validate inputs
+      IF p_points <= 0 THEN
+        RAISE EXCEPTION 'Points must be greater than zero';
+      END IF;
+      
+      -- Get business and program names for notification
+      SELECT name INTO v_business_name FROM users WHERE id = v_business_id_int;
+      SELECT name INTO v_program_name FROM loyalty_programs WHERE id = v_program_id_int;
+      
+      IF v_business_name IS NULL THEN
+        RAISE EXCEPTION 'Business not found';
+      END IF;
+      
+      IF v_program_name IS NULL THEN
+        RAISE EXCEPTION 'Program not found';
+      END IF;
+      
+      -- Check if customer is enrolled in program
+      SELECT EXISTS(
+        SELECT 1 FROM customer_programs 
+        WHERE customer_id = p_customer_id AND program_id = p_program_id
+      ) INTO v_enrollment_exists;
+      
+      -- If not enrolled, enroll them
+      IF NOT v_enrollment_exists THEN
+        -- Insert into customer_programs (or program_enrollments via view)
+        BEGIN
+          INSERT INTO customer_programs (
+            customer_id, 
+            program_id, 
+            current_points,
+            enrolled_at
+          ) VALUES (
+            p_customer_id,
+            p_program_id,
+            p_points,
+            NOW()
+          );
+        EXCEPTION WHEN OTHERS THEN
+          RAISE EXCEPTION 'Failed to enroll customer: %', SQLERRM;
+        END;
+      ELSE
+        -- Update existing enrollment
+        BEGIN
+          UPDATE customer_programs
+          SET 
+            current_points = current_points + p_points,
+            updated_at = NOW()
+          WHERE 
+            customer_id = p_customer_id 
+            AND program_id = p_program_id;
+        EXCEPTION WHEN OTHERS THEN
+          RAISE EXCEPTION 'Failed to update points: %', SQLERRM;
+        END;
+      END IF;
+      
+      -- Check if customer has a loyalty card for this program
+      SELECT EXISTS(
+        SELECT 1 FROM loyalty_cards
+        WHERE customer_id = v_customer_id_int AND program_id = v_program_id_int
+      ) INTO v_card_exists;
+      
+      -- Get or create card ID
+      IF v_card_exists THEN
+        SELECT id INTO v_card_id FROM loyalty_cards
+        WHERE customer_id = v_customer_id_int AND program_id = v_program_id_int
+        LIMIT 1;
+        
+        -- Update card points
+        UPDATE loyalty_cards
+        SET 
+          points = COALESCE(points, 0) + p_points,
+          points_balance = COALESCE(points_balance, 0) + p_points,
+          total_points_earned = COALESCE(total_points_earned, 0) + p_points,
+          updated_at = NOW()
+        WHERE id = v_card_id;
+      ELSE
+        -- Create a new card
+        v_card_id := gen_random_uuid();
+        
+        INSERT INTO loyalty_cards (
+          id,
+          customer_id,
+          business_id,
+          program_id,
+          points,
+          points_balance,
+          total_points_earned,
+          created_at,
+          updated_at
+        ) VALUES (
+          v_card_id,
+          v_customer_id_int,
+          v_business_id_int,
+          v_program_id_int,
+          p_points,
+          p_points,
+          p_points,
+          NOW(),
+          NOW()
+        );
+      END IF;
+      
+      -- Record transaction
+      INSERT INTO point_transactions (
+        customer_id,
+        business_id,
+        program_id,
+        points,
+        transaction_type,
+        source,
+        card_id,
+        created_at
+      ) VALUES (
+        v_customer_id_int,
+        v_business_id_int,
+        v_program_id_int,
+        p_points,
+        'AWARD',
+        p_source,
+        v_card_id,
+        NOW()
+      );
+      
+      -- Create notification
+      v_notification_id := gen_random_uuid();
+      
+      INSERT INTO customer_notifications (
+        id,
+        customer_id,
+        business_id,
+        type,
+        title,
+        message,
+        data,
+        reference_id,
+        requires_action,
+        action_taken,
+        is_read,
+        created_at
+      ) VALUES (
+        v_notification_id,
+        v_customer_id_int,
+        v_business_id_int,
+        'POINTS_ADDED',
+        'Points Added',
+        'You''ve received ' || p_points || ' points from ' || v_business_name || ' in ' || v_program_name,
+        jsonb_build_object(
+          'points', p_points,
+          'cardId', v_card_id,
+          'programId', p_program_id,
+          'programName', v_program_name,
+          'source', p_source,
+          'timestamp', NOW()
+        ),
+        v_card_id,
+        FALSE,
+        FALSE,
+        FALSE,
+        NOW()
+      );
+      
+      -- Done
+      RAISE NOTICE 'Successfully awarded % points to customer % for program %', p_points, p_customer_id, p_program_id;
+    END;
+    $$;
+  `;
+  
+  console.log('✅ Created award_points stored procedure');
+}
+
+/**
+ * Fix the notification system
+ */
+async function fixNotificationSystem() {
+  console.log('🔔 Fixing notification system...');
+  
+  // Ensure customer_notifications table exists
+  const notificationTableExists = await checkTableExists('customer_notifications');
+  
+  if (!notificationTableExists) {
+    console.log('Creating customer_notifications table...');
     
-    if (!notificationTableExists) {
-      console.log('Creating customer_notifications table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS customer_notifications (
-          id UUID PRIMARY KEY,
-          customer_id INTEGER NOT NULL,
-          business_id INTEGER NOT NULL,
-          type VARCHAR(50) NOT NULL,
-          title VARCHAR(255) NOT NULL,
-          message TEXT NOT NULL,
-          data JSONB,
-          reference_id UUID,
-          requires_action BOOLEAN DEFAULT FALSE,
-          action_taken BOOLEAN DEFAULT FALSE,
-          is_read BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          read_at TIMESTAMP WITH TIME ZONE,
-          expires_at TIMESTAMP WITH TIME ZONE
-        )
-      `;
-      
-      // Create indexes for better performance
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_customer_notifications_customer_id 
-        ON customer_notifications(customer_id)
-      `;
-      
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_customer_notifications_is_read 
-        ON customer_notifications(customer_id, is_read)
-      `;
-      
-      console.log('✅ Created customer_notifications table');
-    }
+    await sql`
+      CREATE TABLE IF NOT EXISTS customer_notifications (
+        id UUID PRIMARY KEY,
+        customer_id INTEGER NOT NULL,
+        business_id INTEGER NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        data JSONB,
+        reference_id TEXT,
+        requires_action BOOLEAN DEFAULT FALSE,
+        action_taken BOOLEAN DEFAULT FALSE,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        read_at TIMESTAMP WITH TIME ZONE,
+        expires_at TIMESTAMP WITH TIME ZONE
+      )
+    `;
     
-    if (!approvalTableExists) {
-      console.log('Creating customer_approval_requests table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS customer_approval_requests (
-          id UUID PRIMARY KEY,
-          customer_id INTEGER NOT NULL,
-          business_id INTEGER NOT NULL,
-          request_type VARCHAR(50) NOT NULL,
-          entity_id TEXT NOT NULL,
-          status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-          data JSONB,
-          requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          response_at TIMESTAMP WITH TIME ZONE,
-          expires_at TIMESTAMP WITH TIME ZONE NOT NULL
-        )
-      `;
-      
-      // Create indexes for better performance
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_customer_approval_requests_customer_id 
-        ON customer_approval_requests(customer_id)
-      `;
-      
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_customer_approval_requests_status 
-        ON customer_approval_requests(customer_id, status)
-      `;
-      
-      console.log('✅ Created customer_approval_requests table');
-    }
+    // Create indexes for better performance
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_customer_notifications_customer_id 
+      ON customer_notifications(customer_id)
+    `;
     
-    // Sync notification preferences
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_customer_notifications_is_read 
+      ON customer_notifications(is_read)
+    `;
+    
+    console.log('✅ Created customer_notifications table');
+  }
+  
+  // Ensure customer_notification_preferences table exists
+  const prefsTableExists = await checkTableExists('customer_notification_preferences');
+  
+  if (!prefsTableExists) {
+    console.log('Creating customer_notification_preferences table...');
+    
     await sql`
       CREATE TABLE IF NOT EXISTS customer_notification_preferences (
         customer_id INTEGER PRIMARY KEY,
@@ -152,252 +376,136 @@ async function fixNotificationDelivery() {
         in_app BOOLEAN DEFAULT TRUE,
         sms BOOLEAN DEFAULT FALSE,
         enrollment_notifications BOOLEAN DEFAULT TRUE,
-        points_earned_notifications BOOLEAN DEFAULT TRUE, 
+        points_earned_notifications BOOLEAN DEFAULT TRUE,
         points_deducted_notifications BOOLEAN DEFAULT TRUE,
         promo_code_notifications BOOLEAN DEFAULT TRUE,
-        reward_available_notifications BOOLEAN DEFAULT TRUE
+        reward_available_notifications BOOLEAN DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `;
     
-    console.log('✅ Notification delivery system fixed');
-  } catch (error) {
-    console.error('❌ Error fixing notification delivery:', error);
-    throw error;
+    console.log('✅ Created customer_notification_preferences table');
   }
+  
+  console.log('✅ Notification system fixed');
 }
 
 /**
- * Fix business-customer linking
+ * Test the award points system
  */
-async function fixBusinessCustomerLinking() {
-  console.log('🔗 Fixing business-customer linking...');
+async function testAwardPointsSystem() {
+  console.log('🧪 Testing award points system...');
   
   try {
-    // Check if business_customers association table exists
-    const businessCustomersExists = await checkTableExists('business_customers');
+    // Get a test customer
+    const customers = await sql`
+      SELECT id, name FROM users WHERE user_type = 'customer' LIMIT 1
+    `;
     
-    if (!businessCustomersExists) {
-      console.log('Creating business_customers table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS business_customers (
-          id SERIAL PRIMARY KEY,
-          business_id INTEGER NOT NULL,
-          customer_id INTEGER NOT NULL,
-          program_id INTEGER,
-          status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-          joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          UNIQUE(business_id, customer_id)
-        )
-      `;
-      
-      // Create indexes
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_business_customers_business 
-        ON business_customers(business_id)
-      `;
-      
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_business_customers_customer 
-        ON business_customers(customer_id)
-      `;
-      
-      console.log('✅ Created business_customers association table');
+    if (customers.length === 0) {
+      console.log('⚠️ No customers found for testing');
+      return;
     }
     
-    // Sync existing enrollments with business_customers table
-    console.log('Syncing existing enrollments with business_customers table...');
+    const testCustomerId = customers[0].id;
+    const testCustomerName = customers[0].name;
     
+    // Get a test business
+    const businesses = await sql`
+      SELECT id, name FROM users WHERE user_type = 'business' LIMIT 1
+    `;
+    
+    if (businesses.length === 0) {
+      console.log('⚠️ No businesses found for testing');
+      return;
+    }
+    
+    const testBusinessId = businesses[0].id;
+    const testBusinessName = businesses[0].name;
+    
+    // Get a test program
+    const programs = await sql`
+      SELECT id, name FROM loyalty_programs WHERE business_id = ${testBusinessId} LIMIT 1
+    `;
+    
+    if (programs.length === 0) {
+      console.log('⚠️ No loyalty programs found for testing');
+      return;
+    }
+    
+    const testProgramId = programs[0].id;
+    const testProgramName = programs[0].name;
+    const testPoints = 10;
+    
+    console.log(`Testing with Customer: ${testCustomerName} (${testCustomerId})`);
+    console.log(`Testing with Business: ${testBusinessName} (${testBusinessId})`);
+    console.log(`Testing with Program: ${testProgramName} (${testProgramId})`);
+    console.log(`Points to award: ${testPoints}`);
+    
+    // Call the award_points procedure
     await sql`
-      INSERT INTO business_customers (business_id, customer_id, program_id, joined_at)
-      SELECT DISTINCT lp.business_id, cp.customer_id, cp.program_id, cp.enrolled_at
-      FROM customer_programs cp
-      JOIN loyalty_programs lp ON cp.program_id = lp.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM business_customers bc
-        WHERE bc.business_id = lp.business_id AND bc.customer_id = cp.customer_id
+      CALL award_points(
+        ${testCustomerId.toString()}, 
+        ${testBusinessId.toString()}, 
+        ${testProgramId.toString()}, 
+        ${testPoints}, 
+        'TEST'
       )
     `;
     
-    console.log('✅ Business-customer linking fixed');
-  } catch (error) {
-    console.error('❌ Error fixing business-customer linking:', error);
-    throw error;
-  }
-}
-
-/**
- * Fix customer dashboard sync
- */
-async function fixCustomerDashboardSync() {
-  console.log('🔄 Fixing customer dashboard sync...');
-  
-  try {
-    // Ensure all cards are properly linked to customer programs
-    await sql`
-      UPDATE loyalty_cards lc
-      SET customer_id = cp.customer_id
-      FROM customer_programs cp
-      WHERE lc.program_id = cp.program_id 
-      AND (lc.customer_id IS NULL OR lc.customer_id != cp.customer_id)
+    // Check if points were awarded
+    const enrollment = await sql`
+      SELECT current_points FROM customer_programs
+      WHERE customer_id = ${testCustomerId.toString()}
+      AND program_id = ${testProgramId.toString()}
     `;
     
-    // Fix any cards with missing program links
-    await sql`
-      UPDATE loyalty_cards lc
-      SET program_id = cp.program_id
-      FROM customer_programs cp
-      WHERE lc.customer_id = cp.customer_id AND lc.program_id IS NULL
-    `;
-    
-    // Check for customers with program enrollments but no cards
-    const missingCards = await sql`
-      SELECT cp.customer_id, cp.program_id, lp.business_id
-      FROM customer_programs cp
-      JOIN loyalty_programs lp ON cp.program_id = lp.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM loyalty_cards lc
-        WHERE lc.customer_id = cp.customer_id AND lc.program_id = cp.program_id
-      )
-    `;
-    
-    // Create missing cards
-    for (const row of missingCards) {
-      const cardId = uuid();
-      const cardNumber = `GC-${Math.floor(100000 + Math.random() * 900000)}-${Math.floor(Math.random() * 10)}`;
-      
-      await sql`
-        INSERT INTO loyalty_cards (
-          id, customer_id, business_id, program_id, card_number, points,
-          tier, status, created_at, updated_at
-        )
-        VALUES (
-          ${cardId}, ${row.customer_id}, ${row.business_id}, ${row.program_id}, 
-          ${cardNumber}, 0, 'STANDARD', 'ACTIVE', NOW(), NOW()
-        )
-      `;
-      
-      console.log(`Created missing card for customer ${row.customer_id} in program ${row.program_id}`);
+    if (enrollment.length === 0) {
+      throw new Error('Enrollment not found after awarding points');
     }
     
-    console.log('✅ Customer dashboard sync fixed');
-  } catch (error) {
-    console.error('❌ Error fixing customer dashboard sync:', error);
-    throw error;
-  }
-}
-
-/**
- * Fix loyalty program enrollment notifications
- */
-async function fixLoyaltyProgramEnrollment() {
-  console.log('🏆 Fixing loyalty program enrollment notifications...');
-  
-  try {
-    // Check for loyalty service functions
-    // Already fixed in our prior updates
+    console.log(`✅ Points awarded successfully. Current points: ${enrollment[0].current_points}`);
     
-    console.log('✅ Loyalty program enrollment notifications fixed');
-  } catch (error) {
-    console.error('❌ Error fixing loyalty program enrollment:', error);
-    throw error;
-  }
-}
-
-/**
- * Fix QR code scanning points sync
- */
-async function fixQrScanningPointsSync() {
-  console.log('📱 Fixing QR code scanning points sync...');
-  
-  try {
-    // Already addressed in loyalty service updates
+    // Check if notification was created
+    const notification = await sql`
+      SELECT * FROM customer_notifications
+      WHERE customer_id = ${testCustomerId}
+      AND business_id = ${testBusinessId}
+      AND type = 'POINTS_ADDED'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
     
-    // Check QR scan logs table exists
-    const scanLogsExists = await checkTableExists('qr_scan_logs');
-    
-    if (!scanLogsExists) {
-      console.log('Creating qr_scan_logs table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS qr_scan_logs (
-          id UUID PRIMARY KEY,
-          scan_type VARCHAR(50) NOT NULL,
-          business_id INTEGER,
-          customer_id INTEGER,
-          card_id UUID,
-          points_awarded INTEGER,
-          scan_data JSONB,
-          status VARCHAR(20) NOT NULL,
-          error_message TEXT,
-          metadata JSONB,
-          scanned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          ip_address VARCHAR(50),
-          user_agent TEXT
-        )
-      `;
-      
-      // Create indexes
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_qr_scan_logs_customer_id 
-        ON qr_scan_logs(customer_id)
-      `;
-      
-      await sql`
-        CREATE INDEX IF NOT EXISTS idx_qr_scan_logs_business_id 
-        ON qr_scan_logs(business_id)
-      `;
-      
-      console.log('✅ Created qr_scan_logs table');
+    if (notification.length === 0) {
+      throw new Error('Notification not created after awarding points');
     }
     
-    console.log('✅ QR code scanning points sync fixed');
+    console.log(`✅ Notification created successfully: "${notification[0].message}"`);
+    console.log('✅ Award points system test completed successfully');
   } catch (error) {
-    console.error('❌ Error fixing QR code scanning points sync:', error);
+    console.error('❌ Error testing award points system:', error);
     throw error;
   }
 }
 
 /**
- * Create any missing tables and indexes
- */
-async function createMissingTablesAndIndexes() {
-  console.log('📋 Creating missing tables and indexes...');
-  
-  try {
-    // All tables created in previous steps
-    
-    console.log('✅ All necessary tables and indexes exist');
-  } catch (error) {
-    console.error('❌ Error creating tables and indexes:', error);
-    throw error;
-  }
-}
-
-/**
- * Check if a table exists in the database
+ * Helper function to check if a table exists
  */
 async function checkTableExists(tableName) {
-  try {
-    const result = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = ${tableName}
-      )
-    `;
-    
-    return result[0]?.exists || false;
-  } catch (error) {
-    console.error(`Error checking if table ${tableName} exists:`, error);
-    return false;
-  }
+  const result = await sql`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name = ${tableName}
+    );
+  `;
+  
+  return result[0].exists;
 }
 
-// Run the script
+// Run the main function
 main()
-  .catch(e => {
-    console.error(e);
+  .catch(error => {
+    console.error('Fatal error:', error);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
