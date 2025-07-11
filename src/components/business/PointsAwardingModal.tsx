@@ -247,11 +247,19 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         const apiUrl = '/api/businesses/award-points';
         diagnostics.requestUrl = apiUrl;
         
+        // Get auth token from localStorage
+        const authToken = localStorage.getItem('token');
+        if (!authToken) {
+          console.error('No authentication token found');
+          throw new Error('Authentication token missing. Please log in again.');
+        }
+        
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Accept': 'application/json' 
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${authToken}`
           },
           credentials: 'same-origin', // Include credentials for authentication
           body: JSON.stringify({ 

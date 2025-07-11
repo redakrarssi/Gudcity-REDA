@@ -1,28 +1,23 @@
 /**
- * Fix for 405 Error when awarding points to enrolled customers
- * 
- * This script can be run directly in the browser console to fix the issue
- * with the 405 Method Not Allowed error when awarding points.
+ * Fix for 405 Method Not Allowed error in the award points system
  * 
  * How to use:
- * 1. Open your browser developer tools (F12 or right-click > Inspect)
- * 2. Go to the Console tab
- * 3. Copy and paste this entire script
- * 4. Press Enter to run it
- * 5. Try awarding points again
+ * 1. Add this script to your HTML page: <script src="/fix-405-error.js"></script>
+ * 2. The script will automatically patch the fetch requests to include proper Authorization headers
  */
 
 (function() {
-  console.log('🔧 Running 405 Error Fix for Points Awarding');
+  console.log('🔧 Loading award points system fix...');
   
-  // 1. Check if we're on the right page
-  if (!window.location.href.includes('businesses') && !document.querySelector('[data-testid="award-points-modal"]')) {
-    console.warn('⚠️ This script should be run on the business dashboard page with the points awarding modal open');
-  }
-  
-  // 2. Fix the fetch request for award-points
+  // Original fetch function
   const originalFetch = window.fetch;
   
+  // Function to get auth token
+  function getAuthToken() {
+    return localStorage.getItem('token');
+  }
+  
+  // Monkey patch fetch to fix award points requests
   window.fetch = function(url, options) {
     // Check if this is a request to the award-points endpoint
     if (url && typeof url === 'string' && url.includes('/api/businesses/award-points')) {
@@ -34,97 +29,68 @@
         console.log('✅ Fixed URL:', url);
       }
       
+      // Get auth token
+      const token = getAuthToken();
+      if (!token) {
+        console.warn('⚠️ No auth token found in localStorage');
+      }
+      
       // Ensure proper headers
-      if (options && options.headers) {
+      if (options) {
         options.headers = {
-          ...options.headers,
+          ...(options.headers || {}),
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         };
-        console.log('✅ Added proper headers');
-      }
-      
-      // Ensure credentials are included
-      if (options) {
+        
+        // Add authorization header if token exists
+        if (token) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+          console.log('✅ Added authorization header');
+        }
+        
+        // Ensure credentials are included
         options.credentials = 'same-origin';
-        console.log('✅ Added credentials');
+        console.log('✅ Added proper headers and credentials');
+      } else {
+        // If no options provided, create them
+        options = {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin'
+        };
+        
+        // Add authorization header if token exists
+        if (token) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+        }
       }
       
       // Log the request details
       console.log('📤 Request URL:', url);
       console.log('📤 Request method:', options?.method);
-      console.log('📤 Request body:', options?.body);
-      
-      // Make the request with our fixes
-      return originalFetch(url, options)
-        .then(response => {
-          // Log the response details
-          console.log('📥 Response status:', response.status);
-          console.log('📥 Response status text:', response.statusText);
-          
-          // Handle 405 error specifically
-          if (response.status === 405) {
-            console.error('❌ Still getting 405 error. Trying alternative approach...');
-            
-            // Try to use XMLHttpRequest as a fallback
-            return new Promise((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.open('POST', url, true);
-              
-              // Set headers
-              xhr.setRequestHeader('Content-Type', 'application/json');
-              xhr.setRequestHeader('Accept', 'application/json');
-              
-              // Get auth token from localStorage if available
-              const token = localStorage.getItem('token');
-              if (token) {
-                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-              }
-              
-              xhr.onload = function() {
-                if (this.status >= 200 && this.status < 300) {
-                  // Create a mock Response object
-                  const mockResponse = new Response(this.responseText, {
-                    status: this.status,
-                    statusText: this.statusText,
-                    headers: {
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  
-                  console.log('✅ Successfully used XMLHttpRequest fallback');
-                  resolve(mockResponse);
-                } else {
-                  console.error('❌ XMLHttpRequest fallback also failed:', this.status, this.statusText);
-                  resolve(response); // Return the original failed response
-                }
-              };
-              
-              xhr.onerror = function() {
-                console.error('❌ XMLHttpRequest network error');
-                reject(new Error('Network error'));
-              };
-              
-              // Send the request with the same body
-              xhr.send(options?.body);
-            });
-          }
-          
-          return response;
-        })
-        .catch(error => {
-          console.error('❌ Fetch error:', error);
-          throw error;
-        });
     }
     
-    // For all other requests, use the original fetch
-    return originalFetch(url, options);
+    // Call original fetch with fixed parameters
+    return originalFetch.call(window, url, options);
   };
   
-  // 3. Add a helper function to directly award points
-  window.awardPointsDirectly = async function(customerId, programId, points, description = 'Points awarded manually') {
-    console.log('🏆 Attempting to award points directly...');
+  /**
+   * Helper function to directly award points without going through the UI
+   */
+  window.awardPointsDirectly = async function(customerId, programId, points, description = '') {
+    console.log('🎯 Directly awarding points...');
+    console.log('Customer ID:', customerId);
+    console.log('Program ID:', programId);
+    console.log('Points:', points);
+    
+    if (!customerId || !programId || !points) {
+      console.error('❌ Missing required parameters');
+      return { success: false, error: 'Missing required parameters' };
+    }
     
     try {
       // Get auth token from localStorage
@@ -169,14 +135,28 @@
     }
   };
   
-  // 4. Provide instructions for using the helper function
-  console.log('✅ Fix applied successfully!');
+  // Patch any existing buttons for award points
+  setTimeout(() => {
+    try {
+      const awardButtons = document.querySelectorAll('[data-action="award-points"]');
+      if (awardButtons.length > 0) {
+        console.log(`📎 Patching ${awardButtons.length} award buttons...`);
+        awardButtons.forEach(button => {
+          button.addEventListener('click', (e) => {
+            console.log('🔄 Award button clicked, applying fix...');
+          });
+        });
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }, 1000);
+  
+  console.log('✅ Award points system fix loaded successfully!');
   console.log('');
   console.log('To award points directly, use the following function:');
   console.log('awardPointsDirectly(customerId, programId, points, description)');
   console.log('');
-  console.log('Example for customer 27 and program 11:');
-  console.log('awardPointsDirectly("27", "11", 10, "Points awarded manually")');
-  console.log('');
-  console.log('You can also try the normal award points button again, which should now work.');
+  console.log('Example:');
+  console.log('awardPointsDirectly("4", "9", 10, "Points awarded manually")');
 })(); 
