@@ -193,7 +193,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       console.log('Using auth token:', authToken.substring(0, 10) + '...');
       diagnostics.tokenFound = true;
       
-      const response = await fetch(apiUrl, {
+      // Use window.fetch directly to bypass any middleware issues
+      const response = await window.fetch(apiUrl, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -229,7 +230,46 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         diagnostics.requestedMethod = 'POST';
         diagnostics.allowedMethods = response.headers.get('Allow');
         
-        throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
+        // Try with the client-side fix from fix-405-error.js
+        console.log('Attempting to use fix-405-error.js solution...');
+        
+        // Try to dynamically load the fix script if it's not already loaded
+        if (typeof window.awardPointsDirectly !== 'function') {
+          const script = document.createElement('script');
+          script.src = '/fix-405-error.js';
+          document.body.appendChild(script);
+          
+          // Wait for script to load
+          await new Promise(resolve => {
+            script.onload = resolve;
+            setTimeout(resolve, 1000); // Timeout fallback
+          });
+        }
+        
+        // Try the direct award points function if available
+        if (typeof window.awardPointsDirectly === 'function') {
+          console.log('Using awardPointsDirectly fallback function');
+          const result = await window.awardPointsDirectly(
+            scanData.customerId.toString(),
+            selectedProgramId,
+            pointsToAward,
+            'Points awarded via QR code scan'
+          );
+          
+          if (result.success) {
+            setProcessingStatus('Success!');
+            setSuccess(`Successfully awarded ${pointsToAward} points!`);
+            setTimeout(() => {
+              onClose();
+              if (onSuccess) onSuccess(pointsToAward);
+            }, 1500);
+            return; // Early return on success
+          } else {
+            throw new Error(result.error || 'Failed to award points using fallback method');
+          }
+        } else {
+          throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
+        }
       }
       
       // Handle 401 Unauthorized error specifically

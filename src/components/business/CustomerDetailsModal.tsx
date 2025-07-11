@@ -31,6 +31,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { LoyaltyCard } from '@/types/loyalty';
 import loyaltyCardService from '@/services/loyaltyCardService';
 import { queryKeys } from '@/utils/queryKeys';
+import { PointsAwardingModal } from './PointsAwardingModal';
 
 interface CustomerDetailsModalProps {
   isOpen: boolean;
@@ -83,7 +84,8 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
     cardId?: string;
   } | null>(null);
   const [loyaltyCards, setLoyaltyCards] = useState<any[]>([]);
-  const [loadingCards, setLoadingCards] = useState(true);
+  // Add state for Points Awarding Modal
+  const [showPointsAwardingModal, setShowPointsAwardingModal] = useState(false);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -465,6 +467,13 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
       });
     } finally {
       setIsGeneratingPromoCode(false);
+    }
+  };
+
+  // Add a function to handle the "Award Points" button click
+  const handleAwardPointsClick = () => {
+    if (customer) {
+      setShowPointsAwardingModal(true);
     }
   };
 
@@ -940,6 +949,44 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Points Awarding Modal */}
+      {showPointsAwardingModal && (
+        <PointsAwardingModal
+          onClose={() => setShowPointsAwardingModal(false)}
+          scanData={{ 
+            type: 'customer', 
+            customerId: customerId, 
+            name: customer?.name || `Customer #${customerId}`,
+            customerName: customer?.name || `Customer #${customerId}`,
+            text: JSON.stringify({
+              type: 'customer',
+              customerId: customerId,
+              name: customer?.name || `Customer #${customerId}`
+            })
+          }}
+          businessId={businessId}
+          onSuccess={(points) => {
+            setSuccess(`Successfully awarded ${points} points to ${customer?.name || 'customer'}`);
+            setTimeout(() => setSuccess(null), 3000);
+          }}
+          programs={programs}
+        />
+      )}
+
+      {/* Success message */}
+      {success && (
+        <div className="fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 p-4 rounded shadow-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <CheckCircle className="text-green-500" size={24} />
+            </div>
+            <div className="ml-3">
+              <p className="text-green-700">{success}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
