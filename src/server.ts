@@ -66,16 +66,21 @@ if (isBrowser) {
     }
   });
 
-  // Apply middleware
+  // Apply middleware in the correct order
   try {
-    // Apply helmet middleware with a try/catch to handle any errors
-    app.use(helmet() as any); // Security headers
-    app.use(cors() as any); // CORS support
-    app.use((express.json() as unknown) as any); // Parse JSON request bodies
-    
-    // Add our custom API request logging middleware
-    app.use(apiRequestLogger);
+    // First apply CORS middleware to handle preflight requests
     app.use(corsMiddleware);
+    
+    // Then apply security headers
+    app.use(helmet() as any);
+    
+    // Apply JSON body parser BEFORE routes
+    app.use(express.json());
+    
+    // Add request logging
+    app.use(apiRequestLogger);
+    
+    // Method not allowed handler should come after CORS but before routes
     app.use(methodNotAllowedHandler);
   } catch (error) {
     console.warn('Error applying middleware:', error);
@@ -100,6 +105,14 @@ if (isBrowser) {
     app.use('/api', feedbackRoutes);
     app.use('/api', notificationRoutes);
     app.use('/api', debugRoutes);
+    
+    // Add a fallback route handler for undefined routes
+    app.use('/api/*', (req: express.Request, res: express.Response) => {
+      res.status(404).json({ 
+        error: 'Not Found',
+        message: `Route ${req.path} not found or method ${req.method} not supported`
+      });
+    });
   } catch (error) {
     console.warn('Error setting up API routes:', error);
   }
