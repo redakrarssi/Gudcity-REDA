@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Award, AlertCircle, RefreshCw, Bug, XCircle, CheckCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoyaltyCardQrCodeData, CustomerQrCodeData } from '../../types/qrCode';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 
 interface PointsAwardingModalProps {
   onClose: () => void;
@@ -17,7 +18,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   scanData,
   businessId,
   onSuccess,
-  programs = []
+  programs: initialPrograms = []
 }) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -33,6 +34,8 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const [customerName, setCustomerName] = useState<string>('');
   const [showConfetti, setShowConfetti] = useState<boolean>(false);
+  const [programs, setPrograms] = useState<Array<{id: string; name: string}>>(initialPrograms);
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState<boolean>(false);
   
   // Add a request timeout ref and abort controller
   const requestTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,9 +53,76 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     };
   }, []);
 
+  // Fetch customer name and enrolled programs when the modal opens
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (!scanData || !scanData.customerId) return;
+      
+      try {
+        // Fetch customer info
+        const response = await fetch(`/api/customers/${scanData.customerId}`);
+        if (response.ok) {
+          const customerData = await response.json();
+          if (customerData && customerData.name) {
+            setCustomerName(customerData.name);
+          } else {
+            setCustomerName(`Customer #${scanData.customerId}`);
+          }
+        } else {
+          setCustomerName(`Customer #${scanData.customerId}`);
+        }
+      } catch (error) {
+        console.error("Error fetching customer data:", error);
+        setCustomerName(`Customer #${scanData.customerId}`);
+      }
+    };
+    
+    const fetchEnrolledPrograms = async () => {
+      if (!scanData || !scanData.customerId || !businessId) return;
+      
+      setIsLoadingPrograms(true);
+      try {
+        // Fetch only programs that the customer is enrolled in for this business
+        const enrolledPrograms = await LoyaltyProgramService.getCustomerEnrolledProgramsForBusiness(
+          scanData.customerId.toString(),
+          businessId.toString()
+        );
+        
+        if (enrolledPrograms && enrolledPrograms.length > 0) {
+          const formattedPrograms = enrolledPrograms.map(program => ({
+            id: program.id,
+            name: program.name
+          }));
+          setPrograms(formattedPrograms);
+          
+          // Select the first program by default
+          if (formattedPrograms.length > 0 && !selectedProgramId) {
+            setSelectedProgramId(formattedPrograms[0].id);
+          }
+        } else {
+          setPrograms([]);
+          setError("Customer is not enrolled in any loyalty programs for this business");
+        }
+      } catch (error) {
+        console.error("Error fetching enrolled programs:", error);
+        setError("Failed to load loyalty programs");
+      } finally {
+        setIsLoadingPrograms(false);
+      }
+    };
+    
+    fetchCustomerData();
+    fetchEnrolledPrograms();
+  }, [scanData, businessId, selectedProgramId]);
+
   const handleAwardPoints = async () => {
     if (!selectedProgramId || !pointsToAward) {
       setError('Please select a program and enter points to award');
+      return;
+    }
+
+    if (!scanData || !scanData.customerId) {
+      setError('Customer ID is missing');
       return;
     }
 
@@ -68,7 +138,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     // Create diagnostics object for debugging
     const diagnostics: any = {
       timestamp: new Date().toISOString(),
-      customerId: scanData?.customerId?.toString(), // Use scanData.customerId
+      customerId: scanData.customerId.toString(),
       programId: selectedProgramId,
       points: pointsToAward
     };
@@ -133,12 +203,13 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         signal, // Add abort signal
         credentials: 'include',
         body: JSON.stringify({ 
-          customerId: scanData?.customerId?.toString(), 
+          customerId: scanData.customerId.toString(), 
           programId: selectedProgramId, 
           points: pointsToAward, 
           description: 'Points awarded via QR code scan', 
           source: 'SCAN',
-          transactionRef
+          transactionRef,
+          sendNotification: true // Explicitly request a notification to be sent
         }),
       });
 
@@ -338,20 +409,28 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
                 <label htmlFor="program" className="block text-sm font-medium text-gray-700 mb-1">
                   Loyalty Program
                 </label>
-                <select
-                  id="program"
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                  value={selectedProgramId || ''}
-                  onChange={(e) => setSelectedProgramId(e.target.value)}
-                  disabled={isProcessing}
-                >
-                  <option value="">Select a program</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.name}
-                    </option>
-                  ))}
-                </select>
+                {isLoadingPrograms ? (
+                  <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
+                ) : programs.length > 0 ? (
+                  <select
+                    id="program"
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    value={selectedProgramId || ''}
+                    onChange={(e) => setSelectedProgramId(e.target.value)}
+                    disabled={isProcessing}
+                  >
+                    <option value="">Select a program</option>
+                    {programs.map((program) => (
+                      <option key={program.id} value={program.id}>
+                        {program.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+                    Customer is not enrolled in any loyalty programs for this business.
+                  </div>
+                )}
               </div>
               
               <div>
@@ -373,7 +452,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
                 type="button"
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                 onClick={handleAwardPoints}
-                disabled={isProcessing || !selectedProgramId || pointsToAward <= 0}
+                disabled={isProcessing || !selectedProgramId || pointsToAward <= 0 || programs.length === 0}
               >
                 {isProcessing ? (
                   <>

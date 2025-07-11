@@ -24,7 +24,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
   console.log('ROUTE ACCESSED: POST /api/businesses/award-points');
   console.log('Request body:', req.body);
   
-  const { customerId, programId, points, description, source, transactionRef: clientTxRef } = req.body;
+  const { customerId, programId, points, description, source, transactionRef: clientTxRef, sendNotification = true } = req.body;
   const businessIdStr = String(req.user!.id);
   const customerIdStr = String(customerId);
   const programIdStr = String(programId);
@@ -229,7 +229,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
     if (result.success) {
       fullData.pointsAwarded = true;
       
-      // Ensure notification is sent
+      // Always send notification to the customer
       try {
         const { handlePointsAwarded } = await import('../utils/notificationHandler');
         
@@ -253,7 +253,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
         });
         fullData.notificationError = notificationError instanceof Error ? notificationError.message : 'Unknown error';
         
-        // Try a direct notification insertion as a fallback
+        // Always try a direct notification insertion as a fallback
         try {
           const notificationId = uuidv4();
           
@@ -295,6 +295,27 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
           `;
           
           fullData.directNotificationCreated = true;
+          
+          // Try to trigger a real-time notification through the sync system
+          try {
+            const { createNotificationSyncEvent } = await import('../utils/realTimeSync');
+            createNotificationSyncEvent(
+              notificationId,
+              customerIdStr,
+              businessIdStr,
+              'INSERT',
+              {
+                type: 'POINTS_ADDED',
+                title: 'Points Added',
+                message: `You've received ${points} points from ${businessName} in ${programName}`,
+                timestamp: new Date().toISOString()
+              }
+            );
+            fullData.syncEventCreated = true;
+          } catch (syncError) {
+            console.error('Failed to create sync event:', syncError);
+            fullData.syncEventError = syncError instanceof Error ? syncError.message : 'Unknown error';
+          }
         } catch (directNotificationError) {
           console.error('Failed to create direct notification:', directNotificationError);
           fullData.directNotificationError = directNotificationError instanceof Error ? 
@@ -311,6 +332,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
           programId: programIdStr,
           points,
           cardId,
+          notificationSent: fullData.notificationSent || fullData.directNotificationCreated || false,
           ...fullData,
           diagnostics: result.diagnostics
         }
