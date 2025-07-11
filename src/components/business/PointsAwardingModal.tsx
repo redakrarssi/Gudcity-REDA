@@ -21,6 +21,7 @@ import sql from '../../utils/db';
 import { testPointAwarding } from '../../utils/testPointAwardingHelper';
 import toast from 'react-hot-toast';
 import { logger } from '../../utils/logger';
+import { addAuthHeaders, getAuthToken } from '../../services/authTokenService';
 
 interface PointsAwardingModalProps {
   isOpen: boolean;
@@ -131,263 +132,216 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
   };
 
   const handleAwardPoints = async () => {
-    if (!scanData) {
-      setError('No scan data available');
+    if (!selectedProgramId || !pointsToAward) {
+      setError('Please select a program and enter points to award');
       return;
     }
+
+    // Generate a unique transaction reference
+    const transactionRef = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
-    const customerId = scanData.customerId?.toString();
-    if (!customerId) {
-      setError('Customer ID not found in scan data');
-      return;
-    }
-    
-    if (!selectedProgramId) {
-      setError('Please select a loyalty program');
-      return;
-    }
-    
-    if (pointsToAward <= 0) {
-      setError('Points must be greater than zero');
-      return;
-    }
-    
+    // Reset state
+    setError('');
+    setProcessingStatus('Processing...');
     setIsProcessing(true);
-    setError(null);
-    setDetailedError(null);
-    setSuccess(null);
-    setProcessingStatus('Starting point award process...');
-    setDiagnosticInfo({});
     
+    // Create diagnostics object for debugging
     const diagnostics: any = {
-      scanType: scanData.type,
+      timestamp: new Date().toISOString(),
       customerId,
-      businessId,
       programId: selectedProgramId,
-      points: pointsToAward,
-      timestamp: new Date().toISOString()
+      points: pointsToAward
     };
     
     try {
-      // STEP 1: Get customer details
-      setProcessingStatus('Retrieving customer information...');
-      let customerDetails;
-      try {
-        customerDetails = await CustomerService.getCustomerById(customerId);
-        
-        if (customerDetails) {
-          diagnostics.customerName = customerDetails.name;
-        } else {
-          console.warn(`Customer details not found for ID ${customerId}, continuing with process`);
-          diagnostics.customerWarning = 'Customer details not found, continuing with process';
-        }
-      } catch (customerError) {
-        console.warn(`Error fetching customer details: ${customerError}, continuing with process`);
-        diagnostics.customerError = customerError instanceof Error ? customerError.message : String(customerError);
+      // Improved error handling - add explicit URL path
+      const apiUrl = '/api/businesses/award-points';
+      diagnostics.requestUrl = apiUrl;
+      
+      // Get auth token using our service
+      const authToken = getAuthToken();
+      
+      if (!authToken) {
+        console.error('No authentication token found');
+        throw new Error('Authentication token missing. Please log in again.');
       }
       
-      // Use a fallback customer name if needed
-      const customerName = customerDetails?.name || 'Customer';
+      // Add auth headers to request options
+      const requestOptions = addAuthHeaders({
+        method: 'POST',
+        body: JSON.stringify({ 
+          customerId, 
+          programId: selectedProgramId, 
+          points: pointsToAward, 
+          description: 'Points awarded via QR code scan', 
+          source: 'SCAN',
+          transactionRef
+        })
+      });
       
-      // STEP 2: Get program details
-      setProcessingStatus('Retrieving program details...');
-      const programDetails = await LoyaltyProgramService.getProgramById(selectedProgramId);
+      diagnostics.authHeadersAdded = true;
       
-      if (!programDetails) {
-        throw new Error('Program not found');
+      const response = await fetch(apiUrl, requestOptions);
+      
+      diagnostics.httpStatus = response.status;
+      diagnostics.httpStatusText = response.statusText;
+      
+      // Handle 405 Method Not Allowed error specifically
+      if (response.status === 405) {
+        console.error('405 Method Not Allowed error. API endpoint might be misconfigured.');
+        diagnostics.error405 = true;
+        diagnostics.requestedMethod = 'POST';
+        diagnostics.allowedMethods = response.headers.get('Allow');
+        
+        // Try to recover by examining response headers
+        setProcessingStatus('Encountered 405 error - checking allowed methods...');
+        
+        throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
       }
       
-      diagnostics.programName = programDetails.name;
-      
-      // STEP 3: Check enrollment status
-      setProcessingStatus('Checking enrollment status...');
-      const enrollmentStatus = await getEnrollmentStatusWithRetry(
-        customerId,
-        businessId.toString(),
-        selectedProgramId
-      );
-      
-      diagnostics.enrollmentStatus = enrollmentStatus;
-      
-      // STEP 4: Find or create card
-      setProcessingStatus('Finding or creating loyalty card...');
-      let card;
-      let cardId;
-      
-      try {
-        // Use the function we defined above
-        card = await LoyaltyCardService.getCustomerCardForProgram(
-          customerId,
-          selectedProgramId
-        );
+      // Handle 401 Unauthorized error specifically
+      if (response.status === 401) {
+        console.error('401 Unauthorized error. Authentication token might be invalid or expired.');
+        diagnostics.error401 = true;
         
-        if (card) {
-          cardId = card.id;
-          diagnostics.cardFound = true;
-          diagnostics.cardId = cardId;
-          diagnostics.currentPoints = card.points;
-        } else {
-          // No card found, will be created by the API
-          diagnostics.cardFound = false;
-        }
-      } catch (cardError) {
-        console.error('Error finding card:', cardError);
-        diagnostics.cardError = cardError instanceof Error ? cardError.message : String(cardError);
-        // Continue anyway, the API will handle card creation
+        setProcessingStatus('Authentication failed - please log in again');
+        
+        throw new Error('Authentication token invalid or expired. Please log in again.');
       }
       
-      // STEP 5: Award points via API
-      setProcessingStatus('Awarding points...');
-      
-      // Generate a unique transaction reference
-      const transactionRef = `qr-scan-${Date.now()}`;
+      // First get the raw text to avoid JSON parsing errors
+      const rawText = await response.text();
+      diagnostics.rawResponse = rawText.substring(0, 200); // Limit size for diagnostics
       
       try {
-        // Improved error handling - add explicit URL path
-        const apiUrl = '/api/businesses/award-points';
-        diagnostics.requestUrl = apiUrl;
+        // Try to parse as JSON
+        const data = JSON.parse(rawText);
+        diagnostics.responseData = data;
         
-        // Get auth token from localStorage
-        const authToken = localStorage.getItem('token');
-        if (!authToken) {
-          console.error('No authentication token found');
-          throw new Error('Authentication token missing. Please log in again.');
-        }
-        
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-          },
-          credentials: 'same-origin', // Include credentials for authentication
-          body: JSON.stringify({ 
-            customerId, 
-            programId: selectedProgramId, 
-            points: pointsToAward, 
-            description: 'Points awarded via QR code scan', 
-            source: 'SCAN',
-            transactionRef
-          }),
-        });
-
-        diagnostics.httpStatus = response.status;
-        diagnostics.httpStatusText = response.statusText;
-        
-        // Handle 405 Method Not Allowed error specifically
-        if (response.status === 405) {
-          console.error('405 Method Not Allowed error. API endpoint might be misconfigured.');
-          diagnostics.error405 = true;
-          diagnostics.requestedMethod = 'POST';
-          diagnostics.allowedMethods = response.headers.get('Allow');
-          
-          // Try to recover by examining response headers
-          setProcessingStatus('Encountered 405 error - checking allowed methods...');
-          
-          throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
-        }
-        
-        // First get the raw text to avoid JSON parsing errors
-        const rawText = await response.text();
-        diagnostics.rawResponse = rawText;
-        
-        let result: any = {};
-        
-        // Only try to parse if we have content
-        if (rawText && rawText.trim()) {
-          try {
-            result = JSON.parse(rawText);
-            diagnostics.apiResponse = result;
-          } catch (parseErr) {
-            console.warn('Failed to parse JSON response:', parseErr);
-            diagnostics.parseError = `Failed to parse: ${rawText}`;
-            // If parsing fails, create a result object with the error
-            result = { 
-              success: false, 
-              error: `Server returned invalid JSON: ${rawText.substring(0, 100)}${rawText.length > 100 ? '...' : ''}` 
-            };
-          }
-        } else {
-          // Handle empty response
-          diagnostics.emptyResponse = true;
-          if (!response.ok) {
-            result = { 
-              success: false, 
-              error: `Request failed with status ${response.status} (${response.statusText})` 
-            };
-          } else {
-            // Empty but successful response
-            result = { 
-              success: true, 
-              message: 'Points awarded (no content returned)' 
-            };
-          }
-        }
-
-        if (!response.ok) {
-          // Use the error from the parsed JSON, or a default message
-          const errorMessage = result?.error || `Request failed with status ${response.status} (${response.statusText})`;
-          throw new Error(errorMessage);
-        }
-
-        if (result.success) {
-          // Points awarded successfully
-          diagnostics.pointsAwarded = true;
-          
-          // Update UI
-          setSuccess(`Successfully awarded ${pointsToAward} points to ${customerName}`);
-          setShowConfetti(true);
-          
-          // Invalidate queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ['customerCards'] });
-          queryClient.invalidateQueries({ queryKey: ['customerPoints'] });
-          queryClient.invalidateQueries({ queryKey: ['businessCustomers'] });
-          
-          // Dispatch event for real-time updates
-          const pointsEvent = new CustomEvent('points-awarded', {
-            detail: {
-              customerId,
-              businessId: businessId.toString(),
-              programId: selectedProgramId,
-              programName: programDetails.name,
-              businessName: customerName || 'Business',
-              points: pointsToAward,
-              cardId: result.data?.cardId || cardId,
-              source: 'SCAN'
-            }
-          });
-          window.dispatchEvent(pointsEvent);
-          
-          // Reset form
-          setPointsToAward(1);
-          setSelectedProgramId('');
+        if (response.ok && data.success) {
+          setProcessingStatus('Success!');
+          setIsSuccess(true);
+          setTimeout(() => {
+            onClose();
+            if (onSuccess) onSuccess(pointsToAward);
+          }, 1500);
         } else {
           // API returned success: false
-          diagnostics.pointsAwarded = false;
-          diagnostics.apiError = result.error;
+          setError(data.error || 'Failed to award points');
+          setProcessingStatus('');
+          setIsProcessing(false);
           
-          throw new Error(result.error || 'Failed to award points');
+          // Add error to diagnostics
+          diagnostics.apiError = data.error;
         }
-      } catch (apiError) {
-        console.error('API error:', apiError);
-        setError('Failed to award points to the customer – Try Again');
-        setDetailedError(apiError instanceof Error ? apiError.message : String(apiError));
-        diagnostics.pointsAwarded = false;
-        diagnostics.pointsAwardError = apiError instanceof Error ? apiError.message : String(apiError);
+      } catch (jsonError) {
+        console.error('Error parsing JSON response:', jsonError);
+        diagnostics.jsonParseError = String(jsonError);
+        
+        // Non-JSON response
+        if (response.ok) {
+          setProcessingStatus('Success!');
+          setIsSuccess(true);
+          setTimeout(() => {
+            onClose();
+            if (onSuccess) onSuccess(pointsToAward);
+          }, 1500);
+        } else {
+          setError(`Server error: ${response.status} ${response.statusText}`);
+          setProcessingStatus('');
+          setIsProcessing(false);
+        }
       }
     } catch (error) {
-      console.error('Error in award points process:', error);
-      setError('Failed to award points to the customer');
-      setDetailedError(error instanceof Error ? error.message : String(error));
+      console.error('Error awarding points:', error);
+      setError(error instanceof Error ? error.message : 'Failed to award points');
+      setProcessingStatus('');
+      setIsProcessing(false);
       
       // Add error to diagnostics
       diagnostics.error = error instanceof Error ? error.message : String(error);
-      diagnostics.pointsAwarded = false;
-    } finally {
-      setIsProcessing(false);
-      setDiagnosticInfo(diagnostics);
     }
+    
+    // Show diagnostic information
+    setDiagnosticInfo(diagnostics);
+  };
+  
+  // Helper function to handle API response
+  const handleApiResponse = async (response: Response, diagnostics: any) => {
+    diagnostics.httpStatus = response.status;
+    diagnostics.httpStatusText = response.statusText;
+    
+    // Handle 405 Method Not Allowed error specifically
+    if (response.status === 405) {
+      console.error('405 Method Not Allowed error. API endpoint might be misconfigured.');
+      diagnostics.error405 = true;
+      diagnostics.requestedMethod = 'POST';
+      diagnostics.allowedMethods = response.headers.get('Allow');
+      
+      // Try to recover by examining response headers
+      setProcessingStatus('Encountered 405 error - checking allowed methods...');
+      
+      throw new Error(`Server rejected request method: POST to ${diagnostics.requestUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
+    }
+    
+    // Handle 401 Unauthorized error specifically
+    if (response.status === 401) {
+      console.error('401 Unauthorized error. Authentication token might be invalid or expired.');
+      diagnostics.error401 = true;
+      
+      // Try to clear and regenerate token
+      localStorage.removeItem('token');
+      setProcessingStatus('Authentication failed - please log in again');
+      
+      throw new Error('Authentication token invalid or expired. Please log in again.');
+    }
+    
+    // First get the raw text to avoid JSON parsing errors
+    const rawText = await response.text();
+    diagnostics.rawResponse = rawText.substring(0, 200); // Limit size for diagnostics
+    
+    try {
+      // Try to parse as JSON
+      const data = JSON.parse(rawText);
+      diagnostics.responseData = data;
+      
+      if (response.ok && data.success) {
+        setProcessingStatus('Success!');
+        setIsSuccess(true);
+        setTimeout(() => {
+          onClose();
+          if (onSuccess) onSuccess(pointsToAward);
+        }, 1500);
+      } else {
+        // API returned success: false
+        setError(data.error || 'Failed to award points');
+        setProcessingStatus('');
+        setIsProcessing(false);
+        
+        // Add error to diagnostics
+        diagnostics.apiError = data.error;
+      }
+    } catch (jsonError) {
+      console.error('Error parsing JSON response:', jsonError);
+      diagnostics.jsonParseError = String(jsonError);
+      
+      // Non-JSON response
+      if (response.ok) {
+        setProcessingStatus('Success!');
+        setIsSuccess(true);
+        setTimeout(() => {
+          onClose();
+          if (onSuccess) onSuccess(pointsToAward);
+        }, 1500);
+      } else {
+        setError(`Server error: ${response.status} ${response.statusText}`);
+        setProcessingStatus('');
+        setIsProcessing(false);
+      }
+    }
+    
+    // Show diagnostic information
+    setDiagnosticInfo(diagnostics);
   };
 
   /**

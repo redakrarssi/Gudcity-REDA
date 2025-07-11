@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Diagnostic Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f7f8fa;
+            color: #333;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-top: 0;
+        }
+        h2 {
+            color: #5f6368;
+            margin-top: 0;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        button:hover {
+            background-color: #185abc;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        pre {
+            background-color: #f0f0f0;
+            padding: 12px;
+            border-radius: 4px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            color: #0f9d58;
+        }
+        .error {
+            color: #d93025;
+        }
+        .warning {
+            color: #f29900;
+        }
+        .info {
+            color: #1a73e8;
+        }
+        .hint {
+            font-size: 0.9em;
+            color: #5f6368;
+            margin-top: 4px;
+        }
+        #log {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .status-icon {
+            margin-right: 8px;
+            font-size: 18px;
+        }
+        .status-text {
+            flex: 1;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-success {
+            background-color: #e6f4ea;
+            border-left: 4px solid #0f9d58;
+        }
+        .test-error {
+            background-color: #fce8e6;
+            border-left: 4px solid #d93025;
+        }
+        .test-warning {
+            background-color: #fef7e0;
+            border-left: 4px solid #f29900;
+        }
+        .test-info {
+            background-color: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Authentication Diagnostic Tool</h1>
+        <p>This tool helps diagnose and fix authentication token issues in the Gudcity-REDA application.</p>
+    </div>
+
+    <div class="card">
+        <h2>Authentication Status</h2>
+        <div id="auth-status">Checking authentication status...</div>
+        <div class="button-group">
+            <button onclick="checkAuthStatus()">Refresh Status</button>
+            <button onclick="fixAuthToken()">Fix Auth Token</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>API Connection Test</h2>
+        <div class="form-group">
+            <label for="api-endpoint">API Endpoint:</label>
+            <input type="text" id="api-endpoint" value="/api/businesses/award-points" placeholder="e.g., /api/businesses/award-points">
+        </div>
+        <div class="button-group">
+            <button onclick="testApiConnection()">Test API Connection</button>
+            <button onclick="testWithAuth()">Test With Auth</button>
+        </div>
+        <div id="api-test-result"></div>
+    </div>
+
+    <div class="card">
+        <h2>Manual Token Management</h2>
+        <div class="form-group">
+            <label for="token-input">JWT Token:</label>
+            <input type="text" id="token-input" placeholder="Enter JWT token">
+            <div class="hint">You can manually set a token here if needed</div>
+        </div>
+        <div class="button-group">
+            <button onclick="saveToken()">Save Token</button>
+            <button onclick="clearToken()">Clear Token</button>
+            <button onclick="clearAllAuth()">Clear All Auth Data</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Log</h2>
+        <pre id="log"></pre>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        // Log function
+        function log(message, type = '') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = type ? ` class="${type}"` : '';
+            logElement.innerHTML = `<div${logClass}>[${timestamp}] ${message}</div>` + logElement.innerHTML;
+            console.log(`[${type}] ${message}`);
+        }
+
+        // Check authentication status
+        function checkAuthStatus() {
+            const authStatusElement = document.getElementById('auth-status');
+            authStatusElement.innerHTML = '<div class="info">Checking authentication status...</div>';
+            
+            // Get all relevant auth data
+            const token = localStorage.getItem('token');
+            const authToken = localStorage.getItem('auth_token');
+            const authUserId = localStorage.getItem('authUserId');
+            const authUserData = localStorage.getItem('authUserData');
+            const authLastLogin = localStorage.getItem('authLastLogin');
+            const authSessionActive = localStorage.getItem('authSessionActive');
+            
+            let statusHtml = '';
+            let hasErrors = false;
+            let hasWarnings = false;
+            
+            // Check token
+            if (token) {
+                statusHtml += createStatusItem('success', 'Token', `Found: ${maskString(token)}`);
+            } else {
+                statusHtml += createStatusItem('error', 'Token', 'Missing - This is required for API calls');
+                hasErrors = true;
+            }
+            
+            // Check alternative token
+            if (authToken) {
+                statusHtml += createStatusItem('info', 'Auth Token (alternative)', `Found: ${maskString(authToken)}`);
+            }
+            
+            // Check user ID
+            if (authUserId) {
+                statusHtml += createStatusItem('success', 'User ID', `Found: ${authUserId}`);
+            } else {
+                statusHtml += createStatusItem('warning', 'User ID', 'Missing - User might not be logged in');
+                hasWarnings = true;
+            }
+            
+            // Check user data
+            if (authUserData) {
+                try {
+                    const userData = JSON.parse(authUserData);
+                    statusHtml += createStatusItem('success', 'User Data', `Found: ${userData.name} (${userData.email}), Role: ${userData.role}`);
+                } catch (e) {
+                    statusHtml += createStatusItem('warning', 'User Data', 'Invalid format - Cannot parse user data');
+                    hasWarnings = true;
+                }
+            } else {
+                statusHtml += createStatusItem('warning', 'User Data', 'Missing - User might not be logged in');
+                hasWarnings = true;
+            }
+            
+            // Check last login
+            if (authLastLogin) {
+                const loginDate = new Date(authLastLogin);
+                const now = new Date();
+                const hoursSinceLogin = Math.round((now - loginDate) / (1000 * 60 * 60));
+                
+                if (hoursSinceLogin > 24) {
+                    statusHtml += createStatusItem('warning', 'Last Login', `${hoursSinceLogin} hours ago - Session might be expired`);
+                    hasWarnings = true;
+                } else {
+                    statusHtml += createStatusItem('success', 'Last Login', `${hoursSinceLogin} hours ago`);
+                }
+            } else {
+                statusHtml += createStatusItem('warning', 'Last Login', 'No login timestamp found');
+                hasWarnings = true;
+            }
+            
+            // Check session status
+            if (authSessionActive === 'true') {
+                statusHtml += createStatusItem('success', 'Session', 'Active');
+            } else {
+                statusHtml += createStatusItem('warning', 'Session', 'Inactive or missing');
+                hasWarnings = true;
+            }
+            
+            // Add summary
+            if (hasErrors) {
+                statusHtml = `<div class="test-error">Authentication issues detected. API calls will likely fail.</div>` + statusHtml;
+            } else if (hasWarnings) {
+                statusHtml = `<div class="test-warning">Potential authentication issues detected. API calls might fail.</div>` + statusHtml;
+            } else {
+                statusHtml = `<div class="test-success">Authentication looks good! API calls should work.</div>` + statusHtml;
+            }
+            
+            authStatusElement.innerHTML = statusHtml;
+            log('Auth status refreshed', hasErrors ? 'error' : hasWarnings ? 'warning' : 'success');
+        }
+        
+        // Create a status item
+        function createStatusItem(type, label, text) {
+            const icon = type === 'success' ? '✅' : 
+                         type === 'error' ? '❌' : 
+                         type === 'warning' ? '⚠️' : 'ℹ️';
+            
+            return `
+                <div class="status-item">
+                    <span class="status-icon ${type}">${icon}</span>
+                    <div class="status-text">
+                        <strong>${label}:</strong> ${text}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Test API connection
+        async function testApiConnection() {
+            const endpoint = document.getElementById('api-endpoint').value;
+            const resultElement = document.getElementById('api-test-result');
+            
+            resultElement.innerHTML = '<div class="info">Testing API connection...</div>';
+            log(`Testing API connection to ${endpoint}`, 'info');
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const statusText = `${response.status} ${response.statusText}`;
+                const allowedMethods = response.headers.get('Allow') || 'Not specified';
+                
+                if (response.ok) {
+                    resultElement.innerHTML = `
+                        <div class="test-success">
+                            <p><strong>Connection successful!</strong></p>
+                            <p>Status: ${statusText}</p>
+                            <p>Allowed methods: ${allowedMethods}</p>
+                        </div>
+                    `;
+                    log(`API connection successful: ${statusText}`, 'success');
+                } else {
+                    resultElement.innerHTML = `
+                        <div class="test-error">
+                            <p><strong>Connection failed!</strong></p>
+                            <p>Status: ${statusText}</p>
+                            <p>This could indicate a server issue or incorrect endpoint.</p>
+                        </div>
+                    `;
+                    log(`API connection failed: ${statusText}`, 'error');
+                }
+            } catch (error) {
+                resultElement.innerHTML = `
+                    <div class="test-error">
+                        <p><strong>Connection error!</strong></p>
+                        <p>Error: ${error.message}</p>
+                        <p>This could indicate a network issue or CORS problem.</p>
+                    </div>
+                `;
+                log(`API connection error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Test API with auth
+        async function testWithAuth() {
+            const endpoint = document.getElementById('api-endpoint').value;
+            const resultElement = document.getElementById('api-test-result');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                resultElement.innerHTML = `
+                    <div class="test-error">
+                        <p><strong>No authentication token found!</strong></p>
+                        <p>Please fix the auth token first.</p>
+                    </div>
+                `;
+                log('Cannot test with auth: No token found', 'error');
+                return;
+            }
+            
+            resultElement.innerHTML = '<div class="info">Testing API with authentication...</div>';
+            log(`Testing API with auth to ${endpoint}`, 'info');
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    credentials: 'include'
+                });
+                
+                const statusText = `${response.status} ${response.statusText}`;
+                
+                if (response.ok) {
+                    resultElement.innerHTML = `
+                        <div class="test-success">
+                            <p><strong>Authenticated connection successful!</strong></p>
+                            <p>Status: ${statusText}</p>
+                            <p>Your authentication token is working correctly.</p>
+                        </div>
+                    `;
+                    log(`Authenticated API connection successful: ${statusText}`, 'success');
+                } else if (response.status === 401) {
+                    resultElement.innerHTML = `
+                        <div class="test-error">
+                            <p><strong>Authentication failed!</strong></p>
+                            <p>Status: ${statusText}</p>
+                            <p>Your token appears to be invalid or expired.</p>
+                        </div>
+                    `;
+                    log(`Authentication failed: ${statusText}`, 'error');
+                } else {
+                    resultElement.innerHTML = `
+                        <div class="test-warning">
+                            <p><strong>Connection issue!</strong></p>
+                            <p>Status: ${statusText}</p>
+                            <p>The connection worked but returned an unexpected status.</p>
+                        </div>
+                    `;
+                    log(`API connection issue: ${statusText}`, 'warning');
+                }
+            } catch (error) {
+                resultElement.innerHTML = `
+                    <div class="test-error">
+                        <p><strong>Connection error!</strong></p>
+                        <p>Error: ${error.message}</p>
+                        <p>This could indicate a network issue or CORS problem.</p>
+                    </div>
+                `;
+                log(`API connection error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Fix auth token
+        function fixAuthToken() {
+            log('Attempting to fix authentication token...', 'info');
+            
+            // Check if token already exists
+            const existingToken = localStorage.getItem('token');
+            if (existingToken) {
+                log('Token already exists, no fix needed', 'success');
+                return;
+            }
+            
+            // Try to generate token from user data
+            const authUserData = localStorage.getItem('authUserData');
+            const authUserId = localStorage.getItem('authUserId');
+            
+            if (!authUserData || !authUserId) {
+                log('Cannot fix token: No user data found. Please log in first.', 'error');
+                return;
+            }
+            
+            try {
+                // Parse user data
+                const userData = JSON.parse(authUserData);
+                
+                // Create a simple token based on user data
+                const tokenPayload = `${authUserId}:${userData.email}:${userData.role || 'user'}`;
+                const token = btoa(tokenPayload);
+                
+                // Save the generated token
+                localStorage.setItem('token', token);
+                log('Authentication token created and saved successfully', 'success');
+                
+                // Refresh status
+                checkAuthStatus();
+            } catch (error) {
+                log(`Failed to generate token: ${error.message}`, 'error');
+            }
+        }
+        
+        // Save token to localStorage
+        function saveToken() {
+            const token = document.getElementById('token-input').value;
+            if (token) {
+                localStorage.setItem('token', token);
+                log('Token saved to localStorage', 'success');
+                checkAuthStatus();
+            } else {
+                log('Please enter a token', 'error');
+            }
+        }
+        
+        // Clear token
+        function clearToken() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+            log('Token cleared from localStorage', 'info');
+            checkAuthStatus();
+        }
+        
+        // Clear all auth data
+        function clearAllAuth() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('authUserId');
+            localStorage.removeItem('authUserData');
+            localStorage.removeItem('authLastLogin');
+            localStorage.removeItem('authSessionActive');
+            log('All authentication data cleared from localStorage', 'info');
+            checkAuthStatus();
+        }
+        
+        // Clear log
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Helper function to mask sensitive data
+        function maskString(str) {
+            if (!str) return '';
+            if (str.length <= 8) return '********';
+            return str.substring(0, 4) + '...' + str.substring(str.length - 4);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+            log('Authentication diagnostic tool initialized', 'info');
+        });
+    </script>
+</body>
+</html> 

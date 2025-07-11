@@ -44,6 +44,11 @@ import { FallbackProvider } from './components/FallbackIndicator';
 import { registerNotificationListeners } from './utils/notificationHandler';
 import { queryClient } from './utils/queryClient';
 import { toast } from 'react-hot-toast';
+import AuthMonitor from './components/AuthMonitor';
+
+// Import auth interceptor
+import './utils/authInterceptor';
+import { ensureAuthToken } from './services/authTokenService';
 
 // Make queryClient available globally for cross-tab synchronization
 if (typeof window !== 'undefined') {
@@ -154,6 +159,9 @@ function App() {
         <AuthProvider>
           <FallbackProvider>
             <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+              {/* Authentication monitor */}
+              <AuthMonitor />
+              
               {/* Show database connection alert */}
               <DatabaseConnectionAlert />
 
