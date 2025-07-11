@@ -16,6 +16,7 @@ import { UserQrCodeService } from '../services/userQrCodeService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import sql from '../utils/db';
+import { generateTokens } from '../services/authService';
 
 /**
  * Permission interface for role-based access control
@@ -367,6 +368,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Store user in state
         setUser(appUser);
+        
+        // Generate JWT token
+        try {
+          // Create a user object that matches what generateTokens expects
+          const userForToken = {
+            id: appUser.id,
+            email: appUser.email,
+            role: appUser.role
+          };
+          
+          const { accessToken } = await generateTokens(userForToken);
+          
+          // Store token in localStorage with the key expected by API calls
+          localStorage.setItem('token', accessToken);
+          console.log('JWT token saved to localStorage');
+        } catch (tokenError) {
+          console.error('Failed to generate JWT token:', tokenError);
+          // Continue with login even if token generation fails
+        }
         
         // Store user ID and data in localStorage
         localStorage.setItem('authUserId', String(dbUser.id));

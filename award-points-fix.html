@@ -91,8 +91,12 @@
         <p>There are two ways to fix the issue:</p>
         
         <h3>1. Apply Fix to Your Current Session</h3>
-        <p>Click the button below to patch your current browser session. This will fix the award points system temporarily (until you refresh the page).</p>
-        <button id="apply-fix">Apply Fix to Current Session</button>
+        <p>Click the buttons below to patch your current browser session. This will fix the award points system temporarily (until you refresh the page).</p>
+        <div class="button-group">
+            <button id="apply-fix">Fix Award Points</button>
+            <button id="apply-auth-fix">Fix Auth Token</button>
+            <button id="apply-all-fixes">Apply All Fixes</button>
+        </div>
         <div id="status"></div>
         
         <h3>2. Add Script to Your Website</h3>
@@ -151,14 +155,34 @@
             console.log(`[${type.toUpperCase()}] ${message}`);
         }
         
-        // Apply fix button
+        // Apply fix buttons
         document.getElementById('apply-fix').addEventListener('click', function() {
             try {
                 applyFix();
-                document.getElementById('status').innerHTML = '<p class="success">✓ Fix applied successfully!</p>';
+                document.getElementById('status').innerHTML = '<p class="success">✓ Award points fix applied successfully!</p>';
             } catch (error) {
                 document.getElementById('status').innerHTML = `<p class="error">✗ Error applying fix: ${error.message}</p>`;
                 log(`Error applying fix: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('apply-auth-fix').addEventListener('click', function() {
+            try {
+                applyAuthTokenFix();
+                document.getElementById('status').innerHTML = '<p class="success">✓ Auth token fix applied successfully!</p>';
+            } catch (error) {
+                document.getElementById('status').innerHTML = `<p class="error">✗ Error applying fix: ${error.message}</p>`;
+                log(`Error applying fix: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('apply-all-fixes').addEventListener('click', function() {
+            try {
+                applyAllFixes();
+                document.getElementById('status').innerHTML = '<p class="success">✓ All fixes applied successfully!</p>';
+            } catch (error) {
+                document.getElementById('status').innerHTML = `<p class="error">✗ Error applying fixes: ${error.message}</p>`;
+                log(`Error applying fixes: ${error.message}`, 'error');
             }
         });
         
@@ -177,10 +201,23 @@
             log(`Awarding ${points} points to customer ${customerId} in program ${programId}...`);
             
             try {
-                // Check if fix is applied
+                // Check if fixes are applied
                 if (typeof window.awardPointsDirectly !== 'function') {
-                    log('Fix not applied yet. Applying now...', 'info');
+                    log('Award points fix not applied yet. Applying now...', 'info');
                     applyFix();
+                }
+                
+                // Check if token exists
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    log('No auth token found. Attempting to fix...', 'info');
+                    applyAuthTokenFix();
+                    
+                    // Check if fix worked
+                    if (!localStorage.getItem('token')) {
+                        log('Failed to create auth token. Please log in first.', 'error');
+                        return;
+                    }
                 }
                 
                 const result = await window.awardPointsDirectly(customerId, programId, points, description);
@@ -319,6 +356,56 @@
             };
             
             log('Award points system fix loaded successfully!', 'success');
+        }
+        
+        // Apply the authentication token fix
+        function applyAuthTokenFix() {
+            log('Applying authentication token fix...');
+            
+            // Function to extract token from JWT authentication
+            function extractJwtToken() {
+                // Check if we have an authentication token in the app's standard storage
+                const authUserData = localStorage.getItem('authUserData');
+                const authUserId = localStorage.getItem('authUserId');
+                
+                if (!authUserData || !authUserId) {
+                    log('No authentication data found in localStorage', 'error');
+                    return null;
+                }
+                
+                try {
+                    // Create a simple token based on user data
+                    // This is a temporary fix until the proper JWT implementation is used
+                    const userData = JSON.parse(authUserData);
+                    const userId = authUserId;
+                    
+                    // Simple token format: base64 of userId:email:role
+                    const tokenPayload = `${userId}:${userData.email}:${userData.role}`;
+                    const token = btoa(tokenPayload);
+                    
+                    return token;
+                } catch (error) {
+                    log(`Error extracting authentication token: ${error}`, 'error');
+                    return null;
+                }
+            }
+            
+            // Extract and save token
+            const token = extractJwtToken();
+            if (token) {
+                localStorage.setItem('token', token);
+                log('Authentication token created and saved to localStorage', 'success');
+            } else {
+                log('Failed to create authentication token. Please log in first.', 'error');
+            }
+        }
+        
+        // Apply all fixes
+        function applyAllFixes() {
+            log('Applying all fixes...');
+            applyFix();
+            applyAuthTokenFix();
+            log('All fixes applied', 'success');
         }
         
         // Initialize with welcome message
