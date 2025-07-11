@@ -36,16 +36,34 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
     timestamp: new Date().toISOString()
   };
 
+  // Set a timeout to ensure we always respond
+  const responseTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('Response timeout triggered for award-points endpoint');
+      return res.status(500).json({
+        success: false,
+        error: 'Server processing timed out',
+        code: 'RESPONSE_TIMEOUT',
+        diagnostics: { 
+          ...fullData,
+          timeoutTriggered: true
+        }
+      });
+    }
+  }, 8000); // 8 second timeout
+
   try {
     // Log request details for debugging
     console.log(`Award points request: customer=${customerIdStr}, program=${programIdStr}, points=${points}, business=${businessIdStr}`);
     
     // 1. Validate inputs
     if (!customerId || !programId || !points) {
+      clearTimeout(responseTimeout);
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
     
     if (isNaN(points) || points <= 0) {
+      clearTimeout(responseTimeout);
       return res.status(400).json({ 
         success: false, 
         error: 'Points must be a positive number' 
@@ -103,6 +121,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
     `;
     
     if (programResult.length === 0) {
+      clearTimeout(responseTimeout);
       return res.status(404).json({ 
         success: false, 
         error: `Program with ID ${programIdStr} not found` 
@@ -115,6 +134,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
     
     // 4. Check if the program belongs to the business
     if (program.business_id !== parseInt(businessIdStr)) {
+      clearTimeout(responseTimeout);
       return res.status(403).json({ 
         success: false, 
         error: 'You do not have permission to award points for this program' 
@@ -168,6 +188,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
         fullData.cardCreated = true;
       } catch (cardCreationError) {
         console.error('Failed to create loyalty card:', cardCreationError);
+        clearTimeout(responseTimeout);
         return res.status(500).json({ 
           success: false, 
           error: 'Failed to create loyalty card for customer', 
@@ -281,6 +302,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
         }
       }
       
+      clearTimeout(responseTimeout);
       return res.status(200).json({
         success: true,
         message: `Successfully awarded ${points} points to customer ${customerName}`,
@@ -304,6 +326,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
         customerId: customerIdStr
       });
       
+      clearTimeout(responseTimeout);
       return res.status(500).json({
         success: false,
         error: result.error || 'Failed to award points to card',
@@ -328,6 +351,7 @@ router.post('/award-points', auth, async (req: Request, res: Response) => {
       }
     }
     
+    clearTimeout(responseTimeout);
     return res.status(500).json({ 
       success: false,
       error: errorMessage,
