@@ -52,9 +52,15 @@ if (isBrowser) {
   import notificationRoutes from './api/notificationRoutes';
   import debugRoutes from './api/debugRoutes';
   import directApiRoutes from './api/directApiRoutes';
+  // Import test routes for debugging
+  import testRoutes from './api/testRoutes';
+  // Import the award points handler
+  import { handleAwardPoints } from './api/awardPointsHandler';
   
   // Import custom middleware
   import { apiRequestLogger, corsMiddleware, methodNotAllowedHandler } from './middleware/apiErrorHandler';
+  // Import debugging middleware
+  import { routeDebugMiddleware, awardPointsDebugMiddleware, logRegisteredRoutes } from './middleware/routeDebugMiddleware';
 
   // Create Express server
   const app: any = express();
@@ -83,6 +89,12 @@ if (isBrowser) {
     // Add request logging
     app.use(apiRequestLogger);
     
+    // Add route debugging middleware
+    app.use(routeDebugMiddleware);
+    
+    // Add special award-points debugging
+    app.use(awardPointsDebugMiddleware);
+    
     // Method not allowed handler should come after CORS but before routes
     app.use(methodNotAllowedHandler);
   } catch (error) {
@@ -104,18 +116,23 @@ if (isBrowser) {
 
   // API routes
   try {
-    // Use the centralized API routes - this includes all subroutes including direct API routes
+    console.log('🔄 Registering API routes...');
+    
+    // Register test routes first
+    app.use('/api/test', testRoutes);
+    
+    // Register direct routes
+    app.use('/api/direct', directApiRoutes);
+    
+    // IMPORTANT: Register a direct handler for award-points at the top level
+    // This ensures it gets priority over any potentially conflicting routes
+    app.post('/api/businesses/award-points', handleAwardPoints);
+    
+    // Register the main API routes
     app.use('/api', apiRoutes);
     
-    // REMOVE DUPLICATE ROUTES - they're already included in apiRoutes
-    // These duplicate registrations are likely causing the 405 errors
-    // app.use('/api/businesses', businessRoutes);
-    // app.use('/api', feedbackRoutes);
-    // app.use('/api', notificationRoutes);
-    // app.use('/api', debugRoutes);
-    
-    // Keep direct routes access as a fallback
-    app.use('/api/direct', directApiRoutes);
+    // Log all registered routes
+    logRegisteredRoutes(app);
     
     // Add a fallback route handler for undefined routes
     app.use('/api/*', (req: express.Request, res: express.Response) => {
