@@ -31,7 +31,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { LoyaltyCard } from '@/types/loyalty';
 import loyaltyCardService from '@/services/loyaltyCardService';
 import { queryKeys } from '@/utils/queryKeys';
-import { PointsAwardingModal } from './PointsAwardingModal';
 
 interface CustomerDetailsModalProps {
   isOpen: boolean;
@@ -84,8 +83,7 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
     cardId?: string;
   } | null>(null);
   const [loyaltyCards, setLoyaltyCards] = useState<any[]>([]);
-  // Add state for Points Awarding Modal
-  const [showPointsAwardingModal, setShowPointsAwardingModal] = useState(false);
+  const [loadingCards, setLoadingCards] = useState(true);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -303,27 +301,100 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
   };
 
   const handleAddCredit = async () => {
+    if (!selectedProgramId || !pointsToAdd || !customer) {
+      setError('Please select a program and enter points to add');
+      return;
+    }
+    
     setProcessing(true);
     setError(null);
     setSuccess(null);
     
     try {
-      console.log('CustomerDetailsModal: Adding points:', pointsToAdd);
-      // Add points transaction
-      await CustomerService.recordCustomerInteraction(
-        customerId,
-        businessId,
-        'POINTS_ADDED',
-        `Added ${pointsToAdd} points`
-      );
+      // Get auth token with fallbacks
+      const authToken = localStorage.getItem('token') || 
+                        localStorage.getItem('auth_token') || 
+                        localStorage.getItem('jwt');
       
-      setSuccess(`Successfully added ${pointsToAdd} points to customer account!`);
+      if (!authToken) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
       
-      // Reload customer data
-      loadCustomerData();
+      // Use enhanced fetch with better error handling
+      const apiUrl = '/api/businesses/award-points';
+      console.log(`Awarding ${pointsToAdd} points to customer ${customer.id} in program ${selectedProgramId}`);
+      
+      // Create a unique transaction reference for tracking
+      const transactionRef = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Cache-Control': 'no-cache'
+        },
+        mode: 'cors',
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: customer.id,
+          programId: selectedProgramId,
+          points: pointsToAdd,
+          description: 'Points awarded from customer details',
+          source: 'CUSTOMER_DETAILS',
+          transactionRef,
+          sendNotification: true
+        })
+      });
+      
+      // Check if we got a 405 error and try the fallback method
+      if (response.status === 405) {
+        console.warn('405 Method Not Allowed error detected. Using fallback method...');
+        
+        // Try using our window.awardPointsDirectly helper from the fix script
+        if (window.awardPointsDirectly) {
+          const result = await window.awardPointsDirectly(
+            customer.id.toString(), 
+            selectedProgramId.toString(), 
+            pointsToAdd,
+            'Points awarded from customer details'
+          );
+          
+          if (result && result.success) {
+            setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
+            // Refresh customer data
+            loadCustomerData();
+            loadCustomerLoyaltyCards();
+            return;
+          }
+        }
+        
+        // If fallback failed or isn't available, throw error
+        throw new Error(`Server rejected request method: POST to ${apiUrl}. Please try again.`);
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to award points: ${response.status} ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.success) {
+        setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
+        // Show confetti or other visual feedback
+        
+        // Refresh customer data
+        loadCustomerData();
+        loadCustomerLoyaltyCards();
+      } else {
+        throw new Error(data?.error || 'Failed to award points');
+      }
     } catch (err) {
       console.error('Error adding credit:', err);
-      setError('Error adding credit');
+      setError(err instanceof Error ? err.message : 'Error awarding points');
     } finally {
       setProcessing(false);
     }
@@ -467,13 +538,6 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
       });
     } finally {
       setIsGeneratingPromoCode(false);
-    }
-  };
-
-  // Add a function to handle the "Award Points" button click
-  const handleAwardPointsClick = () => {
-    if (customer) {
-      setShowPointsAwardingModal(true);
     }
   };
 
@@ -949,44 +1013,6 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Points Awarding Modal */}
-      {showPointsAwardingModal && (
-        <PointsAwardingModal
-          onClose={() => setShowPointsAwardingModal(false)}
-          scanData={{ 
-            type: 'customer', 
-            customerId: customerId, 
-            name: customer?.name || `Customer #${customerId}`,
-            customerName: customer?.name || `Customer #${customerId}`,
-            text: JSON.stringify({
-              type: 'customer',
-              customerId: customerId,
-              name: customer?.name || `Customer #${customerId}`
-            })
-          }}
-          businessId={businessId}
-          onSuccess={(points) => {
-            setSuccess(`Successfully awarded ${points} points to ${customer?.name || 'customer'}`);
-            setTimeout(() => setSuccess(null), 3000);
-          }}
-          programs={programs}
-        />
-      )}
-
-      {/* Success message */}
-      {success && (
-        <div className="fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 p-4 rounded shadow-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <CheckCircle className="text-green-500" size={24} />
-            </div>
-            <div className="ml-3">
-              <p className="text-green-700">{success}</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1165,6 +1165,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       // Extract customer ID
       const customerId = ensureId(qrCodeData.customerId);
       
+      // Immediately show customer details modal first
+      setSelectedCustomerId(customerId);
+      setShowCustomerDetailsModal(true);
+      
       // Log scan in monitoring system
       try {
         // Log scan in monitoring system

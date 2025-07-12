@@ -115,6 +115,32 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     fetchEnrolledPrograms();
   }, [scanData, businessId, selectedProgramId]);
 
+  // Function to check if the API endpoint is accessible
+  const checkApiEndpoint = async () => {
+    try {
+      // Create a preflight OPTIONS request to check endpoint availability
+      const authToken = localStorage.getItem('token') || 
+                     localStorage.getItem('auth_token') || 
+                     localStorage.getItem('jwt');
+      
+      if (!authToken) return false;
+      
+      const response = await fetch('/api/businesses/award-points', {
+        method: 'OPTIONS',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      return response.ok || response.status === 204;
+    } catch (error) {
+      console.error('API endpoint check failed:', error);
+      return false;
+    }
+  };
+
   const handleAwardPoints = async () => {
     if (!selectedProgramId || !pointsToAward) {
       setError('Please select a program and enter points to award');
@@ -176,6 +202,9 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     }, 10000);
     
     try {
+      // Check if the API endpoint is accessible
+      const isEndpointAvailable = await checkApiEndpoint();
+      
       // Improved error handling - add explicit URL path
       const apiUrl = '/api/businesses/award-points';
       diagnostics.requestUrl = apiUrl;
@@ -193,15 +222,18 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       console.log('Using auth token:', authToken.substring(0, 10) + '...');
       diagnostics.tokenFound = true;
       
-      // Use window.fetch directly to bypass any middleware issues
-      const response = await window.fetch(apiUrl, {
+      // Use enhanced fetch with retry and proper CORS headers
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${authToken}`
+          'Authorization': `Bearer ${authToken}`,
+          'X-Requested-With': 'XMLHttpRequest', // Add this to help some servers identify AJAX requests
+          'Cache-Control': 'no-cache' // Prevent caching issues
         },
         signal, // Add abort signal
+        mode: 'cors', // Explicitly set CORS mode
         credentials: 'include',
         body: JSON.stringify({ 
           customerId: scanData.customerId.toString(), 
@@ -230,46 +262,7 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         diagnostics.requestedMethod = 'POST';
         diagnostics.allowedMethods = response.headers.get('Allow');
         
-        // Try with the client-side fix from fix-405-error.js
-        console.log('Attempting to use fix-405-error.js solution...');
-        
-        // Try to dynamically load the fix script if it's not already loaded
-        if (typeof window.awardPointsDirectly !== 'function') {
-          const script = document.createElement('script');
-          script.src = '/fix-405-error.js';
-          document.body.appendChild(script);
-          
-          // Wait for script to load
-          await new Promise(resolve => {
-            script.onload = resolve;
-            setTimeout(resolve, 1000); // Timeout fallback
-          });
-        }
-        
-        // Try the direct award points function if available
-        if (typeof window.awardPointsDirectly === 'function') {
-          console.log('Using awardPointsDirectly fallback function');
-          const result = await window.awardPointsDirectly(
-            scanData.customerId.toString(),
-            selectedProgramId,
-            pointsToAward,
-            'Points awarded via QR code scan'
-          );
-          
-          if (result.success) {
-            setProcessingStatus('Success!');
-            setSuccess(`Successfully awarded ${pointsToAward} points!`);
-            setTimeout(() => {
-              onClose();
-              if (onSuccess) onSuccess(pointsToAward);
-            }, 1500);
-            return; // Early return on success
-          } else {
-            throw new Error(result.error || 'Failed to award points using fallback method');
-          }
-        } else {
-          throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
-        }
+        throw new Error(`Server rejected request method: POST to ${apiUrl}. Allowed methods: ${response.headers.get('Allow') || 'unknown'}`);
       }
       
       // Handle 401 Unauthorized error specifically
