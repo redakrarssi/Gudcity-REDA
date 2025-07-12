@@ -1,13 +1,10 @@
 /**
  * Fix for 405 Method Not Allowed error in the award points system
- * 
- * How to use:
- * 1. Add this script to your HTML page: <script src="/fix-405-error.js"></script>
- * 2. The script will automatically patch the fetch requests to include proper Authorization headers
+ * Enhanced Version: Now using direct SQL approach
  */
 
 (function() {
-  console.log('🔧 Loading award points system fix - Enhanced Version...');
+  console.log('🔧 Loading award points system fix - Direct SQL Version...');
   
   // Original fetch function
   const originalFetch = window.fetch;
@@ -26,10 +23,10 @@
     if (url && typeof url === 'string' && url.includes('/award-points')) {
       console.log('🔍 Intercepting award-points request');
       
-      // Fix the URL if needed
+      // Redirect to our direct API endpoint if it's the problematic one
       if (url === '/api/businesses/award-points' || url === 'api/businesses/award-points') {
-        url = '/api/businesses/award-points';
-        console.log('✅ Fixed URL:', url);
+        console.log('✅ Redirecting to direct API endpoint');
+        url = '/api/direct/direct-award-points';
       }
       
       // Ensure options object exists
@@ -38,7 +35,7 @@
       // Get auth token
       const token = getAuthToken();
       if (!token) {
-        console.warn('⚠️ No auth token found in localStorage or sessionStorage');
+        console.warn('⚠️ No auth token found in storage');
       }
       
       // Fix headers - ensure they exist and have proper values
@@ -80,7 +77,7 @@
     return originalFetch.call(this, url, options);
   };
   
-  // Add direct award points function for easy fixes and testing
+  // Helper function to directly award points using our new direct API
   window.awardPointsDirectly = async function(customerId, programId, points, description = '') {
     console.log(`🎯 Directly awarding ${points} points to customer ${customerId} in program ${programId}`);
     
@@ -98,129 +95,43 @@
         return { success: false, error: 'No authentication token found' };
       }
       
-      // Add retry logic to handle CORS or other network issues
-      let attempts = 0;
-      const maxAttempts = 3;
-      let lastError = null;
+      // Use the direct API endpoint
+      const response = await fetch('/api/direct/direct-award-points', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Cache-Control': 'no-cache'
+        },
+        mode: 'cors',
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: String(customerId),
+          programId: String(programId),
+          points,
+          description,
+          source: 'FIX_SCRIPT'
+        })
+      });
       
-      while (attempts < maxAttempts) {
-        try {
-          attempts++;
-          console.log(`📤 Award points attempt ${attempts}/${maxAttempts}...`);
-          
-          // Prepare the request with enhanced options
-          const response = await fetch('/api/businesses/award-points', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'X-Requested-With': 'XMLHttpRequest',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            },
-            mode: 'cors',
-            credentials: 'include',
-            body: JSON.stringify({
-              customerId,
-              programId,
-              points,
-              description,
-              source: 'MANUAL_FIX'
-            })
-          });
-          
-          // Check response status
-          if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Points awarded successfully:', data);
-            return { success: true, data };
-          } else if (response.status === 405) {
-            // Try a fallback approach
-            console.warn('⚠️ 405 Method Not Allowed error, trying fallback approach...');
-            
-            // Try with a custom header that some servers use to identify XMLHttpRequest
-            const fallbackResponse = await fetch('/api/businesses/award-points', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-HTTP-Method-Override': 'POST',
-                'X-Ajax-Request': 'true'
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                customerId,
-                programId,
-                points,
-                description,
-                source: 'MANUAL_FIX_FALLBACK'
-              })
-            });
-            
-            if (fallbackResponse.ok) {
-              const data = await fallbackResponse.json();
-              console.log('✅ Points awarded successfully with fallback method:', data);
-              return { success: true, data };
-            }
-            
-            // If fallback fails, use alternate endpoint approach
-            const alternateEndpoint = '/api/loyalty-cards/award-points';
-            console.warn(`⚠️ Trying alternate endpoint: ${alternateEndpoint}`);
-            
-            const alternateResponse = await fetch(alternateEndpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                customerId,
-                programId,
-                points,
-                description,
-                source: 'MANUAL_FIX_ALTERNATE'
-              })
-            });
-            
-            if (alternateResponse.ok) {
-              const data = await alternateResponse.json();
-              console.log('✅ Points awarded successfully with alternate endpoint:', data);
-              return { success: true, data };
-            }
-            
-            // We've tried everything, give up
-            throw new Error(`All award points methods failed, last status: ${alternateResponse.status}`);
-          } else {
-            // Handle other error status codes
-            const errorText = await response.text();
-            throw new Error(`Server responded with status ${response.status}: ${errorText}`);
-          }
-        } catch (error) {
-          console.warn(`⚠️ Attempt ${attempts} failed:`, error);
-          lastError = error;
-          
-          // Wait before retrying (exponential backoff)
-          if (attempts < maxAttempts) {
-            const delay = Math.pow(2, attempts) * 500; // 1s, 2s, 4s
-            console.log(`⏱️ Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
+      // Process response
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Points awarded successfully:', data);
+        return { success: true, data };
       }
       
-      // If we get here, all attempts failed
-      console.error('❌ All award points attempts failed');
-      return { 
-        success: false, 
-        error: lastError ? lastError.message : 'Failed to award points after multiple attempts',
-        attempts
-      };
-      
+      // Handle failed response
+      try {
+        const errorData = await response.json();
+        console.error('❌ API error:', errorData);
+        return { success: false, error: errorData.error, data: errorData };
+      } catch (parseError) {
+        console.error('❌ Failed with status:', response.status, response.statusText);
+        return { success: false, error: `${response.status}: ${response.statusText}` };
+      }
     } catch (error) {
       console.error('❌ Error in awardPointsDirectly:', error);
       return { 
@@ -241,8 +152,7 @@
       },
       endpoint: {
         standardPost: false,
-        fallbackPost: false,
-        alternateEndpoint: false,
+        directPost: false,
         serverResponse: null
       },
       browserDetails: {
@@ -258,9 +168,9 @@
       diagnostics.authToken.tokenStart = token.substring(0, 10) + '...';
     }
     
-    // Test endpoint with OPTIONS request
+    // Test standard endpoint
     try {
-      const optionsResponse = await fetch('/api/businesses/award-points', {
+      const standardResponse = await fetch('/api/businesses/award-points', {
         method: 'OPTIONS',
         headers: {
           'Accept': 'application/json',
@@ -268,23 +178,99 @@
         }
       });
       
-      diagnostics.endpoint.optionsStatus = optionsResponse.status;
-      diagnostics.endpoint.optionsOk = optionsResponse.ok || optionsResponse.status === 204;
-      
-      // Check allowed methods
-      const allowHeader = optionsResponse.headers.get('Allow');
-      diagnostics.endpoint.allowedMethods = allowHeader || 'Not specified';
-      diagnostics.endpoint.corsHeaders = {
-        'Access-Control-Allow-Origin': optionsResponse.headers.get('Access-Control-Allow-Origin'),
-        'Access-Control-Allow-Methods': optionsResponse.headers.get('Access-Control-Allow-Methods'),
-        'Access-Control-Allow-Headers': optionsResponse.headers.get('Access-Control-Allow-Headers')
-      };
+      diagnostics.endpoint.standardStatus = standardResponse.status;
+      diagnostics.endpoint.standardOk = standardResponse.ok || standardResponse.status === 204;
     } catch (error) {
-      diagnostics.endpoint.optionsError = error.message;
+      diagnostics.endpoint.standardError = error.message;
+    }
+    
+    // Test direct endpoint
+    try {
+      const directResponse = await fetch('/api/direct/status', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      diagnostics.endpoint.directStatus = directResponse.status;
+      diagnostics.endpoint.directOk = directResponse.ok;
+      
+      if (directResponse.ok) {
+        try {
+          const data = await directResponse.json();
+          diagnostics.endpoint.directData = data;
+        } catch (parseError) {
+          diagnostics.endpoint.directParseError = parseError.message;
+        }
+      }
+    } catch (error) {
+      diagnostics.endpoint.directError = error.message;
     }
     
     console.log('📊 Diagnostics results:', diagnostics);
     return diagnostics;
+  };
+  
+  // Define a helper function to expose the award points method more directly
+  window.gudcityHelpers = window.gudcityHelpers || {};
+  window.gudcityHelpers.awardPoints = async function(customerId, programId, points, description = '') {
+    // Try direct API first, then fall back to regular endpoint
+    try {
+      // Check if direct API is available
+      const directCheck = await fetch('/api/direct/status', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      }).catch(() => null);
+      
+      if (directCheck && directCheck.ok) {
+        // Use direct API
+        console.log('Using direct API for award points');
+        return await window.awardPointsDirectly(customerId, programId, points, description);
+      } else {
+        // Fall back to original endpoint
+        console.log('Direct API not available, using original endpoint');
+        
+        const token = getAuthToken();
+        if (!token) {
+          return { success: false, error: 'No authentication token found' };
+        }
+        
+        const response = await fetch('/api/businesses/award-points', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache'
+          },
+          mode: 'cors',
+          credentials: 'include',
+          body: JSON.stringify({
+            customerId: String(customerId),
+            programId: String(programId),
+            points,
+            description,
+            source: 'HELPER'
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, data };
+        }
+        
+        const errorText = await response.text();
+        return { success: false, error: errorText, status: response.status };
+      }
+    } catch (error) {
+      console.error('Error in awardPoints helper:', error);
+      return { success: false, error: String(error) };
+    }
   };
   
   // Auto-run diagnostics on load
