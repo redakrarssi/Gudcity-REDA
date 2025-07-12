@@ -44,11 +44,12 @@ if (isBrowser) {
   import { createServer } from 'http';
   import { Server, Socket } from 'socket.io';
 
-  // Import route files
+  // Import route files directly since index.ts has missing dependencies
   import businessRoutes from './api/businessRoutes';
   import feedbackRoutes from './api/feedbackRoutes';
   import notificationRoutes from './api/notificationRoutes';
   import debugRoutes from './api/debugRoutes';
+  import directApiRoutes from './api/directApiRoutes';
   
   // Import custom middleware
   import { apiRequestLogger, corsMiddleware, methodNotAllowedHandler } from './middleware/apiErrorHandler';
@@ -105,6 +106,7 @@ if (isBrowser) {
     app.use('/api', feedbackRoutes);
     app.use('/api', notificationRoutes);
     app.use('/api', debugRoutes);
+    app.use('/api/direct', directApiRoutes);
     
     // Add a fallback route handler for undefined routes
     app.use('/api/*', (req: express.Request, res: express.Response) => {
