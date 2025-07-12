@@ -35,6 +35,15 @@ if (isBrowser) {
   export default mockApp;
 } else {
   // Server-side code - only runs in Node.js environment
+  // Apply server-side fixes
+  try {
+    require('./server-award-points-fix.js');
+    require('./apply-diagnostics.js');
+    console.log('✅ Applied server-side fixes and diagnostics');
+  } catch (e) {
+    console.error('❌ Error applying server-side fixes:', e);
+  }
+  
   import express from 'express';
   import cors from './utils/corsPolyfill';
   // Import our custom helmet polyfill instead of the real helmet

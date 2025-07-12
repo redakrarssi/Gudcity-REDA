@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Award Points System Verification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 20px;
+        }
+        .code-block {
+            background-color: #f8f8f8;
+            border-left: 3px solid #3498db;
+            padding: 10px 15px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #log {
+            height: 300px;
+            overflow-y: auto;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .notification {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+        .error-notification {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        .test-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+        .test-pending {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Award Points System Verification</h1>
+        <p>This tool will help diagnose issues with the award points system by testing all possible endpoints and configurations.</p>
+        
+        <div class="notification">
+            <strong>Important:</strong> This tool will make real API calls to award points. Make sure you're using test data.
+        </div>
+        
+        <h2>Test Configuration</h2>
+        <div class="form-group">
+            <label for="customer-id">Customer ID:</label>
+            <input type="text" id="customer-id" value="27">
+        </div>
+        
+        <div class="form-group">
+            <label for="program-id">Program ID:</label>
+            <input type="text" id="program-id" value="8">
+        </div>
+        
+        <div class="form-group">
+            <label for="points">Points to Award:</label>
+            <input type="number" id="points" value="10">
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <input type="text" id="description" value="Points awarded via verification tool">
+        </div>
+        
+        <div class="form-group">
+            <label for="auth-token">Auth Token (optional, will use localStorage if empty):</label>
+            <input type="text" id="auth-token" placeholder="Bearer token...">
+        </div>
+        
+        <h2>Authentication Check</h2>
+        <button id="check-auth">Check Authentication</button>
+        <div id="auth-status"></div>
+        
+        <h2>Endpoint Tests</h2>
+        <div class="grid">
+            <div>
+                <h3>Standard Endpoints</h3>
+                <button id="test-standard-endpoint">Test Standard Endpoint</button>
+                <div id="standard-endpoint-result" class="test-result test-pending">Not tested yet</div>
+                
+                <button id="test-direct-endpoint">Test Direct Endpoint</button>
+                <div id="direct-endpoint-result" class="test-result test-pending">Not tested yet</div>
+                
+                <button id="test-direct-award">Test Direct Award Function</button>
+                <div id="direct-award-result" class="test-result test-pending">Not tested yet</div>
+            </div>
+            
+            <div>
+                <h3>Method Tests</h3>
+                <button id="test-get-method">Test GET Method</button>
+                <div id="get-method-result" class="test-result test-pending">Not tested yet</div>
+                
+                <button id="test-options-method">Test OPTIONS Method</button>
+                <div id="options-method-result" class="test-result test-pending">Not tested yet</div>
+                
+                <button id="test-preflight">Test Preflight Request</button>
+                <div id="preflight-result" class="test-result test-pending">Not tested yet</div>
+            </div>
+        </div>
+        
+        <h2>Advanced Tests</h2>
+        <button id="test-all-endpoints">Test All Endpoints</button>
+        <button id="test-all-methods">Test All Methods</button>
+        
+        <h2>Debug Information</h2>
+        <div id="log"></div>
+    </div>
+    
+    <div class="container">
+        <h2>Request Diagnostics</h2>
+        <div class="form-group">
+            <label for="custom-url">Custom URL to Test:</label>
+            <input type="text" id="custom-url" value="/api/businesses/award-points">
+        </div>
+        
+        <div class="form-group">
+            <label for="custom-method">HTTP Method:</label>
+            <select id="custom-method">
+                <option value="POST">POST</option>
+                <option value="GET">GET</option>
+                <option value="OPTIONS">OPTIONS</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+        </div>
+        
+        <button id="test-custom-request">Test Custom Request</button>
+        <div id="custom-result" class="test-result test-pending">Not tested yet</div>
+    </div>
+    
+    <script>
+        // Log function to display messages in the UI
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const div = document.createElement('div');
+            div.textContent = `[${timestamp}] ${message}`;
+            
+            if (type === 'error') {
+                div.style.color = '#e74c3c';
+            } else if (type === 'success') {
+                div.style.color = '#2ecc71';
+            } else if (type === 'warning') {
+                div.style.color = '#f39c12';
+            }
+            
+            logElement.appendChild(div);
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // Update test result UI
+        function updateTestResult(elementId, success, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `test-result ${success ? 'test-success' : 'test-error'}`;
+        }
+        
+        // Function to get auth token
+        function getAuthToken() {
+            const customToken = document.getElementById('auth-token').value;
+            if (customToken) return customToken;
+            
+            const token = localStorage.getItem('token');
+            if (!token) {
+                log('No auth token found in localStorage', 'warning');
+                return null;
+            }
+            
+            return token;
+        }
+        
+        // Check authentication
+        document.getElementById('check-auth').addEventListener('click', function() {
+            const token = getAuthToken();
+            const authStatus = document.getElementById('auth-status');
+            
+            if (!token) {
+                authStatus.textContent = 'No authentication token found';
+                authStatus.className = 'error-notification';
+                return;
+            }
+            
+            try {
+                // Try to decode the token (simple validation, not secure)
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    authStatus.textContent = 'Token format is invalid (not a JWT)';
+                    authStatus.className = 'error-notification';
+                    return;
+                }
+                
+                // Decode payload
+                const payload = JSON.parse(atob(parts[1]));
+                const expiry = payload.exp ? new Date(payload.exp * 1000) : 'unknown';
+                
+                authStatus.textContent = `Token found: ID=${payload.id || 'unknown'}, Role=${payload.role || 'unknown'}, Expires=${expiry}`;
+                authStatus.className = 'notification';
+                
+                log(`Auth token validated: ID=${payload.id || 'unknown'}, Role=${payload.role || 'unknown'}`, 'success');
+            } catch (error) {
+                authStatus.textContent = `Token validation error: ${error.message}`;
+                authStatus.className = 'error-notification';
+                log(`Auth token validation error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Make API request with detailed logging
+        async function makeRequest(url, method, body = null) {
+            const token = getAuthToken();
+            
+            log(`Making ${method} request to ${url}`, 'info');
+            
+            const headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            };
+            
+            if (token) {
+                headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+                log('Added Authorization header', 'info');
+            } else {
+                log('No Authorization header added (no token)', 'warning');
+            }
+            
+            const options = {
+                method,
+                headers,
+                credentials: 'same-origin'
+            };
+            
+            if (body && method !== 'GET' && method !== 'OPTIONS') {
+                options.body = JSON.stringify(body);
+                log(`Request body: ${JSON.stringify(body)}`, 'info');
+            }
+            
+            try {
+                log(`Sending request to ${url}...`, 'info');
+                const startTime = Date.now();
+                const response = await fetch(url, options);
+                const duration = Date.now() - startTime;
+                
+                log(`Response received in ${duration}ms with status: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                // Log response headers
+                log('Response headers:', 'info');
+                response.headers.forEach((value, key) => {
+                    log(`  ${key}: ${value}`, 'info');
+                });
+                
+                // Try to parse response as JSON
+                let responseData;
+                try {
+                    responseData = await response.json();
+                    log('Response data:', 'info');
+                    log(JSON.stringify(responseData, null, 2), 'info');
+                } catch (e) {
+                    const text = await response.text();
+                    log('Response is not JSON:', 'warning');
+                    log(text, 'info');
+                    responseData = { text };
+                }
+                
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: responseData,
+                    duration
+                };
+            } catch (error) {
+                log(`Request failed: ${error.message}`, 'error');
+                return {
+                    ok: false,
+                    status: 0,
+                    statusText: error.message,
+                    data: null,
+                    error
+                };
+            }
+        }
+        
+        // Test standard award points endpoint
+        document.getElementById('test-standard-endpoint').addEventListener('click', async function() {
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            log('Testing standard award points endpoint...', 'info');
+            
+            const result = await makeRequest('/api/businesses/award-points', 'POST', {
+                customerId,
+                programId,
+                points,
+                description,
+                source: 'VERIFICATION_TOOL'
+            });
+            
+            if (result.ok) {
+                updateTestResult('standard-endpoint-result', true, `Success (${result.status}): ${result.data?.message || 'Points awarded successfully'}`);
+            } else {
+                updateTestResult('standard-endpoint-result', false, `Failed (${result.status}): ${result.data?.error || result.statusText}`);
+            }
+        });
+        
+        // Test direct award points endpoint
+        document.getElementById('test-direct-endpoint').addEventListener('click', async function() {
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            log('Testing direct award points endpoint...', 'info');
+            
+            const result = await makeRequest('/api/direct/direct-award-points', 'POST', {
+                customerId,
+                programId,
+                points,
+                description,
+                source: 'VERIFICATION_TOOL'
+            });
+            
+            if (result.ok) {
+                updateTestResult('direct-endpoint-result', true, `Success (${result.status}): ${result.data?.message || 'Points awarded successfully'}`);
+            } else {
+                updateTestResult('direct-endpoint-result', false, `Failed (${result.status}): ${result.data?.error || result.statusText}`);
+            }
+        });
+        
+        // Test direct award function (if available)
+        document.getElementById('test-direct-award').addEventListener('click', async function() {
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            log('Testing direct award function (if available)...', 'info');
+            
+            if (typeof window.awardPointsDirectly === 'function') {
+                try {
+                    const result = await window.awardPointsDirectly(customerId, programId, points, description);
+                    
+                    if (result.success) {
+                        updateTestResult('direct-award-result', true, `Success: ${result.message || 'Points awarded successfully'}`);
+                        log('Direct award function succeeded', 'success');
+                    } else {
+                        updateTestResult('direct-award-result', false, `Failed: ${result.error || 'Unknown error'}`);
+                        log(`Direct award function failed: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    updateTestResult('direct-award-result', false, `Error: ${error.message}`);
+                    log(`Direct award function error: ${error.message}`, 'error');
+                }
+            } else {
+                updateTestResult('direct-award-result', false, 'Direct award function not available');
+                log('Direct award function (window.awardPointsDirectly) not found', 'error');
+                log('Try including fix-405-error.js in this page', 'info');
+            }
+        });
+        
+        // Test GET method
+        document.getElementById('test-get-method').addEventListener('click', async function() {
+            log('Testing GET method on award points endpoint...', 'info');
+            
+            const result = await makeRequest('/api/businesses/award-points', 'GET');
+            
+            // For GET, we expect a 405 error with proper allowed methods
+            if (result.status === 405 && result.data?.allowedMethods?.includes('POST')) {
+                updateTestResult('get-method-result', true, `Correct 405 response with allowed methods: ${result.data.allowedMethods}`);
+                log('GET method test passed: Received proper 405 with allowed methods', 'success');
+            } else if (result.ok) {
+                updateTestResult('get-method-result', false, `Unexpected success (${result.status}): GET should not be allowed`);
+                log('GET method test failed: Endpoint incorrectly accepted GET request', 'error');
+            } else {
+                updateTestResult('get-method-result', false, `Failed (${result.status}): ${result.data?.error || result.statusText}`);
+                log(`GET method test failed: ${result.data?.error || result.statusText}`, 'error');
+            }
+        });
+        
+        // Test OPTIONS method
+        document.getElementById('test-options-method').addEventListener('click', async function() {
+            log('Testing OPTIONS method on award points endpoint...', 'info');
+            
+            const result = await makeRequest('/api/businesses/award-points', 'OPTIONS');
+            
+            // For OPTIONS, we expect a 200 response with CORS headers
+            if (result.ok && result.status === 200) {
+                updateTestResult('options-method-result', true, `Success (${result.status}): OPTIONS request handled correctly`);
+                log('OPTIONS method test passed', 'success');
+            } else {
+                updateTestResult('options-method-result', false, `Failed (${result.status}): ${result.data?.error || result.statusText}`);
+                log(`OPTIONS method test failed: ${result.data?.error || result.statusText}`, 'error');
+            }
+        });
+        
+        // Test preflight request
+        document.getElementById('test-preflight').addEventListener('click', async function() {
+            log('Testing preflight request simulation...', 'info');
+            
+            // Simulate a preflight request
+            const result = await fetch('/api/businesses/award-points', {
+                method: 'OPTIONS',
+                headers: {
+                    'Origin': window.location.origin,
+                    'Access-Control-Request-Method': 'POST',
+                    'Access-Control-Request-Headers': 'Content-Type, Authorization'
+                }
+            });
+            
+            const headers = {};
+            result.headers.forEach((value, key) => {
+                headers[key] = value;
+                log(`  ${key}: ${value}`, 'info');
+            });
+            
+            // For preflight, we expect a 200 response with CORS headers
+            if (result.ok && result.status === 200) {
+                const corsHeadersPresent = headers['access-control-allow-origin'] || 
+                                          headers['access-control-allow-methods'] || 
+                                          headers['access-control-allow-headers'];
+                                          
+                if (corsHeadersPresent) {
+                    updateTestResult('preflight-result', true, `Success (${result.status}): Preflight request handled correctly with CORS headers`);
+                    log('Preflight test passed with CORS headers', 'success');
+                } else {
+                    updateTestResult('preflight-result', false, `Partial success (${result.status}): Missing CORS headers`);
+                    log('Preflight test partially passed: 200 response but missing CORS headers', 'warning');
+                }
+            } else {
+                updateTestResult('preflight-result', false, `Failed (${result.status}): Preflight request rejected`);
+                log(`Preflight test failed: ${result.statusText}`, 'error');
+            }
+        });
+        
+        // Test all endpoints
+        document.getElementById('test-all-endpoints').addEventListener('click', async function() {
+            log('Testing all possible award points endpoints...', 'info');
+            
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            const body = {
+                customerId,
+                programId,
+                points,
+                description,
+                source: 'VERIFICATION_TOOL'
+            };
+            
+            const endpoints = [
+                '/api/businesses/award-points',
+                '/api/direct/direct-award-points',
+                '/api/businesses/award-points-direct',
+                '/api/award-points',
+                '/businesses/award-points'
+            ];
+            
+            log(`Testing ${endpoints.length} endpoints with POST requests...`, 'info');
+            
+            for (const endpoint of endpoints) {
+                log(`Testing endpoint: ${endpoint}`, 'info');
+                const result = await makeRequest(endpoint, 'POST', body);
+                
+                if (result.ok) {
+                    log(`✅ SUCCESS: ${endpoint} - ${result.data?.message || 'Points awarded successfully'}`, 'success');
+                } else {
+                    log(`❌ FAILED: ${endpoint} - ${result.status} ${result.data?.error || result.statusText}`, 'error');
+                }
+            }
+            
+            log('Endpoint testing complete', 'info');
+        });
+        
+        // Test all methods
+        document.getElementById('test-all-methods').addEventListener('click', async function() {
+            log('Testing all HTTP methods on award points endpoint...', 'info');
+            
+            const methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'];
+            const endpoint = '/api/businesses/award-points';
+            
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            const body = {
+                customerId,
+                programId,
+                points,
+                description,
+                source: 'VERIFICATION_TOOL'
+            };
+            
+            log(`Testing ${methods.length} methods on ${endpoint}...`, 'info');
+            
+            for (const method of methods) {
+                log(`Testing method: ${method}`, 'info');
+                const result = await makeRequest(endpoint, method, method === 'GET' || method === 'HEAD' || method === 'OPTIONS' ? null : body);
+                
+                if (result.ok) {
+                    log(`✅ SUCCESS: ${method} ${endpoint} - ${result.status} ${result.statusText}`, 'success');
+                } else {
+                    log(`❌ FAILED: ${method} ${endpoint} - ${result.status} ${result.statusText}`, 'error');
+                }
+            }
+            
+            log('Method testing complete', 'info');
+        });
+        
+        // Test custom request
+        document.getElementById('test-custom-request').addEventListener('click', async function() {
+            const url = document.getElementById('custom-url').value;
+            const method = document.getElementById('custom-method').value;
+            
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseInt(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            
+            log(`Testing custom request: ${method} ${url}`, 'info');
+            
+            const body = method !== 'GET' && method !== 'OPTIONS' ? {
+                customerId,
+                programId,
+                points,
+                description,
+                source: 'VERIFICATION_TOOL'
+            } : null;
+            
+            const result = await makeRequest(url, method, body);
+            
+            if (result.ok) {
+                updateTestResult('custom-result', true, `Success (${result.status}): ${result.data?.message || 'Request succeeded'}`);
+                log(`Custom request succeeded: ${result.status} ${result.statusText}`, 'success');
+            } else {
+                updateTestResult('custom-result', false, `Failed (${result.status}): ${result.data?.error || result.statusText}`);
+                log(`Custom request failed: ${result.status} ${result.statusText}`, 'error');
+            }
+        });
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Award Points Verification Tool loaded', 'info');
+            log('Ready to diagnose award points system issues', 'info');
+            
+            // Check if fix-405-error.js is loaded
+            if (typeof window.awardPointsDirectly === 'function') {
+                log('fix-405-error.js is loaded and available', 'success');
+            } else {
+                log('fix-405-error.js is not loaded', 'warning');
+                log('Consider adding: <script src="/fix-405-error.js"></script>', 'info');
+            }
+            
+            // Check for auth token
+            const token = localStorage.getItem('token');
+            if (token) {
+                log('Auth token found in localStorage', 'success');
+            } else {
+                log('No auth token found in localStorage', 'warning');
+                log('You may need to provide a token in the "Auth Token" field', 'info');
+            }
+        });
+    </script>
+    
+    <!-- Include the fix script (optional) -->
+    <script src="/fix-405-error.js"></script>
+</body>
+</html> 
