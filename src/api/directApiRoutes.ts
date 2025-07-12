@@ -3,6 +3,8 @@
  * These routes directly interact with the database via SQL
  */
 
+console.log('🔧 Loading directApiRoutes.ts module...');
+
 import { Router, Request, Response } from 'express';
 import { auth } from '../middleware/auth';
 import { logger } from '../utils/logger';

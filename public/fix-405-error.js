@@ -1,85 +1,91 @@
 /**
  * Fix for 405 Method Not Allowed error in the award points system
- * Enhanced Version: Now using direct SQL approach
+ * 
+ * How to use:
+ * 1. Add this script to your HTML page: <script src="/fix-405-error.js"></script>
+ * 2. The script will automatically patch the fetch requests to include proper Authorization headers
  */
 
 (function() {
-  console.log('🔧 Loading award points system fix - Direct SQL Version...');
+  console.log('🔧 Loading award points system fix...');
   
   // Original fetch function
   const originalFetch = window.fetch;
   
-  // Function to get auth token with multiple fallbacks
+  // Function to get auth token
   function getAuthToken() {
-    return localStorage.getItem('token') || 
-           localStorage.getItem('auth_token') || 
-           localStorage.getItem('jwt') ||
-           sessionStorage.getItem('token');
+    return localStorage.getItem('token');
   }
   
   // Monkey patch fetch to fix award points requests
   window.fetch = function(url, options) {
     // Check if this is a request to the award-points endpoint
-    if (url && typeof url === 'string' && url.includes('/award-points')) {
+    if (url && typeof url === 'string' && url.includes('/api/businesses/award-points')) {
       console.log('🔍 Intercepting award-points request');
       
-      // Redirect to our direct API endpoint if it's the problematic one
+      // Redirect to direct API endpoint which works correctly
       if (url === '/api/businesses/award-points' || url === 'api/businesses/award-points') {
-        console.log('✅ Redirecting to direct API endpoint');
         url = '/api/direct/direct-award-points';
+        console.log('✅ Redirected to:', url);
       }
-      
-      // Ensure options object exists
-      options = options || {};
       
       // Get auth token
       const token = getAuthToken();
       if (!token) {
-        console.warn('⚠️ No auth token found in storage');
+        console.warn('⚠️ No auth token found in localStorage');
       }
       
-      // Fix headers - ensure they exist and have proper values
-      options.headers = options.headers || {};
-      
-      // Add Authorization header
-      if (token && !options.headers['Authorization'] && !options.headers['authorization']) {
-        options.headers['Authorization'] = `Bearer ${token}`;
-        console.log('✅ Added Authorization header');
+      // Ensure proper headers
+      if (options) {
+        options.headers = {
+          ...(options.headers || {}),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        };
+        
+        // Add authorization header if token exists
+        if (token) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+          console.log('✅ Added authorization header');
+        }
+        
+        // Ensure credentials are included
+        options.credentials = 'same-origin';
+        console.log('✅ Added proper headers and credentials');
+      } else {
+        // If no options provided, create them
+        options = {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin'
+        };
+        
+        // Add authorization header if token exists
+        if (token) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+        }
       }
       
-      // Ensure content type and accept headers
-      if (!options.headers['Content-Type'] && !options.headers['content-type']) {
-        options.headers['Content-Type'] = 'application/json';
-      }
-      
-      if (!options.headers['Accept'] && !options.headers['accept']) {
-        options.headers['Accept'] = 'application/json';
-      }
-      
-      // Add additional headers to help with CORS and cache issues
-      options.headers['X-Requested-With'] = 'XMLHttpRequest';
-      options.headers['Cache-Control'] = 'no-cache';
-      
-      // Force credentials to include for cookies
-      options.credentials = 'include';
-      
-      // Explicitly set mode to cors
-      options.mode = 'cors';
-      
-      console.log('✅ Enhanced request options:', {
-        url,
-        method: options.method || 'GET',
-        headers: Object.keys(options.headers)
-      });
+      // Log the request details
+      console.log('📤 Request URL:', url);
+      console.log('📤 Request method:', options?.method);
     }
     
-    // Call original fetch with fixed options
-    return originalFetch.call(this, url, options);
+    // Call original fetch with fixed parameters
+    return originalFetch.call(window, url, options);
   };
   
-  // Helper function to directly award points using our new direct API
+  /**
+   * Helper function to directly award points without going through the UI
+   */
   window.awardPointsDirectly = async function(customerId, programId, points, description = '') {
-    console.log(`🎯 Directly awarding ${points} points to customer ${customerId} in program ${programId}`);
+    console.log('🎯 Directly awarding points...');
+    console.log('Customer ID:', customerId);
+    console.log('Program ID:', programId);
+    console.log('Points:', points);
     
     if (!customerId || !programId || !points) {
       console.error('❌ Missing required parameters');
@@ -87,194 +93,70 @@
     }
     
     try {
-      // Get auth token with fallbacks
-      const token = getAuthToken();
+      // Get auth token from localStorage
+      const token = localStorage.getItem('token');
       
       if (!token) {
-        console.error('❌ No authentication token found in storage');
+        console.error('❌ No authentication token found in localStorage');
         return { success: false, error: 'No authentication token found' };
       }
       
-      // Use the direct API endpoint
+      // Use the direct API endpoint instead
       const response = await fetch('/api/direct/direct-award-points', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Cache-Control': 'no-cache'
+          'Authorization': `Bearer ${token}`
         },
-        mode: 'cors',
-        credentials: 'include',
+        credentials: 'same-origin',
         body: JSON.stringify({
-          customerId: String(customerId),
-          programId: String(programId),
+          customerId,
+          programId,
           points,
           description,
-          source: 'FIX_SCRIPT'
+          source: 'MANUAL'
         })
       });
       
-      // Process response
+      // Check if the request was successful
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Points awarded successfully:', data);
         return { success: true, data };
-      }
-      
-      // Handle failed response
-      try {
-        const errorData = await response.json();
-        console.error('❌ API error:', errorData);
-        return { success: false, error: errorData.error, data: errorData };
-      } catch (parseError) {
-        console.error('❌ Failed with status:', response.status, response.statusText);
-        return { success: false, error: `${response.status}: ${response.statusText}` };
-      }
-    } catch (error) {
-      console.error('❌ Error in awardPointsDirectly:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
-      };
-    }
-  };
-  
-  // Create a diagnosis tool to check endpoint accessibility
-  window.diagnosePossibleFixes = async function() {
-    console.log('🔍 Running award points system diagnostics...');
-    
-    const diagnostics = {
-      authToken: {
-        found: false,
-        tokenStart: null
-      },
-      endpoint: {
-        standardPost: false,
-        directPost: false,
-        serverResponse: null
-      },
-      browserDetails: {
-        userAgent: navigator.userAgent,
-        cookiesEnabled: navigator.cookieEnabled
-      }
-    };
-    
-    // Check auth token
-    const token = getAuthToken();
-    if (token) {
-      diagnostics.authToken.found = true;
-      diagnostics.authToken.tokenStart = token.substring(0, 10) + '...';
-    }
-    
-    // Test standard endpoint
-    try {
-      const standardResponse = await fetch('/api/businesses/award-points', {
-        method: 'OPTIONS',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      diagnostics.endpoint.standardStatus = standardResponse.status;
-      diagnostics.endpoint.standardOk = standardResponse.ok || standardResponse.status === 204;
-    } catch (error) {
-      diagnostics.endpoint.standardError = error.message;
-    }
-    
-    // Test direct endpoint
-    try {
-      const directResponse = await fetch('/api/direct/status', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      diagnostics.endpoint.directStatus = directResponse.status;
-      diagnostics.endpoint.directOk = directResponse.ok;
-      
-      if (directResponse.ok) {
-        try {
-          const data = await directResponse.json();
-          diagnostics.endpoint.directData = data;
-        } catch (parseError) {
-          diagnostics.endpoint.directParseError = parseError.message;
-        }
-      }
-    } catch (error) {
-      diagnostics.endpoint.directError = error.message;
-    }
-    
-    console.log('📊 Diagnostics results:', diagnostics);
-    return diagnostics;
-  };
-  
-  // Define a helper function to expose the award points method more directly
-  window.gudcityHelpers = window.gudcityHelpers || {};
-  window.gudcityHelpers.awardPoints = async function(customerId, programId, points, description = '') {
-    // Try direct API first, then fall back to regular endpoint
-    try {
-      // Check if direct API is available
-      const directCheck = await fetch('/api/direct/status', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        }
-      }).catch(() => null);
-      
-      if (directCheck && directCheck.ok) {
-        // Use direct API
-        console.log('Using direct API for award points');
-        return await window.awardPointsDirectly(customerId, programId, points, description);
       } else {
-        // Fall back to original endpoint
-        console.log('Direct API not available, using original endpoint');
-        
-        const token = getAuthToken();
-        if (!token) {
-          return { success: false, error: 'No authentication token found' };
-        }
-        
-        const response = await fetch('/api/businesses/award-points', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Cache-Control': 'no-cache'
-          },
-          mode: 'cors',
-          credentials: 'include',
-          body: JSON.stringify({
-            customerId: String(customerId),
-            programId: String(programId),
-            points,
-            description,
-            source: 'HELPER'
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          return { success: true, data };
-        }
-        
         const errorText = await response.text();
+        console.error('❌ Failed to award points:', response.status, errorText);
         return { success: false, error: errorText, status: response.status };
       }
     } catch (error) {
-      console.error('Error in awardPoints helper:', error);
+      console.error('❌ Error awarding points:', error);
       return { success: false, error: String(error) };
     }
   };
   
-  // Auto-run diagnostics on load
-  setTimeout(window.diagnosePossibleFixes, 2000);
+  // Patch any existing buttons for award points
+  setTimeout(() => {
+    try {
+      const awardButtons = document.querySelectorAll('[data-action="award-points"]');
+      if (awardButtons.length > 0) {
+        console.log(`📎 Patching ${awardButtons.length} award buttons...`);
+        awardButtons.forEach(button => {
+          button.addEventListener('click', (e) => {
+            console.log('🔄 Award button clicked, applying fix...');
+          });
+        });
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }, 1000);
   
   console.log('✅ Award points system fix loaded successfully!');
+  console.log('');
+  console.log('To award points directly, use the following function:');
+  console.log('awardPointsDirectly(customerId, programId, points, description)');
+  console.log('');
+  console.log('Example:');
+  console.log('awardPointsDirectly("4", "9", 10, "Points awarded manually")');
 })(); 

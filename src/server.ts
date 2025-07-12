@@ -44,11 +44,14 @@ if (isBrowser) {
   import { createServer } from 'http';
   import { Server, Socket } from 'socket.io';
 
-  // Import route files
+  // Import centralized API routes
+  import apiRoutes from './api/index';
+  // For backwards compatibility, keep direct imports
   import businessRoutes from './api/businessRoutes';
   import feedbackRoutes from './api/feedbackRoutes';
   import notificationRoutes from './api/notificationRoutes';
   import debugRoutes from './api/debugRoutes';
+  import directApiRoutes from './api/directApiRoutes';
   
   // Import custom middleware
   import { apiRequestLogger, corsMiddleware, methodNotAllowedHandler } from './middleware/apiErrorHandler';
@@ -101,10 +104,15 @@ if (isBrowser) {
 
   // API routes
   try {
+    // Use the centralized API routes - this includes all subroutes including direct API routes
+    app.use('/api', apiRoutes);
+    
+    // For backwards compatibility, keep these too
     app.use('/api/businesses', businessRoutes);
     app.use('/api', feedbackRoutes);
     app.use('/api', notificationRoutes);
     app.use('/api', debugRoutes);
+    app.use('/api/direct', directApiRoutes);
     
     // Add a fallback route handler for undefined routes
     app.use('/api/*', (req: express.Request, res: express.Response) => {
