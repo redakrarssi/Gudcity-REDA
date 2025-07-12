@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Award Points Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f9fc;
+      color: #333;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      color: #2c3e50;
+    }
+    h1 {
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    #log {
+      height: 200px;
+      overflow-y: auto;
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      padding: 10px;
+      font-family: monospace;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+    .auth-status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    .auth-status.logged-in {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .auth-status.logged-out {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Award Points Test Tool</h1>
+    <div id="auth-status" class="auth-status"></div>
+    
+    <div id="login-form" class="card">
+      <h2>Login</h2>
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" value="business@example.com">
+      </div>
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" value="password123">
+      </div>
+      <button id="login-btn">Login</button>
+    </div>
+
+    <div id="award-form" class="card">
+      <h2>Award Points</h2>
+      <div class="form-group">
+        <label for="customer-id">Customer ID:</label>
+        <input type="text" id="customer-id" value="4">
+      </div>
+      <div class="form-group">
+        <label for="program-id">Program ID:</label>
+        <input type="text" id="program-id" value="7">
+      </div>
+      <div class="form-group">
+        <label for="points">Points:</label>
+        <input type="number" id="points" value="10">
+      </div>
+      <div class="form-group">
+        <label for="description">Description:</label>
+        <input type="text" id="description" value="Test award points">
+      </div>
+      <button id="award-btn">Award Points</button>
+      <div id="result" class="result"></div>
+    </div>
+    
+    <div>
+      <h2>Debug Log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- Load the award points fix script -->
+  <script src="/award-points-fix.js"></script>
+  
+  <script>
+    // Helper to log messages to UI
+    function log(message, type = 'info') {
+      const logElement = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      
+      if (type === 'error') {
+        entry.style.color = '#e74c3c';
+      } else if (type === 'success') {
+        entry.style.color = '#2ecc71';
+      }
+      
+      logElement.appendChild(entry);
+      logElement.scrollTop = logElement.scrollHeight;
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    // Check if user is logged in
+    function checkAuthStatus() {
+      const token = localStorage.getItem('token');
+      const authStatus = document.getElementById('auth-status');
+      
+      if (token) {
+        authStatus.textContent = '✅ Logged in';
+        authStatus.className = 'auth-status logged-in';
+        document.getElementById('login-form').style.display = 'none';
+        log('User is logged in with token', 'success');
+      } else {
+        authStatus.textContent = '❌ Not logged in';
+        authStatus.className = 'auth-status logged-out';
+        document.getElementById('login-form').style.display = 'block';
+        log('No auth token found', 'error');
+      }
+    }
+
+    // Login function
+    async function login(email, password) {
+      try {
+        log(`Logging in with ${email}...`);
+        
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+            log('Login successful!', 'success');
+            checkAuthStatus();
+          } else {
+            log('Login response missing token', 'error');
+          }
+        } else {
+          const errorText = await response.text();
+          log(`Login failed: ${errorText}`, 'error');
+        }
+      } catch (error) {
+        log(`Login error: ${error.message}`, 'error');
+      }
+    }
+
+    // Award points function
+    async function awardPoints(customerId, programId, points, description) {
+      try {
+        log(`Awarding ${points} points to customer ${customerId} in program ${programId}...`);
+        
+        // Use the awardPointsDirectly function from our fix script
+        const result = await window.awardPointsDirectly(customerId, programId, points, description);
+        
+        const resultElement = document.getElementById('result');
+        
+        if (result.success) {
+          resultElement.textContent = `✅ Success! Awarded ${points} points to customer ${customerId}`;
+          resultElement.className = 'result success';
+          log('Points awarded successfully', 'success');
+        } else {
+          resultElement.textContent = `❌ Error: ${result.error}`;
+          resultElement.className = 'result error';
+          log(`Failed to award points: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        const resultElement = document.getElementById('result');
+        resultElement.textContent = `❌ Error: ${error.message}`;
+        resultElement.className = 'result error';
+        log(`Error awarding points: ${error.message}`, 'error');
+      }
+    }
+
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check auth status on load
+      checkAuthStatus();
+      
+      // Login button click handler
+      document.getElementById('login-btn').addEventListener('click', () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        login(email, password);
+      });
+      
+      // Award points button click handler
+      document.getElementById('award-btn').addEventListener('click', () => {
+        const customerId = document.getElementById('customer-id').value;
+        const programId = document.getElementById('program-id').value;
+        const points = parseInt(document.getElementById('points').value);
+        const description = document.getElementById('description').value;
+        
+        if (!customerId || !programId || isNaN(points) || points <= 0) {
+          log('Invalid input parameters', 'error');
+          return;
+        }
+        
+        awardPoints(customerId, programId, points, description);
+      });
+      
+      log('Test tool loaded', 'info');
+    });
+  </script>
+</body>
+</html> 

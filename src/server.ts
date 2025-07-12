@@ -107,11 +107,14 @@ if (isBrowser) {
     // Use the centralized API routes - this includes all subroutes including direct API routes
     app.use('/api', apiRoutes);
     
-    // For backwards compatibility, keep these too
-    app.use('/api/businesses', businessRoutes);
-    app.use('/api', feedbackRoutes);
-    app.use('/api', notificationRoutes);
-    app.use('/api', debugRoutes);
+    // REMOVE DUPLICATE ROUTES - they're already included in apiRoutes
+    // These duplicate registrations are likely causing the 405 errors
+    // app.use('/api/businesses', businessRoutes);
+    // app.use('/api', feedbackRoutes);
+    // app.use('/api', notificationRoutes);
+    // app.use('/api', debugRoutes);
+    
+    // Keep direct routes access as a fallback
     app.use('/api/direct', directApiRoutes);
     
     // Add a fallback route handler for undefined routes

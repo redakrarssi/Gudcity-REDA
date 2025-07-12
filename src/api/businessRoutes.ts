@@ -20,11 +20,26 @@ router.use((req: Request, res: Response, next: NextFunction) => {
  * Award points to a customer's loyalty card
  */
 router.post('/award-points', auth, async (req: Request, res: Response) => {
-  // Debug log for 405 error
-  console.log('ROUTE ACCESSED: POST /api/businesses/award-points');
-  console.log('Request body:', req.body);
+  // Enhanced debugging for 405 error
+  console.log('🔍 ROUTE ACCESSED: POST /api/businesses/award-points');
+  console.log('🔍 Request method:', req.method);
+  console.log('🔍 Request URL:', req.originalUrl);
+  console.log('🔍 Request headers:', JSON.stringify(req.headers));
+  console.log('🔍 Request body:', req.body);
   
   const { customerId, programId, points, description, source, transactionRef: clientTxRef, sendNotification = true } = req.body;
+  
+  // Validate required parameters are present
+  if (!customerId || !programId || !points) {
+    console.error('❌ Missing required fields in award-points request');
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Missing required fields',
+      requiredFields: ['customerId', 'programId', 'points'],
+      providedFields: Object.keys(req.body)
+    });
+  }
+  
   const businessIdStr = String(req.user!.id);
   const customerIdStr = String(customerId);
   const programIdStr = String(programId);
