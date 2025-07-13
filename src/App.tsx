@@ -45,6 +45,7 @@ import { registerNotificationListeners } from './utils/notificationHandler';
 import { queryClient } from './utils/queryClient';
 import { toast } from 'react-hot-toast';
 import AuthMonitor from './components/AuthMonitor';
+import CustomerNotificationsPage from './pages/customer/Notifications';
 
 // Import auth interceptor
 import './utils/authInterceptor';
@@ -231,6 +232,13 @@ function App() {
                 <Route path="/cards" element={
                   <ErrorBoundary>
                     <CustomerCards />
+                  </ErrorBoundary>
+                } />
+                <Route path="/notifications" element={
+                  <ErrorBoundary>
+                    <ProtectedRoute>
+                      <CustomerNotificationsPage />
+                    </ProtectedRoute>
                   </ErrorBoundary>
                 } />
                 <Route path="/promotions" element={

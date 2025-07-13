@@ -5,6 +5,8 @@
  * with multiple fallbacks to ensure 100% success rate.
  */
 
+import { syncCardPoints } from './cardSyncUtil';
+
 // Add type definition for window.awardPointsWithFallback
 declare global {
   interface Window {
@@ -167,6 +169,9 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
         );
         
         if (result && result.success) {
+          // Create notification and sync card
+          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
+          
           return {
             success: true,
             message: result.message || `Successfully awarded ${points} points`,
@@ -194,6 +199,9 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
         );
         
         if (result && result.success) {
+          // Create notification and sync card
+          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
+          
           return {
             success: true,
             message: result.message || `Successfully awarded ${points} points`,
@@ -258,6 +266,8 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
         
         if (response.ok) {
           const data = await response.json();
+          // Create notification and sync card
+          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
           return {
             success: true,
             message: data.message || `Successfully awarded ${points} points`,
@@ -270,6 +280,10 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
         // Continue to next endpoint
       }
     }
+
+    // If any method succeeds, add this block to trigger notifications
+    // Create notification and sync card
+    triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
 
     // Method 4: Store in localStorage for offline processing
     if (onProgress) onProgress('Storing for offline processing...');
@@ -295,6 +309,9 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
       
       // Save back to localStorage
       localStorage.setItem('pendingPointTransactions', JSON.stringify(pendingTransactions));
+      
+      // Create notification and sync card
+      triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
       
       return {
         success: true,
@@ -322,6 +339,51 @@ export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPoi
   }
 };
 
+/**
+ * Helper function to trigger points awarded events and notifications
+ */
+export const triggerPointsAwardedEvents = (
+  customerId: string, 
+  businessId: string,
+  programId: string,
+  points: number
+): void => {
+  try {
+    // Create notification event
+    const notificationEvent = new CustomEvent('points-awarded', {
+      detail: {
+        customerId,
+        businessId,
+        programId,
+        points,
+        timestamp: new Date().toISOString()
+      }
+    });
+    window.dispatchEvent(notificationEvent);
+    
+    // Store in localStorage for persistence across page refreshes
+    localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify({
+      type: 'POINTS_ADDED',
+      customerId,
+      businessId,
+      programId,
+      points,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Sync card points
+    syncCardPoints(
+      `card-${customerId}-${programId}`,
+      customerId,
+      businessId,
+      programId,
+      points
+    ).catch(error => console.error('Error syncing card points:', error));
+  } catch (error) {
+    console.error('Error triggering points awarded events:', error);
+  }
+};
+
 // Automatically load emergency fix script when this module is imported
 loadEmergencyFixScript();
 
@@ -329,5 +391,6 @@ export default {
   awardPoints,
   ensureAuthToken,
   getAuthToken,
-  loadEmergencyFixScript
+  loadEmergencyFixScript,
+  triggerPointsAwardedEvents
 }; 

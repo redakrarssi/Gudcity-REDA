@@ -4,6 +4,7 @@ import { Award, AlertCircle, RefreshCw, Bug, XCircle, CheckCircle, User, Gift, X
 import { useQueryClient } from '@tanstack/react-query';
 import { LoyaltyCardQrCodeData, CustomerQrCodeData } from '../../types/qrCode';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { syncCardPoints } from '../../utils/cardSyncUtil';
 
 // Add type definition for window.awardPointsWithFallback
 declare global {
@@ -357,6 +358,29 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
     if (scanData && scanData.customerId) {
       queryClient.invalidateQueries({queryKey: ['customerPoints', scanData.customerId]});
       queryClient.invalidateQueries({queryKey: ['loyaltyCards', scanData.customerId]});
+      
+      // Use the new card sync utility
+      if (selectedProgramId && businessId) {
+        syncCardPoints(
+          scanData.type === 'loyaltyCard' ? scanData.cardId : `card-${Date.now()}`,
+          scanData.customerId.toString(),
+          businessId.toString(),
+          selectedProgramId,
+          points
+        ).catch(error => console.error('Error syncing card points:', error));
+      }
+      
+      // Create notification event
+      const notificationEvent = new CustomEvent('points-awarded', {
+        detail: {
+          customerId: scanData.customerId.toString(),
+          businessId: businessId.toString(),
+          programId: selectedProgramId,
+          points,
+          timestamp: new Date().toISOString()
+        }
+      });
+      window.dispatchEvent(notificationEvent);
     }
     
     if (onSuccess) {

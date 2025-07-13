@@ -1,6 +1,6 @@
 import React, { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
   CreditCard, 
@@ -10,7 +10,8 @@ import {
   LogOut, 
   QrCode,
   X,
-  Menu
+  Menu,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { NotificationProvider } from '../../contexts/NotificationContext';
@@ -26,6 +27,7 @@ interface CustomerLayoutProps {
 export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const { logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -70,6 +72,11 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+  // Handle notification bell click
+  const handleNotificationClick = () => {
+    navigate('/notifications');
+  };
+
   return (
     <NotificationProvider>
       <div className="flex h-screen bg-gray-50">
@@ -81,7 +88,13 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               <p className="text-sm text-gray-500 mt-1">{t('Rewards')}</p>
             </div>
             <div className="flex items-center space-x-2">
-              <NotificationIndicator />
+              <button 
+                onClick={handleNotificationClick}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+                aria-label="Notifications"
+              >
+                <NotificationIndicator />
+              </button>
               <ThemeToggle variant="icon" />
             </div>
           </div>
@@ -128,7 +141,13 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
               <div className="flex items-center">
                 <ThemeToggle variant="icon" className="mr-2" />
-                <NotificationIndicator className="mr-2" />
+                <button 
+                  onClick={handleNotificationClick}
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none mr-2"
+                  aria-label="Notifications"
+                >
+                  <NotificationIndicator className="mr-2" />
+                </button>
                 <button 
                   className="p-1 text-gray-600"
                   onClick={toggleMobileMenu}

@@ -13,6 +13,8 @@ import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
 import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
+import PointsNotificationHandler from '../../components/notifications/PointsNotificationHandler';
+import { ensureCardSync } from '../../utils/cardSyncUtil';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -196,6 +198,9 @@ const CustomerCards = () => {
         // Then refresh the cards data
         refetch();
       });
+      
+      // Also ensure card sync using our utility
+      ensureCardSync(user.id.toString());
     }
 
     // Setup visibility change listener to refresh when returning to the page
@@ -203,6 +208,7 @@ const CustomerCards = () => {
       if (document.visibilityState === 'visible' && user?.id) {
         console.log('Page became visible, refreshing cards');
         syncEnrollments().then(() => refetch());
+        ensureCardSync(user.id.toString());
       }
     };
 
@@ -748,6 +754,10 @@ const CustomerCards = () => {
 
   return (
     <CustomerLayout>
+      {/* Add the PointsNotificationHandler */}
+      <PointsNotificationHandler addNotification={addNotification} />
+      
+      {/* Rest of the component */}
       <div className="p-4 md:p-6 lg:p-8 space-y-8">
         {/* Total Enrollment Count */}
         <AnimatePresence>
