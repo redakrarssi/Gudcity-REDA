@@ -101,49 +101,32 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
+  }, []);
 
-    // Ensure the emergency fix script is loaded
-    const loadEmergencyFix = () => {
-      const existingScript = document.querySelector('script[src="/fix-405-error.js"]');
-      if (!existingScript) {
-        const script = document.createElement('script');
-        script.src = '/fix-405-error.js';
-        script.async = true;
-        document.body.appendChild(script);
-        console.log('Emergency fix script loaded for award points');
+  // Load business programs
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      if (user?.id) {
+        setIsLoading(true);
+        try {
+          const businessId = ensureId(user.id);
+          const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
+          setPrograms(businessPrograms);
+          
+          // Set the first program as default if available
+          if (businessPrograms.length > 0) {
+            setSelectedProgramId(businessPrograms[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching business programs:', error);
+        } finally {
+          setIsLoading(false);
+        }
       }
     };
     
-    loadEmergencyFix();
-  }, []);
-
-  // Load programs when user changes
-  useEffect(() => {
-    if (user?.id) {
-      fetchPrograms();
-    }
-  }, [user?.id]);
-
-  // Fetch loyalty programs for the business
-  const fetchPrograms = async () => {
-    if (!user?.id) return;
-    
-    setIsLoading(true);
-    try {
-      const businessId = ensureId(user.id);
-      const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
-      setPrograms(businessPrograms);
-      
-      // Set the first program as default if available
-      if (businessPrograms.length > 0) {
-        setSelectedProgramId(businessPrograms[0].id);
-      }
-    } catch (error) {
-      console.error('Error fetching business programs:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    fetchPrograms();
+  }, [user]);
 
   // Save scan results to localStorage whenever they change
   useEffect(() => {
@@ -177,16 +160,15 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     }
     
     // Always show customer details first for customer QR codes
-    // Important: NEVER show points awarding modal automatically
     if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
       setSelectedCustomerData(result.data);
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Do NOT add setShowPointsAwardingModal(true) here - we don't want it to show automatically
+      // Don't automatically show points awarding modal - customer details will have the award points option
     } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Do NOT add setShowPointsAwardingModal(true) here - we don't want it to show automatically
+      // Don't automatically show points awarding modal - customer details will have the award points option
     }
     
     // Call the onScan prop if provided

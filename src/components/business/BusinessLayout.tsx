@@ -1,221 +1,264 @@
-import React, { useState, useEffect } from 'react';
+import React, { ReactNode, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, 
-  Users, 
-  Settings, 
-  Bell, 
-  Menu, 
-  X,
-  LogOut, 
   CreditCard, 
-  BarChart2, 
+  BarChart3, 
+  Users, 
   Gift, 
-  Coffee,
+  Settings, 
+  LogOut, 
   QrCode,
-  Scan
+  X,
+  Menu,
+  Bell
 } from 'lucide-react';
+import { IconBell } from '../icons/IconBell';
+import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
-import NotificationIndicator from '../notifications/NotificationIndicator';
-import Footer from '../layout/Footer';
+import { ThemeToggle } from '../ui/ThemeToggle';
+import { NotificationService } from '../../services/notificationService';
 
 interface BusinessLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
-  const { pathname } = useLocation();
-  const { user, logout } = useAuth();
+  const { t } = useTranslation();
+  const location = useLocation();
+  const { logout, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showQrButton, setShowQrButton] = useState(true);
-  
-  // Close mobile menu when navigating
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
-  
-  // Hide QR button on QR scanner page
-  useEffect(() => {
-    if (pathname === '/business/qr-scanner') {
-      setShowQrButton(false);
-    } else {
-      setShowQrButton(true);
-    }
-  }, [pathname]);
+  const [hasNotifications, setHasNotifications] = useState(false);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
 
-  const businessNavLinks = [
+  useEffect(() => {
+    // Check for pending redemption notifications
+    const checkNotifications = async () => {
+      if (user?.id) {
+        try {
+          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          if (result.success) {
+            // Check if there are any pending notifications
+            const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
+            setHasNotifications(pendingNotifications.length > 0);
+          }
+        } catch (error) {
+          console.error('Error checking notifications:', error);
+        }
+      }
+    };
+
+    checkNotifications();
+
+    // Listen for real-time notification updates
+    const handleNotificationEvent = () => {
+      checkNotifications();
+    };
+
+    window.addEventListener('redemption-notification', handleNotificationEvent);
+
+    return () => {
+      window.removeEventListener('redemption-notification', handleNotificationEvent);
+    };
+  }, [user]);
+
+  const menuItems = [
     { 
-      name: 'Dashboard', 
-      path: '/business/dashboard', 
-      icon: <Home className="h-5 w-5" />
+      name: t('Dashboard'), 
+      icon: <Home className="w-5 h-5" />, 
+      path: '/business/dashboard' 
     },
     { 
-      name: 'Customers', 
-      path: '/business/customers', 
-      icon: <Users className="h-5 w-5" />
+      name: t('Programs'), 
+      icon: <CreditCard className="w-5 h-5" />, 
+      path: '/business/programs' 
     },
     { 
-      name: 'Cards', 
-      path: '/business/loyalty-cards', 
-      icon: <CreditCard className="h-5 w-5" />
+      name: t('Analytics'), 
+      icon: <BarChart3 className="w-5 h-5" />, 
+      path: '/business/analytics' 
     },
     { 
-      name: 'Programs', 
-      path: '/business/loyalty-programs', 
-      icon: <Coffee className="h-5 w-5" />
+      name: t('Customers'), 
+      icon: <Users className="w-5 h-5" />, 
+      path: '/business/customers' 
     },
     { 
-      name: 'Analytics', 
-      path: '/business/analytics', 
-      icon: <BarChart2 className="h-5 w-5" />
+      name: t('Promotions'), 
+      icon: <Gift className="w-5 h-5" />, 
+      path: '/business/promotions' 
     },
     { 
-      name: 'Promotions', 
-      path: '/business/promotions', 
-      icon: <Gift className="h-5 w-5" />
+      name: t('QR Scanner'), 
+      icon: (
+        <div className="relative">
+          <QrCode className="w-5 h-5" />
+          {hasNotifications && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white"></span>
+          )}
+        </div>
+      ), 
+      path: '/business/qr-scanner' 
     },
     { 
-      name: 'Settings', 
-      path: '/business/settings', 
-      icon: <Settings className="h-5 w-5" />
+      name: t('Test QR Codes'), 
+      icon: <QrCode className="w-5 h-5" />, 
+      path: '/business/test-codes' 
     },
+    { 
+      name: t('Settings'), 
+      icon: <Settings className="w-5 h-5" />, 
+      path: '/business/settings' 
+    }
   ];
 
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    logout();
+  };
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
-          {/* Logo and title */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link to="/business/dashboard" className="flex items-center">
-              <span className="text-xl font-bold text-indigo-600">GudCity</span>
-              <span className="ml-1 text-sm text-gray-500">Business</span>
-            </Link>
-          </div>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-8">
-            {businessNavLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`inline-flex items-center px-1 pt-1 text-sm font-medium ${
-                  pathname === link.path
-                    ? 'text-indigo-600 border-b-2 border-indigo-500'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300'
-                } transition-colors`}
+    <>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar */}
+        <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
+          <div className="p-6 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
+              <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                className="relative p-1"
+                onClick={() => setShowNotificationCenter(true)}
+                aria-label="Notifications"
               >
-                {link.name}
-              </Link>
-            ))}
-            
-            <Link
-              to="/business/qr-scanner"
-              className={`inline-flex items-center px-1 pt-1 text-sm font-medium ${
-                pathname === '/business/qr-scanner'
-                  ? 'text-indigo-600 border-b-2 border-indigo-500'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300'
-              } transition-colors`}
-            >
-              <QrCode className="h-5 w-5 mr-1" />
-              QR Scanner
-            </Link>
-          </nav>
-
-          {/* User menu and mobile menu button */}
-          <div className="flex items-center space-x-4">
-            <Link 
-              to="/business/notifications" 
-              className="text-gray-500 hover:text-gray-600 transition-colors p-1 relative"
-            >
-              <Bell className="h-6 w-6" />
-              <NotificationIndicator />
-            </Link>
-            
-            <button 
-              onClick={() => logout()}
-              className="hidden md:flex items-center text-gray-500 hover:text-gray-600 transition-colors"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
-            
-            {/* Mobile menu button */}
-            <button
-              type="button"
-              className="md:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
+                <IconBell showNotification={hasNotifications} />
+              </button>
+              <ThemeToggle variant="icon" />
+            </div>
           </div>
-        </div>
-      </header>
 
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white shadow-lg z-30">
-          <div className="px-2 pt-2 pb-3 space-y-1">
-            {businessNavLinks.map((link) => (
+          <nav className="flex-1 px-4 pb-4 space-y-1">
+            {menuItems.map((item) => (
               <Link
-                key={link.path}
-                to={link.path}
-                className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
-                  pathname === link.path
-                    ? 'bg-indigo-50 text-indigo-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                key={item.path}
+                to={item.path}
+                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                  isActive(item.path)
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                {link.icon}
-                <span className="ml-2">{link.name}</span>
+                {item.icon}
+                <span className="ml-3">{item.name}</span>
               </Link>
             ))}
-            
-            <Link
-              to="/business/qr-scanner"
-              className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${
-                pathname === '/business/qr-scanner'
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <QrCode className="h-5 w-5" />
-              <span className="ml-2">QR Scanner</span>
-            </Link>
-            
-            <hr className="my-2 border-gray-200" />
-            
+          </nav>
+
+          <div className="border-t border-gray-200 p-4">
             <button
-              onClick={() => logout()}
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 w-full text-left flex items-center"
+              onClick={handleLogout}
+              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
             >
-              <LogOut className="h-5 w-5" />
-              <span className="ml-2">Logout</span>
+              <LogOut className="w-5 h-5" />
+              <span className="ml-3">{t('Logout')}</span>
             </button>
           </div>
+        </aside>
+
+        {/* Mobile header */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <header className="bg-white border-b border-gray-200 md:hidden">
+            <div className="flex items-center justify-between p-4">
+              <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
+              <div className="flex items-center">
+                <ThemeToggle variant="icon" className="mr-2" />
+                <button
+                  className="p-1 mr-2 text-gray-600 relative"
+                  onClick={() => setShowNotificationCenter(true)}
+                  aria-label="Notifications"
+                >
+                  <IconBell showNotification={hasNotifications} className="w-6 h-6" />
+                </button>
+                <button 
+                  className="p-1 text-gray-600"
+                  onClick={toggleMobileMenu}
+                >
+                  {mobileMenuOpen ? (
+                    <X className="w-6 h-6" />
+                  ) : (
+                    <Menu className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Menu */}
+            {mobileMenuOpen && (
+              <div className="bg-white border-b border-gray-200 py-2">
+                <nav className="px-4 space-y-1">
+                  {menuItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                        isActive(item.path)
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.icon}
+                      <span className="ml-3">{item.name}</span>
+                    </Link>
+                  ))}
+                  <button
+                    onClick={(e) => {
+                      handleLogout(e);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="ml-3">{t('Logout')}</span>
+                  </button>
+                </nav>
+              </div>
+            )}
+          </header>
+
+          <main className="flex-1 overflow-auto bg-gray-50 p-4">
+            <div className="max-w-7xl mx-auto">
+              {children}
+            </div>
+          </main>
+
+          {/* Notification Drawer */}
+          <BusinessNotificationCenter
+            isOpen={showNotificationCenter}
+            onClose={() => setShowNotificationCenter(false)}
+          />
         </div>
-      )}
+      </div>
 
-      {/* Main content */}
-      <main className="flex-1">
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          {children}
-        </div>
-      </main>
-
-      {/* Floating QR scanner button */}
-      {showQrButton && (
-        <Link
-          to="/business/qr-scanner"
-          className="award-points-helper"
-          aria-label="QR Scanner"
-        >
-          <Scan className="h-6 w-6" />
-        </Link>
-      )}
-
-      {/* Footer */}
-      <Footer />
-    </div>
+      {/* Floating QR Scanner Button */}
+      <Link 
+        to="/business/qr-scanner"
+        className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors z-40"
+        aria-label="Open QR Scanner"
+      >
+        <QrCode className="w-6 h-6" />
+      </Link>
+    </>
   );
 }; 

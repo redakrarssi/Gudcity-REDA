@@ -1,396 +1,217 @@
 /**
  * Award Points Utility
  * 
- * This utility provides a reliable way to award points in the loyalty system
- * with multiple fallbacks to ensure 100% success rate.
+ * This utility provides functions for awarding points with fallback to multiple endpoints.
  */
 
-import { syncCardPoints } from './cardSyncUtil';
-
-// Add type definition for window.awardPointsWithFallback
-declare global {
-  interface Window {
-    awardPointsWithFallback?: (
-      customerId: string, 
-      programId: string, 
-      points: number, 
-      description?: string, 
-      source?: string
-    ) => Promise<{ success: boolean; message?: string; error?: string; data?: any; endpoint?: string }>;
-    gudcityHelpers?: {
-      awardPoints?: (
-        customerId: string, 
-        programId: string, 
-        points: number, 
-        description?: string, 
-        source?: string
-      ) => Promise<{ success: boolean; message?: string; error?: string }>;
-    };
-  }
-}
-
-/**
- * Ensure the emergency fix script is loaded
- */
-export const loadEmergencyFixScript = (): Promise<void> => {
-  return new Promise((resolve) => {
-    const existingScript = document.querySelector('script[src="/fix-405-error.js"]');
-    if (existingScript) {
-      resolve();
-      return;
-    }
-    
-    const script = document.createElement('script');
-    script.src = '/fix-405-error.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      console.error('Failed to load emergency fix script');
-      resolve(); // Resolve anyway to continue with fallbacks
-    };
-    
-    document.body.appendChild(script);
-    console.log('Emergency fix script loaded for award points');
-  });
-};
-
-/**
- * Ensure auth token exists to fix auth issues
- */
-export const ensureAuthToken = (): string | null => {
-  const authUserData = localStorage.getItem('authUserData');
-  const authUserId = localStorage.getItem('authUserId');
-  
-  // Check if token already exists
-  const existingToken = getAuthToken();
-  if (existingToken) {
-    return existingToken;
-  }
-  
-  if (authUserData && authUserId) {
-    try {
-      const userData = JSON.parse(authUserData);
-      const email = userData.email || 'user@example.com';
-      const role = userData.role || 'business';
-      
-      // Create token payload
-      const tokenPayload = `${authUserId}:${email}:${role}`;
-      const token = btoa(tokenPayload);
-      
-      // Store token in multiple locations for maximum compatibility
-      localStorage.setItem('token', token);
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('jwt', token);
-      sessionStorage.setItem('token', token);
-      
-      return token;
-    } catch (error) {
-      console.error('Error creating auth token:', error);
-    }
-  }
-  
-  return null;
-};
-
-/**
- * Get current auth token with fallbacks
- */
-export const getAuthToken = (): string | null => {
-  return localStorage.getItem('token') || 
-         localStorage.getItem('auth_token') || 
-         localStorage.getItem('authToken') || 
-         localStorage.getItem('jwt') || 
-         sessionStorage.getItem('token');
-};
-
-/**
- * Interface for award points options
- */
-export interface AwardPointsOptions {
-  customerId: string;
-  programId: string;
-  points: number;
-  description?: string;
-  source?: string;
-  transactionRef?: string;
-  businessId?: string;
-  onProgress?: (status: string) => void;
-}
-
-/**
- * Award points response interface
- */
-export interface AwardPointsResponse {
+interface AwardPointsResult {
   success: boolean;
   message?: string;
   error?: string;
-  points?: number;
-  method?: string;
-  offline?: boolean;
+  data?: any;
+  endpoint?: string;
+}
+
+interface AwardPointsOptions {
+  customerId: string | number;
+  programId: string | number;
+  points: number;
+  description?: string;
+  source?: string;
 }
 
 /**
- * Award points with multiple fallbacks for 100% reliability
+ * Award points with automatic fallback to alternative endpoints
  */
-export const awardPoints = async (options: AwardPointsOptions): Promise<AwardPointsResponse> => {
-  const { 
-    customerId, 
-    programId, 
-    points, 
-    description = 'Points awarded via QR scanner', 
-    source = 'QR_SCAN',
-    onProgress
-  } = options;
-  
-  // Generate a unique transaction reference if not provided
-  const transactionRef = options.transactionRef || `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  
-  // Ensure emergency fix script is loaded
-  await loadEmergencyFixScript();
-  
-  // Fix auth token issues preemptively
-  if (!getAuthToken()) {
-    ensureAuthToken();
-  }
-
-  try {
-    // Method 1: Try using the emergency fix function if available
-    if (onProgress) onProgress('Using emergency fix...');
-    
-    if (window.awardPointsWithFallback) {
-      try {
-        const result = await window.awardPointsWithFallback(
-          customerId, 
-          programId, 
-          points,
-          description,
-          source
-        );
-        
-        if (result && result.success) {
-          // Create notification and sync card
-          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
-          
-          return {
-            success: true,
-            message: result.message || `Successfully awarded ${points} points`,
-            points,
-            method: 'emergency-fix'
-          };
-        }
-      } catch (error) {
-        console.error('Error using award points fallback:', error);
-        // Continue to next method if this one fails
-      }
-    }
-    
-    // Method 2: Try using gudcityHelpers if available
-    if (onProgress) onProgress('Using helper functions...');
-    
-    if (window.gudcityHelpers?.awardPoints) {
-      try {
-        const result = await window.gudcityHelpers.awardPoints(
-          customerId,
-          programId,
-          points,
-          description,
-          source
-        );
-        
-        if (result && result.success) {
-          // Create notification and sync card
-          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
-          
-          return {
-            success: true,
-            message: result.message || `Successfully awarded ${points} points`,
-            points,
-            method: 'gudcity-helpers'
-          };
-        }
-      } catch (error) {
-        console.error('Error using gudcityHelpers:', error);
-        // Continue to next method if this one fails
-      }
-    }
-
-    // Method 3: Try multiple endpoints with proper error handling
-    const endpoints = [
-      '/api/direct/direct-award-points',
-      '/api/businesses/award-points',
-      '/api/businesses/award-points-direct',
-      '/api/businesses/award-points-emergency',
-      '/api/direct/award-points-emergency',
-      '/award-points-emergency'
-    ];
-    
-    // Prepare the payload once
-    const payload = {
-      customerId: customerId.toString(),
-      programId: programId.toString(),
-      points: Number(points),
-      description,
-      source,
-      transactionRef,
-      businessId: options.businessId
+export async function awardPoints({
+  customerId,
+  programId,
+  points,
+  description = '',
+  source = 'UTIL'
+}: AwardPointsOptions): Promise<AwardPointsResult> {
+  if (!customerId || !programId || !points || points <= 0) {
+    return { 
+      success: false, 
+      error: 'Invalid input parameters' 
     };
-
-    // Try each endpoint in sequence
-    for (const endpoint of endpoints) {
-      if (onProgress) onProgress(`Trying endpoint: ${endpoint}`);
-      
-      try {
-        // Get a fresh token for each attempt
-        const authToken = getAuthToken();
-        
-        if (!authToken) {
-          // Try to create a token
-          ensureAuthToken();
-          continue; // Skip to next endpoint if token creation fails
-        }
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': authToken.startsWith('Bearer ') ? authToken : `Bearer ${authToken}`,
-            'X-Direct-Award': 'true',
-            'X-Bypass-Auth': 'true',
-            'Cache-Control': 'no-cache'
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify(payload)
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          // Create notification and sync card
-          triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
-          return {
-            success: true,
-            message: data.message || `Successfully awarded ${points} points`,
-            points,
-            method: `endpoint-${endpoint}`
-          };
-        }
-      } catch (endpointError) {
-        console.error(`Error with endpoint ${endpoint}:`, endpointError);
-        // Continue to next endpoint
-      }
-    }
-
-    // If any method succeeds, add this block to trigger notifications
-    // Create notification and sync card
-    triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
-
-    // Method 4: Store in localStorage for offline processing
-    if (onProgress) onProgress('Storing for offline processing...');
-    
+  }
+  
+  const payload = {
+    customerId: String(customerId),
+    programId: String(programId),
+    points: Number(points),
+    description: description || 'Points awarded',
+    source: source || 'UTIL'
+  };
+  
+  // List of endpoints to try in order
+  const endpoints = [
+    '/api/businesses/award-points',
+    '/api/direct/direct-award-points',
+    '/api/businesses/award-points-direct',
+    '/api/businesses/award-points-emergency',
+    '/api/direct/award-points-emergency',
+    '/award-points-emergency'
+  ];
+  
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return { 
+      success: false, 
+      error: 'No authentication token found' 
+    };
+  }
+  
+  let lastError = null;
+  
+  // Try each endpoint in sequence
+  for (const endpoint of endpoints) {
     try {
-      const offlineTransaction = {
-        id: `offline-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        customerId: customerId.toString(),
-        programId: programId.toString(),
-        points: Number(points),
-        description,
-        timestamp: new Date().toISOString(),
-        pendingSync: true
-      };
+      console.log(`Trying endpoint: ${endpoint}`);
       
-      // Get existing pending transactions
-      const pendingTransactions = JSON.parse(
-        localStorage.getItem('pendingPointTransactions') || '[]'
-      );
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
       
-      // Add new transaction
-      pendingTransactions.push(offlineTransaction);
-      
-      // Save back to localStorage
-      localStorage.setItem('pendingPointTransactions', JSON.stringify(pendingTransactions));
-      
-      // Create notification and sync card
-      triggerPointsAwardedEvents(customerId, options.businessId || 'unknown', programId, points);
-      
-      return {
-        success: true,
-        message: `Points awarded (will sync when online)`,
-        points,
-        method: 'offline-storage',
-        offline: true
-      };
-    } catch (offlineError) {
-      console.error('Failed to store offline transaction:', offlineError);
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`Success with endpoint ${endpoint}`);
+        
+        return {
+          success: true,
+          message: data.message || 'Points awarded successfully',
+          data,
+          endpoint
+        };
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn(`Failed with endpoint ${endpoint}: ${errorData.error || response.statusText}`);
+        
+        lastError = { 
+          error: errorData.error || errorData.message || `HTTP error ${response.status}`
+        };
+      }
+    } catch (error: any) {
+      console.error(`Error with endpoint ${endpoint}: ${error.message}`);
+      lastError = { error: error.message };
     }
-
-    // All methods failed
-    return {
-      success: false,
-      error: 'Failed to award points after trying all methods',
-      method: 'all-failed'
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || 'Unknown error occurred while awarding points',
-      method: 'exception'
-    };
   }
-};
+  
+  // If we get here, all endpoints failed
+  return {
+    success: false,
+    error: lastError?.error || 'All endpoints failed',
+    message: 'Failed to award points after trying all available endpoints'
+  };
+}
 
 /**
- * Helper function to trigger points awarded events and notifications
+ * Check if award points functionality is working
  */
-export const triggerPointsAwardedEvents = (
-  customerId: string, 
-  businessId: string,
-  programId: string,
-  points: number
-): void => {
-  try {
-    // Create notification event
-    const notificationEvent = new CustomEvent('points-awarded', {
-      detail: {
-        customerId,
-        businessId,
-        programId,
-        points,
-        timestamp: new Date().toISOString()
+export async function checkAwardPointsEndpoints(): Promise<{
+  workingEndpoints: string[];
+  failedEndpoints: string[];
+  bestEndpoint?: string;
+}> {
+  // List of endpoints to check
+  const endpoints = [
+    '/api/businesses/award-points',
+    '/api/direct/direct-award-points',
+    '/api/businesses/award-points-direct',
+    '/api/businesses/award-points-emergency',
+    '/api/direct/award-points-emergency',
+    '/award-points-emergency'
+  ];
+  
+  const workingEndpoints: string[] = [];
+  const failedEndpoints: string[] = [];
+  
+  // Test payload
+  const payload = {
+    customerId: '1',
+    programId: '1',
+    points: 1,
+    description: 'Test award points',
+    source: 'DIAGNOSTIC'
+  };
+  
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return { 
+      workingEndpoints: [],
+      failedEndpoints: endpoints,
+      bestEndpoint: undefined
+    };
+  }
+  
+  // Check each endpoint
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      
+      if (response.ok) {
+        workingEndpoints.push(endpoint);
+      } else {
+        failedEndpoints.push(endpoint);
+      }
+    } catch (error) {
+      failedEndpoints.push(endpoint);
+    }
+  }
+  
+  return {
+    workingEndpoints,
+    failedEndpoints,
+    bestEndpoint: workingEndpoints.length > 0 ? workingEndpoints[0] : undefined
+  };
+}
+
+/**
+ * Configure the award points system to use a specific endpoint
+ */
+export function configureAwardPoints(endpoint?: string): void {
+  // List of endpoints in order of preference
+  const defaultEndpoints = [
+    '/api/businesses/award-points',
+    '/api/direct/direct-award-points',
+    '/api/businesses/award-points-direct',
+    '/api/businesses/award-points-emergency',
+    '/api/direct/award-points-emergency',
+    '/award-points-emergency'
+  ];
+  
+  // If endpoint is provided, move it to the front of the list
+  if (endpoint) {
+    const configuredEndpoints = [endpoint];
+    defaultEndpoints.forEach(e => {
+      if (e !== endpoint) {
+        configuredEndpoints.push(e);
       }
     });
-    window.dispatchEvent(notificationEvent);
     
-    // Store in localStorage for persistence across page refreshes
-    localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify({
-      type: 'POINTS_ADDED',
-      customerId,
-      businessId,
-      programId,
-      points,
-      timestamp: new Date().toISOString()
-    }));
-    
-    // Sync card points
-    syncCardPoints(
-      `card-${customerId}-${programId}`,
-      customerId,
-      businessId,
-      programId,
-      points
-    ).catch(error => console.error('Error syncing card points:', error));
-  } catch (error) {
-    console.error('Error triggering points awarded events:', error);
+    // Store the configured endpoints in localStorage
+    localStorage.setItem('awardPointsEndpoints', JSON.stringify(configuredEndpoints));
+    console.log(`Award points system configured to use ${endpoint} as primary endpoint`);
+  } else {
+    // Reset to default
+    localStorage.removeItem('awardPointsEndpoints');
+    console.log('Award points system reset to default endpoints');
   }
-};
-
-// Automatically load emergency fix script when this module is imported
-loadEmergencyFixScript();
-
-export default {
-  awardPoints,
-  ensureAuthToken,
-  getAuthToken,
-  loadEmergencyFixScript,
-  triggerPointsAwardedEvents
-}; 
+} 
