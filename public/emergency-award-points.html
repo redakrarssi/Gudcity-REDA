@@ -1,138 +1,314 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Award Points Emergency Fix</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-        h2 {
-            color: #3498db;
-            margin-top: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 10px;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        #result {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            white-space: pre-wrap;
-        }
-        .success {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .error {
-            color: #dc3545;
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Award Points Fix</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #2563eb;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #4f46e5;
+      margin-top: 30px;
+    }
+    .card {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .error {
+      color: #dc2626;
+      font-weight: bold;
+    }
+    .success {
+      color: #16a34a;
+      font-weight: bold;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #4338ca;
+    }
+    button:disabled {
+      background-color: #6b7280;
+      cursor: not-allowed;
+    }
+    input {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 100%;
+      max-width: 300px;
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    pre {
+      background-color: #f8fafc;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+    }
+    .divider {
+      height: 1px;
+      background-color: #e5e7eb;
+      margin: 20px 0;
+    }
+    .badge {
+      display: inline-block;
+      background-color: #bfdbfe;
+      color: #1e40af;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Award Points Emergency Fix</h1>
-        <p>This page includes the emergency fix for the award points system. Use the form below to test awarding points.</p>
-        
-        <div class="form-group">
-            <label for="customer-id">Customer ID:</label>
-            <input type="text" id="customer-id" value="27">
-        </div>
-        
-        <div class="form-group">
-            <label for="program-id">Program ID:</label>
-            <input type="text" id="program-id" value="8">
-        </div>
-        
-        <div class="form-group">
-            <label for="points">Points to Award:</label>
-            <input type="number" id="points" value="10">
-        </div>
-        
-        <div class="form-group">
-            <label for="description">Description:</label>
-            <input type="text" id="description" value="Points awarded via emergency fix">
-        </div>
-        
-        <button id="award-points">Award Points</button>
-        
-        <h2>Result</h2>
-        <div id="result">Results will appear here...</div>
-    </div>
+  <h1>Emergency Award Points Fix</h1>
+  
+  <div class="card">
+    <h2>Status</h2>
+    <p id="status-message">Checking fix status...</p>
+  </div>
+
+  <div class="card">
+    <h2>Test Award Points</h2>
+    <form id="award-form">
+      <div>
+        <label for="customer-id">Customer ID:</label>
+        <input type="text" id="customer-id" name="customerId" required>
+      </div>
+      
+      <div>
+        <label for="program-id">Program ID:</label>
+        <input type="text" id="program-id" name="programId" required>
+      </div>
+      
+      <div>
+        <label for="points">Points to Award:</label>
+        <input type="number" id="points" name="points" value="10" required min="1">
+      </div>
+      
+      <div>
+        <label for="description">Description (optional):</label>
+        <input type="text" id="description" name="description" value="Test award points">
+      </div>
+      
+      <button type="submit" id="award-button">Award Points</button>
+    </form>
     
-    <!-- Include the fix script -->
-    <script src="/fix-405-error.js"></script>
+    <div class="divider"></div>
     
-    <script>
-        document.getElementById('award-points').addEventListener('click', async function() {
-            const customerId = document.getElementById('customer-id').value;
-            const programId = document.getElementById('program-id').value;
-            const points = parseInt(document.getElementById('points').value);
-            const description = document.getElementById('description').value;
+    <h3>Result:</h3>
+    <pre id="result-output">No results yet</pre>
+  </div>
+
+  <div class="card">
+    <h2>Diagnose Issues</h2>
+    <p>Click the button below to diagnose award points functionality:</p>
+    <button id="diagnose-button">Run Diagnostics</button>
+    
+    <div class="divider"></div>
+    
+    <h3>Diagnostics:</h3>
+    <pre id="diagnostics-output">No diagnostics run yet</pre>
+  </div>
+
+  <div class="card">
+    <h2>Support Info</h2>
+    <p>If you're experiencing issues with awarding points, please contact support with the following information:</p>
+    <ul>
+      <li>Browser: <span id="browser-info"></span></li>
+      <li>Fix Status: <span id="fix-status"></span></li>
+      <li>Token Present: <span id="token-status"></span></li>
+    </ul>
+  </div>
+
+  <!-- Load the emergency fix script -->
+  <script src="/fix-405-error.js"></script>
+  
+  <!-- Award points helper script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check fix status
+      const statusMessage = document.getElementById('status-message');
+      const fixStatus = document.getElementById('fix-status');
+      const tokenStatus = document.getElementById('token-status');
+      const browserInfo = document.getElementById('browser-info');
+      
+      // Update browser info
+      browserInfo.textContent = `${navigator.userAgent}`;
+      
+      // Check if fix is loaded
+      if (window.awardPointsWithFallback) {
+        statusMessage.textContent = 'Emergency fix is successfully loaded and ready to use!';
+        statusMessage.className = 'success';
+        fixStatus.textContent = 'Loaded';
+      } else {
+        statusMessage.textContent = 'Emergency fix failed to load. Please refresh the page or contact support.';
+        statusMessage.className = 'error';
+        fixStatus.textContent = 'Not Loaded';
+      }
+      
+      // Check token status
+      const token = localStorage.getItem('token') || 
+                   localStorage.getItem('auth_token') || 
+                   localStorage.getItem('jwt');
+      
+      tokenStatus.textContent = token ? 'Present' : 'Missing';
+      
+      // Handle form submission
+      const awardForm = document.getElementById('award-form');
+      const resultOutput = document.getElementById('result-output');
+      
+      awardForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const customerId = document.getElementById('customer-id').value;
+        const programId = document.getElementById('program-id').value;
+        const points = parseInt(document.getElementById('points').value);
+        const description = document.getElementById('description').value;
+        
+        // Disable button during processing
+        const awardButton = document.getElementById('award-button');
+        awardButton.disabled = true;
+        awardButton.textContent = 'Processing...';
+        resultOutput.textContent = 'Awarding points...';
+        
+        try {
+          if (window.awardPointsWithFallback) {
+            const result = await window.awardPointsWithFallback(
+              customerId,
+              programId,
+              points,
+              description,
+              'EMERGENCY_FIX_TEST'
+            );
             
-            if (!customerId || !programId || isNaN(points) || points <= 0) {
-                document.getElementById('result').innerHTML = '<span class="error">Invalid input. Please check all fields.</span>';
-                return;
+            resultOutput.textContent = JSON.stringify(result, null, 2);
+            
+            if (result.success) {
+              resultOutput.className = 'success';
+            } else {
+              resultOutput.className = 'error';
             }
-            
-            document.getElementById('result').textContent = 'Processing...';
-            
+          } else {
+            resultOutput.textContent = 'Emergency fix not loaded. Cannot award points.';
+            resultOutput.className = 'error';
+          }
+        } catch (error) {
+          resultOutput.textContent = `Error: ${error.message || 'Unknown error'}`;
+          resultOutput.className = 'error';
+        } finally {
+          awardButton.disabled = false;
+          awardButton.textContent = 'Award Points';
+        }
+      });
+      
+      // Handle diagnostics
+      const diagnoseButton = document.getElementById('diagnose-button');
+      const diagnosticsOutput = document.getElementById('diagnostics-output');
+      
+      diagnoseButton.addEventListener('click', async function() {
+        diagnoseButton.disabled = true;
+        diagnoseButton.textContent = 'Running Diagnostics...';
+        diagnosticsOutput.textContent = 'Running diagnostics...';
+        
+        try {
+          // Test auth token
+          const token = localStorage.getItem('token') || 
+                       localStorage.getItem('auth_token') || 
+                       localStorage.getItem('jwt');
+          
+          // Test endpoints
+          const endpoints = [
+            '/api/direct/direct-award-points',
+            '/api/businesses/award-points',
+            '/api/businesses/award-points-direct',
+            '/api/businesses/award-points-emergency',
+            '/api/direct/award-points-emergency',
+            '/award-points-emergency'
+          ];
+          
+          // Try a HEAD request to each endpoint
+          const results = await Promise.allSettled(endpoints.map(async endpoint => {
             try {
-                const result = await window.awardPointsWithFallback(customerId, programId, points, description);
-                
-                if (result.success) {
-                    document.getElementById('result').innerHTML = '<span class="success">Success!</span>\n\n' + JSON.stringify(result, null, 2);
-                } else {
-                    document.getElementById('result').innerHTML = '<span class="error">Failed!</span>\n\n' + JSON.stringify(result, null, 2);
-                }
+              const response = await fetch(endpoint, { 
+                method: 'HEAD',
+                headers: token ? { 
+                  'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+                } : {}
+              });
+              
+              return {
+                endpoint,
+                status: response.status,
+                ok: response.ok
+              };
             } catch (error) {
-                document.getElementById('result').innerHTML = '<span class="error">Error!</span>\n\n' + error.message;
+              return {
+                endpoint,
+                error: error.message,
+                ok: false
+              };
             }
-        });
-    </script>
+          }));
+          
+          const diagnosticReport = {
+            timestamp: new Date().toISOString(),
+            browser: navigator.userAgent,
+            fixLoaded: !!window.awardPointsWithFallback,
+            tokenPresent: !!token,
+            endpointTests: results.map((result, index) => {
+              if (result.status === 'fulfilled') {
+                return result.value;
+              } else {
+                return {
+                  endpoint: endpoints[index],
+                  error: result.reason,
+                  ok: false
+                };
+              }
+            })
+          };
+          
+          diagnosticsOutput.textContent = JSON.stringify(diagnosticReport, null, 2);
+        } catch (error) {
+          diagnosticsOutput.textContent = `Error running diagnostics: ${error.message || 'Unknown error'}`;
+        } finally {
+          diagnoseButton.disabled = false;
+          diagnoseButton.textContent = 'Run Diagnostics';
+        }
+      });
+    });
+  </script>
 </body>
 </html>
