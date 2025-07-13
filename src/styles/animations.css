@@ -1,324 +1,186 @@
-/* Animation styles for rewards flow */
+/* Confetti animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
 
+.confetti {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  animation: confetti-fall 3s ease-in forwards;
+  z-index: 1000;
+}
+
+/* Fade in animation */
 @keyframes fadeIn {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes confetti {
-  0% {
-    transform: translateY(0) rotate(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(300px) rotate(720deg);
-    opacity: 0;
-  }
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
 }
 
+/* Pulse animation */
 @keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
+.animate-pulse-once {
+  animation: pulse 0.5s ease-in-out;
+}
+
+/* Scanner animation */
+@keyframes scanner {
+  0% { transform: translateY(-100%); opacity: 0.7; }
+  50% { transform: translateY(0); opacity: 0.9; }
+  100% { transform: translateY(100%); opacity: 0.7; }
+}
+
+.qr-scanner-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, #3b82f6, transparent);
+  animation: scanner 2s ease-in-out infinite;
+  z-index: 10;
+}
+
+/* Success notification animation */
 @keyframes slideIn {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes slideOut {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-20px); opacity: 0; }
 }
 
-@keyframes shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  10%, 30%, 50%, 70%, 90% {
-    transform: translateX(-5px);
-  }
-  20%, 40%, 60%, 80% {
-    transform: translateX(5px);
-  }
-}
-
-/* Slide down animation */
-@keyframes slideDown {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Slide up animation */
-@keyframes slideUp {
-  0% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-}
-
-/* Scan up animation */
-@keyframes scanUp {
-  0% {
-    top: 100%;
-  }
-  100% {
-    top: 0;
-  }
-}
-
-/* Scan down animation */
-@keyframes scanDown {
-  0% {
-    top: 0;
-  }
-  100% {
-    top: 100%;
-  }
-}
-
-/* Success check animation */
-@keyframes checkmark {
-  0% {
-    height: 0;
-    width: 0;
-    opacity: 0;
-  }
-  40% {
-    height: 0;
-    width: 10px;
-    opacity: 1;
-  }
-  100% {
-    height: 20px;
-    width: 10px;
-    opacity: 1;
-  }
-}
-
-/* Confetti animation */
-@keyframes confetti-slow {
-  0% { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); }
-  100% { transform: translate3d(25px, 105vh, 0) rotateX(360deg) rotateY(180deg); }
-}
-
-@keyframes confetti-medium {
-  0% { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); }
-  100% { transform: translate3d(100px, 105vh, 0) rotateX(100deg) rotateY(360deg); }
-}
-
-@keyframes confetti-fast {
-  0% { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); }
-  100% { transform: translate3d(-50px, 105vh, 0) rotateX(10deg) rotateY(250deg); }
-}
-
-/* Utility animation classes */
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-.animate-pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.animate-shake {
-  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-}
-
-.animate-confetti {
-  animation: confetti 2s ease-out forwards;
-}
-
-.animate-slideIn {
+.notification-slide-in {
   animation: slideIn 0.3s ease-out forwards;
 }
 
-.animate-slideOut {
+.notification-slide-out {
   animation: slideOut 0.3s ease-in forwards;
 }
 
-.animate-slideDown {
-  animation: slideDown 0.5s ease-out forwards;
-}
-
-.animate-slideUp {
-  animation: slideUp 0.5s ease-out forwards;
-}
-
-.animate-scanUp {
-  animation: scanUp 3s linear infinite;
-}
-
-.animate-scanDown {
-  animation: scanDown 3s linear infinite;
-}
-
-.animate-checkmark {
-  animation: checkmark 0.8s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-}
-
-/* Reward confetti elements */
-.confetti {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  z-index: 100;
-}
-
-.confetti-red {
-  background-color: #E53E3E;
-}
-
-.confetti-blue {
-  background-color: #3182CE;
-}
-
-.confetti-green {
-  background-color: #38A169;
-}
-
-.confetti-yellow {
-  background-color: #ECC94B;
-}
-
-.confetti-purple {
-  background-color: #805AD5;
-}
-
-/* Special reward animation */
-.reward-pulse {
+/* QR Scanner Interface Styles */
+.qr-scanner-container {
   position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
 }
 
-.reward-pulse::after {
-  content: '';
+.qr-scanner-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: 50%;
-  background: rgba(104, 211, 145, 0.4);
-  animation: pulse 2s infinite;
-  z-index: -1;
+  z-index: 5;
+  pointer-events: none;
+  border: 2px solid rgba(59, 130, 246, 0.5);
 }
 
-/* Confetti styles */
-#transaction-confetti {
-  display: none;
-}
-
-#transaction-confetti.active {
-  display: block;
-}
-
-.confetti-piece {
+.qr-scanner-corners {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  background: #ffd300;
-  top: 0;
-  opacity: 0;
+  width: 20%;
+  height: 20%;
+  border-color: #3b82f6;
+  border-style: solid;
+  border-width: 0;
 }
 
-#transaction-confetti.active .confetti-piece {
-  opacity: 1;
+.qr-scanner-corner-top-left {
+  top: 10%;
+  left: 10%;
+  border-left-width: 3px;
+  border-top-width: 3px;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(1) {
-  left: 7%;
-  transform-origin: 50% 50%;
-  animation: confetti-slow 3.25s linear infinite;
-  background-color: #3498db;
+.qr-scanner-corner-top-right {
+  top: 10%;
+  right: 10%;
+  border-right-width: 3px;
+  border-top-width: 3px;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(2) {
-  left: 14%;
-  transform-origin: 50% 50%;
-  animation: confetti-medium 3.75s linear infinite;
-  background-color: #e74c3c;
+.qr-scanner-corner-bottom-left {
+  bottom: 10%;
+  left: 10%;
+  border-left-width: 3px;
+  border-bottom-width: 3px;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(3) {
-  left: 21%;
-  transform-origin: 50% 50%;
-  animation: confetti-fast 2.5s linear infinite;
-  background-color: #2ecc71;
+.qr-scanner-corner-bottom-right {
+  bottom: 10%;
+  right: 10%;
+  border-right-width: 3px;
+  border-bottom-width: 3px;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(4) {
-  left: 28%;
-  transform-origin: 50% 50%;
-  animation: confetti-slow 4.5s linear infinite;
-  background-color: #9b59b6;
+/* Card styles for customer details */
+.customer-card {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(5) {
-  left: 35%;
-  transform-origin: 50% 50%;
-  animation: confetti-medium 3.5s linear infinite;
-  background-color: #f1c40f;
+.customer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(6) {
-  left: 42%;
-  transform-origin: 50% 50%;
-  animation: confetti-fast 3s linear infinite;
-  background-color: #1abc9c;
+.customer-card-header {
+  background: linear-gradient(to right, #3b82f6, #6366f1);
+  padding: 1rem;
+  color: white;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(7) {
-  left: 49%;
-  transform-origin: 50% 50%;
-  animation: confetti-slow 4s linear infinite;
-  background-color: #e67e22;
+.customer-card-body {
+  padding: 1rem;
+  background-color: white;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(8) {
-  left: 56%;
-  transform-origin: 50% 50%;
-  animation: confetti-medium 3.25s linear infinite;
-  background-color: #34495e;
+/* Improved buttons */
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(9) {
-  left: 63%;
-  transform-origin: 50% 50%;
-  animation: confetti-fast 3.25s linear infinite;
-  background-color: #16a085;
+.action-button-primary {
+  background-color: #3b82f6;
+  color: white;
 }
 
-#transaction-confetti.active .confetti-piece:nth-child(10) {
-  left: 70%;
-  transform-origin: 50% 50%;
-  animation: confetti-slow 3.5s linear infinite;
-  background-color: #d35400;
+.action-button-primary:hover {
+  background-color: #2563eb;
+}
+
+.action-button-secondary {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+.action-button-secondary:hover {
+  background-color: #d1d5db;
 } 

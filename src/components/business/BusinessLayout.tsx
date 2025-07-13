@@ -11,7 +11,8 @@ import {
   LogOut, 
   QrCode,
   X,
-  Menu
+  Menu,
+  Bell
 } from 'lucide-react';
 import { IconBell } from '../icons/IconBell';
 import { BusinessNotificationCenter } from './BusinessNotificationCenter';
@@ -126,127 +127,138 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
-        <div className="p-6 flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
-            <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              className="relative p-1"
-              onClick={() => setShowNotificationCenter(true)}
-              aria-label="Notifications"
-            >
-              <IconBell showNotification={hasNotifications} />
-            </button>
-            <ThemeToggle variant="icon" />
-          </div>
-        </div>
-
-        <nav className="flex-1 px-4 pb-4 space-y-1">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                isActive(item.path)
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {item.icon}
-              <span className="ml-3">{item.name}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className="border-t border-gray-200 p-4">
-          <button
-            onClick={handleLogout}
-            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="ml-3">{t('Logout')}</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Mobile header */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="bg-white border-b border-gray-200 md:hidden">
-          <div className="flex items-center justify-between p-4">
-            <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
-            <div className="flex items-center">
-              <ThemeToggle variant="icon" className="mr-2" />
+    <>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar */}
+        <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
+          <div className="p-6 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
+              <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
+            </div>
+            <div className="flex items-center space-x-2">
               <button
-                className="p-1 mr-2 text-gray-600 relative"
+                className="relative p-1"
                 onClick={() => setShowNotificationCenter(true)}
                 aria-label="Notifications"
               >
-                <IconBell showNotification={hasNotifications} className="w-6 h-6" />
+                <IconBell showNotification={hasNotifications} />
               </button>
-              <button 
-                className="p-1 text-gray-600"
-                onClick={toggleMobileMenu}
+              <ThemeToggle variant="icon" />
+            </div>
+          </div>
+
+          <nav className="flex-1 px-4 pb-4 space-y-1">
+            {menuItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                  isActive(item.path)
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                {mobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </button>
-            </div>
-          </div>
+                {item.icon}
+                <span className="ml-3">{item.name}</span>
+              </Link>
+            ))}
+          </nav>
 
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="bg-white border-b border-gray-200 py-2">
-              <nav className="px-4 space-y-1">
-                {menuItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                      isActive(item.path)
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.name}</span>
-                  </Link>
-                ))}
+          <div className="border-t border-gray-200 p-4">
+            <button
+              onClick={handleLogout}
+              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="ml-3">{t('Logout')}</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Mobile header */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <header className="bg-white border-b border-gray-200 md:hidden">
+            <div className="flex items-center justify-between p-4">
+              <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
+              <div className="flex items-center">
+                <ThemeToggle variant="icon" className="mr-2" />
                 <button
-                  onClick={(e) => {
-                    handleLogout(e);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
+                  className="p-1 mr-2 text-gray-600 relative"
+                  onClick={() => setShowNotificationCenter(true)}
+                  aria-label="Notifications"
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span className="ml-3">{t('Logout')}</span>
+                  <IconBell showNotification={hasNotifications} className="w-6 h-6" />
                 </button>
-              </nav>
+                <button 
+                  className="p-1 text-gray-600"
+                  onClick={toggleMobileMenu}
+                >
+                  {mobileMenuOpen ? (
+                    <X className="w-6 h-6" />
+                  ) : (
+                    <Menu className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
             </div>
-          )}
-        </header>
 
-        <main className="flex-1 overflow-auto bg-gray-50 p-4">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
-        </main>
+            {/* Mobile Menu */}
+            {mobileMenuOpen && (
+              <div className="bg-white border-b border-gray-200 py-2">
+                <nav className="px-4 space-y-1">
+                  {menuItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                        isActive(item.path)
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.icon}
+                      <span className="ml-3">{item.name}</span>
+                    </Link>
+                  ))}
+                  <button
+                    onClick={(e) => {
+                      handleLogout(e);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="ml-3">{t('Logout')}</span>
+                  </button>
+                </nav>
+              </div>
+            )}
+          </header>
 
-        {/* Notification Drawer */}
-        <BusinessNotificationCenter
-          isOpen={showNotificationCenter}
-          onClose={() => setShowNotificationCenter(false)}
-        />
+          <main className="flex-1 overflow-auto bg-gray-50 p-4">
+            <div className="max-w-7xl mx-auto">
+              {children}
+            </div>
+          </main>
+
+          {/* Notification Drawer */}
+          <BusinessNotificationCenter
+            isOpen={showNotificationCenter}
+            onClose={() => setShowNotificationCenter(false)}
+          />
+        </div>
       </div>
-    </div>
+
+      {/* Floating QR Scanner Button */}
+      <Link 
+        to="/business/qr-scanner"
+        className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors z-40"
+        aria-label="Open QR Scanner"
+      >
+        <QrCode className="w-6 h-6" />
+      </Link>
+    </>
   );
 }; 

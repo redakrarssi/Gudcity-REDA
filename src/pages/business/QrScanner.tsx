@@ -164,11 +164,11 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setSelectedCustomerData(result.data);
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Don't automatically show points awarding modal
+      // Don't automatically show points awarding modal - customer details will have the award points option
     } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Don't automatically show points awarding modal
+      // Don't automatically show points awarding modal - customer details will have the award points option
     }
     
     // Call the onScan prop if provided

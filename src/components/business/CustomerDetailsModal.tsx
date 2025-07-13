@@ -541,476 +541,364 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
     }
   };
 
+  // Render the modal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 flex justify-between items-center">
-          <div className="flex items-center">
-            <div className="bg-white p-3 rounded-full shadow-lg mr-4">
-              <User className="w-8 h-8 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">
-                {loading ? 'Loading...' : customer?.name || 'Customer'}
-              </h2>
-              <p className="text-blue-100">ID: {customerId}</p>
-            </div>
-          </div>
-          <button 
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Modal Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center">
+          <h2 className="text-xl font-bold flex items-center">
+            <User className="mr-2" size={20} />
+            {customer ? customer.name : `Customer #${customerId}`}
+          </h2>
+          <button
+            className="text-white hover:text-gray-200 transition-colors"
             onClick={onClose}
-            className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-          {loading ? (
-            <div className="flex flex-col justify-center items-center py-10">
-              <Loader className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-              <p className="text-blue-500">Loading customer details...</p>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center">
-              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-              <p className="text-red-700">{error}</p>
-            </div>
-          ) : (
-            <>
-              {success && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center">
-                  <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                  <p className="text-green-700">{success}</p>
-                </div>
-              )}
-
-              {/* Customer details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-                  <h3 className="text-lg font-medium text-blue-800 mb-3 flex items-center">
-                    <User className="w-5 h-5 mr-2" />
-                    {t('Customer Information')}
-                  </h3>
-                  <div className="space-y-2">
-                    <p><span className="text-gray-500">Name:</span> {customer?.name}</p>
-                    <p><span className="text-gray-500">Email:</span> {customer?.email || 'Not provided'}</p>
-                    <p><span className="text-gray-500">Phone:</span> {customer?.phone || 'Not provided'}</p>
-                    <p><span className="text-gray-500">Member since:</span> {new Date(customer?.joinedAt || '').toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 rounded-xl p-5 border border-amber-100">
-                  <h3 className="text-lg font-medium text-amber-800 mb-3 flex items-center">
-                    <Award className="w-5 h-5 mr-2" />
-                    {t('Loyalty Status')}
-                  </h3>
-                  <div className="space-y-2">
-                    <p><span className="text-gray-500">Tier:</span> <span className="capitalize">{customer?.tier?.toLowerCase() || 'Standard'}</span></p>
-                    <p><span className="text-gray-500">Points:</span> {customer?.loyaltyPoints || 0}</p>
-                    <p><span className="text-gray-500">Visits:</span> {customer?.visits || 0}</p>
-                    <p><span className="text-gray-500">Total Spent:</span> ${(customer?.totalSpent || 0).toFixed(2)}</p>
-                  </div>
-                </div>
+        <div className="overflow-y-auto p-4 flex-grow">
+          {loading && (
+            <div className="flex items-center justify-center h-40">
+              <div className="flex flex-col items-center">
+                <Loader className="animate-spin h-8 w-8 text-blue-500 mb-2" />
+                <p>Loading customer details...</p>
               </div>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md mb-4 flex items-center">
+              <AlertCircle className="mr-2 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {customer && !loading && (
+            <div className="space-y-6">
+              {/* Customer Information Section */}
+              <section className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <User className="mr-2" size={16} />
+                  Customer Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Name</p>
+                    <p className="font-medium">{customer.name}</p>
+                  </div>
+                  {customer.email && (
+                    <div>
+                      <p className="text-sm text-gray-500">Email</p>
+                      <p className="font-medium">{customer.email}</p>
+                    </div>
+                  )}
+                  {customer.phone && (
+                    <div>
+                      <p className="text-sm text-gray-500">Phone</p>
+                      <p className="font-medium">{customer.phone}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-500">Customer Since</p>
+                    <p className="font-medium">
+                      {customer.joinedAt
+                        ? new Date(customer.joinedAt).toLocaleDateString()
+                        : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+              </section>
 
               {/* Loyalty Cards Section */}
-              <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-800 mb-3 flex items-center">
-                  <CreditCard className="w-5 h-5 mr-2 text-indigo-500" />
-                  {t('Loyalty Cards')}
+              <section className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <CreditCard className="mr-2" size={16} />
+                  Loyalty Cards
                 </h3>
-                
                 {loadingCards ? (
-                  <div className="flex justify-center items-center py-4">
-                    <Loader className="w-6 h-6 text-indigo-500 animate-spin mr-2" />
-                    <p className="text-indigo-500">Loading cards...</p>
+                  <div className="flex justify-center py-4">
+                    <Loader className="animate-spin h-6 w-6 text-blue-500" />
                   </div>
-                ) : loyaltyCards.length === 0 ? (
-                  <div className="bg-gray-50 rounded-lg p-4 text-center">
-                    <p className="text-gray-500">Customer has no loyalty cards with this business.</p>
-                  </div>
-                ) : (
+                ) : loyaltyCards.length > 0 ? (
                   <div className="space-y-3">
                     {loyaltyCards.map(card => (
-                      <div key={card.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center mb-2">
-                              {card.cardType?.toLowerCase().includes('premium') ? (
-                                <div className="p-2 bg-blue-100 rounded-full mr-2">
-                                  <Shield className="w-4 h-4 text-blue-600" />
-                                </div>
-                              ) : card.cardType?.toLowerCase().includes('gold') ? (
-                                <div className="p-2 bg-amber-100 rounded-full mr-2">
-                                  <Award className="w-4 h-4 text-amber-600" />
-                                </div>
-                              ) : card.cardType?.toLowerCase().includes('fitness') ? (
-                                <div className="p-2 bg-green-100 rounded-full mr-2">
-                                  <Zap className="w-4 h-4 text-green-600" />
-                                </div>
-                              ) : (
-                                <div className="p-2 bg-purple-100 rounded-full mr-2">
-                                  <CreditCard className="w-4 h-4 text-purple-600" />
-                                </div>
-                              )}
-                              <div>
-                                <h4 className="font-medium text-gray-900">{card.programName || 'Loyalty Program'}</h4>
-                                <p className="text-sm text-gray-500">Card ID: {card.id}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-3 gap-4 mb-3">
-                              <div>
-                                <p className="text-xs text-gray-500">Card Type</p>
-                                <p className="font-medium text-gray-700">{card.cardType || 'Standard'}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Points</p>
-                                <p className="font-medium text-gray-700">{card.points || 0}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Status</p>
-                                <p className="font-medium text-gray-700">{card.isActive ? 'Active' : 'Inactive'}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="mb-2">
-                              {card.promoCode ? (
-                                <div className="flex items-center">
-                                  <span className="text-sm font-medium mr-2">Promo Code:</span>
-                                  <span className="text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-md">{card.promoCode}</span>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => handleGrantPromoCode(card.id)}
-                                  disabled={isGeneratingPromoCode}
-                                  className="inline-flex items-center px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded text-sm"
-                                >
-                                  <Tag className="w-3.5 h-3.5 mr-1" />
-                                  {isGeneratingPromoCode && promoCodeResult?.cardId === card.id 
-                                    ? 'Generating...' 
-                                    : 'Grant Promo Code'}
-                                </button>
-                              )}
-                            </div>
-                            
-                            {promoCodeResult && promoCodeResult.cardId === card.id && (
-                              <div className={`text-sm ${promoCodeResult.success ? 'text-green-600' : 'text-red-600'} mt-2`}>
-                                <div className="flex items-center">
-                                  {promoCodeResult.success 
-                                    ? <Check className="w-4 h-4 mr-1" /> 
-                                    : <X className="w-4 h-4 mr-1" />}
-                                  {promoCodeResult.message}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                      <div
+                        key={card.id}
+                        className="border border-gray-200 rounded-md p-3 bg-white"
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-medium">{card.programName || 'Loyalty Program'}</span>
+                          <span className="bg-blue-100 text-blue-800 text-xs py-1 px-2 rounded-full">
+                            {card.points || 0} points
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Card ID: {card.id.substring(0, 8)}...
                         </div>
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <div className="text-center py-3 text-gray-500">
+                    No loyalty cards found for this customer
+                  </div>
                 )}
-              </div>
+              </section>
 
-              {/* Action tabs */}
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-800 mb-3">{t('Available Actions')}</h3>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <button
-                    onClick={() => setActiveAction(activeAction === 'join' ? null : 'join')}
-                    className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border hover:shadow-md transition-all ${
-                      activeAction === 'join' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <UserPlus className={`w-8 h-8 ${activeAction === 'join' ? 'text-blue-500' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${activeAction === 'join' ? 'text-blue-700' : 'text-gray-700'}`}>Join Program</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveAction(activeAction === 'credit' ? null : 'credit')}
-                    className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border hover:shadow-md transition-all ${
-                      activeAction === 'credit' ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <PlusCircle className={`w-8 h-8 ${activeAction === 'credit' ? 'text-green-500' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${activeAction === 'credit' ? 'text-green-700' : 'text-gray-700'}`}>Add Credit</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveAction(activeAction === 'promo' ? null : 'promo')}
-                    className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border hover:shadow-md transition-all ${
-                      activeAction === 'promo' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <Tag className={`w-8 h-8 ${activeAction === 'promo' ? 'text-amber-500' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${activeAction === 'promo' ? 'text-amber-700' : 'text-gray-700'}`}>Create Promo</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveAction(activeAction === 'deduct' ? null : 'deduct')}
-                    className={`p-4 rounded-xl flex flex-col items-center justify-center gap-2 border hover:shadow-md transition-all ${
-                      activeAction === 'deduct' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <MinusCircle className={`w-8 h-8 ${activeAction === 'deduct' ? 'text-purple-500' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${activeAction === 'deduct' ? 'text-purple-700' : 'text-gray-700'}`}>Use Points</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Action forms */}
-              {activeAction === 'join' && (
-                <div className="bg-blue-50 rounded-xl p-5 border border-blue-200 mb-6 animate-fade-in">
-                  <h4 className="text-lg font-medium text-blue-800 mb-3 flex items-center">
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    Join Program
-                  </h4>
-                  
-                  {programs.length === 0 ? (
-                    <div className="text-center py-4">
-                      <p className="text-gray-500">No loyalty programs available.</p>
-                      <p className="text-sm text-gray-400 mt-1">Create programs in the business dashboard first.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="mb-4">
-                        <label htmlFor="program" className="block text-sm font-medium text-blue-800 mb-1">
+              {/* Award Points Section - Separated and made more prominent */}
+              <section className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 text-blue-800 flex items-center">
+                  <Award className="mr-2" size={20} />
+                  Award Points
+                </h3>
+                
+                {programs.length === 0 ? (
+                  <div className="text-center py-3 bg-white bg-opacity-70 rounded-md">
+                    {loading ? (
+                      <Loader className="animate-spin h-6 w-6 text-blue-500 mx-auto" />
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-gray-600">No loyalty programs available</p>
+                        <button
+                          onClick={() => setActiveAction('join')}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          <UserPlus className="inline-block mr-1" size={16} />
+                          Enroll Customer
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white bg-opacity-70 rounded-md p-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Select Program
                         </label>
                         <select
-                          id="program"
-                          className="w-full border border-blue-300 rounded-lg px-3 py-2"
                           value={selectedProgramId}
                           onChange={(e) => setSelectedProgramId(e.target.value)}
-                          disabled={processing}
+                          className="w-full p-2 border border-gray-300 rounded-md"
                         >
-                          <option value="">Select a program...</option>
-                          {programs.map(program => (
+                          {programs.map((program) => (
                             <option key={program.id} value={program.id}>
                               {program.name}
                             </option>
                           ))}
                         </select>
                       </div>
-                      
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleJoinProgram}
-                          disabled={processing || !selectedProgramId}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
-                        >
-                          {processing ? 'Processing...' : 'Join Program'}
-                        </button>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Points to Award
+                        </label>
+                        <input
+                          type="number"
+                          value={pointsToAdd}
+                          onChange={(e) => setPointsToAdd(Math.max(1, parseInt(e.target.value) || 0))}
+                          className="w-full p-2 border border-gray-300 rounded-md"
+                          min="1"
+                        />
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    </div>
 
-              {activeAction === 'credit' && (
-                <div className="bg-green-50 rounded-xl p-5 border border-green-200 mb-6 animate-fade-in">
-                  <h4 className="text-lg font-medium text-green-800 mb-3 flex items-center">
-                    <PlusCircle className="w-5 h-5 mr-2" />
-                    Add Credit
-                  </h4>
-                  
-                  <div className="mb-4">
-                    <label htmlFor="points" className="block text-sm font-medium text-green-800 mb-1">
-                      Points to Add
-                    </label>
-                    <input
-                      id="points"
-                      type="number"
-                      min="1"
-                      className="w-full border border-green-300 rounded-lg px-3 py-2"
-                      value={pointsToAdd}
-                      onChange={(e) => setPointsToAdd(Number(e.target.value))}
-                      disabled={processing}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end">
                     <button
                       onClick={handleAddCredit}
-                      disabled={processing || pointsToAdd <= 0}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:bg-green-300"
+                      disabled={processing}
+                      className="w-full py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors disabled:bg-blue-300 flex items-center justify-center"
                     >
-                      {processing ? 'Processing...' : 'Add Credit'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {activeAction === 'promo' && (
-                <div className="bg-amber-50 rounded-xl p-5 border border-amber-200 mb-6 animate-fade-in">
-                  <h4 className="text-lg font-medium text-amber-800 mb-3 flex items-center">
-                    <Tag className="w-5 h-5 mr-2" />
-                    Create Special Promo Code
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    {/* Unique Promo Code Option */}
-                    <div className="p-4 bg-white border border-amber-100 rounded-lg mb-4">
-                      <h5 className="font-medium text-amber-700 mb-2 flex items-center">
-                        <Gift className="w-4 h-4 mr-2" />
-                        Generate Unique Promotion
-                      </h5>
-                      
-                      <div className="mb-4">
-                        <label htmlFor="value" className="block text-sm font-medium text-amber-800 mb-1">
-                          Discount Percentage
-                        </label>
-                        <input
-                          id="value"
-                          type="number"
-                          min="1"
-                          max="100"
-                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                          value={promoValue}
-                          onChange={(e) => setPromoValue(Number(e.target.value))}
-                          disabled={processing}
-                        />
-                      </div>
-                      
-                      <div className="mb-4">
-                        <label htmlFor="description" className="block text-sm font-medium text-amber-800 mb-1">
-                          Description (Optional)
-                        </label>
-                        <input
-                          id="description"
-                          type="text"
-                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                          value={promoDesc}
-                          onChange={(e) => setPromoDesc(e.target.value)}
-                          placeholder={`Special promo for ${customer?.name}`}
-                          disabled={processing}
-                        />
-                      </div>
-                      
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleGeneratePromoCode}
-                          disabled={processing || promoValue <= 0 || promoValue > 100}
-                          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:bg-amber-300"
-                        >
-                          {processing ? 'Processing...' : 'Generate Promo Code'}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Existing Secret Promos Option */}
-                    <div className="p-4 bg-white border border-amber-100 rounded-lg">
-                      <h5 className="font-medium text-amber-700 mb-2 flex items-center">
-                        <BadgeCheck className="w-4 h-4 mr-2" />
-                        Assign Secret Promotion
-                      </h5>
-                      
-                      {loadingPromos ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader className="w-5 h-5 text-amber-500 animate-spin mr-2" />
-                          <span className="text-amber-500 text-sm">Loading secret promotions...</span>
-                        </div>
-                      ) : secretPromos.length === 0 ? (
-                        <div className="text-center py-4">
-                          <p className="text-gray-500">No secret promotions available.</p>
-                          <p className="text-sm text-gray-400 mt-1">Create promotions in the business dashboard first.</p>
-                        </div>
+                      {processing ? (
+                        <>
+                          <Loader className="animate-spin mr-2" size={16} />
+                          Processing...
+                        </>
                       ) : (
                         <>
-                          <div className="mb-4">
-                            <label htmlFor="secret-promo" className="block text-sm font-medium text-amber-800 mb-1">
-                              Select Secret Promotion
-                            </label>
-                            <select
-                              id="secret-promo"
-                              className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                              value={selectedSecretPromo}
-                              onChange={(e) => setSelectedSecretPromo(e.target.value)}
-                              disabled={processing}
-                            >
-                              <option value="">Select a promotion...</option>
-                              {secretPromos.map(promo => (
-                                <option key={promo.id} value={promo.id}>
-                                  {promo.name || promo.code} ({promo.value}% discount)
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          
-                          <div className="flex justify-end">
-                            <button
-                              onClick={handleAssignSecretPromo}
-                              disabled={processing || !selectedSecretPromo}
-                              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:bg-amber-300"
-                            >
-                              {processing ? 'Processing...' : 'Assign Promotion'}
-                            </button>
-                          </div>
+                          <Award className="mr-2" size={16} />
+                          Award {pointsToAdd} Points
                         </>
                       )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeAction === 'deduct' && (
-                <div className="bg-purple-50 rounded-xl p-5 border border-purple-200 mb-6 animate-fade-in">
-                  <h4 className="text-lg font-medium text-purple-800 mb-3 flex items-center">
-                    <Coffee className="w-5 h-5 mr-2" />
-                    Use Points for Promotion
-                  </h4>
-                  
-                  <div className="mb-4">
-                    <label htmlFor="deduct-points" className="block text-sm font-medium text-purple-800 mb-1">
-                      Points to Use
-                    </label>
-                    <input
-                      id="deduct-points"
-                      type="number"
-                      min="1"
-                      className="w-full border border-purple-300 rounded-lg px-3 py-2"
-                      value={pointsToDeduct}
-                      onChange={(e) => setPointsToDeduct(Number(e.target.value))}
-                      disabled={processing}
-                    />
-                  </div>
-                  
-                  {customer && customer.loyaltyPoints < pointsToDeduct && (
-                    <div className="mb-4 p-2 bg-red-50 border border-red-100 rounded text-red-600 text-sm">
-                      <AlertCircle className="w-4 h-4 inline mr-1" />
-                      Customer only has {customer.loyaltyPoints} points available.
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleDeductCredit}
-                      disabled={processing || pointsToDeduct <= 0 || (customer && customer.loyaltyPoints < pointsToDeduct)}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-300"
-                    >
-                      {processing ? 'Processing...' : 'Use Points'}
                     </button>
                   </div>
+                )}
+
+                {success && (
+                  <div className="mt-3 bg-green-50 border border-green-200 text-green-700 p-3 rounded-md flex items-center">
+                    <CheckCircle className="mr-2 flex-shrink-0" size={16} />
+                    <span>{success}</span>
+                  </div>
+                )}
+              </section>
+
+              {/* Other Actions Section */}
+              <section className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <Zap className="mr-2" size={16} />
+                  Other Actions
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setActiveAction('join')}
+                    className="py-2 px-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors flex items-center justify-center"
+                  >
+                    <UserPlus className="mr-1" size={16} />
+                    <span>Enroll in Program</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveAction('promo')}
+                    className="py-2 px-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center justify-center"
+                  >
+                    <Gift className="mr-1" size={16} />
+                    <span>Generate Promo</span>
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* Action Panels - These will show/hide based on activeAction state */}
+          {activeAction === 'join' && (
+            <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-md">
+              <h4 className="font-medium mb-3 text-indigo-800 flex items-center">
+                <UserPlus className="mr-2" size={16} />
+                Enroll in Program
+              </h4>
+              {/* Join program form content */}
+              <div className="space-y-3">
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Select a program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={handleJoinProgram}
+                  disabled={processing || !selectedProgramId}
+                  className="w-full py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors flex items-center justify-center"
+                >
+                  {processing ? (
+                    <>
+                      <Loader className="animate-spin mr-2" size={16} />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2" size={16} />
+                      Enroll Customer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeAction === 'promo' && (
+            <div className="mt-4 p-4 bg-purple-50 border border-purple-100 rounded-md">
+              <h4 className="font-medium mb-3 text-purple-800 flex items-center">
+                <Gift className="mr-2" size={16} />
+                Generate Promo Code
+              </h4>
+              {/* Promo code generation content */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Promo Value
+                  </label>
+                  <input
+                    type="number"
+                    value={promoValue}
+                    onChange={(e) => setPromoValue(parseInt(e.target.value) || 0)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    min="1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={promoDesc}
+                    onChange={(e) => setPromoDesc(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    placeholder="Special discount for loyal customer"
+                  />
+                </div>
+
+                <button
+                  onClick={handleGeneratePromoCode}
+                  disabled={processing || promoValue <= 0}
+                  className="w-full py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300 transition-colors flex items-center justify-center"
+                >
+                  {isGeneratingPromoCode ? (
+                    <>
+                      <Loader className="animate-spin mr-2" size={16} />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="mr-2" size={16} />
+                      Generate Promo Code
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Display generated promo code if available */}
+              {promoCodeResult && (
+                <div className={`mt-3 p-3 rounded-md ${promoCodeResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div className="flex items-center">
+                    {promoCodeResult.success ? (
+                      <CheckCircle className="mr-2 text-green-600" size={16} />
+                    ) : (
+                      <AlertCircle className="mr-2 text-red-600" size={16} />
+                    )}
+                    <span className={promoCodeResult.success ? 'text-green-700' : 'text-red-700'}>
+                      {promoCodeResult.message}
+                    </span>
+                  </div>
+                  {promoCodeResult.promoCode && (
+                    <div className="mt-2 p-2 bg-white border border-gray-200 rounded text-center">
+                      <span className="font-mono font-bold text-lg">{promoCodeResult.promoCode}</span>
+                    </div>
+                  )}
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-end">
+        {/* Modal Footer */}
+        <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-between">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
           >
             Close
           </button>
+
+          {activeAction && (
+            <button
+              onClick={() => setActiveAction(null)}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+            >
+              Back to Details
+            </button>
+          )}
         </div>
       </div>
     </div>
