@@ -31,6 +31,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { LoyaltyCard } from '@/types/loyalty';
 import loyaltyCardService from '@/services/loyaltyCardService';
 import { queryKeys } from '@/utils/queryKeys';
+// New robust award-points helper
+import { guaranteedAwardPoints } from '../../utils/directPointsAwardService';
 
 interface CustomerDetailsModalProps {
   isOpen: boolean;
@@ -305,92 +307,28 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
       setError('Please select a program and enter points to add');
       return;
     }
-    
+
     setProcessing(true);
     setError(null);
     setSuccess(null);
-    
+
     try {
-      // Get auth token with fallbacks
-      const authToken = localStorage.getItem('token') || 
-                        localStorage.getItem('auth_token') || 
-                        localStorage.getItem('jwt');
-      
-      if (!authToken) {
-        throw new Error('Authentication token not found. Please log in again.');
-      }
-      
-      // Use enhanced fetch with better error handling
-      const apiUrl = '/api/businesses/award-points';
-      console.log(`Awarding ${pointsToAdd} points to customer ${customer.id} in program ${selectedProgramId}`);
-      
-      // Create a unique transaction reference for tracking
-      const transactionRef = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Cache-Control': 'no-cache'
-        },
-        mode: 'cors',
-        credentials: 'include',
-        body: JSON.stringify({
-          customerId: customer.id,
-          programId: selectedProgramId,
-          points: pointsToAdd,
-          description: 'Points awarded from customer details',
-          source: 'CUSTOMER_DETAILS',
-          transactionRef,
-          sendNotification: true
-        })
+      const result = await guaranteedAwardPoints({
+        customerId: customer.id,
+        programId: selectedProgramId,
+        points: pointsToAdd,
+        description: 'Points awarded from customer details',
+        source: 'CUSTOMER_DETAILS',
+        businessId
       });
-      
-      // Check if we got a 405 error and try the fallback method
-      if (response.status === 405) {
-        console.warn('405 Method Not Allowed error detected. Using fallback method...');
-        
-        // Try using our window.awardPointsDirectly helper from the fix script
-        if (window.awardPointsDirectly) {
-          const result = await window.awardPointsDirectly(
-            customer.id.toString(), 
-            selectedProgramId.toString(), 
-            pointsToAdd,
-            'Points awarded from customer details'
-          );
-          
-          if (result && result.success) {
-            setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
-            // Refresh customer data
-            loadCustomerData();
-            loadCustomerLoyaltyCards();
-            return;
-          }
-        }
-        
-        // If fallback failed or isn't available, throw error
-        throw new Error(`Server rejected request method: POST to ${apiUrl}. Please try again.`);
-      }
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to award points: ${response.status} ${errorText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.success) {
+
+      if (result.success) {
         setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
-        // Show confetti or other visual feedback
-        
-        // Refresh customer data
+        // Refresh data so UI stays in sync
         loadCustomerData();
         loadCustomerLoyaltyCards();
       } else {
-        throw new Error(data?.error || 'Failed to award points');
+        throw new Error(result.error || 'Failed to award points');
       }
     } catch (err) {
       console.error('Error adding credit:', err);

@@ -4,6 +4,8 @@ import { Award, AlertCircle, RefreshCw, Bug, XCircle, CheckCircle, User, Gift, X
 import { useQueryClient } from '@tanstack/react-query';
 import { LoyaltyCardQrCodeData, CustomerQrCodeData } from '../../types/qrCode';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+// Robust award-points helper
+import { guaranteedAwardPoints } from '../../utils/directPointsAwardService';
 
 interface PointsAwardingModalProps {
   onClose: () => void;
@@ -127,130 +129,44 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
       return;
     }
 
-    // Generate a unique transaction reference
-    const transactionRef = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    
-    // Reset state
     setError('');
     setProcessingStatus('Processing...');
     setIsProcessing(true);
-    setDiagnosticInfo(null);
-    
+
     try {
-      // Get auth token from localStorage with multiple fallbacks
-      const authToken = localStorage.getItem('token') || 
-                        localStorage.getItem('auth_token') || 
-                        localStorage.getItem('jwt');
-      
-      if (!authToken) {
-        // Try to create a token from existing auth data
-        const authUserData = localStorage.getItem('authUserData');
-        const authUserId = localStorage.getItem('authUserId');
-        
-        if (authUserData && authUserId) {
-          try {
-            const userData = JSON.parse(authUserData);
-            const email = userData.email || 'user@example.com';
-            const role = userData.role || 'business';
-            
-            // Create token payload
-            const tokenPayload = `${authUserId}:${email}:${role}`;
-            const token = btoa(tokenPayload);
-            
-            // Store token in multiple locations for maximum compatibility
-            localStorage.setItem('token', token);
-            localStorage.setItem('auth_token', token);
-            localStorage.setItem('jwt', token);
-          } catch (error) {
-            console.error('Error creating auth token:', error);
-          }
-        }
-      }
-      
-      // Try each endpoint in sequence for maximum reliability
-      const endpoints = [
-        '/api/direct/direct-award-points',
-        '/api/businesses/award-points',
-        '/api/businesses/award-points-direct',
-        '/api/businesses/award-points-emergency'
-      ];
-      
-      let success = false;
-      let successData = null;
-      
-      for (const endpoint of endpoints) {
-        try {
-          const authToken = localStorage.getItem('token') || 
-                           localStorage.getItem('auth_token') || 
-                           localStorage.getItem('jwt');
-          
-          if (!authToken) {
-            continue; // Skip if no token
-          }
-          
-          const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-              'Authorization': authToken.startsWith('Bearer ') ? authToken : `Bearer ${authToken}`,
-              'X-Direct-Award': 'true'
-        },
-            credentials: 'same-origin',
-        body: JSON.stringify({ 
-          customerId: scanData.customerId.toString(), 
-          programId: selectedProgramId, 
-          points: pointsToAward, 
-              description: 'Points awarded via QR scanner',
-              source: 'QR_SCAN',
-              transactionRef
-            })
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            success = true;
-            successData = data;
-            break;
-          }
-        } catch (error) {
-          console.error('Error with endpoint:', error);
-        }
-      }
-      
-      if (success) {
+      const result = await guaranteedAwardPoints({
+        customerId: scanData.customerId,
+        programId: selectedProgramId,
+        points: pointsToAward,
+        description: 'Points awarded via QR scanner',
+        source: 'QR_SCAN',
+        businessId
+      });
+
+      if (result.success) {
         setProcessingStatus('');
         setSuccess(`Successfully awarded ${pointsToAward} points to ${customerName}`);
         setShowConfetti(true);
-        
-        // Show confetti for 3 seconds
-        setTimeout(() => {
-          setShowConfetti(false);
-        }, 3000);
-        
-        // Invalidate relevant queries to refresh data
-        if (scanData && scanData.customerId) {
-          queryClient.invalidateQueries({queryKey: ['customerPoints', scanData.customerId]});
-          queryClient.invalidateQueries({queryKey: ['loyaltyCards', scanData.customerId]});
-        }
-        
-        if (onSuccess) {
-          onSuccess(pointsToAward);
-        }
-        
-        // Close modal after short delay
-          setTimeout(() => {
-            onClose();
-        }, 2000);
+        setTimeout(() => setShowConfetti(false), 3000);
+
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({ queryKey: ['customerPoints', scanData.customerId] });
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', scanData.customerId] });
+
+        if (onSuccess) onSuccess(pointsToAward);
+
+        // Auto-close
+        setTimeout(() => onClose(), 2000);
       } else {
-        setError('Failed to award points. Please try again.');
+        setError(result.error || 'Failed to award points. Please try again.');
         setProcessingStatus('');
       }
-    } catch (error: any) {
-      setError(`Error: ${error.message || 'Unknown error'}`);
+    } catch (err) {
+      console.error('Error awarding points:', err);
+      setError(err instanceof Error ? err.message : 'Error awarding points');
       setProcessingStatus('');
     } finally {
-        setIsProcessing(false);
+      setIsProcessing(false);
     }
   };
   
