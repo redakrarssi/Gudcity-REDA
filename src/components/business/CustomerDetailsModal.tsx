@@ -307,26 +307,44 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
       setError('Please select a program and enter points to add');
       return;
     }
-
+    
     setProcessing(true);
     setError(null);
     setSuccess(null);
-
+    
     try {
       const result = await guaranteedAwardPoints({
-        customerId: customer.id,
-        programId: selectedProgramId,
-        points: pointsToAdd,
-        description: 'Points awarded from customer details',
-        source: 'CUSTOMER_DETAILS',
+          customerId: customer.id,
+          programId: selectedProgramId,
+          points: pointsToAdd,
+          description: 'Points awarded from customer details',
+          source: 'CUSTOMER_DETAILS',
         businessId
       });
-
+          
       if (result.success) {
-        setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
+            setSuccess(`Successfully awarded ${pointsToAdd} points to ${customer.name}`);
         // Refresh data so UI stays in sync
         loadCustomerData();
         loadCustomerLoyaltyCards();
+
+        // Broadcast storage events for customer dashboard updates & notifications
+        try {
+          const programName = programs.find(p => p.id === selectedProgramId)?.name || 'program';
+          const payload = {
+            customerId: customer.id,
+            businessId,
+            points: pointsToAdd,
+            programId: selectedProgramId,
+            programName,
+            timestamp: new Date().toISOString(),
+            type: 'POINTS_ADDED'
+          };
+          localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify(payload));
+          localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify(payload));
+        } catch (e) {
+          console.warn('Failed to broadcast points notification', e);
+        }
       } else {
         throw new Error(result.error || 'Failed to award points');
       }
