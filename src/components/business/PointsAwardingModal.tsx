@@ -157,23 +157,6 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         
         // Auto-close
         setTimeout(() => onClose(), 2000);
-        // Broadcast storage events for cross-tab/customer dashboard updates
-        try {
-          const programName = programs.find(p => p.id === selectedProgramId)?.name || 'program';
-          const payload = {
-            customerId: scanData.customerId,
-            businessId,
-            points: pointsToAward,
-            programId: selectedProgramId,
-            programName,
-            timestamp: new Date().toISOString(),
-            type: 'POINTS_ADDED'
-          };
-          localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify(payload));
-          localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify(payload));
-        } catch (e) {
-          console.warn('Failed to broadcast points notification', e);
-        }
       } else {
         setError(result.error || 'Failed to award points. Please try again.');
         setProcessingStatus('');

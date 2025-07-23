@@ -6,6 +6,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+// Trigger customer-side notifications & card refresh
+import { handlePointsAwarded } from './notificationHandler';
 
 interface AwardPointsResult {
   success: boolean;
@@ -110,11 +112,32 @@ export async function guaranteedAwardPoints({
           
           if (response.ok) {
             const data = await response.json();
-            
+
+            const cardId = data.cardId || data.data?.cardId || '';
+            const programName = data.programName || data.data?.programName || programIdStr;
+            const businessName = data.businessName || data.data?.businessName || String(businessId ?? '');
+
+            // Notify customer dashboards (best-effort)
+            try {
+              await handlePointsAwarded(
+                customerIdStr,
+                String(businessId ?? ''),
+                programIdStr,
+                programName,
+                businessName,
+                pointsNum,
+                cardId,
+                src
+              );
+            } catch (notifyErr) {
+              // Non-blocking
+              console.warn('handlePointsAwarded failed:', notifyErr);
+            }
+
             return {
               success: true,
               message: data.message || `Successfully awarded ${points} points`,
-              cardId: data.cardId || data.data?.cardId,
+              cardId,
               transactionId: data.transactionId || data.data?.transactionId,
               points: pointsNum,
               endpoint
@@ -151,6 +174,22 @@ export async function guaranteedAwardPoints({
       });
       
       if (result.success) {
+        // Fire notification for client-side implementation as well
+        try {
+          await handlePointsAwarded(
+            customerIdStr,
+            String(actualBusinessId ?? ''),
+            programIdStr,
+            programIdStr,
+            String(actualBusinessId ?? ''),
+            pointsNum,
+            result.cardId || '',
+            src
+          );
+        } catch (notifyErr) {
+          console.warn('handlePointsAwarded failed (directClient):', notifyErr);
+        }
+
         return {
           ...result,
           message: result.message || `Successfully awarded ${points} points via direct client implementation`
@@ -193,7 +232,8 @@ export async function guaranteedAwardPoints({
     // Register a sync task if Service Worker API is available
     if ('serviceWorker' in navigator && 'SyncManager' in window) {
       const sw = await navigator.serviceWorker.ready;
-      await sw.sync.register('sync-points-transactions');
+      // @ts-ignore - SyncManager typings not always present in TS lib
+      await (sw as any).sync.register('sync-points-transactions');
     }
     
     return {
