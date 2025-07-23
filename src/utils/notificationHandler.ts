@@ -2,11 +2,14 @@ import { CustomerNotificationService } from '../services/customerNotificationSer
 import { logger } from './logger';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { createCardSyncEvent } from './realTimeSync';
+import sql from './db';
+import crypto from 'crypto';
 
 /**
  * Handler for customer point notifications
  * This is called after points are successfully awarded to trigger UI notifications
  * It consolidates multiple point notifications from the same business/program
+ * And ensures points are properly added to the card
  */
 export async function handlePointsAwarded(
   customerId: string,
@@ -23,39 +26,23 @@ export async function handlePointsAwarded(
       customerId,
       businessId,
       programId,
-      points
+      points,
+      source
     });
-
-    // Check for recent notifications from the same business and program to avoid duplicates
+    
+    // First, ensure the card is properly updated with points
+    await ensureCardPointsUpdated(customerId, businessId, programId, points, cardId);
+    
+    // Check for recent notifications to avoid duplication
     const recentNotifications = await CustomerNotificationService.getRecentPointsNotifications(
-      customerId, 
-      businessId, 
-      programId, 
+      customerId,
+      businessId,
+      programId,
       60 // Look back 60 seconds
     );
 
     if (recentNotifications.length > 0) {
-      // Just update the card data to ensure points are reflected correctly
-      // Create sync event for React Query invalidation
-      createCardSyncEvent(
-        cardId,
-        customerId,
-        businessId,
-        'UPDATE',
-        {
-          pointsAdded: points,
-          programId,
-          programName
-        }
-      );
-      
-      logger.info('Skipped creating duplicate notification', {
-        customerId,
-        businessId,
-        programId,
-        existingCount: recentNotifications.length
-      });
-      
+      logger.info(`Found ${recentNotifications.length} recent notifications, skipping new notification`);
       return true;
     }
 
@@ -79,91 +66,32 @@ export async function handlePointsAwarded(
       isRead: false
     });
 
-    // Set localStorage event to trigger UI updates
-    if (typeof window !== 'undefined') {
+    if (notification) {
+      // Trigger a real-time sync event for the customer's dashboard
       try {
-        // Store in localStorage for persistence across page refreshes
-        localStorage.setItem(`points_notification_${Date.now()}`, JSON.stringify({
-          type: 'POINTS_ADDED',
-          customerId,
-          businessId,
-          points,
-          programName,
-          timestamp: new Date().toISOString(),
-          notificationId: notification?.id
-        }));
-
-        // Dispatch custom event for real-time UI updates
-        const event = new CustomEvent('customer-notification', {
-          detail: {
-            type: 'POINTS_ADDED',
-            customerId,
-            businessId,
-            points,
-            programName,
-            cardId
-          }
-        });
-        window.dispatchEvent(event);
-        
-        // Also dispatch the specific points-awarded event
-        const pointsEvent = new CustomEvent('points-awarded', {
-          detail: {
-            customerId,
-            businessId,
-            programId,
-            programName,
-            businessName,
-            points,
-            cardId,
-            source
-          }
-        });
-        window.dispatchEvent(pointsEvent);
-        
-        // Trigger card refresh
-        triggerCardRefresh(customerId);
-      } catch (storageError) {
-        logger.warn('Failed to save notification to localStorage', {
-          error: storageError instanceof Error ? storageError.message : 'Unknown error'
-        });
-      }
-    }
-
-    // Ensure card is properly updated and synced
-    try {
-      // Create sync event for React Query invalidation
-      createCardSyncEvent(
-        cardId,
-        customerId,
-        businessId,
-        'UPDATE',
-        {
+        await createCardSyncEvent(customerId, cardId, businessId, 'UPDATE', {
           pointsAdded: points,
           programId,
           programName
-        }
-      );
-    } catch (syncError) {
-      logger.warn('Failed to create card sync event', {
-        error: syncError instanceof Error ? syncError.message : 'Unknown error'
-      });
-    }
-
-    return !!notification;
-  } catch (error) {
-    logger.error('Failed to create points notification', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      customerId,
-      businessId,
-      programId
-    });
-    
-    // Even if we fail to create a notification, try a fallback method
-    try {
-      // Try importing sql directly
-      const { default: sql } = await import('../utils/db');
+        });
+      } catch (syncError) {
+        logger.warn('Failed to create sync event', { error: syncError });
+      }
       
+      return true;
+    }
+    
+    // Fallback: If notification service fails, create a simplified notification
+    await createFallbackNotification(
+      customerId, businessId, programId, programName, businessName, points, cardId, source
+    );
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to create points awarded notification', { error });
+    
+    // Try a direct database approach as last resort
+    try {
       // Create a simplified notification directly in the database
       await sql`
         INSERT INTO customer_notifications (
@@ -190,32 +118,28 @@ export async function handlePointsAwarded(
           ${new Date().toISOString()}
         )
       `;
-      
-      logger.info('Created fallback notification successfully');
-    } catch (fallbackError) {
-      logger.error('Fallback notification creation also failed', {
-        error: fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
-      });
+      return true;
+    } catch (dbError) {
+      logger.error('Final fallback notification creation failed', { error: dbError });
+      return false;
     }
-    return false;
   }
 }
 
 /**
- * Fallback method to create a notification
+ * Create a fallback notification when the main notification system fails
  */
 async function createFallbackNotification(
   customerId: string,
   businessId: string,
-  points: number,
+  programId: string,
   programName: string,
-  businessName: string
+  businessName: string,
+  points: number,
+  cardId: string,
+  source: string
 ): Promise<void> {
   try {
-    // Try importing sql directly
-    const { default: sql } = await import('../utils/db');
-    
-    // Create a simplified notification directly in the database
     await sql`
       INSERT INTO customer_notifications (
         id,
@@ -241,13 +165,174 @@ async function createFallbackNotification(
         ${new Date().toISOString()}
       )
     `;
-    
-    logger.info('Created fallback notification successfully');
   } catch (error) {
-    logger.error('Failed to create fallback notification', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    throw error;
+    logger.error('Failed to create fallback notification', { error });
+  }
+}
+
+/**
+ * Ensures that both the loyalty_cards and program_enrollments tables are updated with points
+ */
+async function ensureCardPointsUpdated(
+  customerId: string,
+  businessId: string,
+  programId: string,
+  points: number,
+  cardId: string
+): Promise<void> {
+  try {
+    // Use sql directly for all queries
+    // 1. First, update the loyalty_cards table
+    const cardExists = await sql`
+      SELECT id FROM loyalty_cards 
+      WHERE id = ${cardId}
+    `;
+    
+    let cardIdToUse = cardId;
+    
+    if (cardExists && cardExists.length > 0) {
+      // Card exists, update it
+      await sql`
+        UPDATE loyalty_cards
+        SET 
+          points = COALESCE(points, 0) + ${points},
+          updated_at = NOW()
+        WHERE id = ${cardId}
+      `;
+      logger.info('Updated loyalty card points', { cardId, points });
+    } else {
+      // Get the next available ID if cardId is not provided or doesn't exist
+      if (!cardId) {
+        const maxIdResult = await sql`
+          SELECT MAX(id) + 1 AS next_id FROM loyalty_cards
+        `;
+        cardIdToUse = maxIdResult[0].next_id?.toString() || '1';
+      }
+      
+      // Create a new card
+      await sql`
+        INSERT INTO loyalty_cards (
+          id,
+          customer_id,
+          business_id,
+          program_id,
+          card_type,
+          points,
+          created_at,
+          updated_at,
+          is_active,
+          status,
+          tier
+        ) VALUES (
+          ${cardIdToUse},
+          ${parseInt(customerId)},
+          ${parseInt(businessId)},
+          ${parseInt(programId)},
+          'STANDARD',
+          ${points},
+          NOW(),
+          NOW(),
+          true,
+          'active',
+          'STANDARD'
+        )
+      `;
+      logger.info('Created new loyalty card with points', { cardId: cardIdToUse, points });
+    }
+    
+    // 2. Then, update the program_enrollments table
+    const enrollmentExists = await sql`
+      SELECT * FROM program_enrollments
+      WHERE customer_id = ${customerId.toString()}
+      AND program_id = ${programId.toString()}
+    `;
+    
+    if (enrollmentExists && enrollmentExists.length > 0) {
+      // Update existing enrollment
+      await sql`
+        UPDATE program_enrollments
+        SET 
+          current_points = current_points + ${points},
+          last_activity = NOW()
+        WHERE customer_id = ${customerId.toString()}
+        AND program_id = ${programId.toString()}
+      `;
+      logger.info('Updated program enrollment points', { customerId, programId, points });
+    } else {
+      // Create new enrollment
+      await sql`
+        INSERT INTO program_enrollments (
+          customer_id,
+          program_id,
+          current_points,
+          status,
+          enrolled_at,
+          last_activity
+        ) VALUES (
+          ${customerId.toString()},
+          ${programId.toString()},
+          ${points},
+          'ACTIVE',
+          NOW(),
+          NOW()
+        )
+      `;
+      logger.info('Created new program enrollment with points', { customerId, programId, points });
+    }
+    
+    // 3. Also update customer_programs if it's a separate table and not a view
+    try {
+      const customerProgramsTable = await sql`
+        SELECT table_type
+        FROM information_schema.tables
+        WHERE table_name = 'customer_programs'
+      `;
+      
+      if (customerProgramsTable && customerProgramsTable.length > 0 && 
+          customerProgramsTable[0].table_type === 'BASE TABLE') {
+        const customerProgramExists = await sql`
+          SELECT * FROM customer_programs
+          WHERE customer_id = ${customerId}
+          AND program_id = ${programId}
+        `;
+        
+        if (customerProgramExists && customerProgramExists.length > 0) {
+          // Update existing record
+          await sql`
+            UPDATE customer_programs
+            SET 
+              current_points = current_points + ${points},
+              updated_at = NOW()
+            WHERE customer_id = ${customerId}
+            AND program_id = ${programId}
+          `;
+        } else {
+          // Create new record
+          await sql`
+            INSERT INTO customer_programs (
+              customer_id,
+              program_id,
+              current_points,
+              enrolled_at
+            ) VALUES (
+              ${customerId},
+              ${programId},
+              ${points},
+              NOW()
+            )
+          `;
+        }
+        logger.info('Updated customer_programs table', { customerId, programId, points });
+      }
+    } catch (customerProgramsError) {
+      // This might fail if customer_programs is a view or doesn't exist, which is fine
+      logger.debug('Skipping customer_programs update', { error: customerProgramsError });
+    }
+    
+    logger.info('Successfully updated all points records');
+  } catch (error) {
+    logger.error('Failed to update card points', { error });
+    // Continue execution even if this fails - the original points might have been updated already
   }
 }
 
@@ -459,12 +544,6 @@ export function registerNotificationListeners(): void {
   window.addEventListener('storage', (event) => {
     // Check for card refresh events
     if (event.key?.startsWith('refresh_cards_') || event.key === 'force_card_refresh') {
-      // Invalidate card queries if React Query is available
-      if (typeof window.queryClient !== 'undefined' && window.queryClient.invalidateQueries) {
-        window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
-        window.queryClient.invalidateQueries({ queryKey: ['customerCards'] });
-      }
-      
       // Dispatch refresh event
       const refreshEvent = new CustomEvent('refresh-customer-cards', {
         detail: { timestamp: Date.now() }
@@ -488,11 +567,4 @@ export function registerNotificationListeners(): void {
       }
     }
   });
-} 
-
-// Add a global type declaration for queryClient
-declare global {
-  interface Window {
-    queryClient?: any;
-  }
 } 

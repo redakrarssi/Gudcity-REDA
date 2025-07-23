@@ -1,76 +1,74 @@
-import dotenv from 'dotenv';
-import pg from 'pg';
+import { neon } from '@neondatabase/serverless';
 
-// Load environment variables
-dotenv.config();
+// Use the database URL from the environment or hardcode for testing purposes
+const DATABASE_URL = process.env.VITE_DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
 
-console.log('Checking loyalty_programs table structure...');
+// Create connection
+const sql = neon(DATABASE_URL);
 
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL) {
-  console.log('No DATABASE_URL found in environment variables');
-  process.exit(1);
-}
-
-const client = new pg.Client({
-  connectionString: DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-async function checkLoyaltyProgramsTable() {
+async function checkLoyaltyCardTable() {
   try {
-    await client.connect();
-    console.log('Connected to the database');
-
-    // Check if the table exists
-    const tableCheck = await client.query(`
+    console.log("🔍 Checking loyalty_cards table schema...");
+    
+    // Check if table exists
+    const tableExists = await sql`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'loyalty_programs'
+        AND table_name = 'loyalty_cards'
       );
-    `);
-
-    const tableExists = tableCheck.rows[0].exists;
+    `;
     
-    if (!tableExists) {
-      console.log('Table loyalty_programs does not exist!');
+    if (!tableExists[0].exists) {
+      console.error("❌ loyalty_cards table does not exist");
       return;
     }
-
-    console.log('Table loyalty_programs exists. Checking columns...');
-
+    
+    console.log("✅ loyalty_cards table exists");
+    
     // Get column information
-    const columnQuery = await client.query(`
-      SELECT column_name, data_type, character_maximum_length
+    const columns = await sql`
+      SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
       WHERE table_schema = 'public'
-      AND table_name = 'loyalty_programs'
+      AND table_name = 'loyalty_cards'
       ORDER BY ordinal_position;
-    `);
-
-    console.log('Columns in loyalty_programs table:');
-    columnQuery.rows.forEach(column => {
-      console.log(`- ${column.column_name}: ${column.data_type}${column.character_maximum_length ? `(${column.character_maximum_length})` : ''}`);
+    `;
+    
+    console.log("\nColumns in loyalty_cards table:");
+    console.log("--------------------------------");
+    columns.forEach(col => {
+      console.log(`${col.column_name} (${col.data_type}) ${col.is_nullable === 'YES' ? 'NULL' : 'NOT NULL'}`);
     });
-
-    // Check if points_value or point_value exists
-    const pointValueCheck = columnQuery.rows.some(col => col.column_name === 'points_value');
-    const pointValueAlternativeCheck = columnQuery.rows.some(col => col.column_name === 'point_value');
-
-    console.log('\nPoint value column check:');
-    console.log(`- points_value exists: ${pointValueCheck}`);
-    console.log(`- point_value exists: ${pointValueAlternativeCheck}`);
-
+    
+    // Check for specific columns
+    const hasPointsBalance = columns.some(col => col.column_name === 'points_balance');
+    const hasTotalPointsEarned = columns.some(col => col.column_name === 'total_points_earned');
+    
+    console.log("\nChecking specific columns:");
+    console.log(`points_balance: ${hasPointsBalance ? '✅ Present' : '❌ Missing'}`);
+    console.log(`total_points_earned: ${hasTotalPointsEarned ? '✅ Present' : '❌ Missing'}`);
+    
+    // Check if any rows exist
+    const rowCount = await sql`
+      SELECT COUNT(*) FROM loyalty_cards;
+    `;
+    
+    console.log(`\nTotal rows in table: ${rowCount[0].count}`);
+    
+    // Sample row
+    if (parseInt(rowCount[0].count) > 0) {
+      const sampleRow = await sql`
+        SELECT * FROM loyalty_cards LIMIT 1;
+      `;
+      
+      console.log("\nSample row data:");
+      console.log(JSON.stringify(sampleRow[0], null, 2));
+    }
+    
   } catch (error) {
-    console.error('Error checking database:', error);
-  } finally {
-    await client.end();
-    console.log('Database connection closed');
+    console.error("Error checking table:", error);
   }
 }
 
-checkLoyaltyProgramsTable(); 
+checkLoyaltyCardTable(); 
