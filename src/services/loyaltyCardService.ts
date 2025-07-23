@@ -861,7 +861,7 @@ export class LoyaltyCardService {
               businessId: (businessId || card.business_id).toString(),
               type: 'POINTS_ADDED',
               title: 'Points Added',
-              message: `You've received ${points} points from ${businessName} in ${programName}`,
+              message: `You've received ${points} points from ${businessName} in the program ${programName}`,
               data: {
                 points: points,
                 cardId: cardId,
@@ -1087,7 +1087,7 @@ export class LoyaltyCardService {
           businessId: card.business_id.toString(),
           type: 'POINTS_ADDED',
           title: 'Points Added',
-          message: `You received ${formattedPoints} points from ${card.business_name}`,
+          message: `You've received ${formattedPoints} points from ${card.business_name} in the program ${card.program_name}`,
           data: {
             points: formattedPoints,
             cardId: cardId,

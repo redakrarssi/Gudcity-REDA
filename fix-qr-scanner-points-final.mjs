@@ -292,7 +292,7 @@ async function fixAwardPointsProcess() {
         v_business_id_int,
         'POINTS_ADDED',
         'Points Added',
-        'You''ve received ' || p_points || ' points from ' || v_business_name || ' in ' || v_program_name,
+        'You''ve received ' || p_points || ' points from ' || v_business_name || ' in the program ' || v_program_name,
         jsonb_build_object(
           'points', p_points,
           'cardId', v_card_id,

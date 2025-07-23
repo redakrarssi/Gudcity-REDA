@@ -6,6 +6,7 @@ import { createCardSyncEvent } from './realTimeSync';
 /**
  * Handler for customer point notifications
  * This is called after points are successfully awarded to trigger UI notifications
+ * It consolidates multiple point notifications from the same business/program
  */
 export async function handlePointsAwarded(
   customerId: string,
@@ -25,13 +26,46 @@ export async function handlePointsAwarded(
       points
     });
 
+    // Check for recent notifications from the same business and program to avoid duplicates
+    const recentNotifications = await CustomerNotificationService.getRecentPointsNotifications(
+      customerId, 
+      businessId, 
+      programId, 
+      60 // Look back 60 seconds
+    );
+
+    if (recentNotifications.length > 0) {
+      // Just update the card data to ensure points are reflected correctly
+      // Create sync event for React Query invalidation
+      createCardSyncEvent(
+        cardId,
+        customerId,
+        businessId,
+        'UPDATE',
+        {
+          pointsAdded: points,
+          programId,
+          programName
+        }
+      );
+      
+      logger.info('Skipped creating duplicate notification', {
+        customerId,
+        businessId,
+        programId,
+        existingCount: recentNotifications.length
+      });
+      
+      return true;
+    }
+
     // Create notification in customer notification system
     const notification = await CustomerNotificationService.createNotification({
       customerId,
       businessId,
       type: 'POINTS_ADDED',
       title: 'Points Added',
-      message: `You've received ${points} points from ${businessName} in ${programName}`,
+      message: `You've received ${points} points from ${businessName} in the program ${programName}`,
       data: {
         points,
         cardId,
@@ -149,7 +183,7 @@ export async function handlePointsAwarded(
           ${parseInt(businessId)},
           'POINTS_ADDED',
           'Points Added',
-          ${`You've received ${points} points from ${businessName} in ${programName}`},
+          ${`You've received ${points} points from ${businessName} in the program ${programName}`},
           false,
           false,
           false,
@@ -200,7 +234,7 @@ async function createFallbackNotification(
         ${parseInt(businessId)},
         'POINTS_ADDED',
         'Points Added',
-        ${`You've received ${points} points from ${businessName} in ${programName}`},
+        ${`You've received ${points} points from ${businessName} in the program ${programName}`},
         false,
         false,
         false,

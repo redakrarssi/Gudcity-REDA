@@ -228,7 +228,7 @@ export async function directAwardPoints(
               ${businessIdStr || diagnostics.businessId}::integer,
               'POINTS_ADDED',
               'Points Added',
-              ${`You received ${points} points from ${businessName} in ${programName}`},
+              ${`You've received ${points} points from ${businessName} in the program ${programName}`},
               ${JSON.stringify({
                 points,
                 cardId,

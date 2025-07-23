@@ -12,7 +12,9 @@ import {
   Tag,
   Award,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Loader,
+  Info
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EnrollmentErrorCode } from '../../utils/enrollmentErrorReporter';
@@ -29,7 +31,8 @@ const GlobalNotificationCenter: React.FC = () => {
     approvalRequests,
     markAsRead,
     respondToApproval,
-    deleteNotification
+    deleteNotification,
+    deleteAllNotifications
   } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<'notifications' | 'approvals'>('notifications');
@@ -37,6 +40,7 @@ const GlobalNotificationCenter: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [successMessages, setSuccessMessages] = useState<Record<string, string>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Format date to relative time (e.g. "2 hours ago")
   const formatRelativeTime = (dateString: string) => {
@@ -69,6 +73,54 @@ const GlobalNotificationCenter: React.FC = () => {
       setSuccessMessages({});
     }
   }, [showNotificationCenter]);
+
+  const getNotificationIcon = (type: string) => {
+    switch(type) {
+      case 'POINTS_ADDED':
+        return (
+          <div className="bg-green-100 dark:bg-green-900 p-1.5 rounded-full">
+            <Award className="w-4 h-4 text-green-600 dark:text-green-400" />
+          </div>
+        );
+      case 'PROMO_CODE':
+        return (
+          <div className="bg-purple-100 dark:bg-purple-900 p-1.5 rounded-full">
+            <Tag className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          </div>
+        );
+      case 'ENROLLMENT':
+      case 'ENROLLMENT_REQUEST':
+        return (
+          <div className="bg-blue-100 dark:bg-blue-900 p-1.5 rounded-full">
+            <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+        );
+      case 'ERROR':
+        return (
+          <div className="bg-red-100 dark:bg-red-900 p-1.5 rounded-full">
+            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+          </div>
+        );
+      default:
+        return (
+          <div className="bg-gray-100 dark:bg-gray-900 p-1.5 rounded-full">
+            <Info className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+          </div>
+        );
+    }
+  };
+
+  const handleClearAll = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAllNotifications();
+      // Deletion handling is done in the context
+    } catch (error) {
+      console.error('Failed to clear all notifications:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -130,7 +182,7 @@ const GlobalNotificationCenter: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-auto p-4">
                 {activeTab === 'notifications' ? (
                   <>
                   {notifications.length === 0 ? (
@@ -139,73 +191,73 @@ const GlobalNotificationCenter: React.FC = () => {
                       <p>No notifications yet</p>
                     </div>
                   ) : (
-                      <div className="space-y-2">
-                        {notifications.map(notification => (
-                      <div
-                        key={notification.id}
-                            className={`p-3 rounded-lg shadow-sm bg-white dark:bg-gray-700 border ${
-                          notification.isRead
-                                ? 'border-gray-200 dark:border-gray-600'
-                                : 'border-blue-200 dark:border-blue-700'
-                            }`}
+                      <div>
+                        {/* Clear All button */}
+                        <div className="flex justify-end mb-4">
+                          <button
+                            onClick={handleClearAll}
+                            disabled={isDeleting || notifications.length === 0}
+                            className={`flex items-center py-1 px-3 text-sm rounded-md
+                              ${isDeleting
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300'
+                              }`}
                           >
-                            <div className="flex justify-between">
-                              <div className="flex items-start">
-                                <div className="mr-3 mt-1">
-                                  {notification.type === 'ERROR' && (
-                                    <div className="bg-red-100 dark:bg-red-900 p-1 rounded-full">
-                                      <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            {isDeleting ? (
+                              <>
+                                <Loader className="w-3 h-3 mr-2 animate-spin" />
+                                Clearing...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3 h-3 mr-2" />
+                                Clear All
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        
+                        {/* Notifications list */}
+                        <div className="space-y-2">
+                          {notifications.map(notification => (
+                            <div
+                              key={notification.id}
+                              className="p-4 rounded-lg shadow-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex items-start space-x-3">
+                                  <div className="flex-shrink-0">
+                                    {getNotificationIcon(notification.type)}
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-sm">
+                                      {notification.title}
+                                      {!notification.isRead && (
+                                        <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
+                                      )}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                                      {notification.message}
+                                    </p>
+                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      {formatRelativeTime(notification.createdAt)}
                                     </div>
-                                  )}
-                                  {notification.type === 'SUCCESS' && (
-                                    <div className="bg-green-100 dark:bg-green-900 p-1 rounded-full">
-                                      <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-                                    </div>
-                                  )}
-                                  {notification.type === 'ENROLLMENT' && (
-                                    <div className="bg-blue-100 dark:bg-blue-900 p-1 rounded-full">
-                                      <Award className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                    </div>
-                                  )}
-                                  {notification.type === 'PROMO_CODE' && (
-                                    <div className="bg-purple-100 dark:bg-purple-900 p-1 rounded-full">
-                                      <Tag className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                    </div>
-                                  )}
-                                  {notification.type === 'SYSTEM' && (
-                                    <div className="bg-gray-100 dark:bg-gray-900 p-1 rounded-full">
-                                      <AlertCircle className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                                    </div>
-                                  )}
-                          </div>
-                                <div className="flex-1">
-                                  <h4 className="font-medium text-sm">
-                              {notification.title}
-                                    {!notification.isRead && (
-                                      <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
-                                    )}
-                                  </h4>
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                              {notification.message}
-                            </p>
-                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                                    <Clock className="w-3 h-3 mr-1" />
-                                {formatRelativeTime(notification.createdAt)}
                                   </div>
                                 </div>
-                              </div>
-                              <div className="ml-2">
-                                <button
-                                  onClick={() => deleteNotification(notification.id)}
-                                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
-                                  aria-label="Delete notification"
-                                >
-                                  <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                                </button>
+                                <div className="ml-2">
+                                  <button
+                                    onClick={() => deleteNotification(notification.id)}
+                                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
+                                    aria-label="Delete notification"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>

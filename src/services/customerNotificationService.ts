@@ -30,6 +30,22 @@ export class CustomerNotificationService {
     expiresAt?: string;
   }): Promise<CustomerNotification | null> {
     try {
+      // For POINTS_ADDED notifications, check if we already have a recent one from the same business
+      if (notification.type === 'POINTS_ADDED' && notification.data?.programId) {
+        // Look for notifications from the same business in the last 60 seconds
+        const recentNotifications = await this.getRecentPointsNotifications(
+          notification.customerId,
+          notification.businessId,
+          notification.data.programId.toString(),
+          60 // 60 seconds window
+        );
+        
+        if (recentNotifications.length > 0) {
+          console.log('Found recent point notification, skipping duplicate');
+          return recentNotifications[0]; // Return the existing notification
+        }
+      }
+      
       const notificationId = uuidv4();
       const now = new Date();
       
@@ -723,6 +739,64 @@ export class CustomerNotificationService {
       return results.map(row => this.mapNotification(row));
     } catch (error) {
       console.error('Error fetching business notifications:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get recent points notifications for a customer from a specific business and program
+   * @param customerId The customer ID
+   * @param businessId The business ID
+   * @param programId The program ID
+   * @param secondsWindow Time window in seconds to look back for recent notifications
+   */
+  static async getRecentPointsNotifications(
+    customerId: string,
+    businessId: string,
+    programId: string,
+    secondsWindow: number = 60
+  ): Promise<CustomerNotification[]> {
+    try {
+      // Check if the table exists first
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'customer_notifications'
+        );
+      `;
+      
+      if (!tableExists || !tableExists[0] || !tableExists[0].exists) {
+        console.warn('Table customer_notifications does not exist');
+        return [];
+      }
+      
+      const customerIdInt = parseInt(customerId);
+      const businessIdInt = parseInt(businessId);
+      const windowTime = new Date(Date.now() - (secondsWindow * 1000)).toISOString();
+      
+      if (isNaN(customerIdInt) || isNaN(businessIdInt)) {
+        console.error('Invalid customer or business ID');
+        return [];
+      }
+      
+      const results = await sql`
+        SELECT 
+          cn.*,
+          b.name as business_name
+        FROM customer_notifications cn
+        JOIN users b ON cn.business_id = b.id
+        WHERE cn.customer_id = ${customerIdInt}
+        AND cn.business_id = ${businessIdInt}
+        AND cn.type = 'POINTS_ADDED'
+        AND cn.data->>'programId' = ${programId}
+        AND cn.created_at > ${windowTime}
+        ORDER BY cn.created_at DESC
+      `;
+
+      return results.map(this.mapNotification);
+    } catch (error) {
+      console.error('Error fetching recent points notifications:', error);
       return [];
     }
   }

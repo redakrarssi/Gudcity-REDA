@@ -754,6 +754,19 @@ export class QrCodeService {
           }
 
           if (totalPointsAwarded > 0) {
+            // Get program name for better user experience
+            let programName = "Loyalty Program";
+            try {
+              const programResult = await sql`
+                SELECT name FROM loyalty_programs WHERE id = ${enrollmentStatus.programIds[0]}
+              `;
+              if (programResult && programResult.length > 0) {
+                programName = programResult[0].name;
+              }
+            } catch (err) {
+              console.error('Error fetching program name:', err);
+            }
+            
             // Send notification about points awarded
             try {
               await CustomerNotificationService.createNotification({
@@ -761,13 +774,14 @@ export class QrCodeService {
                 businessId: businessId,
                 type: 'POINTS_ADDED',
                 title: 'Points Added',
-                message: `You earned ${totalPointsAwarded} points from your visit to ${businessName}!`,
+                message: `You've received ${totalPointsAwarded} points from ${businessName} in the program ${programName}`,
                 requiresAction: false,
                 actionTaken: false,
                 isRead: false,
                 data: {
                   points: totalPointsAwarded,
                   businessName: businessName,
+                  programName: programName,
                   source: 'QR_SCAN',
                   cardUpdates: cardUpdates
                 }
@@ -833,32 +847,29 @@ export class QrCodeService {
     qrCodeData: LoyaltyCardQrCodeData,
     businessId: string,
     pointsToAward: number
-  ): Promise<QrCodeProcessingResult> {
+  ): Promise<any> {
     try {
-      const cardId = qrCodeData.cardId || '';
-      const customerId = qrCodeData.customerId || '';
+      const customerId = qrCodeData.customerId;
+      const cardId = qrCodeData.cardId;
+      const programId = qrCodeData.programId;
+      const programName = qrCodeData.programName || "Loyalty Program";
       
-      if (!cardId || !customerId) {
-        return {
-          success: false,
-          message: 'Invalid loyalty card QR code - missing card or customer ID'
-        };
-      }
-
-      // Get business information
-      const business = await sql`
-        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+      // Get the business name
+      const businessResult = await sql`
+        SELECT name FROM users WHERE id = ${parseInt(businessId)}
       `;
       
-      const businessName = business.length > 0 ? business[0].name : 'Business';
-
-      // Award points to the specific card
-      const success = await LoyaltyCardService.awardPointsToCard(
+      const businessName = businessResult.length > 0 
+        ? businessResult[0].name 
+        : 'Business';
+      
+      // Award points to the card
+      const { success } = await LoyaltyCardService.awardPointsToCard(
         cardId,
         pointsToAward,
         'SCAN',
-        `Loyalty card scan at ${businessName}`,
-        `card-scan-${Date.now()}`,
+        'QR code scan reward',
+        `qr-scan-${Date.now()}`,
         businessId
       );
 
@@ -870,7 +881,7 @@ export class QrCodeService {
             businessId: businessId,
             type: 'POINTS_ADDED',
             title: 'Points Added',
-            message: `You earned ${pointsToAward} points from scanning your loyalty card at ${businessName}!`,
+            message: `You've received ${pointsToAward} points from ${businessName} in the program ${programName}`,
             requiresAction: false,
             actionTaken: false,
             isRead: false,
@@ -878,6 +889,7 @@ export class QrCodeService {
             data: {
               points: pointsToAward,
               businessName: businessName,
+              programName: programName,
               cardId: cardId,
               source: 'LOYALTY_CARD_SCAN'
             }

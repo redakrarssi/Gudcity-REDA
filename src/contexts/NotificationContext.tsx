@@ -7,7 +7,7 @@ import { WEBSOCKET_EVENTS } from '../utils/constants';
 import { CustomerNotificationService } from '../services/customerNotificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
-import { deleteCustomerNotification } from '../services/customerNotificationDelete';
+import { deleteCustomerNotification, deleteAllNotifications } from '../services/customerNotificationDelete';
 import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
 
 interface CustomerNotification {
@@ -55,6 +55,7 @@ interface NotificationContextType {
   dismissPopup: () => void;
   respondToApproval: (approvalId: string, approved: boolean) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -468,6 +469,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const clearAllNotifications = async (): Promise<void> => {
+    if (!user?.id) return;
+    
+    try {
+      // Delete all notifications from database
+      await deleteAllNotifications(user.id.toString());
+      
+      // Update local state
+      const previousUnreadCount = unreadCount;
+      setNotifications([]);
+      setUnreadCount(0);
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ 
+        queryKey: ['customerNotifications', user.id.toString()]
+      });
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    }
+  };
+
   return (
     <NotificationContext.Provider value={{
       notifications,
@@ -480,7 +502,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       markAsRead,
       dismissPopup,
       respondToApproval,
-      deleteNotification
+      deleteNotification,
+      deleteAllNotifications: clearAllNotifications
     }}>
       {children}
     </NotificationContext.Provider>

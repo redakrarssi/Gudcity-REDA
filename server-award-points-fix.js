@@ -200,7 +200,7 @@ if (typeof process !== 'undefined') {
                   ${parseInt(businessIdStr)},
                   'POINTS_ADDED',
                   'Points Added',
-                  ${`You've received ${points} points from ${businessName} in ${programName}`},
+                  ${`You've received ${points} points from ${businessName} in the program ${programName}`},
                   ${JSON.stringify({
                     points: points,
                     cardId: cardId,
@@ -328,7 +328,7 @@ if (typeof process !== 'undefined') {
         
         // Add catch-all for award-points to diagnose issues
         app.all('*/award-points', (req, res, next) => {
-          console.log('\n🔍 AWARD POINTS CATCH-ALL ACCESSED');
+          console.log('\n�� AWARD POINTS CATCH-ALL ACCESSED');
           console.log('🔍 Method:', req.method);
           console.log('🔍 URL:', req.originalUrl);
           console.log('🔍 Headers:', req.headers);
