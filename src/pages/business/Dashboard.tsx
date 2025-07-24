@@ -10,7 +10,7 @@ import { AnalyticsService } from '../../services/analyticsService';
 import { BusinessAnalyticsDashboard } from '../../components/business/BusinessAnalyticsDashboard';
 import { QRScanner } from '../../components/QRScanner';
 import { ProgramBuilder } from '../../components/business/ProgramBuilder';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { QrCodeService } from '../../services/qrCodeService';
 import { NotificationService } from '../../services/notificationService';
 import { ScanResult, QrCodeType } from '../../types/qrCode';
@@ -55,7 +55,6 @@ const BusinessDashboard = () => {
   const [businessName, setBusinessName] = useState('');
   const [businessHasIncompleteSettings, setBusinessHasIncompleteSettings] = useState(false);
   const [hasNotifications, setHasNotifications] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Check for pending redemption notifications
@@ -187,6 +186,13 @@ const BusinessDashboard = () => {
       // Show processing message
       setScannerMessage('Processing scan...');
       
+      // Map QrCodeType to scan type expected by service
+      let scanType: QrCodeType = result.type;
+      
+      // Get default program if available
+      const defaultProgram = programs.length > 0 ? programs[0] : null;
+      const programId = defaultProgram?.id;
+      
       // Extract customer ID based on QR code type
       let customerId: string | undefined;
       if (result.type === 'customer' && 'customerId' in result.data) {
@@ -195,28 +201,51 @@ const BusinessDashboard = () => {
         customerId = String(result.data.customerId);
       }
       
-      if (customerId) {
-        // Close the scanner and redirect to customer details page
-        setScannerMessage(`Customer found! Redirecting to customer details...`);
-        setTimeout(() => {
-          setShowScanner(false);
-          // Navigate to customer details page
-          navigate(`/business/customers/${customerId}`);
-        }, 1000);
-      } else {
-        // Show error message for invalid QR code
-        setScannerMessage(`Error: Invalid QR code - no customer ID found`);
+      // Process the QR code scan
+      const scanResult = await QrCodeService.processQrCodeScan(
+        result.data as any,
+        String(user.id),
+        10 // Default points to award
+      );
+      
+      if (scanResult.success) {
+        // Show success message
+        setScannerMessage(`Success! ${scanResult.pointsAwarded || 0} points awarded.`);
         
-        // Close scanner after delay
-        setTimeout(() => {
-          setShowScanner(false);
-        }, 2000);
+        // Send notification to business owner
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'POINTS_EARNED',
+          'Successful Scan',
+          `You successfully scanned a customer QR code and awarded ${scanResult.pointsAwarded || 0} points.`
+        );
+      } else {
+        // Show error message
+        setScannerMessage(`Error: ${scanResult.message}`);
+        
+        // Send notification about failed scan
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Scan Failed',
+          scanResult.message || 'Failed to process QR code scan'
+        );
       }
     } catch (error) {
       console.error('Error processing QR code:', error);
       setScannerMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
-      // Close scanner after delay
+      // Send error notification
+      if (user?.id) {
+        await NotificationService.createNotification(
+          user.id.toString(),
+          'SYSTEM_ALERT',
+          'Scan Error',
+          'An error occurred while processing the QR code'
+        );
+      }
+    } finally {
+      // Close scanner after processing
       setTimeout(() => {
         setShowScanner(false);
       }, 2000);

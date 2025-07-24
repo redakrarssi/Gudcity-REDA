@@ -159,14 +159,16 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setTimeout(() => setShowConfetti(false), 3000);
     }
     
-    // Always show ONLY customer details for any QR code type
+    // Always show customer details first for customer QR codes
     if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
       setSelectedCustomerData(result.data);
-      setShowCustomerDetailsModal(true);
-    } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
-      // For loyalty card QR codes, also show customer details modal
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
+      // Don't automatically show points awarding modal - customer details will have the award points option
+    } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
+      setSelectedQrCodeData(result.data);
+      setShowCustomerDetailsModal(true);
+      // Don't automatically show points awarding modal - customer details will have the award points option
     }
     
     // Call the onScan prop if provided
@@ -419,16 +421,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               {t('Show Customer Details')}
             </button>
             
-            <button
-              onClick={() => {
-                setSelectedQrCodeData(result.data as CustomerQrCodeData);
-                setShowPointsAwardingModal(true);
-              }}
-              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-            >
-              <Award className="w-5 h-5 mr-2" />
-              {t('Award Points')}
-            </button>
+            {/* Award Points button removed as per request */}
             
             <button
               onClick={() => {
@@ -456,16 +449,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         
         {result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data) && (
           <>
-            <button
-              onClick={() => {
-                setSelectedQrCodeData(result.data as LoyaltyCardQrCodeData);
-                setShowPointsAwardingModal(true);
-              }}
-              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-            >
-              <Award className="w-5 h-5 mr-2" />
-              {t('Award Points')}
-            </button>
+            {/* Award Points button removed for loyalty card scan */}
             
             <button
               onClick={() => {
@@ -978,13 +962,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             initialData={selectedCustomerData}
           />
 
-          {/* Points Awarding Modal */}
-          <PointsAwardingModal
-            isOpen={showPointsAwardingModal}
-            onClose={() => setShowPointsAwardingModal(false)}
-            scanData={selectedQrCodeData}
-            businessId={user?.id || ''}
-          />
+          {/* Points Awarding Modal removed as per request */}
         </>
       )}
     </BusinessLayout>

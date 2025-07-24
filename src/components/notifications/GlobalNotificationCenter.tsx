@@ -218,45 +218,45 @@ const GlobalNotificationCenter: React.FC = () => {
                         </div>
                         
                         {/* Notifications list */}
-                        <div className="space-y-2">
-                          {notifications.map(notification => (
-                            <div
-                              key={notification.id}
+                      <div className="space-y-2">
+                        {notifications.map(notification => (
+                      <div
+                        key={notification.id}
                               className="p-4 rounded-lg shadow-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500"
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex items-start space-x-3">
                                   <div className="flex-shrink-0">
                                     {getNotificationIcon(notification.type)}
+                          </div>
+                                <div className="flex-1">
+                                  <h4 className="font-medium text-sm">
+                              {notification.title}
+                                    {!notification.isRead && (
+                                      <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
+                                    )}
+                                  </h4>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                              {notification.message}
+                            </p>
+                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                {formatRelativeTime(notification.createdAt)}
                                   </div>
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-sm">
-                                      {notification.title}
-                                      {!notification.isRead && (
-                                        <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
-                                      )}
-                                    </h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                                      {notification.message}
-                                    </p>
-                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      {formatRelativeTime(notification.createdAt)}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="ml-2">
-                                  <button
-                                    onClick={() => deleteNotification(notification.id)}
-                                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
-                                    aria-label="Delete notification"
-                                  >
-                                    <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                                  </button>
                                 </div>
                               </div>
+                              <div className="ml-2">
+                                <button
+                                  onClick={() => deleteNotification(notification.id)}
+                                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
+                                  aria-label="Delete notification"
+                                >
+                                  <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                </button>
+                              </div>
                             </div>
-                          ))}
+                          </div>
+                        ))}
                         </div>
                       </div>
                     )}
