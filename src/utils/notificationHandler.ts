@@ -184,11 +184,12 @@ async function ensureCardPointsUpdated(
     // Use sql directly for all queries
     // 1. First, update the loyalty_cards table
     const cardExists = await sql`
-      SELECT id FROM loyalty_cards 
+      SELECT id, points FROM loyalty_cards 
       WHERE id = ${cardId}
     `;
     
-    let cardIdToUse = cardId;
+    let cardIdToUse: string = cardId;
+    const startingPoints = cardExists && cardExists.length > 0 ? parseFloat(cardExists[0].points || '0') : 0;
     
     if (cardExists && cardExists.length > 0) {
       // Card exists, update it
@@ -327,6 +328,66 @@ async function ensureCardPointsUpdated(
     } catch (customerProgramsError) {
       // This might fail if customer_programs is a view or doesn't exist, which is fine
       logger.debug('Skipping customer_programs update', { error: customerProgramsError });
+    }
+    
+    // 4. Verify that points were actually added to the card
+    const verifyCard = await sql`
+      SELECT points FROM loyalty_cards 
+      WHERE id = ${cardIdToUse}
+    `;
+    
+    if (verifyCard && verifyCard.length > 0) {
+      const currentPoints = parseFloat(verifyCard[0].points || '0');
+      const expectedPoints = startingPoints + points;
+      
+      // If points aren't updated correctly, try one more direct update
+      if (Math.abs(currentPoints - expectedPoints) > 0.01) {
+        logger.warn(`Card points not updated correctly. Expected ${expectedPoints}, got ${currentPoints}. Trying direct update.`);
+        
+        await sql`
+          UPDATE loyalty_cards
+          SET 
+            points = ${expectedPoints},
+            updated_at = NOW()
+          WHERE id = ${cardIdToUse}
+        `;
+        
+        logger.info('Forced direct update of card points', { cardId: cardIdToUse, points: expectedPoints });
+      }
+    }
+    
+    // 5. Create a sync event to ensure UI updates
+    try {
+      const { createCardSyncEvent } = await import('./realTimeSync');
+      createCardSyncEvent(
+        cardIdToUse, 
+        customerId, 
+        businessId, 
+        'UPDATE',
+        {
+          pointsAdded: points,
+          programId: programId.toString(),
+          programName: 'Loyalty Program' // Default name
+        }
+      );
+      
+      // Set localStorage flag for UI refresh
+      if (typeof window !== 'undefined') {
+        const refreshKey = `refresh_cards_${customerId}_${Date.now()}`;
+        localStorage.setItem(refreshKey, 'true');
+        
+        // Create a custom event to force UI refresh
+        const refreshEvent = new CustomEvent('refresh-customer-cards', {
+          detail: { 
+            timestamp: Date.now(),
+            customerId,
+            cardId: cardIdToUse
+          }
+        });
+        window.dispatchEvent(refreshEvent);
+      }
+    } catch (syncError) {
+      logger.warn('Failed to create sync event', { error: syncError });
     }
     
     logger.info('Successfully updated all points records');

@@ -1,74 +1,45 @@
-import { neon } from '@neondatabase/serverless';
+import sql from './src/utils/db.js';
 
-// Use the database URL from the environment or hardcode for testing purposes
-const DATABASE_URL = process.env.VITE_DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
-
-// Create connection
-const sql = neon(DATABASE_URL);
-
-async function checkLoyaltyCardTable() {
+/**
+ * This script checks the schema of the loyalty_cards table to understand its structure
+ */
+async function checkLoyaltyCardsSchema() {
   try {
-    console.log("🔍 Checking loyalty_cards table schema...");
+    console.log('Connecting to database...');
     
-    // Check if table exists
-    const tableExists = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'loyalty_cards'
-      );
-    `;
-    
-    if (!tableExists[0].exists) {
-      console.error("❌ loyalty_cards table does not exist");
-      return;
-    }
-    
-    console.log("✅ loyalty_cards table exists");
-    
-    // Get column information
+    // Check the columns in loyalty_cards table
     const columns = await sql`
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
-      WHERE table_schema = 'public'
-      AND table_name = 'loyalty_cards'
-      ORDER BY ordinal_position;
+      WHERE table_name = 'loyalty_cards'
+      ORDER BY ordinal_position
     `;
     
-    console.log("\nColumns in loyalty_cards table:");
-    console.log("--------------------------------");
-    columns.forEach(col => {
-      console.log(`${col.column_name} (${col.data_type}) ${col.is_nullable === 'YES' ? 'NULL' : 'NOT NULL'}`);
-    });
+    console.log('Loyalty Cards Table Schema:');
+    console.table(columns);
     
-    // Check for specific columns
-    const hasPointsBalance = columns.some(col => col.column_name === 'points_balance');
-    const hasTotalPointsEarned = columns.some(col => col.column_name === 'total_points_earned');
-    
-    console.log("\nChecking specific columns:");
-    console.log(`points_balance: ${hasPointsBalance ? '✅ Present' : '❌ Missing'}`);
-    console.log(`total_points_earned: ${hasTotalPointsEarned ? '✅ Present' : '❌ Missing'}`);
-    
-    // Check if any rows exist
-    const rowCount = await sql`
-      SELECT COUNT(*) FROM loyalty_cards;
+    // Check the number of rows in the loyalty_cards table
+    const count = await sql`
+      SELECT COUNT(*) FROM loyalty_cards
     `;
     
-    console.log(`\nTotal rows in table: ${rowCount[0].count}`);
+    console.log(`Total loyalty cards: ${count[0].count}`);
     
-    // Sample row
-    if (parseInt(rowCount[0].count) > 0) {
-      const sampleRow = await sql`
-        SELECT * FROM loyalty_cards LIMIT 1;
-      `;
-      
-      console.log("\nSample row data:");
-      console.log(JSON.stringify(sampleRow[0], null, 2));
-    }
+    // Get a sample of data to understand the table content
+    const sample = await sql`
+      SELECT id, customer_id, business_id, program_id, points, created_at, updated_at
+      FROM loyalty_cards
+      LIMIT 5
+    `;
     
+    console.log('Sample loyalty card data:');
+    console.table(sample);
+    
+    process.exit(0);
   } catch (error) {
-    console.error("Error checking table:", error);
+    console.error('Error checking loyalty_cards schema:', error);
+    process.exit(1);
   }
 }
 
-checkLoyaltyCardTable(); 
+checkLoyaltyCardsSchema(); 

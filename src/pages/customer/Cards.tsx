@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,7 @@ import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
 import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
+import { triggerCardRefresh } from '../../utils/notificationHandler';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -80,6 +81,7 @@ const CustomerCards = () => {
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
   const [isProcessingResponse, setIsProcessingResponse] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [hideEnrollmentInfo, setHideEnrollmentInfo] = useState<boolean>(
     localStorage.getItem('hideEnrollmentInfo') === 'true'
   );
@@ -173,7 +175,7 @@ const CustomerCards = () => {
       return cards;
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 15000, // Increase refetch frequency from 30s to 15s
   });
 
   // Fetch pending approval requests
@@ -234,7 +236,7 @@ const CustomerCards = () => {
     return () => clearInterval(intervalId);
   }, [user?.id, syncEnrollments, refetch, loyaltyCards.length, hasUnhandledRequests]);
 
-  // Monitor for sync events and recent approvals
+  // Monitor for sync events and recent approvals with improved card refresh
   useEffect(() => {
     if (!user?.id) return;
     
@@ -244,9 +246,11 @@ const CustomerCards = () => {
       if (event.customer_id === user.id.toString()) {
         console.log('Received card sync event:', event);
         
-        // Refetch cards on INSERT or UPDATE events
+        // Immediately refetch cards on INSERT or UPDATE events
         if (event.operation === 'INSERT' || event.operation === 'UPDATE') {
+          // Force immediate refetch
           queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+          refetch();
           
           // If this is a new card, show notification
           if (event.operation === 'INSERT') {
@@ -256,6 +260,17 @@ const CustomerCards = () => {
             addNotification(
               'success', 
               `New card created for ${programName} from ${businessName}`
+            );
+          }
+          
+          // If points were added, show specific notification
+          if (event.operation === 'UPDATE' && event.data?.pointsAdded) {
+            const points = event.data.pointsAdded;
+            const programName = event.data.programName || 'Program';
+            
+            addNotification(
+              'success',
+              `${points} points added to your ${programName} card`
             );
           }
         }
@@ -357,7 +372,7 @@ const CustomerCards = () => {
     */
   }, [pendingApprovals, enrollmentRequestState.isOpen]);
 
-  // Listen for real-time updates
+  // Listen for real-time updates with improved points handling
   useEffect(() => {
     // Listen for customer notifications
     const handleCustomerNotification = (event: CustomEvent) => {
@@ -372,8 +387,13 @@ const CustomerCards = () => {
           // Show notification
           addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
           
-          // Refresh cards data
+          // Refresh cards data immediately
           refetch();
+          
+          // Additional refresh after a slight delay to ensure points are displayed
+          setTimeout(() => {
+            refetch();
+          }, 1000);
         }
       }
     };
@@ -382,6 +402,11 @@ const CustomerCards = () => {
     const handleRefreshCards = (event: CustomEvent) => {
       console.log('Received refresh cards event');
       refetch();
+      
+      // Add a second refetch after a delay to ensure latest data
+      setTimeout(() => {
+        refetch();
+      }, 1000);
     };
     
     // Register event listeners
@@ -418,8 +443,8 @@ const CustomerCards = () => {
     // Check for notifications on mount
     checkLocalStorage();
     
-    // Set up periodic checking
-    const intervalId = setInterval(checkLocalStorage, 5000);
+    // Set up periodic checking with increased frequency (5s to 3s)
+    const intervalId = setInterval(checkLocalStorage, 3000);
     
     return () => {
       // Clean up event listeners
@@ -442,7 +467,7 @@ const CustomerCards = () => {
         refetch();
       }
       
-      // Check for point notifications
+      // Check for point notifications with immediate refresh
       if (event.key.startsWith('points_notification_') || event.key.startsWith('sync_points_')) {
         try {
           const data = JSON.parse(event.newValue || '{}');
@@ -450,7 +475,10 @@ const CustomerCards = () => {
           // Check if this notification is for the current user
           if (user && data.customerId === user.id.toString()) {
             addNotification('success', `You've received ${data.points} points in ${data.programName || 'your loyalty program'}`);
+            // Immediate refresh
             refetch();
+            // Secondary refresh after delay
+            setTimeout(() => refetch(), 1000);
           }
         } catch (error) {
           console.warn('Error parsing notification from storage event:', error);
@@ -465,23 +493,40 @@ const CustomerCards = () => {
     };
   }, [user, addNotification, refetch]);
 
+  // Enhanced refresh function that properly forces refresh of card points
   const handleRefresh = useCallback(() => {
     if (!user?.id) return;
     
-    // Show loading animation
-    setAnimateIn(true);
+    // Show loading and refresh states
+    setIsRefreshing(true);
+    
+    // Force browser to clear any cached data
+    if (typeof window !== 'undefined') {
+      // Set a flag in localStorage to force refresh across tabs
+      localStorage.setItem('force_card_refresh', Date.now().toString());
+    }
+    
+    // Trigger card refresh using notificationHandler helper
+    if (user?.id) {
+      triggerCardRefresh(user.id.toString());
+    }
     
     // Sync enrollments to cards first
     syncEnrollments().then(() => {
-      // Then refresh the cards data
-      refetch();
+      // Force invalidation of all relevant queries
+      queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards'] });
+      queryClientInstance.invalidateQueries({ queryKey: ['customerCards'] });
+      queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms'] });
       
-      // Hide loading animation after a short delay
-      setTimeout(() => {
-        setAnimateIn(false);
-      }, 1000);
+      // Then refresh the cards data
+      refetch().then(() => {
+        // Hide loading animation after a short delay
+        setTimeout(() => {
+          setIsRefreshing(false);
+        }, 1000);
+      });
     });
-  }, [user?.id, refetch, syncEnrollments]);
+  }, [user?.id, refetch, syncEnrollments, queryClientInstance]);
 
   // Handle enrollment request response
   const handleEnrollmentResponse = async (approved: boolean) => {
@@ -738,8 +783,9 @@ const CustomerCards = () => {
     );
   };
 
-  if (isLoading) {
-    return <CustomerLayout><div>Loading...</div></CustomerLayout>;
+  // Add UI elements at the appropriate place in the return statement
+  if (loyaltyCardsLoading || isLoading) {
+    return <CustomerLayout><div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div></div></CustomerLayout>;
   }
 
   if (error) {
@@ -804,22 +850,39 @@ const CustomerCards = () => {
         {/* Customer Notifications and Approvals */}
         <NotificationList />
 
-        {/* Loyalty Cards Section */}
+        {/* Loyalty Cards Section with Refresh Button */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center mb-4">
-            <CreditCard className="mr-3 text-indigo-500" />
-            {t('cards.myCards')}
-            
-            {/* Notification badge for pending enrollment requests */}
-            {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
-              <div className="ml-3 relative">
-                <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse-slow">
-                  <Bell className="w-3.5 h-3.5 mr-1" />
-                  {pendingEnrollments.length} {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center">
+              <CreditCard className="mr-3 text-indigo-500" />
+              {t('cards.myCards')}
+              
+              {/* Notification badge for pending enrollment requests */}
+              {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
+                <div className="ml-3 relative">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse-slow">
+                    <Bell className="w-3.5 h-3.5 mr-1" />
+                    {pendingEnrollments.length} {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                  </div>
                 </div>
-              </div>
-            )}
-          </h1>
+              )}
+            </h1>
+            
+            {/* Add Refresh Button */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                isRefreshing 
+                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
+                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700'
+              }`}
+              aria-label="Refresh cards"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Cards'}
+            </button>
+          </div>
           
           {/* Enrollment requests notification */}
           {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
@@ -839,7 +902,8 @@ const CustomerCards = () => {
               </div>
             </div>
           )}
-          
+
+          {/* The rest of the component remains unchanged */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loyaltyCards.map(card => (
                 <motion.div 
