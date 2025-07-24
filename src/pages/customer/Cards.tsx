@@ -175,7 +175,9 @@ const CustomerCards = () => {
       return cards;
     },
     enabled: !!user?.id,
-    refetchInterval: 15000, // Increase refetch frequency from 30s to 15s
+    refetchInterval: 5000, // Increase refetch frequency from 15s to 5s for more immediate updates
+    staleTime: 2000, // Consider data stale after just 2 seconds
+    cacheTime: 10000, // Keep in cache for only 10 seconds to force refreshes
   });
 
   // Fetch pending approval requests
@@ -387,26 +389,48 @@ const CustomerCards = () => {
           // Show notification
           addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
           
-          // Refresh cards data immediately
-          refetch();
-          
-          // Additional refresh after a slight delay to ensure points are displayed
-          setTimeout(() => {
-            refetch();
-          }, 1000);
+          // Force immediate refresh of data
+          forceRefreshCards();
         }
       }
     };
     
     // Listen for refresh events
     const handleRefreshCards = (event: CustomEvent) => {
-      console.log('Received refresh cards event');
+      console.log('Received refresh cards event:', event.detail);
+      
+      // Check if we need to force refresh
+      const forceRefresh = event.detail?.forceRefresh === true;
+      
+      if (forceRefresh) {
+        forceRefreshCards();
+      } else {
+        // Standard refresh
+        refetch();
+        
+        // Additional refresh after a delay to ensure latest data
+        setTimeout(() => {
+          refetch();
+        }, 1000);
+      }
+    };
+    
+    // Force refresh function for aggressive data reload
+    const forceRefreshCards = () => {
+      console.log('Forcing complete card refresh');
+      
+      // Reset React Query cache for all relevant queries
+      queryClientInstance.removeQueries({ queryKey: ['loyaltyCards', user?.id] });
+      queryClientInstance.removeQueries({ queryKey: ['customerCards', user?.id] });
+      queryClientInstance.removeQueries({ queryKey: ['enrolledPrograms', user?.id] });
+      
+      // Immediate refetch
       refetch();
       
-      // Add a second refetch after a delay to ensure latest data
-      setTimeout(() => {
-        refetch();
-      }, 1000);
+      // Multiple staggered refetches to ensure we get the latest data
+      setTimeout(() => { refetch(); }, 500);
+      setTimeout(() => { refetch(); }, 1500);
+      setTimeout(() => { refetch(); }, 3000);
     };
     
     // Register event listeners
@@ -418,17 +442,25 @@ const CustomerCards = () => {
     const checkLocalStorage = () => {
       // Look for points notifications
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('points_notification_') || key.startsWith('sync_points_')) {
+        if (key.startsWith('points_notification_') || key.startsWith('sync_points_') || key === 'force_card_refresh') {
           try {
+            if (key === 'force_card_refresh') {
+              // Force refresh for this special key
+              forceRefreshCards();
+              return;
+            }
+            
             const data = JSON.parse(localStorage.getItem(key) || '{}');
             
-            // Check if this notification is for the current user and is recent (last 30 seconds)
+            // Check if this notification is for the current user and is recent (last 60 seconds)
             const timestamp = new Date(data.timestamp || 0);
-            const isRecent = Date.now() - timestamp.getTime() < 30000; // 30 seconds
+            const isRecent = Date.now() - timestamp.getTime() < 60000; // 60 seconds
             
             if (user && data.customerId === user.id.toString() && isRecent) {
               addNotification('success', `You've received ${data.points} points in ${data.programName || 'your loyalty program'}`);
-              refetch();
+              
+              // Force refresh for fresh data
+              forceRefreshCards();
               
               // Remove the notification to prevent showing it again
               localStorage.removeItem(key);
@@ -443,8 +475,8 @@ const CustomerCards = () => {
     // Check for notifications on mount
     checkLocalStorage();
     
-    // Set up periodic checking with increased frequency (5s to 3s)
-    const intervalId = setInterval(checkLocalStorage, 3000);
+    // Set up periodic checking with increased frequency (3s to 2s)
+    const intervalId = setInterval(checkLocalStorage, 2000);
     
     return () => {
       // Clean up event listeners
@@ -453,7 +485,7 @@ const CustomerCards = () => {
       window.removeEventListener('points-awarded', handleRefreshCards as EventListener);
       clearInterval(intervalId);
     };
-  }, [user, addNotification, refetch]);
+  }, [user, addNotification, refetch, queryClientInstance]);
   
   // Listen for storage events (for cross-tab synchronization)
   useEffect(() => {
@@ -511,22 +543,31 @@ const CustomerCards = () => {
       triggerCardRefresh(user.id.toString());
     }
     
+    // Reset React Query cache for all relevant queries
+    queryClientInstance.removeQueries({ queryKey: ['loyaltyCards', user?.id] });
+    queryClientInstance.removeQueries({ queryKey: ['customerCards', user?.id] });
+    queryClientInstance.removeQueries({ queryKey: ['enrolledPrograms', user?.id] });
+    
     // Sync enrollments to cards first
     syncEnrollments().then(() => {
-      // Force invalidation of all relevant queries
-      queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards'] });
-      queryClientInstance.invalidateQueries({ queryKey: ['customerCards'] });
-      queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms'] });
-      
-      // Then refresh the cards data
-      refetch().then(() => {
-        // Hide loading animation after a short delay
-        setTimeout(() => {
-          setIsRefreshing(false);
-        }, 1000);
-      });
+      // Force refetch with multiple attempts to ensure we get the latest data
+      refetch()
+        .then(() => {
+          // Wait briefly then try again to get the very latest data
+          setTimeout(() => refetch(), 1000);
+        })
+        .catch(error => {
+          console.error('Error refreshing cards:', error);
+          addNotification('error', 'Failed to refresh cards. Please try again.');
+        })
+        .finally(() => {
+          // Hide loading animation after a delay
+          setTimeout(() => {
+            setIsRefreshing(false);
+          }, 1500);
+        });
     });
-  }, [user?.id, refetch, syncEnrollments, queryClientInstance]);
+  }, [user?.id, refetch, syncEnrollments, queryClientInstance, addNotification]);
 
   // Handle enrollment request response
   const handleEnrollmentResponse = async (approved: boolean) => {

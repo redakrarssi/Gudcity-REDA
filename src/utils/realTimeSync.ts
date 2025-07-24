@@ -214,25 +214,29 @@ export function triggerSyncEvent(event: Partial<SyncEvent>) {
 }
 
 /**
- * Hook for components to listen to specific sync events
+ * This is a simplified version of the hook that doesn't use React
+ * For React components, use a custom hook in your component file instead
  */
 export function useSyncEvents(
   tableType: SyncEventType,
   customerId?: string,
   onEvent?: (event: SyncEvent) => void
-) {
-  const [events, setEvents] = React.useState<SyncEvent[]>([]);
-  
-  React.useEffect(() => {
-    const unsubscribe = subscribeToSync(tableType, (event) => {
-      setEvents(prev => [event, ...prev.slice(0, 9)]); // Keep last 10 events
-      onEvent?.(event);
-    }, customerId);
-    
-    return unsubscribe;
-  }, [tableType, customerId, onEvent]);
-  
-  return events;
+): { subscribe: () => () => void } {
+  // Return a subscribe function that can be called from a React useEffect
+  return {
+    subscribe: () => {
+      // Set up the subscription
+      const unsubscribe = subscribeToSync(tableType, (event) => {
+        // Call the callback if provided
+        if (onEvent) {
+          onEvent(event);
+        }
+      }, customerId);
+      
+      // Return unsubscribe function for cleanup
+      return unsubscribe;
+    }
+  };
 }
 
 /**
@@ -260,6 +264,7 @@ export function createEnrollmentSyncEvent(
 
 /**
  * Create a sync event for loyalty card updates
+ * This function is critical for ensuring real-time UI updates when point balances change
  */
 export function createCardSyncEvent(
   cardId: string,
@@ -268,17 +273,127 @@ export function createCardSyncEvent(
   operation: 'INSERT' | 'UPDATE' | 'DELETE' = 'UPDATE',
   data?: any
 ) {
-  triggerSyncEvent({
-    table_name: 'loyalty_cards',
-    operation,
-    record_id: cardId,
-    customer_id: customerId,
-    business_id: businessId,
-    data: {
-      card_id: cardId,
-      ...data
+  try {
+    // Add timestamp to force cache invalidation
+    const timestamp = new Date().toISOString();
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // First, try to immediately invalidate React Query cache if available
+    if (typeof window !== 'undefined' && window.queryClient?.invalidateQueries) {
+      try {
+        // Invalidate all queries that might contain this card data
+        window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards', customerId] });
+        window.queryClient.invalidateQueries({ queryKey: ['customerCards', customerId] });
+        window.queryClient.invalidateQueries({ queryKey: ['enrolledPrograms', customerId] });
+        
+        console.log('Successfully invalidated React Query cache for card update:', cardId);
+      } catch (cacheError) {
+        console.warn('Error invalidating React Query cache:', cacheError);
+      }
     }
-  });
+    
+    // Then create the standard sync event via localStorage
+    const fullEvent: SyncEvent = {
+      table_name: 'loyalty_cards',
+      operation,
+      record_id: cardId,
+      customer_id: customerId,
+      business_id: businessId,
+      data: {
+        card_id: cardId,
+        timestamp,
+        uniqueId,
+        ...data
+      },
+      created_at: timestamp
+    };
+    
+    // Store in localStorage to simulate database trigger and enable cross-tab sync
+    const storageKey = `sync_${uniqueId}`;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(fullEvent));
+    }
+    
+    // Also directly trigger any existing listeners
+    const tableListeners = syncListeners.get('loyalty_cards');
+    if (tableListeners) {
+      tableListeners.forEach(listener => {
+        try {
+          listener(fullEvent);
+        } catch (error) {
+          console.error('Error in sync listener:', error);
+        }
+      });
+    }
+    
+    // Also check for customer-specific listeners
+    const customerKey = `loyalty_cards:${customerId}`;
+    const customerListeners = syncListeners.get(customerKey);
+    if (customerListeners) {
+      customerListeners.forEach(listener => {
+        try {
+          listener(fullEvent);
+        } catch (error) {
+          console.error('Error in customer sync listener:', error);
+        }
+      });
+    }
+    
+    // Create special localStorage keys for points updates to ensure immediate UI refresh
+    if (data?.pointsAdded && typeof localStorage !== 'undefined') {
+      // Points event key
+      const pointsKey = `sync_points_${uniqueId}`;
+      localStorage.setItem(pointsKey, JSON.stringify({
+        customerId,
+        businessId,
+        programId: data.programId || null,
+        programName: data.programName || 'Loyalty Program',
+        cardId,
+        points: data.pointsAdded,
+        timestamp
+      }));
+      
+      // Force card refresh key
+      localStorage.setItem('force_card_refresh', Date.now().toString());
+      
+      // Customer-specific refresh key
+      localStorage.setItem(`refresh_cards_${customerId}_${Date.now()}`, 'true');
+      
+      // Dispatch custom events if in browser environment
+      if (typeof window !== 'undefined') {
+        // General refresh event
+        const refreshEvent = new CustomEvent('refresh-customer-cards', {
+          detail: { 
+            timestamp: Date.now(),
+            customerId,
+            cardId,
+            forceRefresh: true
+          }
+        });
+        window.dispatchEvent(refreshEvent);
+        
+        // Points specific event
+        const pointsEvent = new CustomEvent('points-awarded', {
+          detail: {
+            timestamp: Date.now(),
+            customerId,
+            businessId,
+            programId: data.programId,
+            cardId,
+            points: data.pointsAdded,
+            programName: data.programName || 'Loyalty Program',
+            force: true
+          }
+        });
+        window.dispatchEvent(pointsEvent);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to create card sync event:', error);
+    return false;
+  }
 }
 
 /**

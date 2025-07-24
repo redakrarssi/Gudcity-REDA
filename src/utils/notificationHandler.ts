@@ -181,8 +181,9 @@ async function ensureCardPointsUpdated(
   cardId: string
 ): Promise<void> {
   try {
-    // Use sql directly for all queries
-    // 1. First, update the loyalty_cards table
+    logger.info('Ensuring card points are updated', { customerId, businessId, programId, points, cardId });
+    
+    // Get initial card state
     const cardExists = await sql`
       SELECT id, points FROM loyalty_cards 
       WHERE id = ${cardId}
@@ -190,17 +191,25 @@ async function ensureCardPointsUpdated(
     
     let cardIdToUse: string = cardId;
     const startingPoints = cardExists && cardExists.length > 0 ? parseFloat(cardExists[0].points || '0') : 0;
+    const expectedFinalPoints = startingPoints + points;
     
+    logger.info('Starting points calculation', { 
+      startingPoints, 
+      pointsToAdd: points, 
+      expectedFinalPoints 
+    });
+    
+    // 1. First attempt - Update or create card
     if (cardExists && cardExists.length > 0) {
       // Card exists, update it
       await sql`
         UPDATE loyalty_cards
         SET 
-          points = COALESCE(points, 0) + ${points},
+          points = ${expectedFinalPoints},
           updated_at = NOW()
         WHERE id = ${cardId}
       `;
-      logger.info('Updated loyalty card points', { cardId, points });
+      logger.info('Updated loyalty card points directly', { cardId, currentPoints: expectedFinalPoints });
     } else {
       // Get the next available ID if cardId is not provided or doesn't exist
       if (!cardId) {
@@ -241,7 +250,7 @@ async function ensureCardPointsUpdated(
       logger.info('Created new loyalty card with points', { cardId: cardIdToUse, points });
     }
     
-    // 2. Then, update the program_enrollments table
+    // 2. Update program_enrollments table
     const enrollmentExists = await sql`
       SELECT * FROM program_enrollments
       WHERE customer_id = ${customerId.toString()}
@@ -249,16 +258,16 @@ async function ensureCardPointsUpdated(
     `;
     
     if (enrollmentExists && enrollmentExists.length > 0) {
-      // Update existing enrollment
+      // Update existing enrollment with direct value
       await sql`
         UPDATE program_enrollments
         SET 
-          current_points = current_points + ${points},
+          current_points = ${expectedFinalPoints},
           last_activity = NOW()
         WHERE customer_id = ${customerId.toString()}
         AND program_id = ${programId.toString()}
       `;
-      logger.info('Updated program enrollment points', { customerId, programId, points });
+      logger.info('Updated program enrollment points directly', { customerId, programId, points: expectedFinalPoints });
     } else {
       // Create new enrollment
       await sql`
@@ -298,11 +307,11 @@ async function ensureCardPointsUpdated(
         `;
         
         if (customerProgramExists && customerProgramExists.length > 0) {
-          // Update existing record
+          // Update existing record with direct value
           await sql`
             UPDATE customer_programs
             SET 
-              current_points = current_points + ${points},
+              current_points = ${expectedFinalPoints},
               updated_at = NOW()
             WHERE customer_id = ${customerId}
             AND program_id = ${programId}
@@ -330,35 +339,73 @@ async function ensureCardPointsUpdated(
       logger.debug('Skipping customer_programs update', { error: customerProgramsError });
     }
     
-    // 4. Verify that points were actually added to the card
+    // 4. Verification - Check if points were correctly updated
     const verifyCard = await sql`
       SELECT points FROM loyalty_cards 
       WHERE id = ${cardIdToUse}
     `;
     
-    if (verifyCard && verifyCard.length > 0) {
-      const currentPoints = parseFloat(verifyCard[0].points || '0');
-      const expectedPoints = startingPoints + points;
+    // If verification fails, try again with a more direct approach
+    if (!verifyCard || verifyCard.length === 0 || 
+        Math.abs(parseFloat(verifyCard[0].points || '0') - expectedFinalPoints) > 0.01) {
+      logger.warn('Card points verification failed. Retrying with direct update...', {
+        expected: expectedFinalPoints,
+        actual: verifyCard && verifyCard.length > 0 ? parseFloat(verifyCard[0].points || '0') : 'No card found'
+      });
       
-      // If points aren't updated correctly, try one more direct update
-      if (Math.abs(currentPoints - expectedPoints) > 0.01) {
-        logger.warn(`Card points not updated correctly. Expected ${expectedPoints}, got ${currentPoints}. Trying direct update.`);
-        
+      // Final attempt - Direct updates without transaction
+      try {
+        // Try to update the card
         await sql`
           UPDATE loyalty_cards
           SET 
-            points = ${expectedPoints},
+            points = ${expectedFinalPoints},
             updated_at = NOW()
           WHERE id = ${cardIdToUse}
         `;
         
-        logger.info('Forced direct update of card points', { cardId: cardIdToUse, points: expectedPoints });
+        // Try to update the enrollment
+        await sql`
+          UPDATE program_enrollments
+          SET 
+            current_points = ${expectedFinalPoints},
+            last_activity = NOW()
+          WHERE customer_id = ${customerId.toString()}
+          AND program_id = ${programId.toString()}
+        `;
+        
+        logger.info('Forced direct update of card points', { 
+          cardId: cardIdToUse, 
+          points: expectedFinalPoints 
+        });
+      } catch (updateError) {
+        logger.error('Direct update failed for card points', { error: updateError });
       }
     }
     
-    // 5. Create a sync event to ensure UI updates
+    // 5. Final verification - Get the actual points from the card
+    const finalVerify = await sql`
+      SELECT points FROM loyalty_cards 
+      WHERE id = ${cardIdToUse}
+    `;
+    
+    const actualFinalPoints = finalVerify && finalVerify.length > 0 
+      ? parseFloat(finalVerify[0].points || '0') 
+      : null;
+    
+    logger.info('Final points verification', { 
+      expected: expectedFinalPoints, 
+      actual: actualFinalPoints,
+      success: actualFinalPoints !== null && Math.abs((actualFinalPoints || 0) - expectedFinalPoints) <= 0.01
+    });
+    
+    // 6. Create sync event to ensure UI updates
     try {
-      const { createCardSyncEvent } = await import('./realTimeSync');
+      // Get timestamp as string for event data
+      const timestampStr = new Date().toISOString();
+      const currentTime = Date.now();
+      const timeStr = currentTime.toString();
+      
       createCardSyncEvent(
         cardIdToUse, 
         customerId, 
@@ -367,30 +414,59 @@ async function ensureCardPointsUpdated(
         {
           pointsAdded: points,
           programId: programId.toString(),
-          programName: 'Loyalty Program' // Default name
+          programName: 'Loyalty Program', // Default name
+          timestamp: timestampStr  // Add timestamp for cache-busting
         }
       );
       
-      // Set localStorage flag for UI refresh
+      // Set multiple localStorage flags for UI refresh
       if (typeof window !== 'undefined') {
-        const refreshKey = `refresh_cards_${customerId}_${Date.now()}`;
+        const refreshKey = `refresh_cards_${customerId}_${timeStr}`;
         localStorage.setItem(refreshKey, 'true');
+        
+        // Set a direct force_card_refresh flag to bust any caching
+        localStorage.setItem('force_card_refresh', timeStr);
+        
+        // Create a sync points event
+        localStorage.setItem(`sync_points_${timeStr}`, JSON.stringify({
+          customerId: customerId,
+          businessId: businessId,
+          programId: programId.toString(),
+          cardId: cardIdToUse,
+          points: points,
+          timestamp: timestampStr
+        }));
         
         // Create a custom event to force UI refresh
         const refreshEvent = new CustomEvent('refresh-customer-cards', {
           detail: { 
-            timestamp: Date.now(),
+            timestamp: currentTime,
             customerId,
-            cardId: cardIdToUse
+            cardId: cardIdToUse,
+            forceRefresh: true
           }
         });
         window.dispatchEvent(refreshEvent);
+        
+        // Also dispatch a points-awarded event
+        const pointsEvent = new CustomEvent('points-awarded', {
+          detail: {
+            timestamp: currentTime,
+            customerId,
+            businessId,
+            programId,
+            cardId: cardIdToUse,
+            points,
+            force: true
+          }
+        });
+        window.dispatchEvent(pointsEvent);
       }
     } catch (syncError) {
-      logger.warn('Failed to create sync event', { error: syncError });
+      logger.warn('Failed to create sync events', { error: syncError });
     }
     
-    logger.info('Successfully updated all points records');
+    logger.info('Successfully completed points update process');
   } catch (error) {
     logger.error('Failed to update card points', { error });
     // Continue execution even if this fails - the original points might have been updated already
