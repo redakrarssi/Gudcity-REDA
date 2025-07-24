@@ -159,16 +159,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setTimeout(() => setShowConfetti(false), 3000);
     }
     
-    // Always show customer details first for customer QR codes
+    // Always show ONLY customer details for any QR code type
     if (result.type === 'customer' && isCustomerQrCodeData(result.data)) {
       setSelectedCustomerData(result.data);
-      setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Don't automatically show points awarding modal - customer details will have the award points option
     } else if (result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data)) {
+      // For loyalty card QR codes, also show customer details modal
       setSelectedQrCodeData(result.data);
       setShowCustomerDetailsModal(true);
-      // Don't automatically show points awarding modal - customer details will have the award points option
     }
     
     // Call the onScan prop if provided
