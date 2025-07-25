@@ -137,6 +137,46 @@ export async function guaranteedAwardPoints({
             // ADDITIONAL: Ensure customer dashboard cache invalidation via multiple methods
             await ensureCustomerDashboardUpdate(customerIdStr, programIdStr, pointsNum, cardId, programName);
 
+            // IMMEDIATE FIX: Force customer dashboard refresh with triple redundancy
+            if (typeof window !== 'undefined') {
+              // Method 1: Immediate refresh
+              try {
+                if ((window as any).forceCustomerDashboardRefresh) {
+                  (window as any).forceCustomerDashboardRefresh(customerIdStr, programIdStr, pointsNum, cardId);
+                }
+              } catch (refreshError) {
+                console.warn('Immediate refresh failed:', refreshError);
+              }
+
+              // Method 2: Force reload customer cards component
+              try {
+                const forceReloadEvent = new CustomEvent('force-reload-customer-cards', {
+                  detail: {
+                    customerId: customerIdStr,
+                    programId: programIdStr,
+                    points: pointsNum,
+                    cardId,
+                    timestamp: new Date().toISOString()
+                  }
+                });
+                window.dispatchEvent(forceReloadEvent);
+              } catch (eventError) {
+                console.warn('Force reload event failed:', eventError);
+              }
+
+              // Method 3: Set immediate refresh flag
+              try {
+                localStorage.setItem('IMMEDIATE_CARDS_REFRESH', JSON.stringify({
+                  customerId: customerIdStr,
+                  programId: programIdStr,
+                  points: pointsNum,
+                  timestamp: Date.now()
+                }));
+              } catch (storageError) {
+                console.warn('Storage flag failed:', storageError);
+              }
+            }
+
             return {
               success: true,
               message: data.message || `Successfully awarded ${points} points`,

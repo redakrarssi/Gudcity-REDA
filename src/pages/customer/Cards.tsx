@@ -245,6 +245,21 @@ const CustomerCards = () => {
       }
     };
 
+    // NEW: Handle immediate force reload events
+    const handleForceReloadCustomerCards = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Force reload customer cards requested, refreshing immediately...');
+        addNotification('success', `You've received ${detail.points} points! Your cards are updating...`);
+        refetch();
+        
+        // Double-check with a delayed refresh
+        setTimeout(() => {
+          refetch();
+        }, 1000);
+      }
+    };
+
     // Listen for localStorage points events once on component mount
     const checkPointsNotifications = () => {
       Object.keys(localStorage).forEach(key => {
@@ -277,6 +292,7 @@ const CustomerCards = () => {
     window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
     window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
     window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+    window.addEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
     
     // Check for notifications once on mount
     checkPointsNotifications();
@@ -289,6 +305,7 @@ const CustomerCards = () => {
       window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
       window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
       window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+      window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
     };
   }, [user, addNotification, refetch]);
 
@@ -298,6 +315,31 @@ const CustomerCards = () => {
 
     const pollForUpdates = () => {
       try {
+        // NEW: Check for immediate refresh flag first
+        const immediateRefreshFlag = localStorage.getItem('IMMEDIATE_CARDS_REFRESH');
+        if (immediateRefreshFlag) {
+          try {
+            const refreshData = JSON.parse(immediateRefreshFlag);
+            if (refreshData.customerId === user.id.toString()) {
+              const flagTime = refreshData.timestamp;
+              const now = Date.now();
+              
+              // If flag is newer than 10 seconds, refresh immediately
+              if (now - flagTime < 10000) {
+                console.log('Immediate refresh flag detected, refreshing cards NOW...');
+                addNotification('success', `You've received ${refreshData.points} points! Updating your cards...`);
+                refetch();
+                // Remove the flag after processing
+                localStorage.removeItem('IMMEDIATE_CARDS_REFRESH');
+              }
+            }
+          } catch (parseError) {
+            console.warn('Error parsing immediate refresh data:', parseError);
+            // Remove corrupted flag
+            localStorage.removeItem('IMMEDIATE_CARDS_REFRESH');
+          }
+        }
+
         // Check for force refresh flag
         const forceRefreshFlag = localStorage.getItem('force_cards_refresh');
         if (forceRefreshFlag) {

@@ -170,9 +170,13 @@ export class LoyaltyCardService {
       
       let result;
       
+      // FIXED: Handle both string and integer customer IDs for better compatibility
+      const customerIdInt = parseInt(customerId.toString(), 10);
+      const customerIdStr = customerId.toString();
+      
       // Get all cards with program and business details - handle missing columns gracefully
       if (columnExists && columnExists[0] && columnExists[0].exists) {
-        // Column exists, use original query
+        // Column exists, use original query with both ID formats
         result = await sql`
           SELECT 
             lc.*,
@@ -186,11 +190,11 @@ export class LoyaltyCardService {
           FROM loyalty_cards lc
           JOIN loyalty_programs lp ON lc.program_id = lp.id
           JOIN users u ON lp.business_id = u.id
-          WHERE lc.customer_id = ${parseInt(customerId.toString())}
+          WHERE (lc.customer_id = ${customerIdInt} OR lc.customer_id = ${customerIdStr})
           ORDER BY lc.created_at DESC
         `;
       } else {
-        // Column doesn't exist, omit it from query
+        // Column doesn't exist, omit it from query with both ID formats  
         result = await sql`
           SELECT 
             lc.*,
@@ -203,7 +207,7 @@ export class LoyaltyCardService {
           FROM loyalty_cards lc
           JOIN loyalty_programs lp ON lc.program_id = lp.id
           JOIN users u ON lp.business_id = u.id
-          WHERE lc.customer_id = ${parseInt(customerId.toString())}
+          WHERE (lc.customer_id = ${customerIdInt} OR lc.customer_id = ${customerIdStr})
           ORDER BY lc.created_at DESC
         `;
       }
