@@ -219,26 +219,44 @@ export class LoyaltyCardService {
 
       console.log(`Found ${result.length} loyalty cards for customer ${customerId}`);
 
-      // Map database results to our interface
-      return result.map(card => ({
-        id: card.id.toString(),
-        customerId: card.customer_id.toString(),
-        businessId: card.business_id.toString(),
-        programId: card.program_id.toString(),
-        programName: card.program_name,
-        cardNumber: card.card_number,
-        points: parseFloat(card.points) || 0,
-        tier: card.tier || 'STANDARD',
-        status: card.status || 'ACTIVE',
-        expiryDate: card.expiry_date,
-        createdAt: card.created_at,
-        updatedAt: card.updated_at,
-        cardType: card.card_type || 'STANDARD',
-        businessName: card.business_name,
-        pointsMultiplier: parseFloat(card.points_multiplier) || 1,
-        pointsToNext: card.points_to_next_tier ? parseFloat(card.points_to_next_tier) : undefined,
-        benefits: card.benefits || []
-      }));
+            // Map database results to our interface with CRITICAL POINTS FIX
+      return result.map(card => {
+        // CRITICAL FIX: Handle multiple points columns for data consistency
+        // Priority: points_balance > points > total_points_earned > 0
+        let actualPoints = parseFloat(card.points) || 0;
+        
+        // Check if points_balance has a higher value (this is often where points are actually stored)
+        if (card.points_balance && parseFloat(card.points_balance) > actualPoints) {
+          actualPoints = parseFloat(card.points_balance) || 0;
+          console.log(`Using points_balance (${actualPoints}) instead of points (${card.points}) for card ${card.id}`);
+        }
+        
+        // Check if total_points_earned has a higher value 
+        if (card.total_points_earned && parseFloat(card.total_points_earned) > actualPoints) {
+          actualPoints = parseFloat(card.total_points_earned) || 0;
+          console.log(`Using total_points_earned (${actualPoints}) for card ${card.id}`);
+        }
+        
+        return {
+          id: card.id.toString(),
+          customerId: card.customer_id.toString(),
+          businessId: card.business_id.toString(),
+          programId: card.program_id.toString(),
+          programName: card.program_name,
+          cardNumber: card.card_number,
+          points: actualPoints, // FIXED: Use the maximum points value from available columns
+          tier: card.tier || 'STANDARD',
+          status: card.status || 'ACTIVE',
+          expiryDate: card.expiry_date,
+          createdAt: card.created_at,
+          updatedAt: card.updated_at,
+          cardType: card.card_type || 'STANDARD',
+          businessName: card.business_name,
+          pointsMultiplier: parseFloat(card.points_multiplier) || 1,
+          pointsToNext: card.points_to_next_tier ? parseFloat(card.points_to_next_tier) : undefined,
+          benefits: card.benefits || []
+        };
+      });
     } catch (error) {
       console.error('Error fetching customer cards:', error);
       return [];
