@@ -201,7 +201,9 @@ const CustomerCards = () => {
     const handlePointsAwarded = (event: CustomEvent) => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
-        addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
+        const programName = detail.programName || `Program ${detail.programId}`;
+        addNotification('success', `You've received ${detail.points} points in ${programName}!`);
+        console.log(`Points awarded event: ${detail.points} points to program ${detail.programId}, card ${detail.cardId}`);
         refetch();
       }
     };
@@ -218,6 +220,17 @@ const CustomerCards = () => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
         console.log('Loyalty cards refresh requested, refreshing...');
+        refetch();
+      }
+    };
+
+    // NEW: Handle program-specific points updates
+    const handleProgramPointsUpdated = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        const programName = detail.programName || `Program ${detail.programId}`;
+        console.log(`Program points updated: ${detail.points} points for program ${detail.programId}, card ${detail.cardId}`);
+        addNotification('success', `Your ${programName} card has been updated with ${detail.points} points!`);
         refetch();
       }
     };
@@ -245,12 +258,22 @@ const CustomerCards = () => {
       }
     };
 
+    // NEW: Handle ultimate backup refresh
+    const handleUltimateCardsRefresh = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Ultimate cards refresh triggered, force refreshing...');
+        refetch();
+      }
+    };
+
     // NEW: Handle immediate force reload events
     const handleForceReloadCustomerCards = (event: CustomEvent) => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
         console.log('Force reload customer cards requested, refreshing immediately...');
-        addNotification('success', `You've received ${detail.points} points! Your cards are updating...`);
+        const programName = detail.programName || `Program ${detail.programId}`;
+        addNotification('success', `You've received ${detail.points} points in ${programName}! Your cards are updating...`);
         refetch();
         
         // Double-check with a delayed refresh
@@ -289,10 +312,12 @@ const CustomerCards = () => {
     window.addEventListener('customer-notification', handleCustomerNotification as EventListener);
     window.addEventListener('points-awarded', handlePointsAwarded as EventListener);
     window.addEventListener('card-update-required', handleCardUpdateRequired as EventListener);
-    window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
-    window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-    window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
-    window.addEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
+          window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
+      window.addEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
+      window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+      window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+      window.addEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
+      window.addEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
     
     // Check for notifications once on mount
     checkPointsNotifications();
@@ -302,10 +327,12 @@ const CustomerCards = () => {
       window.removeEventListener('customer-notification', handleCustomerNotification as EventListener);
       window.removeEventListener('points-awarded', handlePointsAwarded as EventListener);
       window.removeEventListener('card-update-required', handleCardUpdateRequired as EventListener);
-      window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
-      window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-      window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
-      window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
+              window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
+        window.removeEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
+        window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+        window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+        window.removeEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
+        window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
     };
   }, [user, addNotification, refetch]);
 
@@ -340,6 +367,58 @@ const CustomerCards = () => {
           }
         }
 
+        // NEW: Check for program-specific update flags
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('program_') && key.endsWith('_points_updated')) {
+            try {
+              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
+              if (updateData.customerId === user.id.toString()) {
+                const updateTime = new Date(updateData.timestamp).getTime();
+                const now = Date.now();
+                
+                // Process updates from the last 2 minutes
+                if (now - updateTime < 120000) {
+                  const programId = key.replace('program_', '').replace('_points_updated', '');
+                  console.log(`Program-specific update found: Program ${programId}, Card ${updateData.cardId}, ${updateData.points} points`);
+                  addNotification('success', `Your Program ${programId} card has been updated with ${updateData.points} points!`);
+                  refetch();
+                  // Remove processed notification
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch (parseError) {
+              console.warn('Error parsing program update data:', parseError);
+              localStorage.removeItem(key);
+            }
+          }
+        });
+
+        // NEW: Check for card-specific update flags  
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('card_') && key.endsWith('_points_updated')) {
+            try {
+              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
+              if (updateData.customerId === user.id.toString()) {
+                const updateTime = new Date(updateData.timestamp).getTime();
+                const now = Date.now();
+                
+                // Process updates from the last 2 minutes
+                if (now - updateTime < 120000) {
+                  const cardId = key.replace('card_', '').replace('_points_updated', '');
+                  console.log(`Card-specific update found: Card ${cardId}, Program ${updateData.programId}, ${updateData.points} points`);
+                  addNotification('success', `Your card ${cardId} has been updated with ${updateData.points} points!`);
+                  refetch();
+                  // Remove processed notification
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch (parseError) {
+              console.warn('Error parsing card update data:', parseError);
+              localStorage.removeItem(key);
+            }
+          }
+        });
+
         // Check for force refresh flag
         const forceRefreshFlag = localStorage.getItem('force_cards_refresh');
         if (forceRefreshFlag) {
@@ -354,7 +433,7 @@ const CustomerCards = () => {
           }
         }
 
-        // Check for individual customer update flags
+        // Check for individual customer update flags (enhanced with program/card info)
         const customerUpdateKey = `customer_${user.id}_points_updated`;
         const customerUpdate = localStorage.getItem(customerUpdateKey);
         if (customerUpdate) {
@@ -365,7 +444,7 @@ const CustomerCards = () => {
             
             // If update is newer than 1 minute, refresh
             if (now - updateTime < 60000) {
-              console.log('Customer-specific points update detected, refreshing...');
+              console.log(`Customer-specific points update detected: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
               addNotification('success', `You've received ${updateData.points} points!`);
               refetch();
               // Remove the flag after processing
@@ -387,7 +466,7 @@ const CustomerCards = () => {
                 
                 // Process updates from the last 2 minutes
                 if (now - updateTime < 120000) {
-                  console.log('Point update notification found in localStorage, refreshing...');
+                  console.log(`Point update notification found: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
                   addNotification('success', `You've received ${updateData.points} points in ${updateData.programName}!`);
                   refetch();
                   // Remove processed notification
@@ -418,7 +497,15 @@ const CustomerCards = () => {
         const data = event.data;
         if (data.type === 'POINTS_AWARDED' && data.customerId === user.id.toString()) {
           console.log('Points awarded message received via BroadcastChannel');
-          addNotification('success', `You've received ${data.points} points!`);
+          
+          // Enhanced logging with program-to-card mapping info
+          if (data.mappingInfo) {
+            console.log(`Program-to-card mapping: ${data.mappingInfo.programToCardMapping}`);
+            console.log(`Original card ID: ${data.mappingInfo.originalCardId}, Resolved card ID: ${data.mappingInfo.resolvedCardId}`);
+          }
+          
+          const programName = data.programName || `Program ${data.programId}`;
+          addNotification('success', `You've received ${data.points} points in ${programName}!`);
           refetch();
         }
       };

@@ -449,6 +449,24 @@ async function ensureCustomerDashboardUpdate(
   programName: string
 ): Promise<void> {
   try {
+    // CRITICAL FIX: Find the actual card ID for this program if not provided or if provided cardId doesn't match
+    let actualCardId = cardId;
+    
+    try {
+      // Import LoyaltyCardService to get the correct card for this program
+      const { LoyaltyCardService } = await import('../services/loyaltyCardService');
+      const customerCard = await LoyaltyCardService.getCustomerCardForProgram(customerId, programId);
+      
+      if (customerCard && customerCard.id) {
+        actualCardId = customerCard.id;
+        console.log(`Found card ID ${actualCardId} for customer ${customerId} program ${programId}`);
+      } else {
+        console.warn(`No card found for customer ${customerId} program ${programId}, using provided cardId ${cardId}`);
+      }
+    } catch (cardLookupError) {
+      console.warn('Error looking up card for program:', cardLookupError);
+    }
+
     // Method 1: Direct localStorage notification for immediate UI update
     if (typeof window !== 'undefined') {
       // Create a unique key for this point update
@@ -459,7 +477,7 @@ async function ensureCustomerDashboardUpdate(
         customerId,
         programId,
         programName,
-        cardId,
+        cardId: actualCardId,
         points,
         timestamp: new Date().toISOString(),
         source: 'QR_AWARD'
@@ -473,7 +491,8 @@ async function ensureCustomerDashboardUpdate(
         'customer-notification',
         'points-awarded',
         'card-update-required',
-        'loyalty-cards-refresh'
+        'loyalty-cards-refresh',
+        'program-points-updated' // NEW: Specific event for program updates
       ];
       
       events.forEach(eventType => {
@@ -494,8 +513,10 @@ async function ensureCustomerDashboardUpdate(
             queryKeys: [
               ['loyaltyCards', customerId],
               ['customerPoints', customerId],
-              ['cardActivities', cardId],
-              ['enrolledPrograms', customerId]
+              ['cardActivities', actualCardId],
+              ['enrolledPrograms', customerId],
+              ['customerCard', customerId, programId], // NEW: Specific card query
+              ['programCard', programId, customerId]    // NEW: Alternative mapping
             ]
           }
         });
@@ -504,26 +525,49 @@ async function ensureCustomerDashboardUpdate(
         console.warn('Failed to dispatch query invalidation event:', queryError);
       }
       
-      // Method 4: Polling trigger via localStorage flag
+      // Method 4: Enhanced polling triggers with program-card mapping
       localStorage.setItem('force_cards_refresh', Date.now().toString());
       
-      // Method 5: Set individual customer notification flag
+      // Method 5: Set program-specific and card-specific flags
       localStorage.setItem(`customer_${customerId}_points_updated`, JSON.stringify({
+        programId,
+        cardId: actualCardId,
+        points,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // NEW: Program-specific flag
+      localStorage.setItem(`program_${programId}_points_updated`, JSON.stringify({
+        customerId,
+        cardId: actualCardId,
+        points,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // NEW: Card-specific flag  
+      localStorage.setItem(`card_${actualCardId}_points_updated`, JSON.stringify({
+        customerId,
         programId,
         points,
         timestamp: new Date().toISOString()
       }));
       
-      // Method 6: Broadcast to all tabs/windows
+      // Method 6: BroadcastChannel for cross-tab updates with enhanced data
       try {
         const channel = new BroadcastChannel('loyalty-updates');
         channel.postMessage({
           type: 'POINTS_AWARDED',
           customerId,
           programId,
+          cardId: actualCardId,
+          programName,
           points,
-          cardId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          mappingInfo: {
+            originalCardId: cardId,
+            resolvedCardId: actualCardId,
+            programToCardMapping: `${programId}->${actualCardId}`
+          }
         });
         channel.close();
       } catch (broadcastError) {
@@ -531,15 +575,15 @@ async function ensureCustomerDashboardUpdate(
       }
     }
     
-    // Method 7: Schedule a delayed trigger for persistent updates
+    // Method 7: Schedule multiple delayed triggers for persistent updates
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         const delayedEvent = new CustomEvent('delayed-points-update', {
           detail: {
             customerId,
             programId,
+            cardId: actualCardId,
             points,
-            cardId,
             timestamp: new Date().toISOString()
           }
         });
@@ -547,7 +591,22 @@ async function ensureCustomerDashboardUpdate(
       }
     }, 2000); // 2 second delay
     
-    console.log('Customer dashboard update mechanisms triggered for customer:', customerId);
+    // Method 8: Ultimate backup refresh
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        const ultimateRefreshEvent = new CustomEvent('ultimate-cards-refresh', {
+          detail: {
+            customerId,
+            programId,
+            cardId: actualCardId,
+            reason: 'backup-refresh'
+          }
+        });
+        window.dispatchEvent(ultimateRefreshEvent);
+      }
+    }, 5000); // 5 second delay
+    
+    console.log(`Customer dashboard update mechanisms triggered for customer ${customerId}, program ${programId}, card ${actualCardId}`);
   } catch (error) {
     console.error('Error in ensureCustomerDashboardUpdate:', error);
     // Even if this fails, don't throw - the points have been awarded successfully
