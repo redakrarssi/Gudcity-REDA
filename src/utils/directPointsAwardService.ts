@@ -8,6 +8,8 @@
 import { v4 as uuidv4 } from 'uuid';
 // Trigger customer-side notifications & card refresh
 import { handlePointsAwarded } from './notificationHandler';
+// NEW: Import the card existence utility
+import { awardPointsWithCardCreation } from './ensureCardExists';
 
 interface AwardPointsResult {
   success: boolean;
@@ -63,7 +65,124 @@ export async function guaranteedAwardPoints({
     methods: []
   };
   
-  // Try Method 1: API Endpoints with automatic token refresh
+  // NEW METHOD 0: Try direct card creation and points award FIRST
+  try {
+    diagnostics.methods.push('direct_card_creation');
+    
+    console.log(`Attempting direct card creation for customer ${customerIdStr}, program ${programIdStr}`);
+    
+    const directResult = await awardPointsWithCardCreation(
+      customerIdStr,
+      programIdStr,
+      pointsNum,
+      businessId,
+      desc,
+      src
+    );
+    
+    if (directResult.success && directResult.cardId) {
+      console.log(`✅ Direct card creation succeeded: Card ${directResult.cardId}`);
+      
+      // Get program and business names for notification
+      let programName = `Program ${programIdStr}`;
+      let businessName = businessId ? `Business ${businessId}` : 'Business';
+      
+      try {
+        // Try to get actual names but don't fail if we can't
+        const { default: sql } = await import('./db');
+        const programInfo = await sql`
+          SELECT lp.name as program_name, u.name as business_name
+          FROM loyalty_programs lp
+          LEFT JOIN users u ON lp.business_id = u.id
+          WHERE lp.id = ${parseInt(programIdStr, 10)}
+        `;
+        
+        if (programInfo.length > 0) {
+          programName = String(programInfo[0].program_name || programName);
+          businessName = String(programInfo[0].business_name || businessName);
+        }
+      } catch (nameError) {
+        console.warn('Could not get program/business names:', nameError);
+      }
+
+      // Notify customer dashboards (best-effort)
+      try {
+        await handlePointsAwarded(
+          customerIdStr,
+          String(businessId ?? ''),
+          programIdStr,
+          programName,
+          businessName,
+          pointsNum,
+          directResult.cardId,
+          src
+        );
+      } catch (notifyErr) {
+        // Non-blocking
+        console.warn('handlePointsAwarded failed:', notifyErr);
+      }
+
+      // ADDITIONAL: Ensure customer dashboard cache invalidation via multiple methods
+      await ensureCustomerDashboardUpdate(customerIdStr, programIdStr, pointsNum, directResult.cardId, programName);
+
+      // IMMEDIATE FIX: Force customer dashboard refresh with triple redundancy
+      if (typeof window !== 'undefined') {
+        // Method 1: Immediate refresh
+        try {
+          if ((window as any).forceCustomerDashboardRefresh) {
+            (window as any).forceCustomerDashboardRefresh(customerIdStr, programIdStr, pointsNum, directResult.cardId);
+          }
+        } catch (refreshError) {
+          console.warn('Immediate refresh failed:', refreshError);
+        }
+
+        // Method 2: Force reload customer cards component
+        try {
+          const forceReloadEvent = new CustomEvent('force-reload-customer-cards', {
+            detail: {
+              customerId: customerIdStr,
+              programId: programIdStr,
+              points: pointsNum,
+              cardId: directResult.cardId,
+              timestamp: new Date().toISOString()
+            }
+          });
+          window.dispatchEvent(forceReloadEvent);
+        } catch (eventError) {
+          console.warn('Force reload event failed:', eventError);
+        }
+
+        // Method 3: Set immediate refresh flag
+        try {
+          localStorage.setItem('IMMEDIATE_CARDS_REFRESH', JSON.stringify({
+            customerId: customerIdStr,
+            programId: programIdStr,
+            points: pointsNum,
+            timestamp: Date.now()
+          }));
+        } catch (storageError) {
+          console.warn('Storage flag failed:', storageError);
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully awarded ${points} points via direct card creation`,
+        cardId: directResult.cardId,
+        transactionId: `direct-${Date.now()}`,
+        points: pointsNum,
+        endpoint: 'direct_card_creation'
+      };
+    } else {
+      console.warn('Direct card creation failed:', directResult.error);
+      diagnostics.directCardCreationError = directResult.error;
+    }
+  } catch (error) {
+    console.warn('Direct card creation method failed:', error);
+    diagnostics.directCardCreationException = error instanceof Error ? error.message : String(error);
+  }
+  
+  // Try Method 1: API Endpoints with automatic token refresh (fallback)
   try {
     diagnostics.methods.push('api_endpoints');
     
