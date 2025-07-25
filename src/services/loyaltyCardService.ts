@@ -1908,7 +1908,7 @@ export class LoyaltyCardService {
           lp.business_id,
           lp.name as program_name,
           u.name as business_name,
-          pe.points as current_points
+          COALESCE(pe.current_points, 0) as current_points
         FROM program_enrollments pe
         JOIN loyalty_programs lp ON pe.program_id = lp.id
         JOIN users u ON lp.business_id = u.id
