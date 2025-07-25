@@ -67,15 +67,24 @@ export async function handlePointsAwarded(
     });
 
     if (notification) {
-      // Trigger a custom event for the customer's dashboard - simple, targeted
+      // Trigger comprehensive real-time sync events for immediate UI updates
       try {
-        // Create a simple localStorage notification - no complex events
         if (typeof window !== 'undefined') {
-          // Simple key with current timestamp to avoid duplication
-          const key = `points_notification_${Date.now()}`;
+          // Create immediate refresh flag with enhanced data
+          const immediateKey = 'IMMEDIATE_CARDS_REFRESH';
+          localStorage.setItem(immediateKey, JSON.stringify({
+            customerId,
+            businessId,
+            programId,
+            programName,
+            cardId,
+            points,
+            timestamp: Date.now().toString()
+          }));
           
-          // Store minimal data needed to update the UI
-          localStorage.setItem(key, JSON.stringify({
+          // Create multiple sync points events for redundancy
+          const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          localStorage.setItem(`sync_points_${uniqueId}`, JSON.stringify({
             customerId,
             businessId,
             programId,
@@ -85,8 +94,14 @@ export async function handlePointsAwarded(
             timestamp: new Date().toISOString()
           }));
           
-          // Dispatch a simple custom event with program-specific data
-          const event = new CustomEvent('customer-notification', {
+          // Force card refresh flag
+          localStorage.setItem('force_card_refresh', Date.now().toString());
+          
+          // Customer-specific refresh flag
+          localStorage.setItem(`refresh_cards_${customerId}_${Date.now()}`, 'true');
+          
+          // Dispatch enhanced custom events for immediate response
+          window.dispatchEvent(new CustomEvent('customer-notification', {
             detail: {
               type: 'POINTS_ADDED',
               customerId,
@@ -94,8 +109,29 @@ export async function handlePointsAwarded(
               programName,
               points
             }
-          });
-          window.dispatchEvent(event);
+          }));
+          
+          window.dispatchEvent(new CustomEvent('refresh-customer-cards', {
+            detail: {
+              customerId,
+              cardId,
+              forceRefresh: true,
+              timestamp: Date.now()
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('points-awarded', {
+            detail: {
+              customerId,
+              businessId,
+              programId,
+              cardId,
+              points,
+              programName,
+              force: true,
+              timestamp: Date.now()
+            }
+          }));
         }
       } catch (syncError) {
         logger.warn('Failed to create UI notification', { error: syncError });

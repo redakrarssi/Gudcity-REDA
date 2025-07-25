@@ -175,8 +175,10 @@ const CustomerCards = () => {
       return cards;
     },
     enabled: !!user?.id,
-    // No automatic refetching - only on manual refresh or events
-    staleTime: 60000 // Consider data stale after 1 minute
+    // Aggressive refresh settings for real-time points updates
+    staleTime: 0, // Always consider data stale to enable immediate refreshes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true
   });
 
   // Listen for point update notifications - the simple approach
@@ -308,31 +310,93 @@ const CustomerCards = () => {
       });
     };
     
+    // NEW: Handle refresh-customer-cards event from sync system
+    const handleRefreshCustomerCards = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Refresh customer cards event received, force refreshing...');
+        if (detail.forceRefresh) {
+          refetch();
+          setTimeout(() => refetch(), 500); // Double refresh for good measure
+        } else {
+          refetch();
+        }
+      }
+    };
+
+    // NEW: Check localStorage for sync events regularly
+    const checkLocalStorageSync = () => {
+      if (!user) return;
+
+      // Check for force card refresh flag
+      const forceRefreshFlag = localStorage.getItem('force_card_refresh');
+      if (forceRefreshFlag) {
+        console.log('Force card refresh flag found, refreshing...');
+        refetch();
+        localStorage.removeItem('force_card_refresh');
+      }
+
+      // Check for customer-specific refresh flags
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(`refresh_cards_${user.id}_`)) {
+          console.log('Customer-specific refresh flag found, refreshing...');
+          refetch();
+          localStorage.removeItem(key);
+        }
+        
+        // Check for sync_points_ events
+        if (key.startsWith('sync_points_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key) || '{}');
+            if (data.customerId === user.id.toString()) {
+              console.log('Sync points event found, refreshing cards...');
+              addNotification('success', `You've received ${data.points} points in ${data.programName}!`);
+              refetch();
+              localStorage.removeItem(key);
+            }
+          } catch (error) {
+            console.warn('Error parsing sync points data:', error);
+          }
+        }
+      });
+    };
+
     // Register event listeners
     window.addEventListener('customer-notification', handleCustomerNotification as EventListener);
     window.addEventListener('points-awarded', handlePointsAwarded as EventListener);
     window.addEventListener('card-update-required', handleCardUpdateRequired as EventListener);
-          window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
-      window.addEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
-      window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-      window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+    window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
+    window.addEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
+    window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+    window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+    window.addEventListener('refresh-customer-cards', handleRefreshCustomerCards as EventListener);
       window.addEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
       window.addEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
     
     // Check for notifications once on mount
     checkPointsNotifications();
     
+    // Set up localStorage polling for sync events
+    const syncInterval = setInterval(checkLocalStorageSync, 2000); // Check every 2 seconds
+    
+    // Initial check for localStorage sync
+    checkLocalStorageSync();
+    
     return () => {
-      // Clean up event listener
+      // Clean up event listeners
       window.removeEventListener('customer-notification', handleCustomerNotification as EventListener);
       window.removeEventListener('points-awarded', handlePointsAwarded as EventListener);
       window.removeEventListener('card-update-required', handleCardUpdateRequired as EventListener);
               window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
         window.removeEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
         window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-        window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
-        window.removeEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
-        window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
+              window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+      window.removeEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
+      window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
+      window.removeEventListener('refresh-customer-cards', handleRefreshCustomerCards as EventListener);
+      
+      // Clean up sync interval
+      clearInterval(syncInterval);
     };
   }, [user, addNotification, refetch]);
 
