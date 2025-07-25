@@ -421,7 +421,16 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               {t('Show Customer Details')}
             </button>
             
-            {/* Award Points button removed as per request */}
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as CustomerQrCodeData);
+                setShowPointsAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('Award Points')}
+            </button>
             
             <button
               onClick={() => {
@@ -449,7 +458,16 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         
         {result.type === 'loyaltyCard' && isLoyaltyCardQrCodeData(result.data) && (
           <>
-            {/* Award Points button removed for loyalty card scan */}
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as LoyaltyCardQrCodeData);
+                setShowPointsAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('Award Points')}
+            </button>
             
             <button
               onClick={() => {
@@ -962,7 +980,19 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             initialData={selectedCustomerData}
           />
 
-          {/* Points Awarding Modal removed as per request */}
+          {/* Points Awarding Modal */}
+          {showPointsAwardingModal && (
+            <PointsAwardingModal
+              onClose={() => setShowPointsAwardingModal(false)}
+              scanData={selectedQrCodeData}
+              businessId={user?.id ? String(user.id) : ''}
+              onSuccess={(points) => {
+                // Invalidate queries to refresh data
+                // The PointsAwardingModal handles success notifications internally
+              }}
+              programs={programs.map(p => ({ id: p.id, name: p.name }))}
+            />
+          )}
         </>
       )}
     </BusinessLayout>

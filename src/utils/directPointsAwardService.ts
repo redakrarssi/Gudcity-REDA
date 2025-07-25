@@ -134,6 +134,9 @@ export async function guaranteedAwardPoints({
               console.warn('handlePointsAwarded failed:', notifyErr);
             }
 
+            // ADDITIONAL: Ensure customer dashboard cache invalidation via multiple methods
+            await ensureCustomerDashboardUpdate(customerIdStr, programIdStr, pointsNum, cardId, programName);
+
             return {
               success: true,
               message: data.message || `Successfully awarded ${points} points`,
@@ -189,6 +192,9 @@ export async function guaranteedAwardPoints({
         } catch (notifyErr) {
           console.warn('handlePointsAwarded failed (directClient):', notifyErr);
         }
+
+        // ADDITIONAL: Ensure customer dashboard cache invalidation for direct client method
+        await ensureCustomerDashboardUpdate(customerIdStr, programIdStr, pointsNum, result.cardId || '', programIdStr);
 
         return {
           ...result,
@@ -387,5 +393,123 @@ async function directClientImplementation({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error in direct implementation'
     };
+  }
+}
+
+/**
+ * Ensure customer dashboard gets updated via multiple robust mechanisms
+ * This function provides multiple fallback methods to guarantee the customer
+ * dashboard shows updated points immediately after they are awarded
+ */
+async function ensureCustomerDashboardUpdate(
+  customerId: string,
+  programId: string,
+  points: number,
+  cardId: string,
+  programName: string
+): Promise<void> {
+  try {
+    // Method 1: Direct localStorage notification for immediate UI update
+    if (typeof window !== 'undefined') {
+      // Create a unique key for this point update
+      const updateKey = `points_update_${Date.now()}_${Math.random()}`;
+      
+      const updateData = {
+        type: 'POINTS_ADDED',
+        customerId,
+        programId,
+        programName,
+        cardId,
+        points,
+        timestamp: new Date().toISOString(),
+        source: 'QR_AWARD'
+      };
+      
+      // Store in localStorage for immediate pickup by customer dashboard
+      localStorage.setItem(updateKey, JSON.stringify(updateData));
+      
+      // Method 2: Dispatch multiple event types for broader compatibility
+      const events = [
+        'customer-notification',
+        'points-awarded',
+        'card-update-required',
+        'loyalty-cards-refresh'
+      ];
+      
+      events.forEach(eventType => {
+        try {
+          const event = new CustomEvent(eventType, {
+            detail: updateData
+          });
+          window.dispatchEvent(event);
+        } catch (eventError) {
+          console.warn(`Failed to dispatch ${eventType}:`, eventError);
+        }
+      });
+      
+      // Method 3: Direct React Query cache invalidation via global message
+      try {
+        const queryInvalidationEvent = new CustomEvent('react-query-invalidate', {
+          detail: {
+            queryKeys: [
+              ['loyaltyCards', customerId],
+              ['customerPoints', customerId],
+              ['cardActivities', cardId],
+              ['enrolledPrograms', customerId]
+            ]
+          }
+        });
+        window.dispatchEvent(queryInvalidationEvent);
+      } catch (queryError) {
+        console.warn('Failed to dispatch query invalidation event:', queryError);
+      }
+      
+      // Method 4: Polling trigger via localStorage flag
+      localStorage.setItem('force_cards_refresh', Date.now().toString());
+      
+      // Method 5: Set individual customer notification flag
+      localStorage.setItem(`customer_${customerId}_points_updated`, JSON.stringify({
+        programId,
+        points,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Method 6: Broadcast to all tabs/windows
+      try {
+        const channel = new BroadcastChannel('loyalty-updates');
+        channel.postMessage({
+          type: 'POINTS_AWARDED',
+          customerId,
+          programId,
+          points,
+          cardId,
+          timestamp: new Date().toISOString()
+        });
+        channel.close();
+      } catch (broadcastError) {
+        console.warn('BroadcastChannel not supported or failed:', broadcastError);
+      }
+    }
+    
+    // Method 7: Schedule a delayed trigger for persistent updates
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        const delayedEvent = new CustomEvent('delayed-points-update', {
+          detail: {
+            customerId,
+            programId,
+            points,
+            cardId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        window.dispatchEvent(delayedEvent);
+      }
+    }, 2000); // 2 second delay
+    
+    console.log('Customer dashboard update mechanisms triggered for customer:', customerId);
+  } catch (error) {
+    console.error('Error in ensureCustomerDashboardUpdate:', error);
+    // Even if this fails, don't throw - the points have been awarded successfully
   }
 } 

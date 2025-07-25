@@ -197,6 +197,54 @@ const CustomerCards = () => {
       }
     };
 
+    // Enhanced event listeners for multiple event types
+    const handlePointsAwarded = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
+        refetch();
+      }
+    };
+
+    const handleCardUpdateRequired = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Card update required, refreshing...');
+        refetch();
+      }
+    };
+
+    const handleLoyaltyCardsRefresh = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Loyalty cards refresh requested, refreshing...');
+        refetch();
+      }
+    };
+
+    const handleReactQueryInvalidate = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail && detail.queryKeys && user) {
+        // Check if any of the query keys match our current user
+        const relevantKeys = detail.queryKeys.filter((key: any[]) => 
+          key.length > 1 && key[1] === user.id.toString()
+        );
+        
+        if (relevantKeys.length > 0) {
+          console.log('React Query invalidation requested, refreshing...');
+          refetch();
+        }
+      }
+    };
+
+    const handleDelayedPointsUpdate = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Delayed points update, refreshing...');
+        refetch();
+      }
+    };
+
     // Listen for localStorage points events once on component mount
     const checkPointsNotifications = () => {
       Object.keys(localStorage).forEach(key => {
@@ -224,6 +272,11 @@ const CustomerCards = () => {
     
     // Register event listeners
     window.addEventListener('customer-notification', handleCustomerNotification as EventListener);
+    window.addEventListener('points-awarded', handlePointsAwarded as EventListener);
+    window.addEventListener('card-update-required', handleCardUpdateRequired as EventListener);
+    window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
+    window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+    window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
     
     // Check for notifications once on mount
     checkPointsNotifications();
@@ -231,6 +284,111 @@ const CustomerCards = () => {
     return () => {
       // Clean up event listener
       window.removeEventListener('customer-notification', handleCustomerNotification as EventListener);
+      window.removeEventListener('points-awarded', handlePointsAwarded as EventListener);
+      window.removeEventListener('card-update-required', handleCardUpdateRequired as EventListener);
+      window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
+      window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+      window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
+    };
+  }, [user, addNotification, refetch]);
+
+  // Backup polling mechanism for localStorage-based updates
+  useEffect(() => {
+    if (!user) return;
+
+    const pollForUpdates = () => {
+      try {
+        // Check for force refresh flag
+        const forceRefreshFlag = localStorage.getItem('force_cards_refresh');
+        if (forceRefreshFlag) {
+          const flagTime = parseInt(forceRefreshFlag, 10);
+          const now = Date.now();
+          
+          // If flag is newer than 30 seconds, refresh
+          if (now - flagTime < 30000) {
+            console.log('Force refresh flag detected, refreshing cards...');
+            refetch();
+            // Don't remove the flag immediately to allow other components to see it
+          }
+        }
+
+        // Check for individual customer update flags
+        const customerUpdateKey = `customer_${user.id}_points_updated`;
+        const customerUpdate = localStorage.getItem(customerUpdateKey);
+        if (customerUpdate) {
+          try {
+            const updateData = JSON.parse(customerUpdate);
+            const updateTime = new Date(updateData.timestamp).getTime();
+            const now = Date.now();
+            
+            // If update is newer than 1 minute, refresh
+            if (now - updateTime < 60000) {
+              console.log('Customer-specific points update detected, refreshing...');
+              addNotification('success', `You've received ${updateData.points} points!`);
+              refetch();
+              // Remove the flag after processing
+              localStorage.removeItem(customerUpdateKey);
+            }
+          } catch (parseError) {
+            console.warn('Error parsing customer update data:', parseError);
+          }
+        }
+
+        // Check for localStorage point update notifications
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('points_update_')) {
+            try {
+              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
+              if (updateData.customerId === user.id.toString()) {
+                const updateTime = new Date(updateData.timestamp).getTime();
+                const now = Date.now();
+                
+                // Process updates from the last 2 minutes
+                if (now - updateTime < 120000) {
+                  console.log('Point update notification found in localStorage, refreshing...');
+                  addNotification('success', `You've received ${updateData.points} points in ${updateData.programName}!`);
+                  refetch();
+                  // Remove processed notification
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch (parseError) {
+              console.warn('Error parsing localStorage point update:', parseError);
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Error in polling for updates:', error);
+      }
+    };
+
+    // Poll every 5 seconds for updates
+    const pollInterval = setInterval(pollForUpdates, 5000);
+
+    // Initial poll
+    pollForUpdates();
+
+    // BroadcastChannel listener for cross-tab communication
+    let broadcastChannel: BroadcastChannel | null = null;
+    try {
+      broadcastChannel = new BroadcastChannel('loyalty-updates');
+      broadcastChannel.onmessage = (event) => {
+        const data = event.data;
+        if (data.type === 'POINTS_AWARDED' && data.customerId === user.id.toString()) {
+          console.log('Points awarded message received via BroadcastChannel');
+          addNotification('success', `You've received ${data.points} points!`);
+          refetch();
+        }
+      };
+    } catch (broadcastError) {
+      console.warn('BroadcastChannel not supported:', broadcastError);
+    }
+
+    return () => {
+      clearInterval(pollInterval);
+      if (broadcastChannel) {
+        broadcastChannel.close();
+      }
     };
   }, [user, addNotification, refetch]);
   
