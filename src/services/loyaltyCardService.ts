@@ -655,14 +655,28 @@ export class LoyaltyCardService {
           programName
         });
 
-        // Update card points balance - make sure we handle both points and points_balance
+        // IMPROVED: Robust points update with verification
         console.log(`Updating points balance for card ${cardId}, adding ${points} points`);
         
-        // Try updating with all possible column combinations
+        // Get current points for verification
+        const beforeUpdate = await transaction`
+          SELECT points, points_balance, total_points_earned 
+          FROM loyalty_cards 
+          WHERE id = ${cardId}
+        `;
+        
+        const currentPoints = parseFloat(beforeUpdate[0]?.points) || 0;
+        const currentBalance = parseFloat(beforeUpdate[0]?.points_balance) || 0;
+        const currentTotal = parseFloat(beforeUpdate[0]?.total_points_earned) || 0;
+        
+        console.log('Current points before update:', { currentPoints, currentBalance, currentTotal });
+        
+        // Try the most comprehensive update first
         let updateResult;
+        let updateSuccess = false;
         
         try {
-          // First try with all standard columns
+          // Method 1: Update all three columns (preferred)
           updateResult = await transaction`
             UPDATE loyalty_cards
             SET 
@@ -673,12 +687,14 @@ export class LoyaltyCardService {
             WHERE id = ${cardId}
             RETURNING id, points, points_balance, total_points_earned
           `;
-        } catch (columnError) {
-          console.warn('Column error in first update attempt:', columnError);
-          diagnosticData.firstUpdateError = columnError instanceof Error ? columnError.message : String(columnError);
+          updateSuccess = true;
+          console.log('Successfully updated all three points columns');
+        } catch (updateError) {
+          console.warn('Failed to update all columns, trying fallback methods:', updateError);
+          diagnosticData.primaryUpdateError = updateError instanceof Error ? updateError.message : String(updateError);
           
           try {
-            // Try with just points and points_balance
+            // Method 2: Update points and points_balance only
             updateResult = await transaction`
               UPDATE loyalty_cards
               SET 
@@ -688,35 +704,75 @@ export class LoyaltyCardService {
               WHERE id = ${cardId}
               RETURNING id, points, points_balance
             `;
+            updateSuccess = true;
+            console.log('Successfully updated points and points_balance columns');
           } catch (secondError) {
-            console.warn('Column error in second update attempt:', secondError);
-            diagnosticData.secondUpdateError = secondError instanceof Error ? secondError.message : String(secondError);
+            console.warn('Failed to update two columns, trying final fallback:', secondError);
+            diagnosticData.secondaryUpdateError = secondError instanceof Error ? secondError.message : String(secondError);
             
-            // Last resort - just update points
-            updateResult = await transaction`
-              UPDATE loyalty_cards
-              SET 
-                points = COALESCE(points, 0) + ${points}
-              WHERE id = ${cardId}
-              RETURNING id, points
-            `;
+            try {
+              // Method 3: Update just the points column (last resort)
+              updateResult = await transaction`
+                UPDATE loyalty_cards
+                SET 
+                  points = COALESCE(points, 0) + ${points},
+                  updated_at = NOW()
+                WHERE id = ${cardId}
+                RETURNING id, points
+              `;
+              updateSuccess = true;
+              console.log('Successfully updated points column only');
+            } catch (finalError) {
+              console.error('All update methods failed:', finalError);
+              diagnosticData.finalUpdateError = finalError instanceof Error ? finalError.message : String(finalError);
+              updateSuccess = false;
+            }
           }
         }
         
-        if (!updateResult || updateResult.length === 0) {
+        if (!updateSuccess || !updateResult || updateResult.length === 0) {
           await transaction.rollback();
-          console.error('Card update failed, no rows affected');
+          console.error('Card update failed completely');
           return { 
             success: false, 
-            error: 'Card update failed, no rows affected',
+            error: 'Failed to update card points after multiple attempts',
             diagnostics: diagnosticData 
           };
         }
         
-        console.log('Card updated successfully:', updateResult[0]);
+        // Verify the update worked
+        const afterUpdate = await transaction`
+          SELECT points, points_balance, total_points_earned 
+          FROM loyalty_cards 
+          WHERE id = ${cardId}
+        `;
+        
+        const newPoints = parseFloat(afterUpdate[0]?.points) || 0;
+        const newBalance = parseFloat(afterUpdate[0]?.points_balance) || 0;
+        const newTotal = parseFloat(afterUpdate[0]?.total_points_earned) || 0;
+        
+        console.log('Points after update:', { newPoints, newBalance, newTotal });
+        
+        // Verify at least one column was properly updated
+        const pointsIncreased = newPoints > currentPoints;
+        const balanceIncreased = newBalance > currentBalance;
+        const totalIncreased = newTotal > currentTotal;
+        
+        if (!pointsIncreased && !balanceIncreased && !totalIncreased) {
+          await transaction.rollback();
+          console.error('Points verification failed - no columns were properly updated');
+          return { 
+            success: false, 
+            error: 'Points update verification failed',
+            diagnostics: { ...diagnosticData, beforeUpdate, afterUpdate }
+          };
+        }
+        
+        console.log('Points update verified successfully');
         diagnosticData.cardUpdated = true;
         diagnosticData.updatedCard = updateResult[0];
-        
+        diagnosticData.verification = { beforeUpdate, afterUpdate };
+
         // Record transaction in loyalty_transactions
         try {
           const transactionResult = await transaction`
@@ -752,7 +808,7 @@ export class LoyaltyCardService {
           
           // Continue even if transaction recording fails
         }
-        
+
         // Also try to update customer_programs (or program_enrollments) table
         try {
           // Check if customer is enrolled in program
@@ -848,17 +904,15 @@ export class LoyaltyCardService {
         await transaction.commit();
         console.log('Transaction committed successfully');
         
-        // After successful transaction, send notification to customer
+        // ENHANCED: Create notification and trigger cache invalidation
         try {
-          console.log('Sending notification to customer:', customerId);
-          
           // Import notification handler
           const { handlePointsAwarded } = await import('../utils/notificationHandler');
           
-          // Send notification
-          await handlePointsAwarded(
+          // Create notification for the customer
+          const notificationSuccess = await handlePointsAwarded(
             customerId.toString(),
-            (businessId || card.business_id).toString(),
+            businessId || card.business_id.toString(),
             programId.toString(),
             programName,
             businessName,
@@ -867,159 +921,111 @@ export class LoyaltyCardService {
             source
           );
           
-          diagnosticData.notificationSent = true;
+          diagnosticData.notificationCreated = notificationSuccess;
+          console.log('Notification creation result:', notificationSuccess);
         } catch (notificationError) {
-          console.warn('Failed to send notification:', notificationError);
+          console.warn('Failed to create notification:', notificationError);
           diagnosticData.notificationError = notificationError instanceof Error ? 
             notificationError.message : String(notificationError);
-          
-          // Create notification in customer notification system directly as fallback
-          try {
-            const { CustomerNotificationService } = await import('./customerNotificationService');
-            
-            // Create notification
-            const notification = await CustomerNotificationService.createNotification({
-              customerId: customerId.toString(),
-              businessId: (businessId || card.business_id).toString(),
-              type: 'POINTS_ADDED',
-              title: 'Points Added',
-              message: `You've received ${points} points from ${businessName} in the program ${programName}`,
-              data: {
-                points: points,
-                cardId: cardId,
-                programId: programId.toString(),
-                programName: programName,
-                source: source,
-                transactionId: diagnosticData.transactionId
-              },
-              requiresAction: false,
-              actionTaken: false,
-              isRead: false
-            });
-
-            diagnosticData.fallbackNotificationCreated = !!notification;
-            diagnosticData.fallbackNotificationId = notification?.id;
-          } catch (fallbackNotificationError) {
-            console.warn('Failed to create fallback notification:', fallbackNotificationError);
-            diagnosticData.fallbackNotificationError = fallbackNotificationError instanceof Error ? 
-              fallbackNotificationError.message : String(fallbackNotificationError);
-          }
         }
         
-        // Return success
+        // ENHANCED: Aggressive cache invalidation for immediate UI updates
+        try {
+          // Import real-time sync utility
+          const { createCardSyncEvent } = await import('../utils/realTimeSync');
+          
+          // Create sync event for real-time updates
+          createCardSyncEvent(
+            cardId,
+            customerId.toString(),
+            businessId || card.business_id.toString(),
+            'UPDATE',
+            {
+              pointsAwarded: points,
+              source,
+              programId: programId.toString(),
+              programName,
+              newPoints: diagnosticData.verification?.afterUpdate?.[0]?.points || 'unknown'
+            }
+          );
+          
+          // Additional cache invalidation triggers
+          if (typeof window !== 'undefined') {
+            // Trigger immediate React Query cache invalidation
+            window.dispatchEvent(new CustomEvent('react-query-invalidate', {
+              detail: {
+                queryKeys: [
+                  ['loyaltyCards', customerId.toString()],
+                  ['customerPoints', customerId.toString()],
+                  ['cardActivities', cardId],
+                  ['enrolledPrograms', customerId.toString()]
+                ]
+              }
+            }));
+            
+            // Force customer cards refresh
+            window.dispatchEvent(new CustomEvent('refresh-customer-cards', {
+              detail: {
+                customerId: customerId.toString(),
+                cardId,
+                points,
+                forceRefresh: true,
+                timestamp: Date.now()
+              }
+            }));
+            
+            // Set localStorage flags for cross-component communication
+            localStorage.setItem('IMMEDIATE_CARDS_REFRESH', JSON.stringify({
+              customerId: customerId.toString(),
+              programId: programId.toString(),
+              cardId,
+              points,
+              timestamp: Date.now()
+            }));
+            
+            localStorage.setItem(`card_${cardId}_points_updated`, JSON.stringify({
+              customerId: customerId.toString(),
+              programId: programId.toString(),
+              points,
+              timestamp: new Date().toISOString()
+            }));
+          }
+          
+          diagnosticData.cacheInvalidationTriggered = true;
+        } catch (cacheError) {
+          console.warn('Failed to trigger cache invalidation:', cacheError);
+          diagnosticData.cacheError = cacheError instanceof Error ? 
+            cacheError.message : String(cacheError);
+        }
+        
+        console.log('Points award process completed successfully');
         return {
           success: true,
           diagnostics: diagnosticData
         };
-      } catch (error) {
-        // Rollback transaction on error
-        await transaction.rollback();
-        console.error('Transaction error in awardPointsToCard:', error);
-        return { 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown database error',
-          diagnostics: {
-            ...diagnosticData,
-            transactionError: error instanceof Error ? error.message : String(error)
-          }
+        
+      } catch (transactionError) {
+        // Rollback the transaction on any error
+        try {
+          await transaction.rollback();
+          console.log('Transaction rolled back due to error');
+        } catch (rollbackError) {
+          console.error('Error during rollback:', rollbackError);
+        }
+        
+        console.error('Transaction error:', transactionError);
+        return {
+          success: false,
+          error: transactionError instanceof Error ? transactionError.message : 'Transaction failed',
+          diagnostics: diagnosticData
         };
       }
     } catch (error) {
-      console.error('Error awarding points to card:', error);
-      
-      // Try direct update as fallback when all else fails
-      try {
-        console.log('Attempting direct update as fallback');
-        const directUpdate = await sql`
-          UPDATE loyalty_cards
-          SET points = points + ${points}
-          WHERE id = ${cardId}
-          RETURNING id, points
-        `;
-        
-        if (directUpdate && directUpdate.length > 0) {
-          console.log('Direct update successful:', directUpdate[0]);
-          
-          // Try to create notification
-          try {
-            const cardInfo = await sql`
-              SELECT 
-                lc.*,
-                lp.name as program_name,
-                u.name as business_name
-              FROM loyalty_cards lc
-              JOIN loyalty_programs lp ON lc.program_id = lp.id
-              JOIN users u ON lp.business_id = u.id
-              WHERE lc.id = ${cardId}
-            `;
-            
-            if (cardInfo && cardInfo.length > 0) {
-              const card = cardInfo[0];
-              const customerId = card.customer_id;
-              const programName = card.program_name || 'Loyalty Program';
-              const businessName = card.business_name || 'Business';
-              
-              // Import notification handler
-              const { handlePointsAwarded } = await import('../utils/notificationHandler');
-          
-              // Send notification
-              await handlePointsAwarded(
-                customerId.toString(),
-                (businessId || card.business_id).toString(),
-                card.program_id.toString(),
-                programName,
-                businessName,
-                points,
-                cardId,
-                source
-              );
-            }
-            
-            return { 
-              success: true, 
-              diagnostics: { 
-                directUpdateSuccessful: true, 
-                cardId, 
-                points 
-              } 
-            };
-          } catch (notificationError) {
-            // Return success even if notification fails
-            console.warn('Failed to send notification after direct update:', notificationError);
-            return { 
-              success: true, 
-              diagnostics: { 
-                directUpdateSuccessful: true, 
-                notificationFailed: true,
-                cardId, 
-                points 
-              } 
-            };
-          }
-        }
-      } catch (directUpdateError) {
-        console.error('Direct update also failed:', directUpdateError);
-      }
-      
-      // Check if error is related to foreign key constraint
-      const errorString = String(error);
-      let errorMessage = 'Unknown error awarding points';
-      
-      if (errorString.includes('foreign key constraint') || errorString.includes('violates foreign key')) {
-        errorMessage = 'Foreign key constraint violation. This may indicate a problem with customer, program, or card IDs.';
-      } else if (errorString.includes('column') && errorString.includes('does not exist')) {
-        errorMessage = 'Database schema issue. A required column does not exist.';
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage,
-        diagnostics: {
-          ...diagnosticData,
-          error: errorString
-        } 
+      console.error('Error in awardPointsToCard:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        diagnostics: diagnosticData
       };
     }
   }

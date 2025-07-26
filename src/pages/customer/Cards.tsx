@@ -14,6 +14,7 @@ import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
 import { triggerCardRefresh } from '../../utils/notificationHandler';
+import CustomerService from '../../services/customerService';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -185,33 +186,34 @@ const CustomerCards = () => {
     }
   }, [user?.id, addNotification]);
   
-  // Fetch loyalty cards with sync
-  const { data: loyaltyCards = [], isLoading: loyaltyCardsLoading, error, refetch } = useQuery({
+  // Enhanced query configuration for immediate updates
+  const {
+    data: loyaltyCards = [],
+    isLoading: loyaltyCardsLoading,
+    error,
+    refetch
+  } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      // First synchronize enrollments to cards to ensure all enrolled programs have cards
-      await syncEnrollments();
-      
-      // Then get all customer cards
-      const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
-      
-      // Fetch activities for each card
-      const activities: Record<string, CardActivity[]> = {};
-      for (const card of cards) {
-        const cardActivities = await LoyaltyCardService.getCardActivities(card.id);
-        activities[card.id] = cardActivities;
-      }
-      setCardActivities(activities);
-      
-      return cards;
-    },
-    enabled: !!user?.id,
-    // Aggressive refresh settings for real-time points updates
-    staleTime: 0, // Always consider data stale to enable immediate refreshes
+    queryFn: () => LoyaltyCardService.getCustomerCards(user!.id.toString()),
+    enabled: !!user,
+    staleTime: 1000, // Consider data stale after 1 second for immediate updates
+    gcTime: 5000, // Keep data in cache for 5 seconds only (replaces cacheTime)
+    refetchInterval: 3000, // Poll every 3 seconds for real-time updates
     refetchOnWindowFocus: true,
-    refetchOnMount: true
+    refetchOnMount: true,
+    refetchIntervalInBackground: true, // Continue polling in background
+    notifyOnChangeProps: 'all' // Notify on all changes
+  });
+
+  // Enrolled programs (for programs not yet having cards)
+  const { 
+    data: enrolledPrograms = [], 
+    isLoading: enrolledProgramsLoading 
+  } = useQuery({
+    queryKey: ['enrolledPrograms', user?.id],
+    queryFn: () => user ? CustomerService.getEnrolledPrograms(user.id.toString()) : Promise.resolve([]),
+    enabled: !!user,
+    staleTime: 10000
   });
 
   // Listen for point update notifications - the simple approach
@@ -433,190 +435,163 @@ const CustomerCards = () => {
     };
   }, [user, addNotification, refetch]);
 
-  // Backup polling mechanism for localStorage-based updates
+  // Enhanced real-time update listeners
   useEffect(() => {
-    if (!user) return;
+    // Enhanced real-time update listeners
+    const handlePointsAwarded = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Points awarded event received:', detail);
+        
+        // Show immediate visual feedback
+        const programName = detail.programName || `Program ${detail.programId}`;
+        addNotification('success', `${detail.points} points added to your ${programName} card!`);
+        
+        // Add point animation
+        if (detail.cardId && detail.points) {
+          const newAnimation = {
+            cardId: detail.cardId,
+            points: detail.points,
+            timestamp: Date.now()
+          };
+          setPointAnimations(prev => [...prev, newAnimation]);
+          
+          // Update cached points immediately
+          setCardPointsCache(prev => ({
+            ...prev,
+            [detail.cardId]: (prev[detail.cardId] || 0) + detail.points
+          }));
+          
+          // Remove animation after 3 seconds
+          setTimeout(() => {
+            setPointAnimations(prev => prev.filter(anim => anim.timestamp !== newAnimation.timestamp));
+          }, 3000);
+        }
+        
+        // Force refetch for accurate data
+        refetch();
+      }
+    };
 
-    const pollForUpdates = () => {
+    const handleCustomerCardsRefresh = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (user && detail.customerId === user.id.toString()) {
+        console.log('Customer cards refresh event received:', detail);
+        
+        if (detail.forceRefresh) {
+          // Force complete cache invalidation
+          queryClient.removeQueries({ queryKey: ['loyaltyCards', user.id.toString()] });
+          queryClient.removeQueries({ queryKey: ['customerPoints', user.id.toString()] });
+          
+          // Schedule multiple refetches for reliability
+          setTimeout(() => refetch(), 0);
+          setTimeout(() => refetch(), 500);
+          setTimeout(() => refetch(), 1500);
+        } else {
+          refetch();
+        }
+      }
+    };
+
+    const handleReactQueryInvalidate = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail && detail.queryKeys && user) {
+        console.log('React Query invalidation event received:', detail);
+        
+        detail.queryKeys.forEach((queryKey: any[]) => {
+          if (Array.isArray(queryKey) && queryKey.length > 1 && queryKey[1] === user.id.toString()) {
+            console.log('Invalidating query:', queryKey);
+            queryClient.invalidateQueries({ queryKey });
+          }
+        });
+        
+        // Force refetch after invalidation
+        setTimeout(() => refetch(), 100);
+      }
+    };
+
+    const handleImmediateCardsRefresh = () => {
       try {
-        // NEW: Check for immediate refresh flag first
-        const immediateRefreshFlag = localStorage.getItem('IMMEDIATE_CARDS_REFRESH');
-        if (immediateRefreshFlag) {
-          try {
-            const refreshData = JSON.parse(immediateRefreshFlag);
-            if (refreshData.customerId === user.id.toString()) {
-              const flagTime = refreshData.timestamp;
-              const now = Date.now();
-              
-              // If flag is newer than 10 seconds, refresh immediately
-              if (now - flagTime < 10000) {
-                console.log('Immediate refresh flag detected, refreshing cards NOW...');
-                addNotification('success', `You've received ${refreshData.points} points! Updating your cards...`);
-                refetch();
-                // Remove the flag after processing
-                localStorage.removeItem('IMMEDIATE_CARDS_REFRESH');
-              }
+        const refreshData = localStorage.getItem('IMMEDIATE_CARDS_REFRESH');
+        if (refreshData) {
+          const data = JSON.parse(refreshData);
+          if (user && data.customerId === user.id.toString()) {
+            console.log('Immediate cards refresh triggered from localStorage:', data);
+            
+            // Show notification
+            addNotification('success', `${data.points} points added!`);
+            
+            // Update cache immediately
+            if (data.cardId && data.points) {
+              setCardPointsCache(prev => ({
+                ...prev,
+                [data.cardId]: (prev[data.cardId] || 0) + data.points
+              }));
             }
-          } catch (parseError) {
-            console.warn('Error parsing immediate refresh data:', parseError);
-            // Remove corrupted flag
+            
+            // Force complete refresh
+            queryClient.removeQueries({ queryKey: ['loyaltyCards', user.id.toString()] });
+            refetch();
+            
+            // Clear the flag
             localStorage.removeItem('IMMEDIATE_CARDS_REFRESH');
           }
         }
-
-        // NEW: Check for program-specific update flags
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('program_') && key.endsWith('_points_updated')) {
-            try {
-              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
-              if (updateData.customerId === user.id.toString()) {
-                const updateTime = new Date(updateData.timestamp).getTime();
-                const now = Date.now();
-                
-                // Process updates from the last 2 minutes
-                if (now - updateTime < 120000) {
-                  const programId = key.replace('program_', '').replace('_points_updated', '');
-                  console.log(`Program-specific update found: Program ${programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-                  addNotification('success', `Your Program ${programId} card has been updated with ${updateData.points} points!`);
-                  refetch();
-                  // Remove processed notification
-                  localStorage.removeItem(key);
-                }
-              }
-            } catch (parseError) {
-              console.warn('Error parsing program update data:', parseError);
-              localStorage.removeItem(key);
-            }
-          }
-        });
-
-        // NEW: Check for card-specific update flags  
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('card_') && key.endsWith('_points_updated')) {
-            try {
-              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
-              if (updateData.customerId === user.id.toString()) {
-                const updateTime = new Date(updateData.timestamp).getTime();
-                const now = Date.now();
-                
-                // Process updates from the last 2 minutes
-                if (now - updateTime < 120000) {
-                  const cardId = key.replace('card_', '').replace('_points_updated', '');
-                  console.log(`Card-specific update found: Card ${cardId}, Program ${updateData.programId}, ${updateData.points} points`);
-                  addNotification('success', `Your card ${cardId} has been updated with ${updateData.points} points!`);
-                  refetch();
-                  // Remove processed notification
-                  localStorage.removeItem(key);
-                }
-              }
-            } catch (parseError) {
-              console.warn('Error parsing card update data:', parseError);
-              localStorage.removeItem(key);
-            }
-          }
-        });
-
-        // Check for force refresh flag
-        const forceRefreshFlag = localStorage.getItem('force_cards_refresh');
-        if (forceRefreshFlag) {
-          const flagTime = parseInt(forceRefreshFlag, 10);
-          const now = Date.now();
-          
-          // If flag is newer than 30 seconds, refresh
-          if (now - flagTime < 30000) {
-            console.log('Force refresh flag detected, refreshing cards...');
-            refetch();
-            // Don't remove the flag immediately to allow other components to see it
-          }
-        }
-
-        // Check for individual customer update flags (enhanced with program/card info)
-        const customerUpdateKey = `customer_${user.id}_points_updated`;
-        const customerUpdate = localStorage.getItem(customerUpdateKey);
-        if (customerUpdate) {
-          try {
-            const updateData = JSON.parse(customerUpdate);
-            const updateTime = new Date(updateData.timestamp).getTime();
-            const now = Date.now();
-            
-            // If update is newer than 1 minute, refresh
-            if (now - updateTime < 60000) {
-              console.log(`Customer-specific points update detected: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-              addNotification('success', `You've received ${updateData.points} points!`);
-              refetch();
-              // Remove the flag after processing
-              localStorage.removeItem(customerUpdateKey);
-            }
-          } catch (parseError) {
-            console.warn('Error parsing customer update data:', parseError);
-          }
-        }
-
-        // Check for localStorage point update notifications
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('points_update_')) {
-            try {
-              const updateData = JSON.parse(localStorage.getItem(key) || '{}');
-              if (updateData.customerId === user.id.toString()) {
-                const updateTime = new Date(updateData.timestamp).getTime();
-                const now = Date.now();
-                
-                // Process updates from the last 2 minutes
-                if (now - updateTime < 120000) {
-                  console.log(`Point update notification found: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-                  addNotification('success', `You've received ${updateData.points} points in ${updateData.programName}!`);
-                  refetch();
-                  // Remove processed notification
-                  localStorage.removeItem(key);
-                }
-              }
-            } catch (parseError) {
-              console.warn('Error parsing localStorage point update:', parseError);
-            }
-          }
-        });
       } catch (error) {
-        console.warn('Error in polling for updates:', error);
+        console.warn('Error handling immediate cards refresh:', error);
       }
     };
 
-    // Poll every 5 seconds for updates
-    const pollInterval = setInterval(pollForUpdates, 5000);
+    // Check for immediate refresh on mount
+    handleImmediateCardsRefresh();
 
-    // Initial poll
-    pollForUpdates();
+    // Add event listeners
+    window.addEventListener('points-awarded', handlePointsAwarded as EventListener);
+    window.addEventListener('refresh-customer-cards', handleCustomerCardsRefresh as EventListener);
+    window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
 
-    // BroadcastChannel listener for cross-tab communication
-    let broadcastChannel: BroadcastChannel | null = null;
-    try {
-      broadcastChannel = new BroadcastChannel('loyalty-updates');
-      broadcastChannel.onmessage = (event) => {
-        const data = event.data;
-        if (data.type === 'POINTS_AWARDED' && data.customerId === user.id.toString()) {
-          console.log('Points awarded message received via BroadcastChannel');
-          
-          // Enhanced logging with program-to-card mapping info
-          if (data.mappingInfo) {
-            console.log(`Program-to-card mapping: ${data.mappingInfo.programToCardMapping}`);
-            console.log(`Original card ID: ${data.mappingInfo.originalCardId}, Resolved card ID: ${data.mappingInfo.resolvedCardId}`);
+    // Poll for localStorage changes (for cross-tab updates)
+    const storagePoller = setInterval(() => {
+      handleImmediateCardsRefresh();
+      
+      // Check for card-specific updates
+      if (user && Array.isArray(loyaltyCards)) {
+        loyaltyCards.forEach((card: any) => {
+          const updateKey = `card_${card.id}_points_updated`;
+          const updateData = localStorage.getItem(updateKey);
+          if (updateData) {
+            try {
+              const data = JSON.parse(updateData);
+              if (data.customerId === user.id.toString()) {
+                console.log('Card-specific update detected:', data);
+                
+                // Update cache
+                setCardPointsCache(prev => ({
+                  ...prev,
+                  [card.id]: (prev[card.id] || 0) + data.points
+                }));
+                
+                // Trigger refetch
+                refetch();
+                
+                // Clear the flag
+                localStorage.removeItem(updateKey);
+              }
+            } catch (error) {
+              console.warn('Error parsing card update data:', error);
+            }
           }
-          
-          const programName = data.programName || `Program ${data.programId}`;
-          addNotification('success', `You've received ${data.points} points in ${programName}!`);
-          refetch();
-        }
-      };
-    } catch (broadcastError) {
-      console.warn('BroadcastChannel not supported:', broadcastError);
-    }
+        });
+      }
+    }, 2000); // Check every 2 seconds
 
     return () => {
-      clearInterval(pollInterval);
-      if (broadcastChannel) {
-        broadcastChannel.close();
-      }
+      window.removeEventListener('points-awarded', handlePointsAwarded as EventListener);
+      window.removeEventListener('refresh-customer-cards', handleCustomerCardsRefresh as EventListener);
+      window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
+      clearInterval(storagePoller);
     };
-  }, [user, addNotification, refetch]);
+  }, [user, loyaltyCards, refetch, queryClient, addNotification]);
   
   // Simple refresh button functionality
   const handleRefresh = useCallback(() => {
@@ -895,13 +870,24 @@ const CustomerCards = () => {
   };
 
   // Add UI elements at the appropriate place in the return statement
-  if (loyaltyCardsLoading || isLoading) {
-    return <CustomerLayout><div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div></div></CustomerLayout>;
+  if (loyaltyCardsLoading) {
+    return (
+      <CustomerLayout>
+        <div className="container mx-auto p-6">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        </div>
+      </CustomerLayout>
+    );
   }
 
   if (error) {
     return <CustomerLayout><div>Error: {error.message}</div></CustomerLayout>;
   }
+
+  const totalCards = Array.isArray(loyaltyCards) ? loyaltyCards.length : 0;
+  const totalPrograms = Array.isArray(loyaltyCards) ? loyaltyCards.length : 0;
 
   return (
     <CustomerLayout>
@@ -919,7 +905,7 @@ const CustomerCards = () => {
                 <div className="flex items-center">
                   <Info className="h-5 w-5 text-blue-500 mr-2" />
                   <p className="text-blue-700">
-                    You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
+                    You are currently enrolled in <span className="font-bold">{totalCards}</span> program{totalCards !== 1 ? 's' : ''}.
                   </p>
                 </div>
                 <button 
@@ -1016,7 +1002,7 @@ const CustomerCards = () => {
 
           {/* The rest of the component remains unchanged */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loyaltyCards.map(card => (
+            {Array.isArray(loyaltyCards) && loyaltyCards.map((card: any) => (
                 <motion.div 
                   key={card.id}
                   className={`transition-all duration-700 ease-out ${
