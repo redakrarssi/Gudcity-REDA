@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
-import { LoyaltyCardServiceFix } from '../../services/loyaltyCardServiceFix';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToEvents, Event } from '../../utils/telemetry';
@@ -162,8 +161,8 @@ const CustomerCards = () => {
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
       await syncEnrollments();
       
-      // Then get all customer cards using the FIXED service to handle points column mismatch
-      const cards = await LoyaltyCardServiceFix.getCustomerCardsFixed(String(user.id));
+      // Then get all customer cards
+      const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
       
       // Fetch activities for each card
       const activities: Record<string, CardActivity[]> = {};
