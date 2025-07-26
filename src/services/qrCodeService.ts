@@ -767,6 +767,62 @@ export class QrCodeService {
               console.error('Error fetching program name:', err);
             }
             
+            // CRITICAL FIX: Invalidate customer's cache for real-time updates
+            try {
+              // Import QueryClient for cache invalidation
+              const { queryClient, invalidateCustomerQueries } = await import('../utils/queryClient');
+              
+              console.log(`Invalidating cache for customer ${customerId} after ${totalPointsAwarded} points awarded`);
+              
+              // Use the dedicated customer query invalidation function
+              invalidateCustomerQueries(customerId);
+              
+              // Also invalidate specific loyalty card and notification queries
+              queryClient.invalidateQueries({ queryKey: ['loyaltyCards', customerId] });
+              queryClient.invalidateQueries({ queryKey: ['customerPoints', customerId] });
+              queryClient.invalidateQueries({ queryKey: ['customerNotifications', customerId] });
+              queryClient.invalidateQueries({ queryKey: ['customers', 'programs', customerId] });
+              
+              // Schedule additional refreshes to ensure data consistency
+              setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['loyaltyCards', customerId] });
+                queryClient.invalidateQueries({ queryKey: ['customerPoints', customerId] });
+              }, 1000);
+              
+              // Second refresh for extra insurance
+              setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['loyaltyCards', customerId] });
+              }, 3000);
+              
+            } catch (cacheError) {
+              console.error('Error invalidating customer cache:', cacheError);
+              // Continue even if cache invalidation fails
+            }
+            
+            // Emit real-time sync event for immediate UI updates
+            try {
+              // Create and dispatch custom event for real-time synchronization
+              const syncEvent = new CustomEvent('qrPointsAwarded', {
+                detail: {
+                  customerId: customerId,
+                  businessId: businessId,
+                  pointsAwarded: totalPointsAwarded,
+                  cardUpdates: cardUpdates,
+                  businessName: businessName,
+                  programName: programName,
+                  timestamp: Date.now()
+                }
+              });
+              
+              // Dispatch event globally for any listening components
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(syncEvent);
+                console.log('Dispatched qrPointsAwarded sync event');
+              }
+            } catch (eventError) {
+              console.error('Error dispatching sync event:', eventError);
+            }
+            
             // Send notification about points awarded
             try {
               await CustomerNotificationService.createNotification({
@@ -783,9 +839,12 @@ export class QrCodeService {
                   businessName: businessName,
                   programName: programName,
                   source: 'QR_SCAN',
-                  cardUpdates: cardUpdates
+                  cardUpdates: cardUpdates,
+                  syncRequired: true // Flag to indicate UI sync is needed
                 }
               });
+              
+              console.log(`Points notification sent to customer ${customerId}: ${totalPointsAwarded} points`);
             } catch (notificationError) {
               console.error('Error creating points notification:', notificationError);
             }
@@ -799,7 +858,8 @@ export class QrCodeService {
                 true,
                 {
                   action: 'POINTS_AWARDED',
-                  cardUpdates: cardUpdates
+                  cardUpdates: cardUpdates,
+                  totalPointsAwarded: totalPointsAwarded
                 }
               );
             } catch (analyticsError) {
