@@ -17,6 +17,7 @@ import { ScanResult, QrCodeType } from '../../types/qrCode';
 import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
 import { BusinessRedemptionNotifications } from '../../components/business/BusinessRedemptionNotifications';
 import { IconBell } from '../../components/icons/IconBell';
+import QuickAwardPoints from '../../components/business/QuickAwardPoints';
 
 // Define business analytics data interface
 interface BusinessAnalyticsData {
@@ -55,6 +56,7 @@ const BusinessDashboard = () => {
   const [businessName, setBusinessName] = useState('');
   const [businessHasIncompleteSettings, setBusinessHasIncompleteSettings] = useState(false);
   const [hasNotifications, setHasNotifications] = useState(false);
+  const [showQuickAwardPoints, setShowQuickAwardPoints] = useState(false);
 
   useEffect(() => {
     // Check for pending redemption notifications
@@ -318,6 +320,13 @@ const BusinessDashboard = () => {
             <p className="text-gray-600 mt-1">{businessName}</p>
           </div>
           <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowQuickAwardPoints(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md flex items-center hover:bg-purple-700 transition-colors"
+            >
+              <Award className="h-5 w-5 mr-2" />
+              {t('Award Points')}
+            </button>
             <button
               onClick={() => setShowScanner(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors"
@@ -604,6 +613,24 @@ const BusinessDashboard = () => {
                 onCancel={() => setShowProgramBuilder(false)}
               />
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Quick Award Points Modal */}
+      {showQuickAwardPoints && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-md">
+            <QuickAwardPoints 
+              onClose={() => setShowQuickAwardPoints(false)}
+              onSuccess={(customer, program, points) => {
+                console.log(`Successfully awarded ${points} points to ${customer.name} in ${program.name}`);
+                // Show success notification in dashboard
+                setTimeout(() => {
+                  setShowQuickAwardPoints(false);
+                }, 2000);
+              }}
+            />
           </div>
         </div>
       )}

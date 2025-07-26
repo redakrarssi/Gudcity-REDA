@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
+import { LoyaltyCardServiceFix } from '../../services/loyaltyCardServiceFix';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToEvents, Event } from '../../utils/telemetry';
@@ -82,6 +83,7 @@ const CustomerCards = () => {
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
   const [isProcessingResponse, setIsProcessingResponse] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [highlightedCards, setHighlightedCards] = useState<Set<string>>(new Set());
   const [hideEnrollmentInfo, setHideEnrollmentInfo] = useState<boolean>(
     localStorage.getItem('hideEnrollmentInfo') === 'true'
   );
@@ -123,6 +125,22 @@ const CustomerCards = () => {
     }, 8000);
   }, []);
 
+  // Function to highlight a card when points are updated
+  const highlightCard = useCallback((cardId: string) => {
+    setHighlightedCards(prev => new Set([...prev, cardId]));
+    
+    // Remove highlight after animation duration
+    setTimeout(() => {
+      setHighlightedCards(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cardId);
+        return newSet;
+      });
+    }, 3000); // 3 seconds highlight duration
+  }, []);
+
+
+
   // Function to hide enrollment info
   const handleHideEnrollmentInfo = useCallback(() => {
     setHideEnrollmentInfo(true);
@@ -161,8 +179,8 @@ const CustomerCards = () => {
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
       await syncEnrollments();
       
-      // Then get all customer cards
-      const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
+      // Then get all customer cards using the FIXED service to handle points column mismatch
+      const cards = await LoyaltyCardServiceFix.getCustomerCardsFixed(String(user.id));
       
       // Fetch activities for each card
       const activities: Record<string, CardActivity[]> = {};
@@ -180,6 +198,22 @@ const CustomerCards = () => {
     refetchOnWindowFocus: true,
     refetchOnMount: true
   });
+
+  // Enhanced function to handle point updates with visual feedback
+  const handlePointsUpdate = useCallback((detail: any) => {
+    if (!user || detail.customerId !== user.id.toString()) return;
+    
+    const programName = detail.programName || `Program ${detail.programId}`;
+    addNotification('success', `You've received ${detail.points} points in ${programName}!`);
+    
+    // Highlight the card if we can identify it
+    if (detail.cardId) {
+      highlightCard(detail.cardId);
+    }
+    
+    // Refresh the data
+    refetch();
+  }, [user, addNotification, highlightCard, refetch]);
 
   // Listen for point update notifications - the simple approach
   useEffect(() => {
@@ -203,10 +237,8 @@ const CustomerCards = () => {
     const handlePointsAwarded = (event: CustomEvent) => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
-        const programName = detail.programName || `Program ${detail.programId}`;
-        addNotification('success', `You've received ${detail.points} points in ${programName}!`);
         console.log(`Points awarded event: ${detail.points} points to program ${detail.programId}, card ${detail.cardId}`);
-        refetch();
+        handlePointsUpdate(detail);
       }
     };
 
@@ -230,10 +262,8 @@ const CustomerCards = () => {
     const handleProgramPointsUpdated = (event: CustomEvent) => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
-        const programName = detail.programName || `Program ${detail.programId}`;
         console.log(`Program points updated: ${detail.points} points for program ${detail.programId}, card ${detail.cardId}`);
-        addNotification('success', `Your ${programName} card has been updated with ${detail.points} points!`);
-        refetch();
+        handlePointsUpdate(detail);
       }
     };
 
@@ -274,9 +304,7 @@ const CustomerCards = () => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
         console.log('Force reload customer cards requested, refreshing immediately...');
-        const programName = detail.programName || `Program ${detail.programId}`;
-        addNotification('success', `You've received ${detail.points} points in ${programName}! Your cards are updating...`);
-        refetch();
+        handlePointsUpdate(detail);
         
         // Double-check with a delayed refresh
         setTimeout(() => {
@@ -984,15 +1012,24 @@ const CustomerCards = () => {
           {/* The rest of the component remains unchanged */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loyaltyCards.map(card => (
-                <motion.div 
+                                  <motion.div 
                   key={card.id}
                   className={`transition-all duration-700 ease-out ${
                     animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                  } ${
+                    highlightedCards.has(card.id) ? 'ring-4 ring-green-400 ring-opacity-75 shadow-xl' : ''
                   }`}
                   style={{ transitionDelay: `${loyaltyCards.indexOf(card) * 150}ms` }}
                   whileHover={{ scale: 1.02 }}
                   initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  animate={{ 
+                    opacity: 1, 
+                    y: 0,
+                    scale: highlightedCards.has(card.id) ? 1.05 : 1
+                  }}
+                  transition={{
+                    scale: { duration: 0.3 }
+                  }}
                 >
                   {/* Main Card */}
                   <div 
@@ -1048,7 +1085,11 @@ const CustomerCards = () => {
                       <div className="mt-6 flex justify-between items-end relative z-10">
                         <div>
                           <div className="flex items-baseline">
-                            <div className="text-4xl font-bold mr-2">{card.points}</div>
+                            <div className={`text-4xl font-bold mr-2 ${
+                              highlightedCards.has(card.id) ? 'animate-pulse text-green-300' : ''
+                            }`}>
+                              {card.points}
+                            </div>
                             <div className="text-sm opacity-90">{t('points')}</div>
                           </div>
                           <div className="text-xs mt-1 opacity-80">
