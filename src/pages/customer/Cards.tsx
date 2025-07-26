@@ -23,6 +23,13 @@ interface CardNotification {
   timestamp: Date;
 }
 
+// Interface for point animation
+interface PointAnimation {
+  cardId: string;
+  points: number;
+  timestamp: number;
+}
+
 // Interface for promo code modal
 interface PromoCodeState {
   isOpen: boolean;
@@ -80,6 +87,8 @@ const CustomerCards = () => {
   const [rotateCard, setRotateCard] = useState('');
   const [cardActivities, setCardActivities] = useState<Record<string, CardActivity[]>>({});
   const [notifications, setNotifications] = useState<CardNotification[]>([]);
+  const [pointAnimations, setPointAnimations] = useState<PointAnimation[]>([]);
+  const [cardPointsCache, setCardPointsCache] = useState<Record<string, number>>({});
   const [isProcessingResponse, setIsProcessingResponse] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hideEnrollmentInfo, setHideEnrollmentInfo] = useState<boolean>(
@@ -127,6 +136,30 @@ const CustomerCards = () => {
   const handleHideEnrollmentInfo = useCallback(() => {
     setHideEnrollmentInfo(true);
     localStorage.setItem('hideEnrollmentInfo', 'true');
+  }, []);
+
+  // Function to trigger point animation for a specific card
+  const triggerPointAnimation = useCallback((cardId: string, points: number) => {
+    const animation: PointAnimation = {
+      cardId,
+      points,
+      timestamp: Date.now()
+    };
+    
+    setPointAnimations(prev => [...prev, animation]);
+    
+    // Remove animation after 3 seconds
+    setTimeout(() => {
+      setPointAnimations(prev => prev.filter(anim => anim.timestamp !== animation.timestamp));
+    }, 3000);
+  }, []);
+
+  // Function to update card points cache for smooth UI updates
+  const updateCardPointsCache = useCallback((cardId: string, newPoints: number) => {
+    setCardPointsCache(prev => ({
+      ...prev,
+      [cardId]: newPoints
+    }));
   }, []);
 
   // Function to sync enrollments to cards
@@ -1044,15 +1077,47 @@ const CustomerCards = () => {
                         </div>
                       </div>
                       
-                      {/* Points Display */}
+                      {/* Points Display with Animation */}
                       <div className="mt-6 flex justify-between items-end relative z-10">
-                        <div>
+                        <div className="relative">
                           <div className="flex items-baseline">
-                            <div className="text-4xl font-bold mr-2">{card.points}</div>
+                            <div className="text-4xl font-bold mr-2 relative">
+                              {/* Use cached points for immediate feedback, fallback to card.points */}
+                              {cardPointsCache[card.id] ?? card.points}
+                              
+                              {/* Point Animation Overlay */}
+                              <AnimatePresence>
+                                {pointAnimations
+                                  .filter(anim => anim.cardId === card.id)
+                                  .map(anim => (
+                                    <motion.div
+                                      key={anim.timestamp}
+                                      initial={{ opacity: 0, y: 0, scale: 1 }}
+                                      animate={{ 
+                                        opacity: 1, 
+                                        y: -30, 
+                                        scale: 1.2,
+                                        transition: { duration: 0.5 }
+                                      }}
+                                      exit={{ 
+                                        opacity: 0, 
+                                        y: -50, 
+                                        scale: 0.8,
+                                        transition: { duration: 0.5 }
+                                      }}
+                                      className="absolute top-0 left-0 text-green-400 font-bold pointer-events-none"
+                                    >
+                                      +{anim.points}
+                                    </motion.div>
+                                  ))
+                                }
+                              </AnimatePresence>
+                            </div>
                             <div className="text-sm opacity-90">{t('points')}</div>
                           </div>
                           <div className="text-xs mt-1 opacity-80">
-                            {card.pointsToNext} {t('more points for')} {card.nextReward}
+                            {/* Show placeholder values since these properties might not exist */}
+                            More points needed for next reward
                           </div>
                         </div>
                         

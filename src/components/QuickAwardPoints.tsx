@@ -308,79 +308,111 @@ const QuickAwardPoints: React.FC<QuickAwardPointsProps> = ({
   // Full version with fields
   return (
     <div className={`quick-award-points ${className}`}>
-      {showCustomerField && (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        {showCustomerField && (
+          <div className="form-group">
+            <label htmlFor="customer-id" className="block text-sm font-medium text-gray-700 mb-1">Customer ID:</label>
+            <input
+              type="text"
+              id="customer-id"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              disabled={isLoading}
+              placeholder="Enter customer ID"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        )}
+        
+        {showProgramField && (
+          <div className="form-group">
+            <label htmlFor="program-id" className="block text-sm font-medium text-gray-700 mb-1">Program ID:</label>
+            <input
+              type="text"
+              id="program-id"
+              value={programId}
+              onChange={(e) => setProgramId(e.target.value)}
+              disabled={isLoading}
+              placeholder="Enter program ID"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        )}
+        
         <div className="form-group">
-          <label htmlFor="customer-id">Customer ID:</label>
+          <label htmlFor="points" className="block text-sm font-medium text-gray-700 mb-1">Points:</label>
           <input
-            type="text"
-            id="customer-id"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
+            type="number"
+            id="points"
+            value={points}
+            onChange={(e) => setPoints(Number(e.target.value))}
             disabled={isLoading}
-            placeholder="Enter customer ID"
+            min="1"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-      )}
-      
-      {showProgramField && (
+        
         <div className="form-group">
-          <label htmlFor="program-id">Program ID:</label>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description (optional):</label>
           <input
             type="text"
-            id="program-id"
-            value={programId}
-            onChange={(e) => setProgramId(e.target.value)}
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             disabled={isLoading}
-            placeholder="Enter program ID"
+            placeholder="Reason for awarding points"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-      )}
-      
-      <div className="form-group">
-        <label htmlFor="points">Points:</label>
-        <input
-          type="number"
-          id="points"
-          value={points}
-          onChange={(e) => setPoints(Number(e.target.value))}
-          disabled={isLoading}
-          min="1"
-        />
       </div>
       
-      <div className="form-group">
-        <label htmlFor="description">Description (optional):</label>
-        <input
-          type="text"
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={isLoading}
-          placeholder="Reason for awarding points"
-        />
-      </div>
-      
-      <button
-        onClick={handleAwardPoints}
-        disabled={isLoading}
-        className="quick-award-points-button"
-      >
-        {isLoading ? 'Processing...' : buttonText}
-      </button>
-      
-      {result && (
-        <div className={`result ${result.success ? 'success' : 'error'}`}>
-          {result.success ? (
-            <div className="success-message">
-              ✅ {result.message || 'Points awarded successfully'}
-            </div>
+      <div className="flex flex-col sm:flex-row gap-4 items-start">
+        <button
+          onClick={handleAwardPoints}
+          disabled={isLoading || !customerId || !programId || points <= 0}
+          className={`px-6 py-2 rounded-md font-medium transition-colors flex items-center ${
+            isLoading || !customerId || !programId || points <= 0
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+          }`}
+        >
+          {isLoading ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing...
+            </>
           ) : (
-            <div className="error-message">
-              ❌ {result.error || 'Failed to award points'}
-            </div>
+            buttonText
           )}
-        </div>
-      )}
+        </button>
+        
+        {result && (
+          <div className={`flex-1 p-3 rounded-md ${result.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            {result.success ? (
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span className="text-green-800 font-medium">
+                  {result.message || 'Points awarded successfully'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                <span className="text-red-800 font-medium">
+                  {result.error || 'Failed to award points'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

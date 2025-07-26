@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, QrCode, BarChart, Plus, ArrowUp, ArrowDown, TrendingUp, DollarSign, Gift, Coffee, CreditCard, Award, AlertTriangle, AlertCircle, Settings, ChevronRight } from 'lucide-react';
+import { Users, QrCode, BarChart, Plus, ArrowUp, ArrowDown, TrendingUp, DollarSign, Gift, Coffee, CreditCard, Award, AlertTriangle, AlertCircle, Settings, ChevronRight, Send } from 'lucide-react';
 import type { LoyaltyProgram } from '../../types/loyalty';
 import type { CurrencyCode } from '../../types/currency';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
@@ -17,6 +17,7 @@ import { ScanResult, QrCodeType } from '../../types/qrCode';
 import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
 import { BusinessRedemptionNotifications } from '../../components/business/BusinessRedemptionNotifications';
 import { IconBell } from '../../components/icons/IconBell';
+import QuickAwardPoints from '../../components/QuickAwardPoints';
 
 // Define business analytics data interface
 interface BusinessAnalyticsData {
@@ -437,6 +438,37 @@ const BusinessDashboard = () => {
               {t('Active')}
             </span>
             <span className="text-gray-500 text-sm ml-2">{t('All programs running')}</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Quick Award Points Widget */}
+      <div className="mb-6">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                <Send className="h-5 w-5 mr-2 text-blue-600" />
+                {t('Quick Award Points')}
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Send points directly to any customer in your programs</p>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <QuickAwardPoints
+              buttonText="Award Points"
+              className="quick-award-dashboard"
+              onSuccess={(result) => {
+                // Refresh dashboard data after successful points award
+                console.log('Points awarded successfully:', result);
+                // You could add a toast notification here
+              }}
+              onError={(error) => {
+                console.error('Error awarding points:', error);
+                // You could add an error toast notification here
+              }}
+            />
           </div>
         </div>
       </div>
