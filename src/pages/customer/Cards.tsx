@@ -191,11 +191,18 @@ const CustomerCards = () => {
     queryFn: async () => {
       if (!user?.id) return [];
       
+      console.log(`🔄 Fetching loyalty cards for customer ${user.id}`);
+      
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
       await syncEnrollments();
       
-      // Then get all customer cards
+      // Then get all customer cards with enhanced point verification
       const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
+      
+      // Debug: Log each card's points for troubleshooting
+      cards.forEach(card => {
+        console.log(`📊 Card ${card.id} (Program: ${card.programId}): ${card.points} points`);
+      });
       
       // Fetch activities for each card
       const activities: Record<string, CardActivity[]> = {};
@@ -205,13 +212,19 @@ const CustomerCards = () => {
       }
       setCardActivities(activities);
       
+      // Clear any cached points since we have fresh data
+      setCardPointsCache({});
+      
+      console.log(`✅ Loaded ${cards.length} loyalty cards with fresh points data`);
       return cards;
     },
     enabled: !!user?.id,
-    // Aggressive refresh settings for real-time points updates
-    staleTime: 0, // Always consider data stale to enable immediate refreshes
+    // SUPER AGGRESSIVE refresh settings for immediate points updates
+    staleTime: 0, // Always consider data stale
     refetchOnWindowFocus: true,
-    refetchOnMount: true
+    refetchOnMount: true,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchIntervalInBackground: true // Keep refreshing even when tab is not active
   });
 
   // Listen for point update notifications - the simple approach

@@ -626,440 +626,159 @@ export class LoyaltyCardService {
     };
 
     try {
-      console.log(`Starting point award process for card ${cardId}, points: ${points}, source: ${source}`);
+      console.log(`🎯 AWARDING ${points} POINTS TO CARD ${cardId} (Source: ${source})`);
 
-      // Start transaction
-      const transaction = await sql.begin();
+      // ENHANCED APPROACH: Use database function for reliable point awarding
+      const result = await sql`
+        SELECT award_points_to_card(
+          ${parseInt(cardId)}, 
+          ${points}, 
+          ${source}, 
+          ${description || `Points awarded via ${source}`},
+          ${transactionRef || `tx-${Date.now()}`}
+        ) as success
+      `;
 
-      try {
-        // First get card details to get customer_id and program info
-        console.log('Retrieving card details for ID:', cardId);
-        let cardDetails;
+      if (result.length > 0 && result[0].success) {
+        console.log(`✅ Points awarded successfully via database function`);
         
-        try {
-          cardDetails = await transaction`
-            SELECT 
-              lc.*,
-              lp.name as program_name,
-              u.name as business_name,
-              c.name as customer_name
-            FROM loyalty_cards lc
-            JOIN loyalty_programs lp ON lc.program_id = lp.id
-            JOIN users u ON lp.business_id = u.id
-            LEFT JOIN customers c ON lc.customer_id = c.id
-            WHERE lc.id = ${cardId}
-          `;
-        } catch (lookupError) {
-          // Try alternative join if customers table is not available
-          console.log('First join failed, trying alternative lookup');
-          
-          cardDetails = await transaction`
-            SELECT 
-              lc.*,
-              lp.name as program_name,
-              u.name as business_name,
-              u2.name as customer_name
-            FROM loyalty_cards lc
-            JOIN loyalty_programs lp ON lc.program_id = lp.id
-            JOIN users u ON lp.business_id = u.id
-            JOIN users u2 ON lc.customer_id = u2.id AND u2.user_type = 'customer'
-            WHERE lc.id = ${cardId}
-          `;
-        }
-
-        if (!cardDetails.length) {
-          await transaction.rollback();
-          console.error('Card not found:', cardId);
-          return { success: false, error: `Card not found with ID: ${cardId}` };
-        }
-
-        const card = cardDetails[0];
-        const customerId = card.customer_id;
-        const programId = card.program_id;
-        const programName = card.program_name || 'Loyalty Program';
-        const businessName = card.business_name || 'Business';
-        const customerName = card.customer_name || 'Customer';
-
-        diagnosticData.cardDetails = {
-          customerId,
-          programId,
-          programName,
-          businessName,
-          customerName
-        };
-
-        console.log('Card found, details:', {
-          cardId,
-          customerId,
-          programId,
-          programName
-        });
-
-        // Update card points balance - make sure we handle both points and points_balance
-        console.log(`Updating points balance for card ${cardId}, adding ${points} points`);
-        
-        // Try updating with all possible column combinations
-        let updateResult;
-        
-        try {
-          // First try with all standard columns
-          updateResult = await transaction`
-            UPDATE loyalty_cards
-            SET 
-              points = COALESCE(points, 0) + ${points},
-              points_balance = COALESCE(points_balance, 0) + ${points},
-              total_points_earned = COALESCE(total_points_earned, 0) + ${points},
-              updated_at = NOW()
-            WHERE id = ${cardId}
-            RETURNING id, points, points_balance, total_points_earned
-          `;
-        } catch (columnError) {
-          console.warn('Column error in first update attempt:', columnError);
-          diagnosticData.firstUpdateError = columnError instanceof Error ? columnError.message : String(columnError);
-          
-          try {
-            // Try with just points and points_balance
-            updateResult = await transaction`
-              UPDATE loyalty_cards
-              SET 
-                points = COALESCE(points, 0) + ${points},
-                points_balance = COALESCE(points_balance, 0) + ${points},
-                updated_at = NOW()
-              WHERE id = ${cardId}
-              RETURNING id, points, points_balance
-            `;
-          } catch (secondError) {
-            console.warn('Column error in second update attempt:', secondError);
-            diagnosticData.secondUpdateError = secondError instanceof Error ? secondError.message : String(secondError);
-            
-            // Last resort - just update points
-            updateResult = await transaction`
-              UPDATE loyalty_cards
-              SET 
-                points = COALESCE(points, 0) + ${points}
-              WHERE id = ${cardId}
-              RETURNING id, points
-            `;
-          }
-        }
-        
-        if (!updateResult || updateResult.length === 0) {
-          await transaction.rollback();
-          console.error('Card update failed, no rows affected');
-          return { 
-            success: false, 
-            error: 'Card update failed, no rows affected',
-            diagnostics: diagnosticData 
-          };
-        }
-        
-        console.log('Card updated successfully:', updateResult[0]);
-        diagnosticData.cardUpdated = true;
-        diagnosticData.updatedCard = updateResult[0];
-        
-        // Record transaction in loyalty_transactions
-        try {
-          const transactionResult = await transaction`
-            INSERT INTO loyalty_transactions (
-              card_id,
-              transaction_type,
-              points,
-              source,
-              description,
-              transaction_ref,
-              business_id,
-              created_at
-            ) VALUES (
-              ${cardId},
-              'CREDIT',
-              ${points},
-              ${source},
-              ${description || `Points awarded by ${businessName}`},
-              ${transactionRef || `tx-${Date.now()}`},
-              ${businessId || card.business_id},
-              NOW()
-            ) RETURNING id
-          `;
-          
-          diagnosticData.transactionId = transactionResult[0]?.id;
-          diagnosticData.transactionCreated = true;
-          
-          console.log('Transaction recorded with ID:', diagnosticData.transactionId);
-        } catch (transactionError) {
-          console.warn('Failed to record transaction:', transactionError);
-          diagnosticData.transactionError = transactionError instanceof Error ? 
-            transactionError.message : String(transactionError);
-          
-          // Continue even if transaction recording fails
-        }
-        
-        // Also try to update customer_programs (or program_enrollments) table
-        try {
-          // Check if customer is enrolled in program
-          const enrollmentCheck = await transaction`
-            SELECT * FROM customer_programs 
-            WHERE customer_id = ${customerId} 
-            AND program_id = ${programId}
-          `;
-          
-          if (enrollmentCheck.length === 0) {
-            // Customer is not enrolled yet, so enroll them
-            await transaction`
-              INSERT INTO customer_programs (
-                customer_id,
-                program_id,
-                current_points,
-                enrolled_at
-              ) VALUES (
-                ${customerId},
-                ${programId},
-                ${points},
-                NOW()
-              )
-            `;
-            
-            diagnosticData.enrollmentCreated = true;
-            console.log('New enrollment created');
-          } else {
-            // Update existing enrollment
-            await transaction`
-              UPDATE customer_programs
-              SET 
-                current_points = current_points + ${points},
-                updated_at = NOW()
-              WHERE customer_id = ${customerId}
-              AND program_id = ${programId}
-            `;
-            
-            diagnosticData.enrollmentUpdated = true;
-            console.log('Existing enrollment updated');
-          }
-        } catch (enrollmentError) {
-          console.warn('Failed to update enrollment:', enrollmentError);
-          diagnosticData.enrollmentError = enrollmentError instanceof Error ? 
-            enrollmentError.message : String(enrollmentError);
-          
-          // Try alternative table name (program_enrollments) if customer_programs failed
-          try {
-            const enrollmentCheck = await transaction`
-              SELECT * FROM program_enrollments 
-              WHERE customer_id = ${customerId} 
-              AND program_id = ${programId}
-            `;
-            
-            if (enrollmentCheck.length === 0) {
-              await transaction`
-                INSERT INTO program_enrollments (
-                  customer_id,
-                  program_id,
-                  current_points,
-                  enrolled_at
-                ) VALUES (
-                  ${customerId},
-                  ${programId},
-                  ${points},
-                  NOW()
-                )
-              `;
-              
-              diagnosticData.alternativeEnrollmentCreated = true;
-            } else {
-              await transaction`
-                UPDATE program_enrollments
-                SET 
-                  current_points = current_points + ${points},
-                  updated_at = NOW()
-                WHERE customer_id = ${customerId}
-                AND program_id = ${programId}
-              `;
-              
-              diagnosticData.alternativeEnrollmentUpdated = true;
-            }
-          } catch (altEnrollmentError) {
-            console.warn('Failed to update alternative enrollment:', altEnrollmentError);
-            diagnosticData.alternativeEnrollmentError = altEnrollmentError instanceof Error ? 
-              altEnrollmentError.message : String(altEnrollmentError);
-            
-            // Continue even if enrollment update fails
-          }
-        }
-        
-        // Commit the transaction
-        await transaction.commit();
-        console.log('Transaction committed successfully');
-        
-        // After successful transaction, send notification to customer
-        try {
-          console.log('Sending notification to customer:', customerId);
-          
-          // Import notification handler
-          const { handlePointsAwarded } = await import('../utils/notificationHandler');
-          
-          // Send notification
-          await handlePointsAwarded(
-            customerId.toString(),
-            (businessId || card.business_id).toString(),
-            programId.toString(),
-            programName,
-            businessName,
+        // Get updated card details for verification
+        const updatedCard = await sql`
+          SELECT 
+            id,
+            customer_id,
+            program_id,
             points,
-            cardId,
-            source
-          );
+            points_balance,
+            total_points_earned,
+            updated_at
+          FROM loyalty_cards 
+          WHERE id = ${cardId}
+        `;
+
+        if (updatedCard.length > 0) {
+          const card = updatedCard[0];
+          diagnosticData.cardUpdated = true;
+          diagnosticData.updatedCard = {
+            id: card.id,
+            customerId: card.customer_id,
+            programId: card.program_id,
+            points: card.points,
+            pointsBalance: card.points_balance,
+            totalPointsEarned: card.total_points_earned,
+            updatedAt: card.updated_at
+          };
           
-          diagnosticData.notificationSent = true;
+          console.log(`📊 Card ${cardId} now has ${card.points} points (Balance: ${card.points_balance})`);
+        }
+
+        // Send notification to customer about points awarded
+        try {
+          const cardInfo = await sql`
+            SELECT 
+              lc.customer_id,
+              lc.program_id,
+              lp.name as program_name,
+              u.name as business_name
+            FROM loyalty_cards lc
+            JOIN loyalty_programs lp ON lc.program_id = lp.id
+            JOIN users u ON lp.business_id = u.id
+            WHERE lc.id = ${cardId}
+          `;
+          
+          if (cardInfo.length > 0) {
+            const { customer_id, program_id, program_name, business_name } = cardInfo[0];
+            
+            // Import and use notification handler
+            const { handlePointsAwarded } = await import('../utils/notificationHandler');
+            
+            await handlePointsAwarded(
+              customer_id.toString(),
+              (businessId || '').toString(),
+              program_id.toString(),
+              program_name || 'Loyalty Program',
+              business_name || 'Business',
+              points,
+              cardId,
+              source
+            );
+            
+            console.log(`🔔 Notification sent to customer ${customer_id}`);
+            diagnosticData.notificationSent = true;
+          }
         } catch (notificationError) {
           console.warn('Failed to send notification:', notificationError);
           diagnosticData.notificationError = notificationError instanceof Error ? 
             notificationError.message : String(notificationError);
-          
-          // Create notification in customer notification system directly as fallback
-          try {
-            const { CustomerNotificationService } = await import('./customerNotificationService');
-            
-            // Create notification
-            const notification = await CustomerNotificationService.createNotification({
-              customerId: customerId.toString(),
-              businessId: (businessId || card.business_id).toString(),
-              type: 'POINTS_ADDED',
-              title: 'Points Added',
-              message: `You've received ${points} points from ${businessName} in the program ${programName}`,
-              data: {
-                points: points,
-                cardId: cardId,
-                programId: programId.toString(),
-                programName: programName,
-                source: source,
-                transactionId: diagnosticData.transactionId
-              },
-              requiresAction: false,
-              actionTaken: false,
-              isRead: false
-            });
-
-            diagnosticData.fallbackNotificationCreated = !!notification;
-            diagnosticData.fallbackNotificationId = notification?.id;
-          } catch (fallbackNotificationError) {
-            console.warn('Failed to create fallback notification:', fallbackNotificationError);
-            diagnosticData.fallbackNotificationError = fallbackNotificationError instanceof Error ? 
-              fallbackNotificationError.message : String(fallbackNotificationError);
-          }
         }
-        
-        // Return success
+
         return {
           success: true,
           diagnostics: diagnosticData
         };
-      } catch (error) {
-        // Rollback transaction on error
-        await transaction.rollback();
-        console.error('Transaction error in awardPointsToCard:', error);
-        return { 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown database error',
-          diagnostics: {
-            ...diagnosticData,
-            transactionError: error instanceof Error ? error.message : String(error)
-          }
-        };
-      }
-    } catch (error) {
-      console.error('Error awarding points to card:', error);
-      
-      // Try direct update as fallback when all else fails
-      try {
-        console.log('Attempting direct update as fallback');
+      } else {
+        // Fallback to direct SQL update if function doesn't exist
+        console.log('Database function not available, using direct update...');
+        
         const directUpdate = await sql`
           UPDATE loyalty_cards
-          SET points = points + ${points}
+          SET 
+            points = COALESCE(points, 0) + ${points},
+            points_balance = COALESCE(points_balance, 0) + ${points},
+            total_points_earned = COALESCE(total_points_earned, 0) + ${points},
+            updated_at = NOW()
           WHERE id = ${cardId}
-          RETURNING id, points
+          RETURNING id, points, points_balance, total_points_earned
         `;
         
-        if (directUpdate && directUpdate.length > 0) {
-          console.log('Direct update successful:', directUpdate[0]);
+        if (directUpdate.length > 0) {
+          console.log(`✅ Direct update successful:`, directUpdate[0]);
           
-          // Try to create notification
-          try {
-            const cardInfo = await sql`
-              SELECT 
-                lc.*,
-                lp.name as program_name,
-                u.name as business_name
-              FROM loyalty_cards lc
-              JOIN loyalty_programs lp ON lc.program_id = lp.id
-              JOIN users u ON lp.business_id = u.id
-              WHERE lc.id = ${cardId}
-            `;
-            
-            if (cardInfo && cardInfo.length > 0) {
-              const card = cardInfo[0];
-              const customerId = card.customer_id;
-              const programName = card.program_name || 'Loyalty Program';
-              const businessName = card.business_name || 'Business';
-              
-              // Import notification handler
-              const { handlePointsAwarded } = await import('../utils/notificationHandler');
+          // Record activity
+          await sql`
+            INSERT INTO card_activities (
+              card_id,
+              activity_type,
+              points,
+              description,
+              transaction_reference,
+              created_at
+            ) VALUES (
+              ${cardId},
+              'EARN_POINTS',
+              ${points},
+              ${description || `Points awarded via ${source}`},
+              ${transactionRef || `tx-${Date.now()}`},
+              NOW()
+            )
+          `;
           
-              // Send notification
-              await handlePointsAwarded(
-                customerId.toString(),
-                (businessId || card.business_id).toString(),
-                card.program_id.toString(),
-                programName,
-                businessName,
-                points,
-                cardId,
-                source
-              );
-            }
-            
-            return { 
-              success: true, 
-              diagnostics: { 
-                directUpdateSuccessful: true, 
-                cardId, 
-                points 
-              } 
-            };
-          } catch (notificationError) {
-            // Return success even if notification fails
-            console.warn('Failed to send notification after direct update:', notificationError);
-            return { 
-              success: true, 
-              diagnostics: { 
-                directUpdateSuccessful: true, 
-                notificationFailed: true,
-                cardId, 
-                points 
-              } 
-            };
-          }
+          diagnosticData.directUpdateSuccess = true;
+          diagnosticData.updatedCard = directUpdate[0];
+          
+          return {
+            success: true,
+            diagnostics: diagnosticData
+          };
         }
-      } catch (directUpdateError) {
-        console.error('Direct update also failed:', directUpdateError);
       }
-      
-      // Check if error is related to foreign key constraint
-      const errorString = String(error);
-      let errorMessage = 'Unknown error awarding points';
-      
-      if (errorString.includes('foreign key constraint') || errorString.includes('violates foreign key')) {
-        errorMessage = 'Foreign key constraint violation. This may indicate a problem with customer, program, or card IDs.';
-      } else if (errorString.includes('column') && errorString.includes('does not exist')) {
-        errorMessage = 'Database schema issue. A required column does not exist.';
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
+
+      return {
+        success: false,
+        error: 'Failed to award points - no rows affected',
+        diagnostics: diagnosticData
+      };
+
+    } catch (error) {
+      console.error('❌ Error awarding points to card:', error);
       
       return { 
         success: false, 
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Unknown error awarding points',
         diagnostics: {
           ...diagnosticData,
-          error: errorString
-        } 
+          error: error instanceof Error ? error.message : String(error)
+        }
       };
     }
   }
