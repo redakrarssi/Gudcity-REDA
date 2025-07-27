@@ -725,17 +725,23 @@ export class QrCodeService {
         }
       } else {
         // Customer is enrolled - award points to their cards
+        // FIXED: Award points to ONLY the primary program instead of all programs
         try {
           let totalPointsAwarded = 0;
           const cardUpdates = [];
 
-          for (const programId of enrollmentStatus.programIds) {
-            const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, programId);
+          // CRITICAL FIX: Award to only the PRIMARY program (first one) to prevent multiplication
+          const primaryProgramId = enrollmentStatus.programIds[0]; // Get only the first program
+          
+          console.log(`🎯 QR SCAN FIX: Awarding ${pointsToAward} points to PRIMARY program ${primaryProgramId} only (instead of all ${enrollmentStatus.programIds.length} programs)`);
+          
+          if (primaryProgramId) {
+            const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, primaryProgramId);
             
             if (card) {
               const success = await LoyaltyCardService.awardPointsToCard(
                 card.id,
-                pointsToAward,
+                pointsToAward, // Now this awards the exact amount to only ONE program
                 'SCAN',
                 `QR code scan at ${businessName}`,
                 `qr-scan-${Date.now()}`,
@@ -743,22 +749,26 @@ export class QrCodeService {
               );
               
               if (success) {
-                totalPointsAwarded += pointsToAward;
+                totalPointsAwarded = pointsToAward; // Exact 1:1 amount
                 cardUpdates.push({
                   cardId: card.id,
-                  programId: programId,
+                  programId: primaryProgramId,
                   pointsAwarded: pointsToAward
                 });
+                
+                console.log(`✅ QR SCAN SUCCESS: Awarded exactly ${pointsToAward} points to card ${card.id} (program ${primaryProgramId})`);
               }
+            } else {
+              console.warn(`⚠️  No card found for customer ${customerId}, program ${primaryProgramId}`);
             }
           }
 
           if (totalPointsAwarded > 0) {
-            // Get program name for better user experience
+            // Get program name for better user experience  
             let programName = "Loyalty Program";
             try {
               const programResult = await sql`
-                SELECT name FROM loyalty_programs WHERE id = ${enrollmentStatus.programIds[0]}
+                SELECT name FROM loyalty_programs WHERE id = ${primaryProgramId}
               `;
               if (programResult && programResult.length > 0) {
                 programName = programResult[0].name;
