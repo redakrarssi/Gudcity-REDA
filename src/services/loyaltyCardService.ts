@@ -226,58 +226,49 @@ export class LoyaltyCardService {
         const pointsBalanceValue = parseFloat(card.points_balance) || 0;
         const totalPointsEarnedValue = parseFloat(card.total_points_earned) || 0;
         
-        // URGENT FIX: Force debugging for zero points issue
-        console.log(`🚨 URGENT ZERO POINTS DEBUG - Card ${card.id}:`, {
+        // Diagnostic logging for troubleshooting
+        const pointsDiagnostics = {
+          cardId: card.id,
+          points: pointsValue,
+          points_balance: pointsBalanceValue,
+          total_points_earned: totalPointsEarnedValue,
           raw_points: card.points,
           raw_points_balance: card.points_balance,
-          raw_total_points_earned: card.total_points_earned,
-          parsed_points: pointsValue,
-          parsed_points_balance: pointsBalanceValue,
-          parsed_total_points_earned: totalPointsEarnedValue,
-          customer_id: card.customer_id,
-          program_id: card.program_id
-        });
+          raw_total_points_earned: card.total_points_earned
+        };
         
-        // CRITICAL FIX: Use the highest available points value
-        let actualPoints = Math.max(pointsValue, pointsBalanceValue, totalPointsEarnedValue);
-        let selectedSource = 'none';
+        console.log(`Points diagnostic for card ${card.id}:`, pointsDiagnostics);
         
-        if (actualPoints === 0) {
-          // If all are 0, try to get from program_enrollments directly
-          console.log(`🔧 All points are 0, checking program_enrollments for customer ${card.customer_id}, program ${card.program_id}`);
-          
-          // This will be handled by the database sync, but let's try one more approach
-          if (pointsBalanceValue > 0) {
-            actualPoints = pointsBalanceValue;
-            selectedSource = 'points_balance';
-          } else if (totalPointsEarnedValue > 0) {
-            actualPoints = totalPointsEarnedValue;
-            selectedSource = 'total_points_earned';
-          } else if (pointsValue > 0) {
-            actualPoints = pointsValue;
-            selectedSource = 'points';
-          } else {
-            // Force to check a minimum baseline
-            actualPoints = 0;
-            selectedSource = 'forced_zero';
-          }
-        } else {
-          // Use the highest value
-          if (actualPoints === pointsBalanceValue) {
-            selectedSource = 'points_balance';
-          } else if (actualPoints === totalPointsEarnedValue) {
-            selectedSource = 'total_points_earned';
-          } else {
-            selectedSource = 'points';
-          }
+        // Enhanced algorithm: Use the maximum non-zero value, with smart fallbacks
+        let actualPoints = 0;
+        let selectedSource = 'default';
+        
+        // Priority 1: Use points_balance if it's the highest (most accurate column)
+        if (pointsBalanceValue >= pointsValue && pointsBalanceValue >= totalPointsEarnedValue && pointsBalanceValue > 0) {
+          actualPoints = pointsBalanceValue;
+          selectedSource = 'points_balance';
+        }
+        // Priority 2: Use total_points_earned if it's highest
+        else if (totalPointsEarnedValue >= pointsValue && totalPointsEarnedValue >= pointsBalanceValue && totalPointsEarnedValue > 0) {
+          actualPoints = totalPointsEarnedValue;
+          selectedSource = 'total_points_earned';
+        }
+        // Priority 3: Use points column
+        else if (pointsValue > 0) {
+          actualPoints = pointsValue;
+          selectedSource = 'points';
+        }
+        // Fallback: Use any non-zero value available
+        else if (pointsBalanceValue > 0) {
+          actualPoints = pointsBalanceValue;
+          selectedSource = 'points_balance_fallback';
+        }
+        else if (totalPointsEarnedValue > 0) {
+          actualPoints = totalPointsEarnedValue;
+          selectedSource = 'total_points_earned_fallback';
         }
         
-        console.log(`🎯 Card ${card.id}: Using ${actualPoints} points from '${selectedSource}' column`);
-        
-        // Emergency fallback: If we're still getting 0, force a small test value for debugging
-        if (actualPoints === 0 && process.env.NODE_ENV === 'development') {
-          console.log(`🚨 EMERGENCY: Card ${card.id} still has 0 points - this indicates a data sync issue`);
-        }
+        console.log(`Card ${card.id}: Selected ${actualPoints} points from '${selectedSource}' column`);
         
         // Alert if there are significant discrepancies between columns (possible data issue)
         const maxDifference = Math.max(pointsValue, pointsBalanceValue, totalPointsEarnedValue) - 
