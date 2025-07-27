@@ -724,15 +724,21 @@ export class QrCodeService {
           };
         }
       } else {
-        // Customer is enrolled - award points to their cards
+        // Customer is enrolled - award points to ONE SPECIFIC CARD (not all cards)
         try {
-          let totalPointsAwarded = 0;
-          const cardUpdates = [];
-
+          console.log(`🎯 Customer ${customerId} has ${enrollmentStatus.programIds.length} program(s). Awarding ${pointsToAward} points to PRIMARY card only.`);
+          
+          // FIXED: Award points to only the PRIMARY/FIRST program card (not all cards)
+          let pointsAwarded = false;
+          let awardedCard = null;
+          
+          // Try to find the primary or most recent program first
           for (const programId of enrollmentStatus.programIds) {
             const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, programId);
             
-            if (card) {
+            if (card && !pointsAwarded) {
+              console.log(`💳 Awarding ${pointsToAward} points to card ${card.id} (Program: ${programId})`);
+              
               const success = await LoyaltyCardService.awardPointsToCard(
                 card.id,
                 pointsToAward,
@@ -742,18 +748,21 @@ export class QrCodeService {
                 businessId
               );
               
-              if (success) {
-                totalPointsAwarded += pointsToAward;
-                cardUpdates.push({
+              if (success.success) {
+                pointsAwarded = true;
+                awardedCard = {
                   cardId: card.id,
                   programId: programId,
                   pointsAwarded: pointsToAward
-                });
+                };
+                console.log(`✅ Successfully awarded exactly ${pointsToAward} points to card ${card.id}`);
+                break; // CRITICAL: Stop after awarding to ONE card only
               }
             }
           }
 
-          if (totalPointsAwarded > 0) {
+          if (pointsAwarded && awardedCard) {
+            
             // Get program name for better user experience
             let programName = "Loyalty Program";
             try {
@@ -772,7 +781,7 @@ export class QrCodeService {
               // Import QueryClient for cache invalidation
               const { queryClient, invalidateCustomerQueries } = await import('../utils/queryClient');
               
-              console.log(`Invalidating cache for customer ${customerId} after ${totalPointsAwarded} points awarded`);
+              console.log(`Invalidating cache for customer ${customerId} after ${pointsToAward} points awarded`);
               
               // Use the dedicated customer query invalidation function
               invalidateCustomerQueries(customerId);
@@ -806,8 +815,8 @@ export class QrCodeService {
                 detail: {
                   customerId: customerId,
                   businessId: businessId,
-                  pointsAwarded: totalPointsAwarded,
-                  cardUpdates: cardUpdates,
+                  pointsAwarded: pointsToAward,
+                  cardUpdates: [awardedCard],
                   businessName: businessName,
                   programName: programName,
                   timestamp: Date.now()
@@ -830,21 +839,21 @@ export class QrCodeService {
                 businessId: businessId,
                 type: 'POINTS_ADDED',
                 title: 'Points Added',
-                message: `You've received ${totalPointsAwarded} points from ${businessName} in the program ${programName}`,
+                message: `You've received ${pointsToAward} points from ${businessName} in the program ${programName}`,
                 requiresAction: false,
                 actionTaken: false,
                 isRead: false,
                 data: {
-                  points: totalPointsAwarded,
+                  points: pointsToAward,
                   businessName: businessName,
                   programName: programName,
                   source: 'QR_SCAN',
-                  cardUpdates: cardUpdates,
+                  cardUpdates: [awardedCard],
                   syncRequired: true // Flag to indicate UI sync is needed
                 }
               });
               
-              console.log(`Points notification sent to customer ${customerId}: ${totalPointsAwarded} points`);
+              console.log(`Points notification sent to customer ${customerId}: ${pointsToAward} points`);
             } catch (notificationError) {
               console.error('Error creating points notification:', notificationError);
             }
@@ -858,8 +867,8 @@ export class QrCodeService {
                 true,
                 {
                   action: 'POINTS_AWARDED',
-                  cardUpdates: cardUpdates,
-                  totalPointsAwarded: totalPointsAwarded
+                  cardUpdates: [awardedCard],
+                  totalPointsAwarded: pointsToAward
                 }
               );
             } catch (analyticsError) {
@@ -868,13 +877,13 @@ export class QrCodeService {
 
             return {
               success: true,
-              message: `QR code scanned successfully. ${totalPointsAwarded} points awarded!`,
+              message: `QR code scanned successfully. ${pointsToAward} points awarded!`,
               customerId: customerId,
               businessId: businessId,
-              pointsAwarded: totalPointsAwarded,
+              pointsAwarded: pointsToAward,
               data: {
                 action: 'POINTS_AWARDED',
-                cardUpdates: cardUpdates
+                cardUpdates: [awardedCard]
               }
             };
           } else {

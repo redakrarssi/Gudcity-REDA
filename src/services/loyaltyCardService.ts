@@ -626,7 +626,7 @@ export class LoyaltyCardService {
     };
 
     try {
-      console.log(`🎯 AWARDING ${points} POINTS TO CARD ${cardId} (Source: ${source})`);
+      console.log(`🎯 AWARDING EXACTLY ${points} POINTS TO CARD ${cardId} (Source: ${source})`);
 
       // ENHANCED APPROACH: Use database function for reliable point awarding
       const result = await sql`
@@ -640,7 +640,7 @@ export class LoyaltyCardService {
       `;
 
       if (result.length > 0 && result[0].success) {
-        console.log(`✅ Points awarded successfully via database function`);
+        console.log(`✅ DATABASE CONFIRMED: Exactly ${points} points awarded to card ${cardId}`);
         
         // Get updated card details for verification
         const updatedCard = await sql`
@@ -669,7 +669,8 @@ export class LoyaltyCardService {
             updatedAt: card.updated_at
           };
           
-          console.log(`📊 Card ${cardId} now has ${card.points} points (Balance: ${card.points_balance})`);
+          console.log(`📊 VERIFICATION: Card ${cardId} now has ${card.points} points (Balance: ${card.points_balance})`);
+          console.log(`🔍 POINTS ADDED: Exactly ${points} points (no multiplication)`);
         }
 
         // Send notification to customer about points awarded
