@@ -302,3 +302,165 @@ A robust fix has been implemented to address the issues with enrollment notifica
    - Improved typed event handling with proper SyncEvent typing
 
 The result is a seamless enrollment experience with 100% reliability in card creation after enrollment acceptance, enhanced user feedback, and robust error handling that ensures a smooth customer journey. 
+
+## QR Point Award System
+
+### Complete Point Award Workflow
+
+The QR Point Award System provides a seamless way for business owners to award points to customers through QR code scanning, with real-time notifications and immediate card updates in the customer dashboard.
+
+#### System Architecture
+
+1. **QR Code Scanning Flow** (`src/services/qrCodeService.ts`):
+   - Business owner scans customer QR code via business dashboard
+   - System identifies customer and their enrolled programs
+   - Points are awarded to the primary loyalty card (first active program)
+   - Database function `award_points_to_card()` handles reliable point accumulation
+
+2. **Point Awarding Mechanism** (`src/services/loyaltyCardService.ts`):
+   - Uses optimized database function for atomic point updates
+   - Updates multiple point columns for consistency (`points`, `points_balance`, `total_points_earned`)
+   - Records transaction history in `card_activities` table
+   - Provides comprehensive diagnostic logging for troubleshooting
+
+3. **Real-time Synchronization**:
+   - Immediate cache invalidation using React Query
+   - Custom event dispatching (`qrPointsAwarded`) for instant UI updates
+   - Multiple scheduled refreshes for reliability (1s, 3s, 10s intervals)
+   - Background synchronization to maintain data freshness
+
+4. **Customer Notification System**:
+   - Instant notifications about points received
+   - Real-time event listeners in customer dashboard
+   - Point animations and visual feedback
+   - Automatic card refresh without manual intervention
+
+#### Technical Implementation
+
+**Database Layer:**
+```sql
+-- Optimized function for reliable point awarding
+CREATE OR REPLACE FUNCTION award_points_to_card(
+  p_card_id INTEGER,
+  p_points INTEGER,
+  p_source VARCHAR(50),
+  p_description TEXT,
+  p_transaction_ref VARCHAR(255)
+) RETURNS BOOLEAN
+```
+
+**Service Layer:**
+- `QrCodeService.processCustomerQrCode()` - Handles QR scanning workflow
+- `LoyaltyCardService.awardPointsToCard()` - Manages point awarding logic
+- `CustomerNotificationService` - Handles real-time notifications
+
+**Frontend Layer:**
+- `Cards.tsx` - Customer dashboard with aggressive refresh settings
+- Event listeners for `qrPointsAwarded` custom events
+- Cache invalidation strategies for immediate updates
+
+#### Point Award Process Flow
+
+1. **Business QR Scan**:
+   ```
+   Business Dashboard → QR Scanner → Customer Detection → Program Selection
+   ```
+
+2. **Point Processing**:
+   ```
+   Point Input → Database Function → Point Accumulation → Transaction Recording
+   ```
+
+3. **Real-time Sync**:
+   ```
+   Cache Invalidation → Event Dispatch → Customer Notification → UI Update
+   ```
+
+4. **Customer Experience**:
+   ```
+   Notification → Card Refresh → Point Display → Activity History
+   ```
+
+#### Key Features
+
+**Reliability:**
+- Atomic database transactions prevent partial point awards
+- Multiple fallback mechanisms for network issues
+- Comprehensive error handling and logging
+- Transaction history for audit trails
+
+**Real-time Updates:**
+- Instant cache invalidation after point awarding
+- Custom event system for immediate UI synchronization
+- Background refresh mechanisms for consistency
+- Auto-refresh every 10 seconds for maximum reliability
+
+**User Experience:**
+- Visual point animations in customer dashboard
+- Immediate feedback notifications
+- Automatic card updates without manual refresh
+- Clear transaction history and activity logs
+
+**Data Consistency:**
+- Multiple point columns updated simultaneously
+- Program enrollment synchronization
+- Card-program relationship integrity
+- Comprehensive diagnostic logging
+
+#### Configuration and Setup
+
+**Database Requirements:**
+- `loyalty_cards` table with point columns (`points`, `points_balance`, `total_points_earned`)
+- `card_activities` table for transaction history
+- `award_points_to_card()` function for reliable point processing
+- Proper indexes for performance optimization
+
+**Frontend Configuration:**
+- React Query with aggressive refresh settings (`staleTime: 0`)
+- Event listeners registered for real-time updates
+- Cache invalidation strategies implemented
+- Background synchronization enabled
+
+**Monitoring and Diagnostics:**
+- Console logging for point award verification
+- Transaction history tracking
+- Error reporting and recovery mechanisms
+- Performance monitoring for large-scale operations
+
+#### Testing and Verification
+
+**Point Award Testing:**
+```sql
+-- Test exact point amounts
+SELECT award_points_to_card(CARD_ID, 10, 'TEST', 'Testing point system');
+```
+
+**Browser Console Verification:**
+```
+🎯 AWARDING EXACTLY 10 POINTS TO CARD 123 (Source: SCAN)
+✅ DATABASE CONFIRMED: Exactly 10 points awarded to card 123
+📊 VERIFICATION: Card 123 now has 25 points (Balance: 25)
+🔍 POINTS ADDED: Exactly 10 points (no multiplication)
+```
+
+**Customer Dashboard Verification:**
+- Points appear in `/cards` within 10 seconds
+- Visual animations confirm point addition
+- Activity history shows transaction details
+- Real-time notifications provide immediate feedback
+
+#### Troubleshooting
+
+**Common Issues:**
+- **Points not appearing**: Check cache invalidation and event listeners
+- **Delayed updates**: Verify React Query refresh settings
+- **Missing notifications**: Ensure event dispatching is working
+- **Database errors**: Check `award_points_to_card()` function availability
+
+**Diagnostic Tools:**
+- Browser console logs for detailed transaction flow
+- Database function testing for point processing verification
+- React Query DevTools for cache inspection
+- Network tab for API call monitoring
+
+The QR Point Award System ensures reliable, real-time point awarding with immediate customer feedback and comprehensive audit trails, providing a seamless loyalty program experience for both businesses and customers. 

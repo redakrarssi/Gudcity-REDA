@@ -219,63 +219,13 @@ export class LoyaltyCardService {
 
       console.log(`Found ${result.length} loyalty cards for customer ${customerId}`);
 
-            // Map database results to our interface with ENHANCED POINTS FIX
+            // Map database results to our interface with SIMPLIFIED POINTS FIX
       return result.map(card => {
-        // ENHANCED FIX: Robust handling of multiple points columns with comprehensive diagnostics
+        // SIMPLIFIED FIX: Use only the main 'points' column (no more multiplication)
         const pointsValue = parseFloat(card.points) || 0;
-        const pointsBalanceValue = parseFloat(card.points_balance) || 0;
-        const totalPointsEarnedValue = parseFloat(card.total_points_earned) || 0;
         
         // Diagnostic logging for troubleshooting
-        const pointsDiagnostics = {
-          cardId: card.id,
-          points: pointsValue,
-          points_balance: pointsBalanceValue,
-          total_points_earned: totalPointsEarnedValue,
-          raw_points: card.points,
-          raw_points_balance: card.points_balance,
-          raw_total_points_earned: card.total_points_earned
-        };
-        
-        console.log(`Points diagnostic for card ${card.id}:`, pointsDiagnostics);
-        
-        // Enhanced algorithm: Use the maximum non-zero value, with smart fallbacks
-        let actualPoints = 0;
-        let selectedSource = 'default';
-        
-        // Priority 1: Use points_balance if it's the highest (most accurate column)
-        if (pointsBalanceValue >= pointsValue && pointsBalanceValue >= totalPointsEarnedValue && pointsBalanceValue > 0) {
-          actualPoints = pointsBalanceValue;
-          selectedSource = 'points_balance';
-        }
-        // Priority 2: Use total_points_earned if it's highest
-        else if (totalPointsEarnedValue >= pointsValue && totalPointsEarnedValue >= pointsBalanceValue && totalPointsEarnedValue > 0) {
-          actualPoints = totalPointsEarnedValue;
-          selectedSource = 'total_points_earned';
-        }
-        // Priority 3: Use points column
-        else if (pointsValue > 0) {
-          actualPoints = pointsValue;
-          selectedSource = 'points';
-        }
-        // Fallback: Use any non-zero value available
-        else if (pointsBalanceValue > 0) {
-          actualPoints = pointsBalanceValue;
-          selectedSource = 'points_balance_fallback';
-        }
-        else if (totalPointsEarnedValue > 0) {
-          actualPoints = totalPointsEarnedValue;
-          selectedSource = 'total_points_earned_fallback';
-        }
-        
-        console.log(`Card ${card.id}: Selected ${actualPoints} points from '${selectedSource}' column`);
-        
-        // Alert if there are significant discrepancies between columns (possible data issue)
-        const maxDifference = Math.max(pointsValue, pointsBalanceValue, totalPointsEarnedValue) - 
-                              Math.min(pointsValue, pointsBalanceValue, totalPointsEarnedValue);
-        if (maxDifference > 0 && maxDifference > actualPoints * 0.1) {
-          console.warn(`Card ${card.id}: Significant points discrepancy detected!`, pointsDiagnostics);
-        }
+        console.log(`📊 Card ${card.id}: Using ${pointsValue} points from 'points' column (simplified)`);
         
         return {
           id: card.id.toString(),
@@ -284,7 +234,7 @@ export class LoyaltyCardService {
           programId: card.program_id.toString(),
           programName: card.program_name,
           cardNumber: card.card_number,
-          points: actualPoints, // ENHANCED: Use the maximum points value with smart fallbacks
+          points: pointsValue, // SIMPLIFIED: Use only the main points column
           tier: card.tier || 'STANDARD',
           status: card.status || 'ACTIVE',
           expiryDate: card.expiry_date,
@@ -725,11 +675,9 @@ export class LoyaltyCardService {
           UPDATE loyalty_cards
           SET 
             points = COALESCE(points, 0) + ${points},
-            points_balance = COALESCE(points_balance, 0) + ${points},
-            total_points_earned = COALESCE(total_points_earned, 0) + ${points},
             updated_at = NOW()
           WHERE id = ${cardId}
-          RETURNING id, points, points_balance, total_points_earned
+          RETURNING id, points
         `;
         
         if (directUpdate.length > 0) {
@@ -756,6 +704,8 @@ export class LoyaltyCardService {
           
           diagnosticData.directUpdateSuccess = true;
           diagnosticData.updatedCard = directUpdate[0];
+          
+          console.log(`🔍 DIRECT UPDATE: Added exactly ${points} points (no multiplication)`);
           
           return {
             success: true,
