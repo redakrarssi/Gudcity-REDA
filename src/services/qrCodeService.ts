@@ -180,7 +180,7 @@ export class QrCodeService {
       return null;
     }
   }
-
+  
   /**
    * Get customer QR code
    */
@@ -219,7 +219,7 @@ export class QrCodeService {
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
       
       return qrCodeData;
-    } catch (error) {
+              } catch (error) {
       console.error('Error generating customer QR code:', error);
       return null;
     }
@@ -234,10 +234,10 @@ export class QrCodeService {
     
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
       return cached.data;
-    }
-
-    try {
-      const result = await sql`
+            }
+            
+            try {
+                  const result = await sql`
         SELECT id, name, email FROM users WHERE id = ${businessId} AND user_type = 'business'
       `;
 
@@ -266,7 +266,7 @@ export class QrCodeService {
       return null;
     }
   }
-
+  
   /**
    * Get loyalty card QR code for a specific program
    */
@@ -296,8 +296,8 @@ export class QrCodeService {
       `;
 
       if (result.length === 0) {
-        return null;
-      }
+          return null;
+        }
 
       const card = result[0];
       
@@ -321,12 +321,12 @@ export class QrCodeService {
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
       
       return qrCodeData;
-    } catch (error) {
+      } catch (error) {
       console.error('Error generating loyalty card QR code:', error);
-      return null;
-    }
+          return null;
+        }
   }
-
+  
   /**
    * Process a QR code scan
    * @param scanType The type of QR code scan
@@ -437,7 +437,7 @@ export class QrCodeService {
 
       // Check customer enrollment status with this business
       const enrollmentStatus = await CustomerService.getCustomerEnrollmentStatus(customerId, businessId);
-
+      
       if (!enrollmentStatus.isEnrolled || enrollmentStatus.programIds.length === 0) {
         // Customer not enrolled - show enrollment options
         console.log(`Customer ${customerId} not enrolled with business ${businessId}`);
@@ -450,13 +450,13 @@ export class QrCodeService {
           ORDER BY created_at DESC
         `;
 
-        return {
-          success: true,
+            return {
+              success: true,
           message: `Customer found but not enrolled. ${availablePrograms.length} programs available for enrollment.`,
-          customerId: customerId,
-          businessId: businessId,
+              customerId: customerId,
+              businessId: businessId,
           pointsAwarded: 0,
-          data: {
+              data: {
             action: 'ENROLLMENT_REQUIRED',
             availablePrograms: availablePrograms.map(p => ({
               id: p.id,
@@ -468,18 +468,18 @@ export class QrCodeService {
             businessName: businessName
           }
         };
-      } else {
+        } else {
         // Customer is enrolled - SHOW CUSTOMER INFO (do not auto-award points)
         console.log(`🎯 Customer ${customerId} has ${enrollmentStatus.programIds.length} program(s). Ready for manual point awarding.`);
         
         // Get customer's programs for display (do not award points automatically)
         const customerPrograms = [];
-        for (const programId of enrollmentStatus.programIds) {
-          const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, programId);
+          for (const programId of enrollmentStatus.programIds) {
+            const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, programId);
           if (card) {
             customerPrograms.push({
-              cardId: card.id,
-              programId: programId,
+                  cardId: card.id,
+                  programId: programId,
               programName: card.programName || `Program ${programId}`,
               currentPoints: card.points || 0
             });
@@ -490,13 +490,13 @@ export class QrCodeService {
         // NO AUTOMATIC POINT AWARDING - Let business choose in modal
 
         // Return successful scan result with customer info (no points awarded yet)
-        return {
-          success: true,
+            return {
+              success: true,
           message: `Customer ${customerId} found. ${customerPrograms.length} program(s) available. Ready to award points.`,
-          customerId: customerId,
-          businessId: businessId,
+              customerId: customerId,
+              businessId: businessId,
           pointsAwarded: 0, // No automatic points awarding
-          data: {
+              data: {
             action: 'CUSTOMER_IDENTIFIED',
             customerPrograms: customerPrograms,
             enrollmentStatus: enrollmentStatus

@@ -199,9 +199,7 @@ export const testPointAwarding = async (
             await transaction`
               UPDATE loyalty_cards
               SET 
-                points_balance = points_balance + ${pointsToAward},
                 points = points + ${pointsToAward},
-                total_points_earned = total_points_earned + ${pointsToAward},
                 updated_at = NOW()
               WHERE id = ${cardId}
             `;

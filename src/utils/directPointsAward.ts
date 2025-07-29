@@ -89,8 +89,6 @@ export async function directAwardPoints(
             program_id,
             business_id,
             points,
-            points_balance,
-            total_points_earned,
             created_at,
             updated_at
           ) VALUES (
@@ -98,8 +96,6 @@ export async function directAwardPoints(
             ${customerIdStr}::integer,
             ${programIdStr}::integer,
             ${businessIdStr || diagnostics.businessId}::integer,
-            ${points},
-            ${points},
             ${points},
             NOW(),
             NOW()
@@ -110,13 +106,11 @@ export async function directAwardPoints(
         cardId = cardResult[0].id;
         diagnostics.cardExisted = true;
         
-        // 4. Update the card points
+        // 4. Update the card points (FIXED: only main points column)
         await transaction`
           UPDATE loyalty_cards
           SET 
             points = COALESCE(points, 0) + ${points},
-            points_balance = COALESCE(points_balance, 0) + ${points},
-            total_points_earned = COALESCE(total_points_earned, 0) + ${points},
             updated_at = NOW()
           WHERE id = ${cardId}
         `;
