@@ -19,7 +19,17 @@
 export function getActualPoints(cardRecord: any): number {
   let actualPoints = 0;
   
-  // Priority 1: Check points_balance (this is often where points are actually stored)
+  // Priority 1: Check main points column FIRST (this is now the primary column)
+  if (cardRecord.points !== null && cardRecord.points !== undefined) {
+    const pointsValue = parseFloat(String(cardRecord.points)) || 0;
+    if (pointsValue > 0) {
+      actualPoints = pointsValue;
+      console.log(`Found points in main points column: ${actualPoints} for card ${cardRecord.id}`);
+      return actualPoints;
+    }
+  }
+  
+  // Priority 2: Check points_balance (fallback for legacy data)
   if (cardRecord.points_balance !== null && cardRecord.points_balance !== undefined) {
     const pointsBalanceValue = parseFloat(String(cardRecord.points_balance)) || 0;
     if (pointsBalanceValue > 0) {
@@ -29,21 +39,12 @@ export function getActualPoints(cardRecord: any): number {
     }
   }
   
-  // Priority 2: Check total_points_earned
+  // Priority 3: Check total_points_earned (last fallback)
   if (cardRecord.total_points_earned !== null && cardRecord.total_points_earned !== undefined) {
     const totalEarnedValue = parseFloat(String(cardRecord.total_points_earned)) || 0;
     if (totalEarnedValue > 0) {
       actualPoints = totalEarnedValue;
       console.log(`Found points in total_points_earned: ${actualPoints} for card ${cardRecord.id}`);
-      return actualPoints;
-    }
-  }
-  
-  // Priority 3: Check points (legacy)
-  if (cardRecord.points !== null && cardRecord.points !== undefined) {
-    const pointsValue = parseFloat(String(cardRecord.points)) || 0;
-    if (pointsValue > 0) {
-      actualPoints = pointsValue;
       return actualPoints;
     }
   }
