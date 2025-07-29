@@ -208,16 +208,14 @@ export async function awardPointsWithCardCreation(
     const cardId = cardResult.cardId;
     console.log(`Using card ID: ${cardId}`);
     
-    // Step 2: Award points to the card
+    // Step 2: Award points to the card (FIXED: only main points column)
     const updateResult = await sql`
       UPDATE loyalty_cards
       SET 
         points = COALESCE(points, 0) + ${points},
-        points_balance = COALESCE(points_balance, points, 0) + ${points},
-        total_points_earned = COALESCE(total_points_earned, points, 0) + ${points},
         updated_at = NOW()
       WHERE id = ${cardId}
-      RETURNING id, points, points_balance, total_points_earned
+      RETURNING id, points
     `;
     
     if (updateResult.length > 0) {

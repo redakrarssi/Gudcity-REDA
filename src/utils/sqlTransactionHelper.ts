@@ -30,13 +30,11 @@ export async function awardPointsDirectly(
 ): Promise<boolean> {
   try {
     return await withTransaction(async (transaction) => {
-      // Update card points balance directly
+      // Update card points balance directly (FIXED: only main points column)
       await transaction`
         UPDATE loyalty_cards
         SET 
           points = COALESCE(points, 0) + ${points},
-          points_balance = COALESCE(points_balance, 0) + ${points},
-          total_points_earned = COALESCE(total_points_earned, 0) + ${points},
           updated_at = NOW()
         WHERE id = ${cardId}
       `;

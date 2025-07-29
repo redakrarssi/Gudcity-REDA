@@ -50,8 +50,8 @@ export async function handleAwardPoints(req: Request, res: Response) {
       });
     }
     
-    const customerIdStr = String(customerId);
-    const programIdStr = String(programId);
+    const customerIdStr = String(customerId || '');
+    const programIdStr = String(programId || '');
     
     // Validate points is a positive number
     if (isNaN(points) || points <= 0) {
@@ -93,7 +93,7 @@ export async function handleAwardPoints(req: Request, res: Response) {
     // 3. Check if customer exists
     let customerName = "Customer #" + customerIdStr;
     const customerResult = await sql`
-      SELECT id, name FROM users WHERE id = ${customerIdStr} AND user_type = 'customer'
+      SELECT id, name FROM users WHERE id = ${parseInt(customerIdStr) || 0} AND user_type = 'customer'
     `;
     
     if (customerResult.length > 0) {
@@ -121,17 +121,13 @@ export async function handleAwardPoints(req: Request, res: Response) {
           program_id,
           business_id,
           points,
-          points_balance,
-          total_points_earned,
           created_at,
           updated_at
         ) VALUES (
           ${cardId},
-          ${customerIdStr}::integer,
-          ${programIdStr}::integer,
+          ${parseInt(customerIdStr) || 0},
+          ${parseInt(programIdStr) || 0},
           ${businessIdStr}::integer,
-          ${points},
-          ${points},
           ${points},
           NOW(),
           NOW()
@@ -147,8 +143,6 @@ export async function handleAwardPoints(req: Request, res: Response) {
         UPDATE loyalty_cards
         SET 
           points = points + ${points},
-          points_balance = points_balance + ${points},
-          total_points_earned = total_points_earned + ${points},
           updated_at = NOW()
         WHERE id = ${cardId}
       `;
