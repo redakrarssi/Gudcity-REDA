@@ -30,8 +30,9 @@ export async function handlePointsAwarded(
       source
     });
     
-    // First, ensure the card is properly updated with points
-    await ensureCardPointsUpdated(customerId, businessId, programId, points, cardId);
+    // DISABLED: This was causing 3x multiplication by re-awarding points that were already awarded
+    // The card points are already properly updated by awardPointsWithCardCreation
+    // await ensureCardPointsUpdated(customerId, businessId, programId, points, cardId);
     
     // Check for recent notifications to avoid duplication
     const recentNotifications = await CustomerNotificationService.getRecentPointsNotifications(
@@ -249,7 +250,7 @@ async function ensureCardPointsUpdated(
     `;
     
     let cardIdToUse: string = cardId;
-    const startingPoints = cardExists && cardExists.length > 0 ? parseFloat(cardExists[0].points || '0') : 0;
+    const startingPoints = cardExists && cardExists.length > 0 ? parseFloat(String(cardExists[0].points) || '0') : 0;
     const expectedFinalPoints = startingPoints + points;
     
     logger.info('Starting points calculation', { 
