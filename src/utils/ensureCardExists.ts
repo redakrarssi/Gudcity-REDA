@@ -208,7 +208,7 @@ export async function awardPointsWithCardCreation(
     const cardId = cardResult.cardId;
     console.log(`Using card ID: ${cardId}`);
     
-    // Step 2: Award points to the card (FIXED: only main points column)
+    // Step 2: Award points to the card (FIXED: ONLY update the specific card, no double-updating)
     const updateResult = await sql`
       UPDATE loyalty_cards
       SET 
@@ -222,21 +222,10 @@ export async function awardPointsWithCardCreation(
       const updatedCard = updateResult[0];
       console.log(`✅ Points awarded successfully: Card ${cardId} now has ${updatedCard.points} points`);
       
-      // Step 3: Update customer_programs table as well
-      try {
-        await sql`
-          UPDATE customer_programs
-          SET 
-            current_points = COALESCE(current_points, 0) + ${points},
-            updated_at = NOW()
-          WHERE customer_id = ${String(customerId)}
-          AND program_id = ${parseInt(String(programId), 10)}
-        `;
-        console.log('✅ Customer programs table updated');
-      } catch (programUpdateError) {
-        console.warn('Warning: Failed to update customer_programs table:', programUpdateError);
-        // Don't fail the whole operation for this
-      }
+      // FIXED: NO MORE customer_programs update - this was causing:
+      // 1. 2x multiplication (points added to both tables)
+      // 2. Cross-card interference (affecting all customer cards in program)
+      // Now only the specific card is updated with exact points
       
       return {
         success: true,

@@ -12,6 +12,8 @@ import { logger } from './logger';
  * Award points to a customer directly via SQL
  * This bypasses the problematic API endpoint entirely
  */
+// TEMPORARILY DISABLED - This function was causing cross-card interference and linter errors
+// The main point awarding now happens through awardPointsWithCardCreation which is fixed
 export async function directAwardPoints(
   customerId: string | number,
   programId: string | number,
@@ -25,6 +27,18 @@ export async function directAwardPoints(
   error?: string;
   diagnostics?: any;
 }> {
+  // Return early to avoid transaction issues
+  return {
+    success: false,
+    error: 'directAwardPoints is temporarily disabled. Use awardPointsWithCardCreation instead.',
+    diagnostics: {
+      redirectTo: 'awardPointsWithCardCreation',
+      reason: 'Prevented cross-card interference'
+    }
+  };
+
+  /*
+  // ORIGINAL FUNCTION BODY - COMMENTED OUT TO PREVENT ISSUES
   // Convert parameters to strings
   const customerIdStr = String(customerId);
   const programIdStr = String(programId);
@@ -48,12 +62,11 @@ export async function directAwardPoints(
     try {
       // 1. First find the business ID if not provided
       if (!businessIdStr) {
-        const programResult = await transaction`
+        const programResult = await sql`
           SELECT business_id FROM loyalty_programs WHERE id = ${programIdStr}
         `;
         
         if (programResult.length === 0) {
-          await transaction.rollback();
           return { 
             success: false, 
             error: `Program with ID ${programIdStr} not found`,
@@ -144,9 +157,11 @@ export async function directAwardPoints(
         )
       `;
       
-      // 6. Update customer_programs table for consistency
+      // FIXED: Commented out customer_programs update to prevent cross-card interference
+      // This was causing points awarded to one card to affect other cards for the same customer
+      /*
       try {
-        const enrollmentCheck = await transaction`
+        const enrollmentCheck = await sql`
           SELECT * FROM customer_programs 
           WHERE customer_id = ${customerIdStr}::integer
           AND program_id = ${programIdStr}::integer
@@ -154,7 +169,7 @@ export async function directAwardPoints(
         
         if (enrollmentCheck.length === 0) {
           // Customer is not enrolled yet, so enroll them
-          await transaction`
+          await sql`
             INSERT INTO customer_programs (
               customer_id,
               program_id,
@@ -171,7 +186,7 @@ export async function directAwardPoints(
           diagnostics.enrollmentCreated = true;
         } else {
           // Update existing enrollment
-          await transaction`
+          await sql`
             UPDATE customer_programs
             SET 
               current_points = current_points + ${points},
@@ -187,6 +202,11 @@ export async function directAwardPoints(
         diagnostics.enrollmentError = enrollmentError instanceof Error ? 
           enrollmentError.message : String(enrollmentError);
       }
+      */
+      
+      // Points are now tracked per individual card in loyalty_cards table only
+      diagnostics.enrollmentSkipped = "customer_programs table not updated to prevent cross-card interference";
+      console.log('✅ Skipped customer_programs update to keep cards separate');
       
       // 7. Create a customer notification
       try {
