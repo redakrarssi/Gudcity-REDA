@@ -852,7 +852,17 @@ const CustomerCards = () => {
       setIsLoading(true);
       addNotification('info', `Redeeming ${rewardName}...`);
       
+      console.log('🎯 REDEMPTION DEBUG:', {
+        cardId,
+        rewardId,
+        rewardName,
+        cardIdType: typeof cardId,
+        rewardIdType: typeof rewardId
+      });
+      
       const result = await LoyaltyCardService.redeemReward(cardId, rewardId);
+      
+      console.log('🎯 REDEMPTION RESULT:', result);
       
       if (result.success) {
         // Show success message with tracking code
@@ -876,7 +886,20 @@ const CustomerCards = () => {
       }
     } catch (error) {
       console.error('Error redeeming reward:', error);
-      addNotification('error', 'Failed to redeem reward. Please try again.');
+      
+      // Show detailed error message for debugging
+      let errorMessage = 'Failed to redeem reward. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = `Redemption Error: ${error.message}`;
+        console.error('Detailed error:', error.stack);
+      } else if (typeof error === 'string') {
+        errorMessage = `Redemption Error: ${error}`;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = `Redemption Error: ${error.message}`;
+      }
+      
+      addNotification('error', errorMessage);
     } finally {
       setIsLoading(false);
     }

@@ -333,37 +333,9 @@ const CustomerDashboard = () => {
       const cardId = String(cards[0].id);
       const rewardIdNum = parseInt(rewardId, 10);
       
-      // Get reward details
-      const rewards = await sql`
-        SELECT name FROM loyalty_program_rewards
-        WHERE id = ${rewardIdNum}
-      `;
-      
-      if (!rewards || rewards.length === 0) {
-        await NotificationService.createNotification(
-          userId,
-          'SYSTEM_ALERT',
-          'Redemption failed',
-          'Reward not found'
-        );
-        return;
-      }
-      
-      // Ensure reward name exists and convert to string
-      if (!rewards[0] || !rewards[0].name) {
-        await NotificationService.createNotification(
-          userId,
-          'SYSTEM_ALERT',
-          'Redemption failed',
-          'Invalid reward data'
-        );
-        return;
-      }
-      
-      const rewardName = String(rewards[0].name);
-      
-      // Use the loyalty card service to redeem the reward
-      const result = await LoyaltyCardService.redeemReward(cardId, rewardName);
+      // Use the loyalty card service to redeem the reward with cardId and rewardId
+      // This uses the correct reward_tiers table and proper database transaction
+      const result = await LoyaltyCardService.redeemReward(cardId, rewardId);
       
       if (result.success) {
         await NotificationService.createNotification(

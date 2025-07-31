@@ -217,6 +217,8 @@ export class LoyaltyCardService {
    */
   static async redeemReward(cardId: string, rewardId: string): Promise<RedemptionResult & { trackingCode?: string }> {
     try {
+      console.log('🎯 LoyaltyCardService.redeemReward called with:', { cardId, rewardId });
+      
       // Ensure redemptions table exists
       await this.ensureRedemptionsTable();
 
@@ -330,16 +332,14 @@ export class LoyaltyCardService {
       await sql`
         INSERT INTO card_activities (
           card_id, 
-          type, 
+          activity_type, 
           points, 
-          balance, 
           description,
           created_at
         ) VALUES (
           ${cardId},
           'REDEMPTION',
           ${-pointsRequired},
-          ${newPoints},
           ${'Redeemed: ' + reward.reward + ' (Code: ' + trackingCode + ')'},
           NOW()
         )
@@ -415,10 +415,28 @@ export class LoyaltyCardService {
       };
 
     } catch (error) {
-      console.error('Error redeeming reward:', error);
+      console.error('🚨 Error redeeming reward:', error);
+      
+      // Provide detailed error information
+      let errorMessage = 'Failed to redeem reward. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = `Redemption failed: ${error.message}`;
+        console.error('🚨 Error stack:', error.stack);
+      } else if (typeof error === 'string') {
+        errorMessage = `Redemption failed: ${error}`;
+      } else if (error && typeof error === 'object') {
+        // Handle database errors
+        if ('code' in error) {
+          errorMessage = `Database error (${error.code}): ${error.message || 'Unknown database error'}`;
+        } else if ('message' in error) {
+          errorMessage = `Redemption failed: ${error.message}`;
+        }
+      }
+      
       return {
         success: false,
-        message: 'Failed to redeem reward. Please try again.'
+        message: errorMessage
       };
     }
   }
@@ -1250,9 +1268,9 @@ export class LoyaltyCardService {
   }
   
   /**
-   * Redeem a reward
+   * Redeem a reward by name (DEPRECATED - use redeemReward with ID instead)
    */
-  static async redeemReward(
+  static async redeemRewardByName(
     cardId: string,
     rewardName: string
   ): Promise<RedemptionResult> {
