@@ -687,20 +687,13 @@ export class NotificationService {
       
       const notificationId = result[0].id.toString();
       
-      // Create a notification for the business owner
-      await this.createNotification(
-        redemptionData.businessId,
-        'REDEMPTION_REQUEST',
-        'New Redemption Request',
-        `${redemptionData.customerName} redeemed ${redemptionData.points} points for ${redemptionData.reward}`,
-        {
-          notificationId,
-          customerId: redemptionData.customerId,
-          programId: redemptionData.programId,
-          points: redemptionData.points,
-          reward: redemptionData.reward
-        }
-      );
+      console.log('✅ Redemption notification created in database:', {
+        notificationId,
+        businessId: redemptionData.businessId,
+        customerName: redemptionData.customerName,
+        reward: redemptionData.reward,
+        points: redemptionData.points
+      });
       
       // Emit event for real-time updates
       if (typeof window !== 'undefined') {
@@ -711,6 +704,7 @@ export class NotificationService {
           }
         });
         window.dispatchEvent(event);
+        console.log('📡 Real-time event dispatched for business notification');
       }
       
       return {

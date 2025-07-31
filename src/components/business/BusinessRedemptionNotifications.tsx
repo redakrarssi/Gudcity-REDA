@@ -200,9 +200,9 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                   key={notification.id} 
                   className={`p-3 border-b border-gray-200 dark:border-gray-700 ${
                     notification.status === 'PENDING' 
-                      ? 'bg-yellow-50 dark:bg-yellow-900/20' 
+                      ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' 
                       : notification.status === 'COMPLETED'
-                        ? 'bg-green-50 dark:bg-green-900/20'
+                        ? 'bg-gray-50 dark:bg-gray-800'
                         : 'bg-red-50 dark:bg-red-900/20'
                   }`}
                 >
@@ -212,10 +212,13 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                     </div>
                     <div className="ml-3 w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {notification.customerName}
+                        🎉 {notification.customerName}
                       </p>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Redeemed {notification.points} points for {notification.reward}
+                      <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                        Redeemed {notification.points} points for <strong>{notification.reward}</strong>
+                      </p>
+                      <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                        Program: {notification.programName}
                       </p>
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                         {formatTime(notification.timestamp)}
@@ -225,10 +228,10 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                         <div className="mt-2 flex space-x-2">
                           <button
                             onClick={() => handleCompleteRedemption(notification.id)}
-                            className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                           >
-                            <Check size={14} className="mr-1" />
-                            {t('Complete')}
+                            <Check size={16} className="mr-1.5" />
+                            {t('Delivered')}
                           </button>
                           <button
                             onClick={() => handleRejectRedemption(notification.id)}
@@ -241,10 +244,10 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                       )}
                       
                       {notification.status === 'COMPLETED' && (
-                        <p className="mt-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                          <Check size={14} className="inline-block mr-1" />
-                          {t('Completed')}
-                        </p>
+                        <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                          <Check size={12} className="mr-1" />
+                          {t('Delivered')}
+                        </div>
                       )}
                       
                       {notification.status === 'REJECTED' && (

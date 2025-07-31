@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Gift, Bell, ThumbsUp, ThumbsDown, Award, AlertCircle } from 'lucide-react';
+import { X, Gift, Bell, ThumbsUp, ThumbsDown, Award, AlertCircle, Check } from 'lucide-react';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { NotificationService } from '../../services/notificationService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -157,16 +157,64 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
                   redemptions.map((item: any) => (
                     <div
                       key={item.id}
-                      className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 flex items-start"
+                      className={`p-3 rounded-lg border ${
+                        item.status === 'PENDING' 
+                          ? 'border-green-200 bg-green-50 dark:bg-green-900/20 border-l-4 border-l-green-500' 
+                          : item.status === 'COMPLETED'
+                            ? 'border-gray-200 bg-gray-50 dark:bg-gray-800'
+                            : 'border-red-200 bg-red-50 dark:bg-red-900/20'
+                      } flex items-start`}
                     >
-                      <Gift className="text-yellow-600 mr-3" />
+                      <Gift className={`mr-3 ${
+                        item.status === 'PENDING' ? 'text-green-600' : 
+                        item.status === 'COMPLETED' ? 'text-gray-600' : 'text-red-600'
+                      }`} />
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {item.customerName} {t('redeemed')} {item.points} {t('points')} - {item.reward}
+                          🎉 {item.customerName} {t('redeemed')} {item.points} {t('points')} for <strong>{item.reward}</strong>
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          Program: {item.programName}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{formatRelative(item.timestamp)}</p>
-                        {item.status !== 'COMPLETED' && (
-                          <p className="text-xs font-medium text-orange-600 dark:text-orange-400 mt-1">{t(item.status.toLowerCase())}</p>
+                        
+                        {item.status === 'PENDING' && (
+                          <div className="mt-2 flex space-x-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const result = await NotificationService.updateRedemptionStatus(
+                                    item.id, 
+                                    'COMPLETED',
+                                    user?.id?.toString() || ''
+                                  );
+                                  if (result.success) {
+                                    loadData(); // Refresh notifications
+                                  }
+                                } catch (error) {
+                                  console.error('Error completing redemption:', error);
+                                }
+                              }}
+                              className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                            >
+                              <Check size={14} className="mr-1" />
+                              {t('Delivered')}
+                            </button>
+                          </div>
+                        )}
+                        
+                        {item.status === 'COMPLETED' && (
+                          <div className="mt-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                            <Check size={12} className="mr-1" />
+                            {t('Delivered')}
+                          </div>
+                        )}
+                        
+                        {item.status === 'REJECTED' && (
+                          <p className="text-xs font-medium text-red-600 dark:text-red-400 mt-1">
+                            <X size={12} className="inline-block mr-1" />
+                            {t('Rejected')}
+                          </p>
                         )}
                       </div>
                     </div>

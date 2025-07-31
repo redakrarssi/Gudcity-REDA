@@ -7,6 +7,7 @@ import { queryClient, queryKeys } from '../utils/queryClient';
 import { emitPromoCodeGeneratedEvent, emitEnrollmentEvent, emitPointsRedeemedEvent } from '../utils/loyaltyEvents';
 import * as serverFunctions from '../server';
 import { CustomerNotificationService } from './customerNotificationService';
+import { NotificationService } from './notificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
 import { formatPoints, validateCardData } from '../utils/validators';
 import { logger } from '../utils/logger';
@@ -370,31 +371,67 @@ export class LoyaltyCardService {
         console.error('Error sending customer notification:', notificationError);
       }
 
-      // Send notification to business owner
+      // Send GREEN notification to business owner using redemption notification system
       try {
-        await CustomerNotificationService.createNotification({
-          customerId: card.business_id.toString(), // Business owner
-          businessId: card.business_id.toString(),
-          type: 'CUSTOMER_REDEMPTION',
-          title: '🎁 Customer Reward Redemption',
-          message: `${card.customer_name || 'Customer'} redeemed "${reward.reward}" in ${card.program_name}. Tracking: ${trackingCode}`,
-          data: {
-            trackingCode: trackingCode,
-            customerId: card.customer_id.toString(),
-            customerName: card.customer_name || 'Customer',
-            rewardName: reward.reward,
-            pointsRedeemed: pointsRequired,
-            programName: card.program_name,
-            redemptionId: redemptionResult[0].id
-          },
-          requiresAction: true,
-          actionTaken: false,
-          isRead: false,
-          priority: 'HIGH',
-          style: 'success' // Green notification
+        console.log('🔔 Creating business notification for redemption:', {
+          customerName: card.customer_name || 'Customer',
+          businessId: card.business_id,
+          reward: reward.reward,
+          points: pointsRequired,
+          trackingCode: trackingCode
         });
+
+        const businessNotification = await NotificationService.createRedemptionNotification({
+          customerId: card.customer_id.toString(),
+          customerName: card.customer_name || 'Customer',
+          businessId: card.business_id.toString(),
+          programId: card.program_id.toString(), 
+          programName: card.program_name || 'Loyalty Program',
+          points: pointsRequired,
+          reward: reward.reward,
+          rewardId: rewardId.toString()
+        });
+
+        if (businessNotification.success) {
+          console.log('✅ Business redemption notification created successfully:', {
+            notificationId: businessNotification.notificationId,
+            businessId: card.business_id,
+            reward: reward.reward
+          });
+          
+          // Dispatch real-time event for business dashboard
+          if (typeof window !== 'undefined') {
+            const businessEvent = new CustomEvent('redemption-notification', {
+              detail: {
+                type: 'NEW_REDEMPTION',
+                businessId: card.business_id.toString(),
+                customerId: card.customer_id.toString(),
+                customerName: card.customer_name || 'Customer',
+                programName: card.program_name || 'Loyalty Program',
+                reward: reward.reward,
+                points: pointsRequired,
+                trackingCode: trackingCode,
+                notificationId: businessNotification.notificationId,
+                timestamp: new Date().toISOString()
+              }
+            });
+            window.dispatchEvent(businessEvent);
+            console.log('📡 Real-time business event dispatched successfully');
+          }
+        } else {
+          console.error('❌ Failed to create business notification:', {
+            error: businessNotification.error,
+            businessId: card.business_id,
+            customerName: card.customer_name
+          });
+        }
       } catch (businessNotificationError) {
-        console.error('Error sending business notification:', businessNotificationError);
+        console.error('🚨 Error sending business notification:', {
+          error: businessNotificationError.message || businessNotificationError,
+          businessId: card.business_id,
+          customerName: card.customer_name,
+          reward: reward.reward
+        });
       }
 
       console.log(`✅ Reward redeemed: ${reward.reward} for ${pointsRequired} points. Code: ${trackingCode}, New balance: ${newPoints}`);
@@ -1372,6 +1409,67 @@ export class LoyaltyCardService {
           
           await transaction.commit();
           
+          // Send GREEN notification to business owner using redemption notification system
+          try {
+            console.log('🔔 Creating business notification for reward redemption by name:', {
+              customerName: customerName,
+              businessId: businessId,
+              rewardName: rewardName,
+              points: requiredPoints
+            });
+
+            const businessNotification = await NotificationService.createRedemptionNotification({
+              customerId: customerId,
+              customerName: customerName,
+              businessId: businessId,
+              programId: programId,
+              programName: programName,
+              points: requiredPoints,
+              reward: rewardName,
+              rewardId: 'legacy' // For name-based redemptions
+            });
+
+            if (businessNotification.success) {
+              console.log('✅ Business notification created for name-based redemption:', {
+                notificationId: businessNotification.notificationId,
+                businessId: businessId,
+                rewardName: rewardName
+              });
+              
+              // Dispatch real-time event for business dashboard
+              if (typeof window !== 'undefined') {
+                const businessEvent = new CustomEvent('redemption-notification', {
+                  detail: {
+                    type: 'NEW_REDEMPTION',
+                    businessId: businessId,
+                    customerId: customerId,
+                    customerName: customerName,
+                    programName: programName,
+                    reward: rewardName,
+                    points: requiredPoints,
+                    notificationId: businessNotification.notificationId,
+                    timestamp: new Date().toISOString()
+                  }
+                });
+                window.dispatchEvent(businessEvent);
+                console.log('📡 Real-time business event dispatched for name-based redemption');
+              }
+            } else {
+              console.error('❌ Failed to create business notification for name-based redemption:', {
+                error: businessNotification.error,
+                businessId: businessId,
+                customerName: customerName
+              });
+            }
+          } catch (businessNotificationError) {
+            console.error('🚨 Error sending business notification for name-based redemption:', {
+              error: businessNotificationError.message || businessNotificationError,
+              businessId: businessId,
+              customerName: customerName,
+              rewardName: rewardName
+            });
+          }
+          
           // Send notification to customer
           try {
             await CustomerNotificationService.createNotification({
@@ -1392,27 +1490,7 @@ export class LoyaltyCardService {
               isRead: false
             });
             
-            // Send notification to business owner
-            await CustomerNotificationService.createNotification({
-              customerId: businessId, // Using business ID as recipient
-              businessId: businessId,
-              type: 'BUSINESS_REWARD_REDEMPTION',
-              title: 'Reward Redemption',
-              message: `Customer ${customerName} has redeemed a ${rewardName}. Please fulfill the reward.`,
-              data: {
-                rewardName: rewardName,
-                points: requiredPoints,
-                cardId: cardId,
-                programId: programId,
-                programName: programName,
-                customerName: customerName,
-                customerId: customerId,
-                redemptionId: redemptionId
-              },
-              requiresAction: true,
-              actionTaken: false,
-              isRead: false
-            });
+
           } catch (notificationError) {
             console.error('Error sending redemption notifications:', notificationError);
             // Continue even if notification fails
