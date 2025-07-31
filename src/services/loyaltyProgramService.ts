@@ -23,19 +23,26 @@ export class LoyaltyProgramService {
         ORDER BY created_at DESC
       `;
       
-      return result.map((program: any) => ({
-        id: program.id.toString(),
-        businessId: program.business_id.toString(),
-        name: program.name,
-        description: program.description || '',
-        type: program.type || 'POINTS',
-        pointValue: parseFloat(program.points_per_dollar || 1),
-        rewardTiers: program.reward_tiers || [],
-        expirationDays: program.points_expiry_days,
-        status: program.status || 'ACTIVE',
-        createdAt: program.created_at,
-        updatedAt: program.updated_at
+      // Load reward tiers for each program
+      const programsWithRewards = await Promise.all(result.map(async (program: any) => {
+        const rewardTiers = await this.getProgramRewardTiers(program.id.toString());
+        
+        return {
+          id: program.id.toString(),
+          businessId: program.business_id.toString(),
+          name: program.name,
+          description: program.description || '',
+          type: program.type || 'POINTS',
+          pointValue: parseFloat(program.points_per_dollar || 1),
+          rewardTiers: rewardTiers,
+          expirationDays: program.points_expiry_days,
+          status: program.status || 'ACTIVE',
+          createdAt: program.created_at,
+          updatedAt: program.updated_at
+        };
       }));
+      
+      return programsWithRewards;
     } catch (error) {
       console.error('Error fetching business programs:', error);
       return [];

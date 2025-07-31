@@ -11,6 +11,23 @@ import type { CustomerNotification, ApprovalRequest, NotificationPreference, Cus
  * Service for managing customer notifications and approval requests
  */
 export class CustomerNotificationService {
+  
+  /**
+   * Mark notification as action taken (for business deliveries)
+   */
+  static async markNotificationAsActionTaken(businessId: string, trackingCode: string): Promise<void> {
+    try {
+      await sql`
+        UPDATE customer_notifications 
+        SET action_taken = TRUE, updated_at = NOW()
+        WHERE customer_id = ${businessId}
+        AND type = 'CUSTOMER_REDEMPTION'
+        AND data->>'trackingCode' = ${trackingCode}
+      `;
+    } catch (error) {
+      console.error('Error marking notification as action taken:', error);
+    }
+  }
   /**
    * Create a new notification for a customer
    * @param notification The notification data to create
@@ -28,6 +45,8 @@ export class CustomerNotificationService {
     isRead: boolean;
     readAt?: string;
     expiresAt?: string;
+    priority?: 'LOW' | 'NORMAL' | 'HIGH';
+    style?: 'default' | 'success' | 'warning' | 'error';
   }): Promise<CustomerNotification | null> {
     try {
       // For POINTS_ADDED notifications, check if we already have a recent one from the same business

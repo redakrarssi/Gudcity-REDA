@@ -16,6 +16,7 @@ import { NotificationService } from '../../services/notificationService';
 import { ScanResult, QrCodeType } from '../../types/qrCode';
 import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
 import { BusinessRedemptionNotifications } from '../../components/business/BusinessRedemptionNotifications';
+import { RedemptionVerification } from '../../components/business/RedemptionVerification';
 import { IconBell } from '../../components/icons/IconBell';
 import QuickAwardPoints from '../../components/QuickAwardPoints';
 
@@ -640,11 +641,12 @@ const BusinessDashboard = () => {
         </div>
       )}
       
-      {/* Enrollment Notifications */}
+      {/* Business Management Tools */}
       {user?.id && (
         <div className="space-y-6">
           <BusinessEnrollmentNotifications businessId={String(user.id)} />
           <BusinessRedemptionNotifications />
+          <RedemptionVerification />
         </div>
       )}
     </BusinessLayout>

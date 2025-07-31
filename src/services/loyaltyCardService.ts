@@ -148,6 +148,364 @@ export class LoyaltyCardService {
   }
 
   /**
+   * Get available rewards for a specific program
+   */
+  static async getProgramRewards(programId: string): Promise<Reward[]> {
+    try {
+      const rewards = await sql`
+        SELECT * FROM reward_tiers
+        WHERE program_id = ${programId}
+        ORDER BY points_required ASC
+      `;
+      
+      return rewards.map((reward: any) => ({
+        id: reward.id.toString(),
+        name: reward.reward,
+        points: reward.points_required,
+        description: reward.reward,
+        programId: programId,
+        isActive: true,
+        isRedeemable: false // Will be set based on customer's points
+      }));
+    } catch (error) {
+      console.error(`Error fetching rewards for program ${programId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Generate a unique 6-digit tracking code
+   */
+  static generateTrackingCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * Create redemptions table if it doesn't exist
+   */
+  static async ensureRedemptionsTable(): Promise<void> {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS redemptions (
+          id SERIAL PRIMARY KEY,
+          tracking_code VARCHAR(6) UNIQUE NOT NULL,
+          card_id INTEGER NOT NULL,
+          customer_id INTEGER NOT NULL,
+          business_id INTEGER NOT NULL,
+          program_id INTEGER NOT NULL,
+          reward_id INTEGER NOT NULL,
+          reward_name VARCHAR(255) NOT NULL,
+          points_redeemed INTEGER NOT NULL,
+          customer_name VARCHAR(255),
+          business_name VARCHAR(255),
+          program_name VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'PENDING',
+          delivered_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `;
+      
+      console.log('✅ Redemptions table ready');
+    } catch (error) {
+      console.error('Error creating redemptions table:', error);
+    }
+  }
+
+  /**
+   * Redeem a reward for a customer with 6-digit tracking code
+   */
+  static async redeemReward(cardId: string, rewardId: string): Promise<RedemptionResult & { trackingCode?: string }> {
+    try {
+      // Ensure redemptions table exists
+      await this.ensureRedemptionsTable();
+
+      // Get the card details with customer info
+      const cardResult = await sql`
+        SELECT 
+          lc.*, 
+          lp.name as program_name, 
+          u.name as business_name,
+          c.name as customer_name,
+          c.email as customer_email
+        FROM loyalty_cards lc
+        JOIN loyalty_programs lp ON lc.program_id = lp.id
+        JOIN users u ON lp.business_id = u.id
+        LEFT JOIN users c ON lc.customer_id = c.id
+        WHERE lc.id = ${cardId}
+      `;
+
+      if (!cardResult.length) {
+        return {
+          success: false,
+          message: 'Card not found'
+        };
+      }
+
+      const card = cardResult[0];
+      const currentPoints = parseFloat(card.points) || 0;
+
+      // Get the reward details
+      const rewardResult = await sql`
+        SELECT * FROM reward_tiers
+        WHERE id = ${rewardId}
+      `;
+
+      if (!rewardResult.length) {
+        return {
+          success: false,
+          message: 'Reward not found'
+        };
+      }
+
+      const reward = rewardResult[0];
+      const pointsRequired = reward.points_required;
+
+      // Check if customer has enough points
+      if (currentPoints < pointsRequired) {
+        return {
+          success: false,
+          message: `Insufficient points. You need ${pointsRequired} points but only have ${currentPoints}.`
+        };
+      }
+
+      // Generate unique 6-digit tracking code
+      let trackingCode = this.generateTrackingCode();
+      let attempts = 0;
+      
+      // Ensure code is unique
+      while (attempts < 10) {
+        const existingCode = await sql`
+          SELECT id FROM redemptions WHERE tracking_code = ${trackingCode}
+        `;
+        
+        if (!existingCode.length) break;
+        
+        trackingCode = this.generateTrackingCode();
+        attempts++;
+      }
+
+      // Deduct points from card
+      const newPoints = currentPoints - pointsRequired;
+      
+      await sql`
+        UPDATE loyalty_cards 
+        SET points = ${newPoints}, updated_at = NOW()
+        WHERE id = ${cardId}
+      `;
+
+      // Record the redemption with tracking code
+      const redemptionResult = await sql`
+        INSERT INTO redemptions (
+          tracking_code,
+          card_id,
+          customer_id,
+          business_id,
+          program_id,
+          reward_id,
+          reward_name,
+          points_redeemed,
+          customer_name,
+          business_name,
+          program_name,
+          status
+        ) VALUES (
+          ${trackingCode},
+          ${cardId},
+          ${card.customer_id},
+          ${card.business_id},
+          ${card.program_id},
+          ${rewardId},
+          ${reward.reward},
+          ${pointsRequired},
+          ${card.customer_name || 'Customer'},
+          ${card.business_name || 'Business'},
+          ${card.program_name || 'Program'},
+          'PENDING'
+        )
+        RETURNING id
+      `;
+
+      // Record the redemption activity
+      await sql`
+        INSERT INTO card_activities (
+          card_id, 
+          type, 
+          points, 
+          balance, 
+          description,
+          created_at
+        ) VALUES (
+          ${cardId},
+          'REDEMPTION',
+          ${-pointsRequired},
+          ${newPoints},
+          ${'Redeemed: ' + reward.reward + ' (Code: ' + trackingCode + ')'},
+          NOW()
+        )
+      `;
+
+      // Send notification to customer with green styling
+      try {
+        await CustomerNotificationService.createNotification({
+          customerId: card.customer_id.toString(),
+          businessId: card.business_id.toString(),
+          type: 'REWARD_REDEEMED',
+          title: '🎉 Reward Redeemed Successfully!',
+          message: `Your ${reward.reward} is ready! Show this code to redeem: ${trackingCode}`,
+          data: {
+            trackingCode: trackingCode,
+            rewardName: reward.reward,
+            pointsRedeemed: pointsRequired,
+            businessName: card.business_name,
+            programName: card.program_name
+          },
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          priority: 'HIGH',
+          style: 'success' // Green notification
+        });
+      } catch (notificationError) {
+        console.error('Error sending customer notification:', notificationError);
+      }
+
+      // Send notification to business owner
+      try {
+        await CustomerNotificationService.createNotification({
+          customerId: card.business_id.toString(), // Business owner
+          businessId: card.business_id.toString(),
+          type: 'CUSTOMER_REDEMPTION',
+          title: '🎁 Customer Reward Redemption',
+          message: `${card.customer_name || 'Customer'} redeemed "${reward.reward}" in ${card.program_name}. Tracking: ${trackingCode}`,
+          data: {
+            trackingCode: trackingCode,
+            customerId: card.customer_id.toString(),
+            customerName: card.customer_name || 'Customer',
+            rewardName: reward.reward,
+            pointsRedeemed: pointsRequired,
+            programName: card.program_name,
+            redemptionId: redemptionResult[0].id
+          },
+          requiresAction: true,
+          actionTaken: false,
+          isRead: false,
+          priority: 'HIGH',
+          style: 'success' // Green notification
+        });
+      } catch (businessNotificationError) {
+        console.error('Error sending business notification:', businessNotificationError);
+      }
+
+      console.log(`✅ Reward redeemed: ${reward.reward} for ${pointsRequired} points. Code: ${trackingCode}, New balance: ${newPoints}`);
+
+      return {
+        success: true,
+        message: `Successfully redeemed ${reward.reward}! Your tracking code is: ${trackingCode}`,
+        trackingCode: trackingCode,
+        reward: {
+          id: reward.id.toString(),
+          name: reward.reward,
+          points: pointsRequired,
+          description: reward.reward,
+          programId: reward.program_id.toString(),
+          isActive: true,
+          isRedeemable: true
+        }
+      };
+
+    } catch (error) {
+      console.error('Error redeeming reward:', error);
+      return {
+        success: false,
+        message: 'Failed to redeem reward. Please try again.'
+      };
+    }
+  }
+
+  /**
+   * Verify a redemption by tracking code (for business use)
+   */
+  static async verifyRedemption(trackingCode: string): Promise<{
+    success: boolean;
+    redemption?: any;
+    message?: string;
+  }> {
+    try {
+      await this.ensureRedemptionsTable();
+
+      const redemption = await sql`
+        SELECT * FROM redemptions
+        WHERE tracking_code = ${trackingCode}
+      `;
+
+      if (!redemption.length) {
+        return {
+          success: false,
+          message: 'Invalid tracking code'
+        };
+      }
+
+      return {
+        success: true,
+        redemption: redemption[0]
+      };
+    } catch (error) {
+      console.error('Error verifying redemption:', error);
+      return {
+        success: false,
+        message: 'Error verifying redemption'
+      };
+    }
+  }
+
+  /**
+   * Mark redemption as delivered (for business use)
+   */
+  static async markRedemptionDelivered(trackingCode: string, businessId: string): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    try {
+      const result = await sql`
+        UPDATE redemptions 
+        SET 
+          status = 'DELIVERED',
+          delivered_at = NOW(),
+          updated_at = NOW()
+        WHERE tracking_code = ${trackingCode}
+        AND business_id = ${businessId}
+        RETURNING *
+      `;
+
+      if (!result.length) {
+        return {
+          success: false,
+          message: 'Redemption not found or unauthorized'
+        };
+      }
+
+      // Update the business notification to mark as delivered
+      try {
+        await CustomerNotificationService.markNotificationAsActionTaken(businessId, trackingCode);
+      } catch (notificationError) {
+        console.error('Error updating business notification:', notificationError);
+      }
+
+      return {
+        success: true,
+        message: 'Redemption marked as delivered'
+      };
+    } catch (error) {
+      console.error('Error marking redemption as delivered:', error);
+      return {
+        success: false,
+        message: 'Error updating redemption status'
+      };
+    }
+  }
+
+  /**
    * Get all loyalty cards for a customer
    */
   static async getCustomerCards(customerId: string): Promise<LoyaltyCard[]> {
@@ -219,13 +577,26 @@ export class LoyaltyCardService {
 
       console.log(`Found ${result.length} loyalty cards for customer ${customerId}`);
 
-            // Map database results to our interface with SIMPLIFIED POINTS FIX
-      return result.map(card => {
+            // Map database results to our interface with REWARDS LOADING
+      const cardsWithRewards = await Promise.all(result.map(async card => {
         // SIMPLIFIED FIX: Use only the main 'points' column (no more multiplication)
         const pointsValue = parseFloat(card.points) || 0;
         
+        // Load rewards for this program
+        const programRewards = await this.getProgramRewards(card.program_id.toString());
+        
+        // Mark rewards as redeemable based on customer's points
+        const availableRewards = programRewards.map(reward => ({
+          ...reward,
+          isRedeemable: pointsValue >= reward.points
+        }));
+        
+        // Calculate next reward and points needed
+        const nextReward = programRewards.find(reward => reward.points > pointsValue);
+        const pointsToNext = nextReward ? nextReward.points - pointsValue : null;
+        
         // Diagnostic logging for troubleshooting
-        console.log(`📊 Card ${card.id}: Using ${pointsValue} points from 'points' column (simplified)`);
+        console.log(`📊 Card ${card.id}: Using ${pointsValue} points, ${availableRewards.length} rewards available`);
         
         return {
           id: card.id.toString(),
@@ -243,10 +614,17 @@ export class LoyaltyCardService {
           cardType: card.card_type || 'STANDARD',
           businessName: card.business_name,
           pointsMultiplier: parseFloat(card.points_multiplier) || 1,
-          pointsToNext: card.points_to_next_tier ? parseFloat(card.points_to_next_tier) : undefined,
-          benefits: card.benefits || []
+          pointsToNext: pointsToNext,
+          nextReward: nextReward?.name || null,
+          benefits: card.benefits || [],
+          availableRewards: availableRewards,
+          lastUsed: card.last_used,
+          isActive: (card.status || 'ACTIVE') === 'ACTIVE',
+          promoCode: card.promo_code || null
         };
-      });
+      }));
+      
+      return cardsWithRewards;
     } catch (error) {
       console.error('Error fetching customer cards:', error);
       return [];

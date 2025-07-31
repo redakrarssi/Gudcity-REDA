@@ -845,6 +845,42 @@ const CustomerCards = () => {
       isOpen: false
     }));
   };
+
+  // Handle reward redemption
+  const handleRewardRedemption = async (cardId: string, rewardId: string, rewardName: string) => {
+    try {
+      setIsLoading(true);
+      addNotification('info', `Redeeming ${rewardName}...`);
+      
+      const result = await LoyaltyCardService.redeemReward(cardId, rewardId);
+      
+      if (result.success) {
+        // Show success message with tracking code
+        const successMessage = result.trackingCode 
+          ? `${result.message}\n\n🎫 Your tracking code: ${result.trackingCode}\n\nShow this code to the business to collect your reward!`
+          : result.message;
+          
+        addNotification('success', successMessage);
+        
+        // Refresh the cards to show updated points and rewards
+        await refetch();
+        
+        // Trigger refresh event for real-time sync
+        const refreshEvent = new CustomEvent('qrPointsAwarded', {
+          detail: { cardId, action: 'redemption' }
+        });
+        window.dispatchEvent(refreshEvent);
+        
+      } else {
+        addNotification('error', result.message);
+      }
+    } catch (error) {
+      console.error('Error redeeming reward:', error);
+      addNotification('error', 'Failed to redeem reward. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Copy promo code to clipboard
   const copyPromoCode = () => {
@@ -1279,24 +1315,69 @@ const CustomerCards = () => {
                             </h4>
                             
                             {card.availableRewards?.length ? (
-                              <div className="space-y-2">
-                                {card.availableRewards.map((reward: {name: string, points: number}, idx: number) => (
-                                  <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <div className="flex items-center">
-                                      <div className="p-1.5 bg-blue-100 rounded-full mr-3">
-                                        <Gift className="w-3.5 h-3.5 text-blue-600" />
+                              <div className="space-y-3">
+                                {card.availableRewards.map((reward: any, idx: number) => {
+                                  const canRedeem = reward.isRedeemable;
+                                  const pointsNeeded = reward.points - card.points;
+                                  
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className={`p-3 rounded-lg border-2 transition-all ${
+                                        canRedeem 
+                                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
+                                          : 'bg-gray-50 border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div className="flex items-center flex-1">
+                                          <div className={`p-2 rounded-full mr-3 ${
+                                            canRedeem ? 'bg-green-100' : 'bg-gray-100'
+                                          }`}>
+                                            <Gift className={`w-4 h-4 ${
+                                              canRedeem ? 'text-green-600' : 'text-gray-400'
+                                            }`} />
+                                          </div>
+                                          <div className="flex-1">
+                                            <span className={`text-sm font-medium ${
+                                              canRedeem ? 'text-green-800' : 'text-gray-600'
+                                            }`}>
+                                              {reward.name}
+                                            </span>
+                                            <div className="flex items-center mt-1">
+                                              <div className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                                canRedeem 
+                                                  ? 'bg-green-100 text-green-700' 
+                                                  : 'bg-gray-100 text-gray-600'
+                                              }`}>
+                                                {reward.points} {t('points')}
+                                              </div>
+                                              {!canRedeem && pointsNeeded > 0 && (
+                                                <span className="text-xs text-orange-600 ml-2">
+                                                  Need {pointsNeeded} more points
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        {canRedeem && (
+                                          <button
+                                            onClick={() => handleRewardRedemption(card.id, reward.id, reward.name)}
+                                            className="ml-3 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+                                          >
+                                            Redeem
+                                          </button>
+                                        )}
                                       </div>
-                                      <span className="text-sm font-medium text-gray-800">{reward.name}</span>
                                     </div>
-                                    <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                                      {reward.points} {t('points')}
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             ) : (
-                              <div className="bg-gray-50 p-3 rounded-lg text-center">
-                                <p className="text-sm text-gray-500">{t('No rewards available')}</p>
+                              <div className="bg-gray-50 p-4 rounded-lg text-center">
+                                <Gift className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-500">{t('No rewards available for this program')}</p>
                               </div>
                             )}
                           </div>
