@@ -329,7 +329,7 @@ const BusinessDashboard = () => {
                 {t('Scan QR')}
                 {hasNotifications && (
                   <div className="ml-2">
-                    <IconBell showNotification={true} className="h-4 w-4" />
+                    <IconBell showNotification={true} className="h-5 w-5" />
                   </div>
                 )}
               </div>

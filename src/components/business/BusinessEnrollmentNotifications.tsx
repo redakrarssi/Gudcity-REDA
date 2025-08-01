@@ -70,21 +70,38 @@ export const BusinessEnrollmentNotifications: React.FC<BusinessEnrollmentNotific
   };
   
   const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    
-    if (diffMin < 1) return t('just now');
-    if (diffMin < 60) return t('{{count}} minutes ago', { count: diffMin });
-    
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return t('{{count}} hours ago', { count: diffHours });
-    
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 30) return t('{{count}} days ago', { count: diffDays });
-    
-    return date.toLocaleDateString();
+    try {
+      if (!dateString) return t('recently');
+      
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return t('recently');
+      }
+      
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      
+      // If time is in future or negative, return recently
+      if (diffMs < 0) return t('recently');
+      
+      const diffMin = Math.floor(diffMs / 60000);
+      
+      if (diffMin < 1) return t('just now');
+      if (diffMin < 60) return t('{{count}} minutes ago', { count: diffMin });
+      
+      const diffHours = Math.floor(diffMin / 60);
+      if (diffHours < 24) return t('{{count}} hours ago', { count: diffHours });
+      
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 30) return t('{{count}} days ago', { count: diffDays });
+      
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return t('recently');
+    }
   };
   
   const getNotificationIcon = (type: string) => {

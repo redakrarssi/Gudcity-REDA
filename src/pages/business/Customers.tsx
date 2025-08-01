@@ -139,13 +139,29 @@ const CustomersPage = () => {
     setError(null);
     
     try {
+      console.log('🔍 DEBUG: Current user object:', user);
+      console.log('🔍 DEBUG: User ID:', user?.id);
+      console.log('🔍 DEBUG: User type:', user?.user_type);
+      console.log('🔍 DEBUG: User name:', user?.name);
+      console.log('🔍 DEBUG: User email:', user?.email);
+      
       // Use the business ID from the logged-in user
       const businessId = user?.id.toString() || '';
+      console.log('🔍 DEBUG: Using business ID for query:', businessId);
+      
+      if (!businessId) {
+        console.error('❌ ERROR: No business ID available, user not logged in?');
+        setError('Please log in to view customers');
+        return;
+      }
+      
       const customersData = await CustomerService.getBusinessCustomers(businessId);
+      console.log('🔍 DEBUG: Received customers data:', customersData);
+      
       setCustomers(customersData);
       setFilteredCustomers(customersData);
     } catch (err) {
-      console.error('Error loading customers:', err);
+      console.error('❌ ERROR: Error loading customers:', err);
       setError(t('Failed to load customers. Please try again.'));
     } finally {
       setLoading(false);
@@ -272,6 +288,59 @@ const CustomersPage = () => {
     }
   };
 
+  const handleSendPromotionCode = async (customer: Customer) => {
+    if (!customer || !user) return;
+
+    try {
+      // Generate a promotion code
+      const promoCode = `PROMO${Date.now().toString().slice(-6)}`;
+      const discount = '10%'; // Default discount
+      
+      // Send notification to customer with the promotion code
+      const response = await fetch('/api/notifications/send-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          customerId: customer.id,
+          type: 'PROMO_CODE',
+          title: 'Special Promotion Code! 🎉',
+          message: `You've received a special ${discount} discount code: ${promoCode}. Use it on your next visit to ${customer.programName}!`,
+          data: {
+            promoCode,
+            discount,
+            programName: customer.programName,
+            programId: customer.programId,
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+            businessName: user.name || 'Your Business'
+          },
+          requiresAction: false
+        })
+      });
+
+      if (response.ok) {
+        // Record the interaction in the database
+        await CustomerService.recordCustomerInteraction(
+          customer.id,
+          user.id.toString(),
+          'PROMO_CODE',
+          `Promotion code sent: ${promoCode} (${discount} discount)`
+        );
+
+        // Show success message
+        alert(`Promotion code ${promoCode} sent successfully to ${customer.name}! They will receive it as a notification.`);
+        console.log(`✅ Promotion code ${promoCode} sent to customer ${customer.name} in program ${customer.programName}`);
+      } else {
+        throw new Error('Failed to send promotion code');
+      }
+    } catch (err) {
+      console.error('Error sending promotion code:', err);
+      alert('Failed to send promotion code. Please try again.');
+    }
+  };
+
   const getTierColorClass = (tier: string) => {
     switch (tier) {
       case 'Platinum': return 'from-purple-500 to-indigo-600';
@@ -388,8 +457,14 @@ const CustomersPage = () => {
                             <TierBadge tier={customer.tier} />
                           </div>
                           <div className="flex justify-between mt-1">
-                            <p className="text-xs text-gray-500">{customer.visits} {t('visits')}</p>
+                            <p className="text-xs text-gray-500">{customer.visits} {t('program')}</p>
                             <p className="text-xs text-gray-500">{customer.loyaltyPoints} {t('points')}</p>
+                          </div>
+                          {/* Program information - BIG RULE: customer enrolled in AT LEAST ONE program */}
+                          <div className="mt-1">
+                            <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
+                              📋 {customer.programName || 'Unknown Program'}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -505,6 +580,13 @@ const CustomersPage = () => {
                 </div>
 
                 <div className="p-6 pt-0 flex gap-2 justify-end">
+                  <button 
+                    onClick={() => handleSendPromotionCode(selectedCustomer)}
+                    className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105"
+                  >
+                    <BadgeCheck className="w-4 h-4" />
+                    {t('Send Promo Code')}
+                  </button>
                   <button 
                     onClick={handleSendGift}
                     className="flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-full hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105"

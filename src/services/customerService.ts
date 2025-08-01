@@ -16,6 +16,9 @@ export interface Customer {
   joinedAt?: string;
   notes?: string;
   status: string;
+  // BIG RULE: Customer is enrolled in AT LEAST ONE program
+  programName?: string;
+  programId?: string;
 }
 
 export interface CustomerInteraction {
@@ -32,71 +35,90 @@ export interface CustomerInteraction {
  */
 export class CustomerService {
   /**
-   * Get customers enrolled in a business's programs
-   * This properly joins business programs with customer enrollments
+   * Get customers enrolled in AT LEAST ONE program of this business (BIG RULE)
+   * Shows customer name and the programs they're enrolled in that belong to this business
    */
   static async getBusinessCustomers(businessId: string): Promise<Customer[]> {
     try {
-      console.log(`Fetching customers for business ID: ${businessId}`);
+      console.log(`🔍 DEBUG: Fetching customers for business ID: ${businessId} (BIG RULE: customers enrolled in AT LEAST ONE program)`);
+      console.log(`🔍 DEBUG: Business ID type: ${typeof businessId}, value: "${businessId}"`);
+      
+      if (!businessId || businessId === '' || businessId === 'undefined') {
+        console.error('❌ ERROR: Invalid business ID provided:', businessId);
+        return [];
+      }
       
       // Convert businessId to integer for database comparison
       const businessIdInt = parseInt(businessId, 10);
+      console.log(`🔍 DEBUG: Converted business ID to integer: ${businessIdInt}`);
       
-      // Get customers who are enrolled in this business's loyalty programs
-      // or have a direct business relationship
+      if (isNaN(businessIdInt)) {
+        console.error('❌ ERROR: Business ID is not a valid number:', businessId);
+        return [];
+      }
+      
+      // Get customers who are enrolled in AT LEAST ONE program of this business (BIG RULE)
       const customers = await sql`
         SELECT DISTINCT
           c.id,
           c.name,
           c.email,
-          c.phone,
-          c.tier,
           c.status,
           c.created_at as joined_at,
-          c.notes,
-          COALESCE(SUM(pe.current_points), 0) as loyalty_points,
-          COUNT(DISTINCT pe.program_id) as enrolled_programs_count,
+          pe.current_points as loyalty_points,
+          lp.name as program_name,
+          lp.id as program_id,
+          pe.enrolled_at,
           COALESCE(SUM(lt.amount), 0) as total_spent,
           MAX(lt.transaction_date) as last_visit
         FROM users c
-        LEFT JOIN program_enrollments pe ON c.id::text = pe.customer_id
-        LEFT JOIN loyalty_programs lp ON pe.program_id = lp.id
+        JOIN program_enrollments pe ON c.id = pe.customer_id
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
         LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessIdInt}
-        LEFT JOIN customer_business_relationships cbr ON c.id::text = cbr.customer_id AND cbr.business_id = ${businessIdInt}
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND (
-            (lp.business_id = ${businessIdInt} AND pe.status = 'ACTIVE')
-            OR
-            (cbr.business_id = ${businessIdInt} AND cbr.status = 'ACTIVE')
-          )
-        GROUP BY c.id, c.name, c.email, c.phone, c.tier, c.status, c.created_at, c.notes
+          AND lp.business_id = ${businessIdInt}
+          AND pe.status = 'ACTIVE'
+        GROUP BY c.id, c.name, c.email, c.status, c.created_at, 
+                 pe.current_points, lp.name, lp.id, pe.enrolled_at
         ORDER BY c.name ASC
       `;
       
-      console.log(`Found ${customers.length} customers for business ${businessId}`);
+      console.log(`🔍 DEBUG: Raw SQL query returned ${customers.length} rows`);
+      console.log(`🔍 DEBUG: First few raw results:`, customers.slice(0, 3));
+      console.log(`✅ Found ${customers.length} customers for business ${businessId} (enrolled in AT LEAST ONE program each)`);
       
       const formattedCustomers = customers.map(customer => ({
         id: customer.id.toString(),
         name: customer.name || 'Unknown Customer',
         email: customer.email || '',
-        phone: customer.phone || '',
-        tier: customer.tier || 'Bronze',
+        phone: '', // Default empty since users table doesn't have phone column
+        tier: 'Bronze', // Default tier since users table doesn't have tier column
         loyaltyPoints: parseInt(customer.loyalty_points) || 0,
         points: parseInt(customer.loyalty_points) || 0,
-        visits: parseInt(customer.enrolled_programs_count) || 0,
+        visits: 1, // Shows 1 program enrollment (displaying primary program)
         totalSpent: parseFloat(customer.total_spent) || 0,
         lastVisit: customer.last_visit ? new Date(customer.last_visit).toISOString() : undefined,
         favoriteItems: [], // TODO: Implement favorite items tracking
-        birthday: customer.birthday || undefined,
-        joinedAt: customer.joined_at ? new Date(customer.joined_at).toISOString() : undefined,
-        notes: customer.notes || '',
-        status: customer.status || 'active'
+        birthday: undefined, // Default since users table doesn't have birthday column
+        joinedAt: customer.enrolled_at ? new Date(customer.enrolled_at).toISOString() : 
+                  (customer.joined_at ? new Date(customer.joined_at).toISOString() : undefined),
+        notes: '', // Default empty since users table doesn't have notes column
+        status: customer.status || 'active',
+        // Add program information (BIG RULE: AT LEAST ONE program)
+        programName: customer.program_name || 'Unknown Program',
+        programId: customer.program_id?.toString() || ''
       }));
       
+      console.log(`🔍 DEBUG: Returning ${formattedCustomers.length} formatted customers`);
       return formattedCustomers;
     } catch (error) {
-      console.error('Error fetching business customers:', error);
+      console.error('❌ ERROR: Error fetching business customers:', error);
+      console.error('❌ ERROR: Error details:', error);
+      if (error instanceof Error) {
+        console.error('❌ ERROR: Error message:', error.message);
+        console.error('❌ ERROR: Error stack:', error.stack);
+      }
       return [];
     }
   }

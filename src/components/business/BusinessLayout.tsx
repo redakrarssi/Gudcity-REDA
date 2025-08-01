@@ -112,7 +112,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                 onClick={() => setShowNotificationCenter(true)}
                 aria-label="Notifications"
               >
-                <IconBell showNotification={hasNotifications} />
+                <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-7 h-7" />
               </button>
               <ThemeToggle variant="icon" />
             </div>
@@ -158,7 +158,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                   onClick={() => setShowNotificationCenter(true)}
                   aria-label="Notifications"
                 >
-                  <IconBell showNotification={hasNotifications} className="w-6 h-6" />
+                  <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-7 h-7" />
                 </button>
                 <button 
                   className="p-1 text-gray-600"
