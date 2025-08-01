@@ -3,6 +3,7 @@ import type {
   NotificationType,
   NotificationStats 
 } from '../types/notification';
+import sql from '../utils/db';
 
 // Extended preferences interface to include SMS
 export interface NotificationPreferences {
@@ -488,14 +489,31 @@ export class NotificationService {
     error?: string;
   }> {
     try {
+      // Ensure table exists first
+      await sql`
+        CREATE TABLE IF NOT EXISTS redemption_notifications (
+          id SERIAL PRIMARY KEY,
+          customer_id VARCHAR(255) NOT NULL,
+          business_id VARCHAR(255) NOT NULL,
+          program_id VARCHAR(255) NOT NULL,
+          points INTEGER NOT NULL DEFAULT 0,
+          reward TEXT NOT NULL,
+          reward_id VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'PENDING',
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
       const result = await sql`
         SELECT 
           rn.id,
           rn.customer_id,
-          u.name as customer_name,
+          COALESCE(u.name, 'Customer') as customer_name,
           rn.business_id,
           rn.program_id,
-          lp.name as program_name,
+          COALESCE(lp.name, 'Loyalty Program') as program_name,
           rn.points,
           rn.reward,
           rn.reward_id,
@@ -503,12 +521,14 @@ export class NotificationService {
           rn.status,
           rn.is_read
         FROM redemption_notifications rn
-        JOIN users u ON rn.customer_id = u.id
-        JOIN loyalty_programs lp ON rn.program_id = lp.id
+        LEFT JOIN users u ON CAST(rn.customer_id AS INTEGER) = u.id
+        LEFT JOIN loyalty_programs lp ON CAST(rn.program_id AS INTEGER) = lp.id
         WHERE rn.business_id = ${businessId}
         ORDER BY rn.created_at DESC
         LIMIT 50
       `;
+      
+      console.log(`🔍 Found ${result.length} notifications for business ${businessId}`);
       
       // Format the notifications
       const notifications = result.map(item => ({
@@ -716,6 +736,56 @@ export class NotificationService {
       return {
         success: false,
         error: 'Failed to create redemption notification'
+      };
+    }
+  }
+
+  /**
+   * Mark a business notification as read
+   * @param notificationId ID of the notification
+   * @returns Success status
+   */
+  static async markBusinessNotificationAsRead(
+    notificationId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      await sql`
+        UPDATE redemption_notifications
+        SET is_read = TRUE, updated_at = NOW()
+        WHERE id = ${notificationId}
+      `;
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error marking business notification as read:', error);
+      return {
+        success: false,
+        error: 'Failed to mark notification as read'
+      };
+    }
+  }
+
+  /**
+   * Complete a redemption notification (alias for updateRedemptionStatus with COMPLETED)
+   * @param notificationId ID of the notification
+   * @returns Success status
+   */
+  static async completeRedemptionNotification(
+    notificationId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      await sql`
+        UPDATE redemption_notifications
+        SET status = 'COMPLETED', is_read = TRUE, updated_at = NOW()
+        WHERE id = ${notificationId}
+      `;
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error completing redemption notification:', error);
+      return {
+        success: false,
+        error: 'Failed to complete notification'
       };
     }
   }

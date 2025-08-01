@@ -1410,6 +1410,18 @@ export class LoyaltyCardService {
           await transaction.commit();
           
           // Send GREEN notification to business owner using redemption notification system
+          console.log('🎯 BUSINESS NOTIFICATION DEBUG: Starting business notification creation');
+          console.log('🎯 BUSINESS NOTIFICATION DEBUG: Variables check:', {
+            customerName: customerName,
+            businessId: businessId, 
+            programId: programId,
+            programName: programName,
+            rewardName: rewardName,
+            requiredPoints: requiredPoints,
+            NotificationServiceExists: !!NotificationService,
+            createRedemptionNotificationExists: !!(NotificationService && NotificationService.createRedemptionNotification)
+          });
+          
           try {
             console.log('🔔 Creating business notification for reward redemption by name:', {
               customerName: customerName,
@@ -1462,12 +1474,25 @@ export class LoyaltyCardService {
               });
             }
           } catch (businessNotificationError) {
-            console.error('🚨 Error sending business notification for name-based redemption:', {
+            console.error('🚨 CRITICAL ERROR in business notification creation:', {
               error: businessNotificationError.message || businessNotificationError,
+              stack: businessNotificationError.stack,
               businessId: businessId,
               customerName: customerName,
-              rewardName: rewardName
+              rewardName: rewardName,
+              errorType: typeof businessNotificationError
             });
+            
+            // Try to log additional debug info
+            try {
+              console.error('🚨 Additional debug info:', {
+                NotificationService: !!NotificationService,
+                createRedemptionNotification: !!(NotificationService && NotificationService.createRedemptionNotification),
+                currentMethodName: 'redeemRewardByName'
+              });
+            } catch (debugError) {
+              console.error('🚨 Even debug logging failed:', debugError);
+            }
           }
           
           // Send notification to customer

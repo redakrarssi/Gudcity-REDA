@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, Check, X, AlertCircle, Gift } from 'lucide-react';
-import { RedemptionNotification } from '../../types/loyalty';
-import { NotificationService } from '../../services/notificationService';
-import { useAuth } from '../../contexts/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bell, Check, Gift, UserPlus } from 'lucide-react';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface BusinessRedemptionNotificationsProps {
   onUpdate?: () => void;
@@ -13,257 +12,154 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
   onUpdate 
 }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const [notifications, setNotifications] = useState<RedemptionNotification[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { 
+    businessNotifications: notifications, 
+    businessUnreadCount: unreadCount,
+    completeBusinessNotification 
+  } = useNotifications();
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-
-  useEffect(() => {
-    if (user?.id) {
-      loadNotifications();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Listen for real-time notifications
-    const handleRedemptionEvent = (event: CustomEvent) => {
-      loadNotifications();
-    };
-
-    window.addEventListener('redemption-notification', handleRedemptionEvent as EventListener);
-
-    return () => {
-      window.removeEventListener('redemption-notification', handleRedemptionEvent as EventListener);
-    };
-  }, []);
-
-  const loadNotifications = async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const businessId = user.id.toString();
-      const result = await NotificationService.getBusinessRedemptionNotifications(businessId);
-
-      if (result.success) {
-        setNotifications(result.notifications);
-        setUnreadCount(result.notifications.filter(n => !n.isRead).length);
-      } else {
-        setError(result.error || 'Failed to load notifications');
-      }
-    } catch (err) {
-      console.error('Error loading redemption notifications:', err);
-      setError('Failed to load notifications');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCompleteRedemption = async (notificationId: string) => {
-    if (!user?.id) return;
-
     try {
-      const result = await NotificationService.updateRedemptionStatus(
-        notificationId, 
-        'COMPLETED',
-        user.id.toString()
-      );
-
-      if (result.success) {
-        // Update local state
-        setNotifications(prevNotifications => 
-          prevNotifications.map(notification => 
-            notification.id === notificationId 
-              ? { ...notification, status: 'COMPLETED' } 
-              : notification
-          )
-        );
-        
-        // Notify parent component
-        if (onUpdate) {
-          onUpdate();
-        }
-      } else {
-        console.error('Failed to complete redemption:', result.error);
+      await completeBusinessNotification(notificationId);
+      if (onUpdate) {
+        onUpdate();
       }
-    } catch (err) {
-      console.error('Error completing redemption:', err);
+    } catch (error) {
+      console.error('Error completing redemption:', error);
     }
   };
 
-  const handleRejectRedemption = async (notificationId: string) => {
-    if (!user?.id) return;
-
-    try {
-      const result = await NotificationService.updateRedemptionStatus(
-        notificationId, 
-        'REJECTED',
-        user.id.toString()
-      );
-
-      if (result.success) {
-        // Update local state
-        setNotifications(prevNotifications => 
-          prevNotifications.map(notification => 
-            notification.id === notificationId 
-              ? { ...notification, status: 'REJECTED' } 
-              : notification
-          )
-        );
-        
-        // Notify parent component
-        if (onUpdate) {
-          onUpdate();
-        }
-      } else {
-        console.error('Failed to reject redemption:', result.error);
-      }
-    } catch (err) {
-      console.error('Error rejecting redemption:', err);
-    }
-  };
-
-  const toggleNotifications = () => {
-    setShowNotifications(!showNotifications);
-  };
-
-  // Simple function to format time relative to now
-  const formatTime = (timestamp: string) => {
+  const formatTimeAgo = (timestamp: string) => {
     try {
       const date = new Date(timestamp);
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
+      const diffMinutes = Math.floor(diffMs / 60000);
       
-      // Convert to seconds, minutes, hours, days
-      const diffSec = Math.floor(diffMs / 1000);
-      const diffMin = Math.floor(diffSec / 60);
-      const diffHours = Math.floor(diffMin / 60);
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
       const diffDays = Math.floor(diffHours / 24);
-      
-      if (diffDays > 0) {
-        return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
-      } else if (diffHours > 0) {
-        return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
-      } else if (diffMin > 0) {
-        return diffMin === 1 ? '1 minute ago' : `${diffMin} minutes ago`;
-      } else {
-        return 'just now';
-      }
-    } catch (err) {
-      return 'Unknown time';
+      return `${diffDays}d ago`;
+    } catch {
+      return 'Recently';
     }
   };
 
   return (
     <div className="relative">
-      <button 
-        onClick={toggleNotifications}
-        className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-        aria-label="Redemption notifications"
+      {/* Notification Bell Button */}
+      <button
+        onClick={() => setShowNotifications(!showNotifications)}
+        className="relative p-2 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label="Business Notifications"
       >
-        <Bell size={24} />
+        <Bell className="h-5 w-5 text-gray-600" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-            {unreadCount}
+          <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {showNotifications && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-medium">{t('Redemption Requests')}</h3>
-          </div>
-          
-          {isLoading ? (
-            <div className="p-4 text-center">
-              <span className="inline-block animate-spin mr-2">⏳</span>
-              {t('Loading...')}
+      {/* Notifications Dropdown */}
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+          >
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Business Notifications
+              </h3>
+              <p className="text-sm text-gray-500">
+                {unreadCount} pending notifications
+              </p>
             </div>
-          ) : error ? (
-            <div className="p-4 text-center text-red-500">
-              <AlertCircle size={20} className="inline-block mr-2" />
-              {error}
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              {t('No redemption requests')}
-            </div>
-          ) : (
-            <div>
-              {notifications.map((notification) => (
-                <div 
-                  key={notification.id} 
-                  className={`p-3 border-b border-gray-200 dark:border-gray-700 ${
-                    notification.status === 'PENDING' 
-                      ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' 
-                      : notification.status === 'COMPLETED'
-                        ? 'bg-gray-50 dark:bg-gray-800'
-                        : 'bg-red-50 dark:bg-red-900/20'
-                  }`}
-                >
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0 pt-0.5">
-                      <Gift size={20} className="text-blue-500" />
-                    </div>
-                    <div className="ml-3 w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        🎉 {notification.customerName}
-                      </p>
-                      <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                        Redeemed {notification.points} points for <strong>{notification.reward}</strong>
-                      </p>
-                      <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                        Program: {notification.programName}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        {formatTime(notification.timestamp)}
-                      </p>
-                      
-                      {notification.status === 'PENDING' && (
-                        <div className="mt-2 flex space-x-2">
-                          <button
-                            onClick={() => handleCompleteRedemption(notification.id)}
-                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                          >
-                            <Check size={16} className="mr-1.5" />
-                            {t('Delivered')}
-                          </button>
-                          <button
-                            onClick={() => handleRejectRedemption(notification.id)}
-                            className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                          >
-                            <X size={14} className="mr-1" />
-                            {t('Reject')}
-                          </button>
-                        </div>
-                      )}
-                      
-                      {notification.status === 'COMPLETED' && (
-                        <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                          <Check size={12} className="mr-1" />
-                          {t('Delivered')}
-                        </div>
-                      )}
-                      
-                      {notification.status === 'REJECTED' && (
-                        <p className="mt-1 text-xs text-red-600 dark:text-red-400 font-medium">
-                          <X size={14} className="inline-block mr-1" />
-                          {t('Rejected')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="text-center p-8 text-gray-500">
+                  <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No notifications yet</p>
                 </div>
-              ))}
+              ) : (
+                notifications.map(notification => {
+                  const isEnrollment = notification.points === 0;
+                  const isPending = notification.status === 'PENDING';
+                  
+                  return (
+                    <motion.div
+                      key={notification.id}
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className={`p-4 border-b border-gray-100 transition-colors duration-200 ${
+                        isPending 
+                          ? 'bg-green-50 border-l-4 border-green-500 hover:bg-green-100' 
+                          : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          {isEnrollment ? (
+                            <UserPlus className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <Gift className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {isEnrollment ? '👥' : '🎉'} {notification.customerName} {isEnrollment ? 'enrolled in' : `redeemed ${notification.points} points for`} <strong>{notification.reward}</strong>
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Program: {notification.programName}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {formatTimeAgo(notification.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {isPending ? (
+                            <button
+                              onClick={() => handleCompleteRedemption(notification.id)}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-md transition-colors duration-200 font-medium"
+                            >
+                              <Check className="h-3 w-3 inline mr-1" />
+                              Delivered
+                            </button>
+                          ) : (
+                            <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-md">
+                              Delivered
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
-          )}
-        </div>
-      )}
+
+            {notifications.length > 0 && (
+              <div className="p-3 bg-gray-50 border-t border-gray-200">
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="w-full text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200"
+                >
+                  Close notifications
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-}; 
+};

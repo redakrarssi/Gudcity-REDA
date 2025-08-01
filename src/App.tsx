@@ -41,6 +41,7 @@ import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 import { FallbackProvider } from './components/FallbackIndicator';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { registerNotificationListeners } from './utils/notificationHandler';
 import { queryClient } from './utils/queryClient';
 import { toast } from 'react-hot-toast';
@@ -265,62 +266,68 @@ function App() {
                   </ErrorBoundary>
                 } />
                 
-                {/* Business Routes */}
-                <Route path="/business/dashboard" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.profile.view">
-                      <BusinessDashboard />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/programs" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.programs.view">
-                      <BusinessPrograms />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/analytics" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.analytics.view">
-                      <BusinessAnalytics />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/customers" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.customers.view">
-                      <BusinessCustomers />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/promotions" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.promotions.view">
-                      <BusinessPromotions />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/qr-scanner" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.profile.view">
-                      <BusinessQrScanner />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/test-codes" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.profile.view">
-                      <BusinessTestCodes />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
-                } />
-                <Route path="/business/settings" element={
-                  <ErrorBoundary>
-                    <ProtectedRoute requiredPermission="business.profile.view">
-                      <BusinessSettings />
-                    </ProtectedRoute>
-                  </ErrorBoundary>
+                {/* Business Routes - Wrapped with NotificationProvider */}
+                <Route path="/business/*" element={
+                  <NotificationProvider>
+                    <Routes>
+                      <Route path="dashboard" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.profile.view">
+                            <BusinessDashboard />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="programs" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.programs.view">
+                            <BusinessPrograms />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="analytics" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.analytics.view">
+                            <BusinessAnalytics />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="customers" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.customers.view">
+                            <BusinessCustomers />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="promotions" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.promotions.view">
+                            <BusinessPromotions />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="qr-scanner" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.profile.view">
+                            <BusinessQrScanner />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="test-codes" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.profile.view">
+                            <BusinessTestCodes />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="settings" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.profile.view">
+                            <BusinessSettings />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                    </Routes>
+                  </NotificationProvider>
                 } />
                 
                 {/* Admin Routes */}

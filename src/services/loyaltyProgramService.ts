@@ -3,6 +3,7 @@ import type { LoyaltyProgram, RewardTier, ProgramType } from '../types/loyalty';
 import { CustomerService } from './customerService';
 import { v4 as uuidv4 } from 'uuid';
 import { CustomerNotificationService } from './customerNotificationService';
+import { NotificationService } from './notificationService';
 import * as serverFunctions from '../server';
 import { createEnrollmentSyncEvent, createNotificationSyncEvent, createCardSyncEvent } from '../utils/realTimeSync';
 import { logger } from '../utils/logger';
@@ -579,6 +580,64 @@ export class LoyaltyProgramService {
         
         const cardId = cardResult[0].id.toString();
         
+        // Send GREEN notification to business owner about new enrollment
+        try {
+          console.log('🔔 Creating business notification for successful enrollment:', {
+            customerId: customerId,
+            businessId: businessId,
+            programName: program.name
+          });
+
+          const businessEnrollmentNotification = await NotificationService.createRedemptionNotification({
+            customerId: customerId,
+            customerName: 'New Customer', // Will be updated by JOIN in business dashboard
+            businessId: businessId,
+            programId: programId,
+            programName: program.name,
+            points: 0, // Enrollment, not redemption
+            reward: `New enrollment in ${program.name}`,
+            rewardId: 'enrollment'
+          });
+
+          if (businessEnrollmentNotification.success) {
+            console.log('✅ Business enrollment notification created:', {
+              notificationId: businessEnrollmentNotification.notificationId,
+              businessId: businessId,
+              programName: program.name
+            });
+            
+            // Dispatch real-time event for business dashboard
+            if (typeof window !== 'undefined') {
+              const businessEvent = new CustomEvent('redemption-notification', {
+                detail: {
+                  type: 'NEW_ENROLLMENT',
+                  businessId: businessId,
+                  customerId: customerId,
+                  customerName: 'New Customer',
+                  programName: program.name,
+                  reward: `New enrollment in ${program.name}`,
+                  points: 0,
+                  notificationId: businessEnrollmentNotification.notificationId,
+                  timestamp: new Date().toISOString()
+                }
+              });
+              window.dispatchEvent(businessEvent);
+              console.log('📡 Real-time business enrollment event dispatched');
+            }
+          } else {
+            console.error('❌ Failed to create business enrollment notification:', {
+              error: businessEnrollmentNotification.error,
+              businessId: businessId
+            });
+          }
+        } catch (businessEnrollmentError) {
+          console.error('🚨 Error sending business enrollment notification:', {
+            error: businessEnrollmentError.message || businessEnrollmentError,
+            businessId: businessId,
+            programName: program.name
+          });
+        }
+        
         // Create enrollment notification
         try {
           const notification = await CustomerNotificationService.createNotification({
@@ -871,7 +930,65 @@ export class LoyaltyProgramService {
           );
         }
         
-        // Notify business that customer accepted
+        // Send GREEN notification to business owner about successful enrollment approval
+        try {
+          console.log('🔔 Creating business notification for approved enrollment:', {
+            customerId: customerId,
+            businessId: businessId,
+            programName: request.program_name
+          });
+
+          const businessEnrollmentNotification = await NotificationService.createRedemptionNotification({
+            customerId: customerId,
+            customerName: 'New Customer', // Will be updated by JOIN in business dashboard
+            businessId: businessId,
+            programId: programId,
+            programName: request.program_name || 'Loyalty Program',
+            points: 0, // Enrollment, not redemption
+            reward: `New enrollment in ${request.program_name || 'loyalty program'}`,
+            rewardId: 'enrollment-approved'
+          });
+
+          if (businessEnrollmentNotification.success) {
+            console.log('✅ Business enrollment notification created for approval:', {
+              notificationId: businessEnrollmentNotification.notificationId,
+              businessId: businessId,
+              programName: request.program_name
+            });
+            
+            // Dispatch real-time event for business dashboard
+            if (typeof window !== 'undefined') {
+              const businessEvent = new CustomEvent('redemption-notification', {
+                detail: {
+                  type: 'NEW_ENROLLMENT',
+                  businessId: businessId,
+                  customerId: customerId,
+                  customerName: 'New Customer',
+                  programName: request.program_name || 'Loyalty Program',
+                  reward: `New enrollment in ${request.program_name || 'loyalty program'}`,
+                  points: 0,
+                  notificationId: businessEnrollmentNotification.notificationId,
+                  timestamp: new Date().toISOString()
+                }
+              });
+              window.dispatchEvent(businessEvent);
+              console.log('📡 Real-time business enrollment event dispatched for approval');
+            }
+          } else {
+            console.error('❌ Failed to create business enrollment notification for approval:', {
+              error: businessEnrollmentNotification.error,
+              businessId: businessId
+            });
+          }
+        } catch (businessEnrollmentError) {
+          console.error('🚨 Error sending business enrollment notification for approval:', {
+            error: businessEnrollmentError.message || businessEnrollmentError,
+            businessId: businessId,
+            programName: request.program_name
+          });
+        }
+        
+        // Notify business that customer accepted (legacy notification)
         const businessNotification = await CustomerNotificationService.createNotification({
           customerId: businessId,
           businessId: businessId,

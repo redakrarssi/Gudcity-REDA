@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { connectUserSocket, listenForUserEvents } from '../utils/socket';
 import { WEBSOCKET_EVENTS } from '../utils/constants';
 import { CustomerNotificationService } from '../services/customerNotificationService';
+import { NotificationService } from '../services/notificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { deleteCustomerNotification, deleteAllNotifications } from '../services/customerNotificationDelete';
@@ -43,19 +44,41 @@ interface ApprovalRequest {
   businessName?: string;
 }
 
+interface BusinessNotification {
+  id: string;
+  customerId: string;
+  customerName: string;
+  businessId: string;
+  programId: string;
+  programName: string;
+  points: number;
+  reward: string;
+  rewardId: string;
+  timestamp: string;
+  status: 'PENDING' | 'COMPLETED';
+  isRead: boolean;
+}
+
 interface NotificationContextType {
   notifications: CustomerNotification[];
   approvalRequests: ApprovalRequest[];
+  businessNotifications: BusinessNotification[];
   unreadCount: number;
+  businessUnreadCount: number;
   showNotificationCenter: boolean;
   latestNotification: CustomerNotification | null;
+  latestBusinessNotification: BusinessNotification | null;
   showPopup: boolean;
+  showBusinessPopup: boolean;
   toggleNotificationCenter: () => void;
   markAsRead: (notificationId: string) => Promise<void>;
+  markBusinessAsRead: (notificationId: string) => Promise<void>;
   dismissPopup: () => void;
+  dismissBusinessPopup: () => void;
   respondToApproval: (approvalId: string, approved: boolean) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
   deleteAllNotifications: () => Promise<void>;
+  completeBusinessNotification: (notificationId: string) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -65,10 +88,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const queryClient = useQueryClient();
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
+  const [businessNotifications, setBusinessNotifications] = useState<BusinessNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [businessUnreadCount, setBusinessUnreadCount] = useState(0);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [latestNotification, setLatestNotification] = useState<CustomerNotification | null>(null);
+  const [latestBusinessNotification, setLatestBusinessNotification] = useState<BusinessNotification | null>(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [showBusinessPopup, setShowBusinessPopup] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   // Fetch initial notifications and approval requests
@@ -77,7 +104,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     const fetchNotifications = async () => {
       try {
-        // In production environment, fetch from API
+        // Fetch customer notifications
         const notificationsData = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
         const approvalsData = await CustomerNotificationService.getPendingApprovals(user.id.toString());
         
@@ -86,6 +113,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         const unreadCount = notificationsData.filter(n => !n.isRead).length;
         setUnreadCount(unreadCount);
+        
+        // Fetch business notifications if user is business
+        if (user.role === 'business') {
+          console.log('🔔 Fetching business notifications for:', user.id.toString());
+          const businessNotificationsResult = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          if (businessNotificationsResult.success) {
+            console.log('✅ Business notifications loaded:', businessNotificationsResult.notifications.length);
+            setBusinessNotifications(businessNotificationsResult.notifications);
+            const businessUnread = businessNotificationsResult.notifications.filter(n => n.status === 'PENDING').length;
+            setBusinessUnreadCount(businessUnread);
+          } else {
+            console.error('❌ Failed to load business notifications:', businessNotificationsResult.error);
+          }
+        }
+        
       } catch (error) {
         console.error('Error fetching notifications:', error);
         
@@ -225,9 +267,45 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       handleNewApproval
     );
     
+    // Handle business redemption notifications (real-time)
+    const handleBusinessNotification = (event: CustomEvent) => {
+      console.log('🔔 Real-time business notification received:', event.detail);
+      
+      if (user.role === 'business' && event.detail.businessId === user.id.toString()) {
+        const businessNotif = {
+          id: event.detail.notificationId || Date.now().toString(),
+          customerId: event.detail.customerId,
+          customerName: event.detail.customerName || 'Customer',
+          businessId: event.detail.businessId,
+          programId: event.detail.programId,
+          programName: event.detail.programName || 'Loyalty Program',
+          points: event.detail.points || 0,
+          reward: event.detail.reward,
+          rewardId: event.detail.rewardId,
+          timestamp: event.detail.timestamp || new Date().toISOString(),
+          status: 'PENDING',
+          isRead: false
+        };
+        
+        // Add to business notifications
+        setBusinessNotifications(prev => [businessNotif, ...prev]);
+        setBusinessUnreadCount(prev => prev + 1);
+        
+        // Show business popup
+        setLatestBusinessNotification(businessNotif);
+        setShowBusinessPopup(true);
+        
+        console.log('✅ Business notification added to state:', businessNotif);
+      }
+    };
+    
+    // Listen for custom redemption events
+    window.addEventListener('redemption-notification', handleBusinessNotification as EventListener);
+    
     return () => {
       notificationCleanup();
       approvalCleanup();
+      window.removeEventListener('redemption-notification', handleBusinessNotification as EventListener);
     };
   }, [user?.id, queryClient]);
 
@@ -490,20 +568,62 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const markBusinessAsRead = async (notificationId: string): Promise<void> => {
+    try {
+      await NotificationService.markBusinessNotificationAsRead(notificationId);
+      setBusinessNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setBusinessUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking business notification as read:', error);
+    }
+  };
+
+  const dismissBusinessPopup = (): void => {
+    setShowBusinessPopup(false);
+    setLatestBusinessNotification(null);
+  };
+
+  const completeBusinessNotification = async (notificationId: string): Promise<void> => {
+    try {
+      console.log('🔔 Completing business notification:', notificationId);
+      const result = await NotificationService.completeRedemptionNotification(notificationId);
+      if (result.success) {
+        setBusinessNotifications(prev => 
+          prev.map(n => n.id === notificationId ? { ...n, status: 'COMPLETED' } : n)
+        );
+        setBusinessUnreadCount(prev => Math.max(0, prev - 1));
+        console.log('✅ Business notification completed successfully');
+      } else {
+        console.error('❌ Failed to complete business notification:', result.error);
+      }
+    } catch (error) {
+      console.error('Error completing business notification:', error);
+    }
+  };
+
   return (
     <NotificationContext.Provider value={{
       notifications,
       approvalRequests,
+      businessNotifications,
       unreadCount,
+      businessUnreadCount,
       showNotificationCenter,
       latestNotification,
+      latestBusinessNotification,
       showPopup,
+      showBusinessPopup,
       toggleNotificationCenter,
       markAsRead,
+      markBusinessAsRead,
       dismissPopup,
+      dismissBusinessPopup,
       respondToApproval,
       deleteNotification,
-      deleteAllNotifications: clearAllNotifications
+      deleteAllNotifications: clearAllNotifications,
+      completeBusinessNotification
     }}>
       {children}
     </NotificationContext.Provider>

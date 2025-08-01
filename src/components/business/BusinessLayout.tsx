@@ -18,7 +18,7 @@ import { IconBell } from '../icons/IconBell';
 import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { NotificationService } from '../../services/notificationService';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -29,39 +29,9 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   const location = useLocation();
   const { logout, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hasNotifications, setHasNotifications] = useState(false);
+  const { businessUnreadCount } = useNotifications();
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-
-  useEffect(() => {
-    // Check for pending redemption notifications
-    const checkNotifications = async () => {
-      if (user?.id) {
-        try {
-          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
-          if (result.success) {
-            // Check if there are any pending notifications
-            const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
-            setHasNotifications(pendingNotifications.length > 0);
-          }
-        } catch (error) {
-          console.error('Error checking notifications:', error);
-        }
-      }
-    };
-
-    checkNotifications();
-
-    // Listen for real-time notification updates
-    const handleNotificationEvent = () => {
-      checkNotifications();
-    };
-
-    window.addEventListener('redemption-notification', handleNotificationEvent);
-
-    return () => {
-      window.removeEventListener('redemption-notification', handleNotificationEvent);
-    };
-  }, [user]);
+  const hasNotifications = businessUnreadCount > 0;
 
   const menuItems = [
     { 
