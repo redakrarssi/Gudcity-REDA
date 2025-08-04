@@ -28,6 +28,7 @@ export class NotificationService {
       REWARD_AVAILABLE: true,
       CODE_EXPIRING: true,
       PROGRAM_ENROLLED: true,
+      PROMO_CODE_RECEIVED: true,
       NEW_CUSTOMER: true,
       MILESTONE_REACHED: true,
       HIGH_REDEMPTION_RATE: true,
@@ -53,20 +54,48 @@ export class NotificationService {
     data?: Record<string, any>
   ): Promise<{ success: boolean; notification?: Notification; error?: string }> {
     try {
-      // Create a notification object
+      // Insert notification into database
+      const result = await sql`
+        INSERT INTO customer_notifications (
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          data,
+          is_read,
+          created_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${parseInt(userId)},
+          ${data?.businessId || 0},
+          ${type},
+          ${title},
+          ${message},
+          ${data ? JSON.stringify(data) : null},
+          false,
+          NOW()
+        )
+        RETURNING id, created_at
+      `;
+      
+      if (result.length === 0) {
+        throw new Error('Failed to insert notification');
+      }
+      
+      // Create notification object
       const notification: Notification = {
-        id: Date.now().toString(),
+        id: result[0].id,
         userId,
         type,
         title,
         message,
         data,
         isRead: false,
-        createdAt: new Date().toISOString()
+        createdAt: result[0].created_at
       };
-      
-      // Store notification in mock data
-      this.notifications.push(notification);
 
       // Get user preferences
       const preferences = await this.getUserPreferences(userId);
@@ -99,13 +128,37 @@ export class NotificationService {
     offset = 0
   ): Promise<{ notifications: Notification[]; error?: string }> {
     try {
-      // Filter notifications by user ID and sort by creation date
-      const userNotifications = this.notifications
-        .filter(notification => notification.userId === userId)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(offset, offset + limit);
+      // Get notifications from database
+      const result = await sql`
+        SELECT 
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          data,
+          is_read,
+          created_at
+        FROM customer_notifications
+        WHERE customer_id = ${parseInt(userId)}
+        ORDER BY created_at DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `;
+      
+      const notifications: Notification[] = result.map(row => ({
+        id: row.id,
+        userId: row.customer_id.toString(),
+        type: row.type as NotificationType,
+        title: row.title,
+        message: row.message,
+        data: row.data ? JSON.parse(row.data) : undefined,
+        isRead: row.is_read,
+        createdAt: row.created_at
+      }));
 
-      return { notifications: userNotifications };
+      return { notifications };
     } catch (error) {
       return { 
         notifications: [],
@@ -118,24 +171,61 @@ export class NotificationService {
     userId: string
   ): Promise<{ stats: NotificationStats; error?: string }> {
     try {
-      const userNotifications = this.notifications.filter(
-        notification => notification.userId === userId
-      );
+      // Get unread count
+      const unreadResult = await sql`
+        SELECT COUNT(*) as unread_count
+        FROM customer_notifications
+        WHERE customer_id = ${parseInt(userId)} AND is_read = false
+      `;
       
-      const unreadCount = userNotifications.filter(
-        notification => !notification.isRead
-      ).length;
+      const unreadCount = parseInt(unreadResult[0]?.unread_count || '0');
+      
+      // Get recent notifications
+      const recentResult = await sql`
+        SELECT 
+          id,
+          customer_id,
+          business_id,
+          type,
+          title,
+          message,
+          data,
+          is_read,
+          created_at
+        FROM customer_notifications
+        WHERE customer_id = ${parseInt(userId)}
+        ORDER BY created_at DESC
+        LIMIT 5
+      `;
+      
+      const recentNotifications: Notification[] = recentResult.map(row => ({
+        id: row.id,
+        userId: row.customer_id.toString(),
+        type: row.type as NotificationType,
+        title: row.title,
+        message: row.message,
+        data: row.data ? JSON.parse(row.data) : undefined,
+        isRead: row.is_read,
+        createdAt: row.created_at
+      }));
+      
+      // Get category breakdown
+      const categoryResult = await sql`
+        SELECT type, COUNT(*) as count
+        FROM customer_notifications
+        WHERE customer_id = ${parseInt(userId)}
+        GROUP BY type
+      `;
       
       const categoryBreakdown = {} as Record<NotificationType, number>;
-      
-      userNotifications.forEach(notification => {
-        categoryBreakdown[notification.type] = (categoryBreakdown[notification.type] || 0) + 1;
+      categoryResult.forEach(row => {
+        categoryBreakdown[row.type as NotificationType] = parseInt(row.count);
       });
       
       return {
         stats: {
           totalUnread: unreadCount,
-          recentNotifications: userNotifications.slice(0, 5),
+          recentNotifications,
           categoryBreakdown
         }
       };
@@ -155,12 +245,18 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const index = this.notifications.findIndex(n => n.id === notificationId);
-      if (index !== -1) {
-        this.notifications[index].isRead = true;
-        return { success: true };
+      const result = await sql`
+        UPDATE customer_notifications
+        SET is_read = true, read_at = NOW()
+        WHERE id = ${notificationId}
+        RETURNING id
+      `;
+      
+      if (result.length === 0) {
+        return { success: false, error: 'Notification not found' };
       }
-      return { success: false, error: 'Notification not found' };
+      
+      return { success: true };
     } catch (error) {
       return { 
         success: false,

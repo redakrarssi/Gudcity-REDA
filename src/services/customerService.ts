@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { NotificationService } from './notificationService';
 
 export interface Customer {
   id: string;
@@ -233,9 +234,9 @@ export class CustomerService {
         INSERT INTO customer_interactions (
           customer_id,
           business_id,
-          interaction_type,
-          description,
-          created_at
+          type,
+          message,
+          happened_at
         )
         VALUES (
           ${customerId},
@@ -264,11 +265,11 @@ export class CustomerService {
       await sql`
         CREATE TABLE IF NOT EXISTS customer_interactions (
           id SERIAL PRIMARY KEY,
-          customer_id VARCHAR(255) NOT NULL,
+          customer_id INTEGER,
           business_id VARCHAR(255) NOT NULL,
-          interaction_type VARCHAR(100) NOT NULL,
-          description TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          type VARCHAR(100) NOT NULL,
+          message TEXT,
+          happened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `;
       
@@ -645,7 +646,11 @@ export class CustomerService {
       `;
       
       const promoCodeResult = await sql`
-        SELECT code, name, type, value FROM promo_codes WHERE id = ${promoCodeId}
+        SELECT code, name, type, value, currency FROM promo_codes WHERE id = ${promoCodeId}
+      `;
+      
+      const businessResult = await sql`
+        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
       `;
       
       if (customerResult.length === 0) {
@@ -656,8 +661,13 @@ export class CustomerService {
         return { success: false, error: 'Promo code not found' };
       }
       
+      if (businessResult.length === 0) {
+        return { success: false, error: 'Business not found' };
+      }
+      
       const customer = customerResult[0];
       const promoCode = promoCodeResult[0];
+      const business = businessResult[0];
       
       // Record the promo code send interaction
       await this.recordCustomerInteraction(
@@ -667,9 +677,35 @@ export class CustomerService {
         `Promo code ${promoCode.code} (${promoCode.name}) sent to customer`
       );
       
-      // TODO: In a real implementation, this would send an email or push notification
-      // For now, we'll just log the action
-      console.log(`📧 Promo code ${promoCode.code} sent to ${customer.name} (${customer.email})`);
+      // Create notification for the customer
+      const notificationTitle = `New Promo Code from ${business.name}!`;
+      const notificationMessage = `You've received a new promo code from ${business.name}!`;
+      
+      const notificationData = {
+        promoCode: promoCode.code,
+        promoCodeName: promoCode.name,
+        promoCodeType: promoCode.type,
+        promoCodeValue: promoCode.value,
+        promoCodeCurrency: promoCode.currency,
+        businessName: business.name,
+        businessId: businessId,
+        promoCodeId: promoCodeId
+      };
+      
+      const notificationResult = await NotificationService.createNotification(
+        customerId,
+        'PROMO_CODE_RECEIVED',
+        notificationTitle,
+        notificationMessage,
+        notificationData
+      );
+      
+      if (!notificationResult.success) {
+        console.error('Failed to create notification:', notificationResult.error);
+        // Continue anyway as the promo code was sent
+      }
+      
+      console.log(`📧 Promo code ${promoCode.code} sent to ${customer.name} (${customer.email}) with notification`);
       
       return { success: true };
     } catch (error) {
