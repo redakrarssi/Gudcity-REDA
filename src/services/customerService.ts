@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { NotificationService } from './notificationService';
 
 export interface Customer {
   id: string;
@@ -19,6 +20,17 @@ export interface Customer {
   // BIG RULE: Customer is enrolled in AT LEAST ONE program
   programName?: string;
   programId?: string;
+  // Additional fields for multiple programs
+  programCount?: number;
+  totalLoyaltyPoints?: number;
+}
+
+export interface CustomerProgram {
+  id: string;
+  name: string;
+  points: number;
+  enrolledAt: string;
+  status: string;
 }
 
 export interface CustomerInteraction {
@@ -58,30 +70,29 @@ export class CustomerService {
       }
       
       // Get customers who are enrolled in AT LEAST ONE program of this business (BIG RULE)
+      // Use DISTINCT ON to ensure each customer appears only once
       const customers = await sql`
-        SELECT DISTINCT
+        SELECT DISTINCT ON (c.id)
           c.id,
           c.name,
           c.email,
           c.status,
           c.created_at as joined_at,
-          pe.current_points as loyalty_points,
-          lp.name as program_name,
-          lp.id as program_id,
-          pe.enrolled_at,
+          COALESCE(SUM(pe.current_points), 0) as total_loyalty_points,
+          COUNT(DISTINCT pe.program_id) as program_count,
           COALESCE(SUM(lt.amount), 0) as total_spent,
-          MAX(lt.transaction_date) as last_visit
+          MAX(lt.transaction_date) as last_visit,
+          MIN(pe.enrolled_at) as first_enrolled_at
         FROM users c
         JOIN program_enrollments pe ON c.id = pe.customer_id
         JOIN loyalty_programs lp ON pe.program_id = lp.id
-        LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
           AND lp.business_id = ${businessIdInt}
           AND pe.status = 'ACTIVE'
-        GROUP BY c.id, c.name, c.email, c.status, c.created_at, 
-                 pe.current_points, lp.name, lp.id, pe.enrolled_at
-        ORDER BY c.name ASC
+        GROUP BY c.id, c.name, c.email, c.status, c.created_at
+        ORDER BY c.id, c.name ASC
       `;
       
       console.log(`🔍 DEBUG: Raw SQL query returned ${customers.length} rows`);
@@ -94,20 +105,23 @@ export class CustomerService {
         email: customer.email || '',
         phone: '', // Default empty since users table doesn't have phone column
         tier: 'Bronze', // Default tier since users table doesn't have tier column
-        loyaltyPoints: parseInt(customer.loyalty_points) || 0,
-        points: parseInt(customer.loyalty_points) || 0,
-        visits: 1, // Shows 1 program enrollment (displaying primary program)
+        loyaltyPoints: parseInt(customer.total_loyalty_points) || 0,
+        points: parseInt(customer.total_loyalty_points) || 0,
+        visits: parseInt(customer.program_count) || 1, // Shows number of programs enrolled
         totalSpent: parseFloat(customer.total_spent) || 0,
         lastVisit: customer.last_visit ? new Date(customer.last_visit).toISOString() : undefined,
         favoriteItems: [], // TODO: Implement favorite items tracking
         birthday: undefined, // Default since users table doesn't have birthday column
-        joinedAt: customer.enrolled_at ? new Date(customer.enrolled_at).toISOString() : 
+        joinedAt: customer.first_enrolled_at ? new Date(customer.first_enrolled_at).toISOString() : 
                   (customer.joined_at ? new Date(customer.joined_at).toISOString() : undefined),
         notes: '', // Default empty since users table doesn't have notes column
         status: customer.status || 'active',
         // Add program information (BIG RULE: AT LEAST ONE program)
-        programName: customer.program_name || 'Unknown Program',
-        programId: customer.program_id?.toString() || ''
+        programName: `${customer.program_count || 1} Programs`, // Show program count instead of single program
+        programId: '', // Will be populated when customer is selected
+        // Additional fields for multiple programs
+        programCount: parseInt(customer.program_count) || 1,
+        totalLoyaltyPoints: parseInt(customer.total_loyalty_points) || 0
       }));
       
       console.log(`🔍 DEBUG: Returning ${formattedCustomers.length} formatted customers`);
@@ -119,6 +133,47 @@ export class CustomerService {
         console.error('❌ ERROR: Error message:', error.message);
         console.error('❌ ERROR: Error stack:', error.stack);
       }
+      return [];
+    }
+  }
+
+  /**
+   * Get customer programs for a specific business
+   */
+  static async getCustomerPrograms(customerId: string, businessId: string): Promise<CustomerProgram[]> {
+    try {
+      const businessIdInt = parseInt(businessId, 10);
+      const customerIdInt = parseInt(customerId, 10);
+      
+      if (isNaN(businessIdInt) || isNaN(customerIdInt)) {
+        console.error('❌ ERROR: Invalid business or customer ID');
+        return [];
+      }
+      
+      const programs = await sql`
+        SELECT 
+          lp.id,
+          lp.name,
+          pe.current_points as points,
+          pe.enrolled_at,
+          pe.status
+        FROM loyalty_programs lp
+        JOIN program_enrollments pe ON lp.id = pe.program_id
+        WHERE pe.customer_id = ${customerIdInt}
+          AND lp.business_id = ${businessIdInt}
+          AND pe.status = 'ACTIVE'
+        ORDER BY pe.enrolled_at ASC
+      `;
+      
+      return programs.map(program => ({
+        id: program.id.toString(),
+        name: program.name || 'Unknown Program',
+        points: parseInt(program.points) || 0,
+        enrolledAt: new Date(program.enrolled_at).toISOString(),
+        status: program.status || 'ACTIVE'
+      }));
+    } catch (error) {
+      console.error('Error fetching customer programs:', error);
       return [];
     }
   }
@@ -179,9 +234,9 @@ export class CustomerService {
         INSERT INTO customer_interactions (
           customer_id,
           business_id,
-          interaction_type,
-          description,
-          created_at
+          type,
+          message,
+          happened_at
         )
         VALUES (
           ${customerId},
@@ -210,11 +265,11 @@ export class CustomerService {
       await sql`
         CREATE TABLE IF NOT EXISTS customer_interactions (
           id SERIAL PRIMARY KEY,
-          customer_id VARCHAR(255) NOT NULL,
+          customer_id INTEGER,
           business_id VARCHAR(255) NOT NULL,
-          interaction_type VARCHAR(100) NOT NULL,
-          description TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          type VARCHAR(100) NOT NULL,
+          message TEXT,
+          happened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `;
       
@@ -573,6 +628,89 @@ export class CustomerService {
     } catch (error) {
       console.error('Error associating customer with business:', error);
       return false;
+    }
+  }
+
+  /**
+   * Send a promo code to a customer
+   */
+  static async sendPromoCodeToCustomer(
+    customerId: string,
+    businessId: string,
+    promoCodeId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Get customer and promo code details
+      const customerResult = await sql`
+        SELECT name, email FROM users WHERE id = ${customerId} AND user_type = 'customer'
+      `;
+      
+      const promoCodeResult = await sql`
+        SELECT code, name, type, value, currency FROM promo_codes WHERE id = ${promoCodeId}
+      `;
+      
+      const businessResult = await sql`
+        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+      `;
+      
+      if (customerResult.length === 0) {
+        return { success: false, error: 'Customer not found' };
+      }
+      
+      if (promoCodeResult.length === 0) {
+        return { success: false, error: 'Promo code not found' };
+      }
+      
+      if (businessResult.length === 0) {
+        return { success: false, error: 'Business not found' };
+      }
+      
+      const customer = customerResult[0];
+      const promoCode = promoCodeResult[0];
+      const business = businessResult[0];
+      
+      // Record the promo code send interaction
+      await this.recordCustomerInteraction(
+        customerId,
+        businessId,
+        'PROMO_CODE_SENT',
+        `Promo code ${promoCode.code} (${promoCode.name}) sent to customer`
+      );
+      
+      // Create notification for the customer
+      const notificationTitle = `New Promo Code from ${business.name}!`;
+      const notificationMessage = `You've received a new promo code from ${business.name}: ${promoCode.code}`;
+      
+      const notificationData = {
+        promoCode: promoCode.code,
+        promoCodeName: promoCode.name,
+        promoCodeType: promoCode.type,
+        promoCodeValue: promoCode.value,
+        promoCodeCurrency: promoCode.currency,
+        businessName: business.name,
+        businessId: businessId,
+        promoCodeId: promoCodeId
+      };
+      
+      const notificationResult = await NotificationService.createNotification(
+        customerId,
+        'PROMO_CODE_RECEIVED',
+        notificationTitle,
+        notificationMessage,
+        notificationData
+      );
+      
+      if (!notificationResult.success) {
+        console.error('Failed to create notification:', notificationResult.error);
+        // Continue anyway as the promo code was sent
+      }
+      
+      console.log(`📧 Promo code ${promoCode.code} sent to ${customer.name} (${customer.email}) with notification`);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error sending promo code to customer:', error);
+      return { success: false, error: 'Failed to send promo code' };
     }
   }
 

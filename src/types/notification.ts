@@ -4,6 +4,7 @@ export type NotificationType =
   | 'REWARD_AVAILABLE'
   | 'CODE_EXPIRING'
   | 'PROGRAM_ENROLLED'
+  | 'PROMO_CODE_RECEIVED'
   // Business notifications
   | 'NEW_CUSTOMER'
   | 'MILESTONE_REACHED'

@@ -83,6 +83,8 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
         return <Clock className="h-8 w-8 text-red-500" />;
       case 'PROGRAM_ENROLLED':
         return <Award className="h-8 w-8 text-green-500" />;
+      case 'PROMO_CODE_RECEIVED':
+        return <Tag className="h-8 w-8 text-green-600" />;
       case 'NEW_CUSTOMER':
         return <Users className="h-8 w-8 text-blue-500" />;
       case 'MILESTONE_REACHED':
@@ -208,6 +210,28 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                               {notification.message}
                             </p>
+                            
+                            {/* Special display for promo code notifications */}
+                            {notification.type === 'PROMO_CODE_RECEIVED' && notification.data && (
+                              <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs font-medium text-green-800 dark:text-green-200">
+                                      {notification.data.promoCodeName || 'Promo Code'}
+                                    </p>
+                                    <p className="text-xs text-green-600 dark:text-green-300">
+                                      {notification.data.promoCodeType}: {notification.data.promoCodeValue} {notification.data.promoCodeCurrency || 'points'}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs font-mono font-bold text-green-800 dark:text-green-200">
+                                      {notification.data.promoCode}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             <div className="flex items-center mt-1">
                               {notification.businessName && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">

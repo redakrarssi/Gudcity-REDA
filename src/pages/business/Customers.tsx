@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
-import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, ArrowUpDown, MessageSquare, Coffee, Link, UserPlus } from 'lucide-react';
-import { CustomerService, Customer } from '../../services/customerService';
+import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, ArrowUpDown, MessageSquare, Coffee, Link, UserPlus, CreditCard, Calendar } from 'lucide-react';
+import { CustomerService, Customer, CustomerProgram } from '../../services/customerService';
+import { PromoService } from '../../services/promoService';
 import { useAuth } from '../../contexts/AuthContext';
 import { CustomerBusinessLinker } from '../../components/business/CustomerBusinessLinker';
 import { subscribeToSync } from '../../utils/realTimeSync';
+import type { PromoCode } from '../../types/promo';
 
 // Mock customer data
 const mockCustomers = [
@@ -124,6 +126,11 @@ const TierBadge = ({ tier }: { tier: string }) => {
 const CustomersPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  
+  // Guard against undefined translation function
+  const translate = (key: string, options?: any) => {
+    return t ? t(key, options) : key;
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
@@ -131,8 +138,13 @@ const CustomersPage = () => {
   const [showBirthdayConfetti, setShowBirthdayConfetti] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
   const [showLinkCustomers, setShowLinkCustomers] = useState(false);
+  const [showSendPromoCode, setShowSendPromoCode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customerPrograms, setCustomerPrograms] = useState<CustomerProgram[]>([]);
+  const [availablePromoCodes, setAvailablePromoCodes] = useState<PromoCode[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
+  const [loadingPromoCodes, setLoadingPromoCodes] = useState(false);
 
   const loadCustomers = async () => {
     setLoading(true);
@@ -162,15 +174,18 @@ const CustomersPage = () => {
       setFilteredCustomers(customersData);
     } catch (err) {
       console.error('❌ ERROR: Error loading customers:', err);
-      setError(t('Failed to load customers. Please try again.'));
+      setError('Failed to load customers. Please try again.');
     } finally {
       setLoading(false);
     }
   };
   
   useEffect(() => {
-    loadCustomers();
-  }, [user, t]);
+    if (user) {
+      loadCustomers();
+      loadAvailablePromoCodes();
+    }
+  }, [user]);
   
   // Subscribe to real-time sync events for program enrollments and customer relationships
   useEffect(() => {
@@ -215,8 +230,20 @@ const CustomersPage = () => {
     setFilteredCustomers(filtered);
   }, [searchTerm, customers]);
 
-  const handleSelectCustomer = (customer: Customer) => {
+  const handleSelectCustomer = async (customer: Customer) => {
     setSelectedCustomer(customer);
+    setLoadingPrograms(true);
+    
+    try {
+      if (user?.id) {
+        const programs = await CustomerService.getCustomerPrograms(customer.id, user.id.toString());
+        setCustomerPrograms(programs);
+      }
+    } catch (err) {
+      console.error('Error loading customer programs:', err);
+    } finally {
+      setLoadingPrograms(false);
+    }
   };
 
   const handleSendBirthdayWish = async () => {
@@ -351,6 +378,49 @@ const CustomersPage = () => {
     }
   };
 
+  const loadAvailablePromoCodes = async () => {
+    if (!user?.id) return;
+    
+    setLoadingPromoCodes(true);
+    try {
+      const { codes, error } = await PromoService.getBusinessCodes(user.id.toString());
+      if (error) {
+        console.error('Error loading promo codes:', error);
+        return;
+      }
+      
+      // Filter only active promo codes
+      const activeCodes = codes.filter(code => code.status === 'ACTIVE');
+      setAvailablePromoCodes(activeCodes);
+    } catch (err) {
+      console.error('Error loading promo codes:', err);
+    } finally {
+      setLoadingPromoCodes(false);
+    }
+  };
+
+  const handleSendPromoCode = async (promoCodeId: string) => {
+    if (!selectedCustomer || !user?.id) return;
+    
+    try {
+      const result = await CustomerService.sendPromoCodeToCustomer(
+        selectedCustomer.id,
+        user.id.toString(),
+        promoCodeId
+      );
+      
+      if (result.success) {
+        setShowSendPromoCode(false);
+        alert(`Promo code sent successfully to ${selectedCustomer.name}!`);
+      } else {
+        alert(`Failed to send promo code: ${result.error}`);
+      }
+    } catch (err) {
+      console.error('Error sending promo code:', err);
+      alert('Failed to send promo code. Please try again.');
+    }
+  };
+
   const handleRefreshCustomers = async () => {
     await loadCustomers();
   };
@@ -359,7 +429,7 @@ const CustomersPage = () => {
     <BusinessLayout>
       <div className="px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t('Customers')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{translate('Customers')}</h1>
           <div className="flex space-x-3">
             <button
               onClick={handleRefreshCustomers}
@@ -376,14 +446,14 @@ const CustomersPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {t('Refresh')}
+              {translate('Refresh')}
             </button>
             <button
               onClick={() => setShowLinkCustomers(true)}
               className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
             >
               <UserPlus className="w-5 h-5 mr-2" />
-              {t('Link Customers')}
+              {translate('Link Customers')}
             </button>
           </div>
         </div>
@@ -401,9 +471,9 @@ const CustomersPage = () => {
         
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-800">
-            {t('Customer Friends')} 
+            {translate('Customer Friends')} 
             <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              {filteredCustomers.length} {t('awesome people')}
+              {filteredCustomers.length} {translate('awesome people')}
             </span>
           </h1>
           
@@ -411,7 +481,7 @@ const CustomersPage = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder={t('Find a customer friend...')}
+              placeholder={translate('Find a customer friend...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -426,11 +496,11 @@ const CustomersPage = () => {
               <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="font-medium text-gray-700 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-blue-500" />
-                  {t('Your Customer Squad')}
+                  {translate('Your Customer Squad')}
                 </h2>
                 <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
                   <Filter className="h-4 w-4 mr-1" />
-                  {t('Filter')}
+                  {translate('Filter')}
                 </button>
               </div>
               {loading ? (
@@ -457,13 +527,13 @@ const CustomersPage = () => {
                             <TierBadge tier={customer.tier} />
                           </div>
                           <div className="flex justify-between mt-1">
-                            <p className="text-xs text-gray-500">{customer.visits} {t('program')}</p>
-                            <p className="text-xs text-gray-500">{customer.loyaltyPoints} {t('points')}</p>
+                            <p className="text-xs text-gray-500">{customer.programCount || 1} {translate('program')}</p>
+                            <p className="text-xs text-gray-500">{customer.totalLoyaltyPoints || customer.loyaltyPoints} {translate('points')}</p>
                           </div>
                           {/* Program information - BIG RULE: customer enrolled in AT LEAST ONE program */}
                           <div className="mt-1">
                             <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
-                              📋 {customer.programName || 'Unknown Program'}
+                              📋 {customer.programCount > 1 ? `${customer.programCount} Programs` : customer.programName || 'Unknown Program'}
                             </p>
                           </div>
                         </div>
@@ -471,7 +541,7 @@ const CustomersPage = () => {
                     </div>
                   )) : (
                     <div className="p-6 text-center text-gray-500">
-                      {searchTerm ? t('No customers match your search') : t('No customers found')}
+                      {searchTerm ? translate('No customers match your search') : translate('No customers found')}
                     </div>
                   )}
                 </div>
@@ -493,7 +563,7 @@ const CustomersPage = () => {
                       </div>
                     </div>
                     <div className="text-right text-white">
-                      <p className="text-sm opacity-90">{t('Customer since')}</p>
+                      <p className="text-sm opacity-90">{translate('Customer since')}</p>
                       <p className="font-semibold">
                         {selectedCustomer.joinedAt ? new Date(selectedCustomer.joinedAt).toLocaleDateString() : 'N/A'}
                       </p>
@@ -505,7 +575,7 @@ const CustomersPage = () => {
                   <div className="space-y-6">
                     <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-blue-600 font-medium">{t('Loyalty Points')}</p>
+                        <p className="text-sm text-blue-600 font-medium">{translate('Loyalty Points')}</p>
                         <p className="text-2xl font-bold text-blue-700">{selectedCustomer.loyaltyPoints}</p>
                       </div>
                       <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
@@ -515,7 +585,7 @@ const CustomersPage = () => {
 
                     <div className="bg-green-50 rounded-lg p-4 border border-green-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-green-600 font-medium">{t('Total Spent')}</p>
+                        <p className="text-sm text-green-600 font-medium">{translate('Total Spent')}</p>
                         <p className="text-2xl font-bold text-green-700">${selectedCustomer.totalSpent.toFixed(2)}</p>
                       </div>
                       <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
@@ -523,57 +593,80 @@ const CustomersPage = () => {
                       </div>
                     </div>
 
-                    <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 flex items-center justify-between">
+                                        <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-purple-600 font-medium">{t('Visit Count')}</p>
-                        <p className="text-2xl font-bold text-purple-700">{selectedCustomer.visits}</p>
+                        <p className="text-sm text-purple-600 font-medium">{translate('Programs Enrolled')}</p>
+                        <p className="text-2xl font-bold text-purple-700">{selectedCustomer.programCount || 1}</p>
                         <p className="text-xs text-purple-600">
-                          {t('Last visit')}: {selectedCustomer.lastVisit ? new Date(selectedCustomer.lastVisit).toLocaleDateString() : 'N/A'}
+                          {translate('Total points')}: {selectedCustomer.totalLoyaltyPoints || selectedCustomer.loyaltyPoints}
                         </p>
                       </div>
                       <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                        <Users className="h-6 w-6" />
+                        <CreditCard className="h-6 w-6" />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-6">
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <h3 className="font-medium text-gray-700 mb-2">{t('Favorite Items')}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedCustomer.favoriteItems.length > 0 ? 
-                          selectedCustomer.favoriteItems.map((item, idx) => (
-                            <span key={idx} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200 inline-flex items-center">
-                              <Heart className="w-3 h-3 text-red-500 mr-1" />
-                              {item}
-                            </span>
-                          )) : (
-                            <p className="text-sm text-gray-500">{t('No favorite items yet')}</p>
-                          )
-                        }
-                      </div>
+                      <h3 className="font-medium text-gray-700 mb-2 flex items-center">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {translate('Enrolled Programs')}
+                      </h3>
+                      {loadingPrograms ? (
+                        <div className="flex justify-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        </div>
+                      ) : customerPrograms.length > 0 ? (
+                        <div className="space-y-2">
+                          {customerPrograms.map((program) => (
+                            <div key={program.id} className="bg-white p-3 rounded-lg border border-gray-200">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium text-gray-800">{program.name}</p>
+                                  <p className="text-sm text-gray-500">
+                                    {translate('Enrolled')}: {new Date(program.enrolledAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-blue-600">{program.points} {translate('points')}</p>
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    program.status === 'ACTIVE' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {program.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">{translate('No programs enrolled')}</p>
+                      )}
                     </div>
 
                     <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                      <h3 className="font-medium text-yellow-700 mb-2">{t('Birthday')}</h3>
-                      <p className="text-yellow-800">
-                        {selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString() : t('Not available')}
-                      </p>
+                      <h3 className="font-medium text-yellow-700 mb-2">{translate('Birthday')}</h3>
+                                              <p className="text-yellow-800">
+                          {selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString() : translate('Not available')}
+                        </p>
                       {selectedCustomer.birthday && (
-                        <button 
-                          onClick={handleSendBirthdayWish}
-                          className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
-                        >
-                          <Gift className="w-4 h-4 mr-1" />
-                          {t('Send birthday wish')}
-                        </button>
+                                                  <button 
+                            onClick={handleSendBirthdayWish}
+                            className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
+                          >
+                            <Gift className="w-4 h-4 mr-1" />
+                            {translate('Send birthday wish')}
+                          </button>
                       )}
                     </div>
 
                     <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                      <h3 className="font-medium text-indigo-700 mb-2">{t('Notes')}</h3>
+                      <h3 className="font-medium text-indigo-700 mb-2">{translate('Notes')}</h3>
                       <p className="text-indigo-800 text-sm">
-                        {selectedCustomer.notes || t('No notes available')}
+                        {selectedCustomer.notes || translate('No notes available')}
                       </p>
                     </div>
                   </div>
@@ -581,36 +674,36 @@ const CustomersPage = () => {
 
                 <div className="p-6 pt-0 flex gap-2 justify-end">
                   <button 
-                    onClick={() => handleSendPromotionCode(selectedCustomer)}
+                    onClick={() => setShowSendPromoCode(true)}
                     className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105"
                   >
                     <BadgeCheck className="w-4 h-4" />
-                    {t('Send Promo Code')}
+                    {translate('Send Promo Code')}
                   </button>
                   <button 
                     onClick={handleSendGift}
                     className="flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-full hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105"
                   >
                     <Gift className="w-4 h-4" />
-                    {t('Send Surprise Gift')}
+                    {translate('Send Surprise Gift')}
                   </button>
                   <button 
                     className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full hover:bg-blue-200 transition-colors"
                     onClick={() => {
-                      const message = prompt(t('Enter your message to the customer:'));
+                      const message = prompt(translate('Enter your message to the customer:'));
                       if (message) handleSendMessage(message);
                     }}
                   >
                     <MessageSquare className="w-4 h-4" />
-                    {t('Send Message')}
+                    {translate('Send Message')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center p-10 h-full">
                 <Users className="w-16 h-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">{t('Select a customer to see details')}</h3>
-                <p className="text-gray-400 text-center mt-2">{t('Click on any customer from the list to view their profile and interact with them.')}</p>
+                <h3 className="text-lg font-medium text-gray-500">{translate('Select a customer to see details')}</h3>
+                <p className="text-gray-400 text-center mt-2">{translate('Click on any customer from the list to view their profile and interact with them.')}</p>
               </div>
             )}
           </div>
@@ -650,7 +743,7 @@ const CustomersPage = () => {
       {showSendGift && selectedCustomer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full animate-in fade-in duration-300">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">{t('Send a Surprise Gift to {{name}}', { name: selectedCustomer.name })}</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">{translate('Send a Surprise Gift to {{name}}', { name: selectedCustomer.name })}</h3>
             
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -693,7 +786,7 @@ const CustomersPage = () => {
               </div>
               
               <textarea
-                placeholder={t('Add a personal message...')}
+                placeholder={translate('Add a personal message...')}
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={3}
                 id="giftMessage"
@@ -704,7 +797,7 @@ const CustomersPage = () => {
                   onClick={handleCloseGiftModal}
                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  {t('Cancel')}
+                  {translate('Cancel')}
                 </button>
                 <button 
                   onClick={() => {
@@ -713,13 +806,87 @@ const CustomersPage = () => {
                   }}
                   className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-colors"
                 >
-                  {t('Send Gift')}
+                  {translate('Send Gift')}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+        {/* Send Promo Code Modal */}
+        {showSendPromoCode && selectedCustomer && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full animate-in fade-in duration-300">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">
+                {translate('Send Promo Code to {{name}}', { name: selectedCustomer.name })}
+              </h3>
+              
+              {loadingPromoCodes ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : availablePromoCodes.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    {translate('Select a promo code to send to this customer:')}
+                  </p>
+                  
+                  <div className="max-h-60 overflow-y-auto space-y-3">
+                    {availablePromoCodes.map((promoCode) => (
+                      <div 
+                        key={promoCode.id}
+                        className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-colors"
+                        onClick={() => handleSendPromoCode(promoCode.id)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-800">{promoCode.name || promoCode.code}</h4>
+                            <p className="text-sm text-gray-500">{promoCode.description || ''}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                promoCode.type === 'POINTS' ? 'bg-blue-100 text-blue-700' :
+                                promoCode.type === 'DISCOUNT' ? 'bg-green-100 text-green-700' :
+                                promoCode.type === 'CASHBACK' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {promoCode.type}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {promoCode.value} {promoCode.currency || 'points'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">{translate('Code')}</p>
+                            <p className="font-mono text-sm font-bold text-blue-600">{promoCode.code}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Gift className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 mb-4">{translate('No active promo codes available')}</p>
+                  <p className="text-sm text-gray-400">
+                    {translate('Create promo codes in the Promotions page first')}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button 
+                  onClick={() => setShowSendPromoCode(false)}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  {translate('Cancel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Customer Business Linker Modal */}
         {showLinkCustomers && (
@@ -730,7 +897,7 @@ const CustomersPage = () => {
                   onClick={() => setShowLinkCustomers(false)}
                   className="text-gray-400 hover:text-gray-500 focus:outline-none"
                 >
-                  <span className="sr-only">{t('Close')}</span>
+                  <span className="sr-only">{translate('Close')}</span>
                   <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
