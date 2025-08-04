@@ -124,6 +124,11 @@ const TierBadge = ({ tier }: { tier: string }) => {
 const CustomersPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  
+  // Guard against undefined translation function
+  const translate = (key: string, options?: any) => {
+    return t ? t(key, options) : key;
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
@@ -162,15 +167,17 @@ const CustomersPage = () => {
       setFilteredCustomers(customersData);
     } catch (err) {
       console.error('❌ ERROR: Error loading customers:', err);
-      setError(t('Failed to load customers. Please try again.'));
+      setError('Failed to load customers. Please try again.');
     } finally {
       setLoading(false);
     }
   };
   
   useEffect(() => {
-    loadCustomers();
-  }, [user, t]);
+    if (user) {
+      loadCustomers();
+    }
+  }, [user]);
   
   // Subscribe to real-time sync events for program enrollments and customer relationships
   useEffect(() => {
@@ -359,7 +366,7 @@ const CustomersPage = () => {
     <BusinessLayout>
       <div className="px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t('Customers')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{translate('Customers')}</h1>
           <div className="flex space-x-3">
             <button
               onClick={handleRefreshCustomers}
@@ -376,14 +383,14 @@ const CustomersPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {t('Refresh')}
+              {translate('Refresh')}
             </button>
             <button
               onClick={() => setShowLinkCustomers(true)}
               className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
             >
               <UserPlus className="w-5 h-5 mr-2" />
-              {t('Link Customers')}
+              {translate('Link Customers')}
             </button>
           </div>
         </div>
@@ -401,9 +408,9 @@ const CustomersPage = () => {
         
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-800">
-            {t('Customer Friends')} 
+            {translate('Customer Friends')} 
             <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-              {filteredCustomers.length} {t('awesome people')}
+              {filteredCustomers.length} {translate('awesome people')}
             </span>
           </h1>
           
@@ -411,7 +418,7 @@ const CustomersPage = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder={t('Find a customer friend...')}
+              placeholder={translate('Find a customer friend...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -426,11 +433,11 @@ const CustomersPage = () => {
               <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="font-medium text-gray-700 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-blue-500" />
-                  {t('Your Customer Squad')}
+                  {translate('Your Customer Squad')}
                 </h2>
                 <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
                   <Filter className="h-4 w-4 mr-1" />
-                  {t('Filter')}
+                  {translate('Filter')}
                 </button>
               </div>
               {loading ? (
@@ -457,8 +464,8 @@ const CustomersPage = () => {
                             <TierBadge tier={customer.tier} />
                           </div>
                           <div className="flex justify-between mt-1">
-                            <p className="text-xs text-gray-500">{customer.visits} {t('program')}</p>
-                            <p className="text-xs text-gray-500">{customer.loyaltyPoints} {t('points')}</p>
+                            <p className="text-xs text-gray-500">{customer.visits} {translate('program')}</p>
+                            <p className="text-xs text-gray-500">{customer.loyaltyPoints} {translate('points')}</p>
                           </div>
                           {/* Program information - BIG RULE: customer enrolled in AT LEAST ONE program */}
                           <div className="mt-1">
@@ -471,7 +478,7 @@ const CustomersPage = () => {
                     </div>
                   )) : (
                     <div className="p-6 text-center text-gray-500">
-                      {searchTerm ? t('No customers match your search') : t('No customers found')}
+                      {searchTerm ? translate('No customers match your search') : translate('No customers found')}
                     </div>
                   )}
                 </div>
@@ -493,7 +500,7 @@ const CustomersPage = () => {
                       </div>
                     </div>
                     <div className="text-right text-white">
-                      <p className="text-sm opacity-90">{t('Customer since')}</p>
+                      <p className="text-sm opacity-90">{translate('Customer since')}</p>
                       <p className="font-semibold">
                         {selectedCustomer.joinedAt ? new Date(selectedCustomer.joinedAt).toLocaleDateString() : 'N/A'}
                       </p>
@@ -505,7 +512,7 @@ const CustomersPage = () => {
                   <div className="space-y-6">
                     <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-blue-600 font-medium">{t('Loyalty Points')}</p>
+                        <p className="text-sm text-blue-600 font-medium">{translate('Loyalty Points')}</p>
                         <p className="text-2xl font-bold text-blue-700">{selectedCustomer.loyaltyPoints}</p>
                       </div>
                       <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
@@ -515,7 +522,7 @@ const CustomersPage = () => {
 
                     <div className="bg-green-50 rounded-lg p-4 border border-green-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-green-600 font-medium">{t('Total Spent')}</p>
+                        <p className="text-sm text-green-600 font-medium">{translate('Total Spent')}</p>
                         <p className="text-2xl font-bold text-green-700">${selectedCustomer.totalSpent.toFixed(2)}</p>
                       </div>
                       <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
@@ -525,11 +532,11 @@ const CustomersPage = () => {
 
                     <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-purple-600 font-medium">{t('Visit Count')}</p>
+                        <p className="text-sm text-purple-600 font-medium">{translate('Visit Count')}</p>
                         <p className="text-2xl font-bold text-purple-700">{selectedCustomer.visits}</p>
-                        <p className="text-xs text-purple-600">
-                          {t('Last visit')}: {selectedCustomer.lastVisit ? new Date(selectedCustomer.lastVisit).toLocaleDateString() : 'N/A'}
-                        </p>
+                                                  <p className="text-xs text-purple-600">
+                            {translate('Last visit')}: {selectedCustomer.lastVisit ? new Date(selectedCustomer.lastVisit).toLocaleDateString() : 'N/A'}
+                          </p>
                       </div>
                       <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
                         <Users className="h-6 w-6" />
@@ -539,7 +546,7 @@ const CustomersPage = () => {
 
                   <div className="space-y-6">
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <h3 className="font-medium text-gray-700 mb-2">{t('Favorite Items')}</h3>
+                      <h3 className="font-medium text-gray-700 mb-2">{translate('Favorite Items')}</h3>
                       <div className="flex flex-wrap gap-2">
                         {selectedCustomer.favoriteItems.length > 0 ? 
                           selectedCustomer.favoriteItems.map((item, idx) => (
@@ -548,32 +555,32 @@ const CustomersPage = () => {
                               {item}
                             </span>
                           )) : (
-                            <p className="text-sm text-gray-500">{t('No favorite items yet')}</p>
+                            <p className="text-sm text-gray-500">{translate('No favorite items yet')}</p>
                           )
                         }
                       </div>
                     </div>
 
                     <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                      <h3 className="font-medium text-yellow-700 mb-2">{t('Birthday')}</h3>
-                      <p className="text-yellow-800">
-                        {selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString() : t('Not available')}
-                      </p>
+                      <h3 className="font-medium text-yellow-700 mb-2">{translate('Birthday')}</h3>
+                                              <p className="text-yellow-800">
+                          {selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString() : translate('Not available')}
+                        </p>
                       {selectedCustomer.birthday && (
-                        <button 
-                          onClick={handleSendBirthdayWish}
-                          className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
-                        >
-                          <Gift className="w-4 h-4 mr-1" />
-                          {t('Send birthday wish')}
-                        </button>
+                                                  <button 
+                            onClick={handleSendBirthdayWish}
+                            className="mt-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-3 rounded-full flex items-center"
+                          >
+                            <Gift className="w-4 h-4 mr-1" />
+                            {translate('Send birthday wish')}
+                          </button>
                       )}
                     </div>
 
                     <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                      <h3 className="font-medium text-indigo-700 mb-2">{t('Notes')}</h3>
+                      <h3 className="font-medium text-indigo-700 mb-2">{translate('Notes')}</h3>
                       <p className="text-indigo-800 text-sm">
-                        {selectedCustomer.notes || t('No notes available')}
+                        {selectedCustomer.notes || translate('No notes available')}
                       </p>
                     </div>
                   </div>
@@ -585,32 +592,32 @@ const CustomersPage = () => {
                     className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105"
                   >
                     <BadgeCheck className="w-4 h-4" />
-                    {t('Send Promo Code')}
+                    {translate('Send Promo Code')}
                   </button>
                   <button 
                     onClick={handleSendGift}
                     className="flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-full hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105"
                   >
                     <Gift className="w-4 h-4" />
-                    {t('Send Surprise Gift')}
+                    {translate('Send Surprise Gift')}
                   </button>
                   <button 
                     className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full hover:bg-blue-200 transition-colors"
                     onClick={() => {
-                      const message = prompt(t('Enter your message to the customer:'));
+                      const message = prompt(translate('Enter your message to the customer:'));
                       if (message) handleSendMessage(message);
                     }}
                   >
                     <MessageSquare className="w-4 h-4" />
-                    {t('Send Message')}
+                    {translate('Send Message')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center p-10 h-full">
                 <Users className="w-16 h-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">{t('Select a customer to see details')}</h3>
-                <p className="text-gray-400 text-center mt-2">{t('Click on any customer from the list to view their profile and interact with them.')}</p>
+                <h3 className="text-lg font-medium text-gray-500">{translate('Select a customer to see details')}</h3>
+                <p className="text-gray-400 text-center mt-2">{translate('Click on any customer from the list to view their profile and interact with them.')}</p>
               </div>
             )}
           </div>

@@ -74,7 +74,7 @@ export class CustomerService {
         FROM users c
         JOIN program_enrollments pe ON c.id = pe.customer_id
         JOIN loyalty_programs lp ON pe.program_id = lp.id
-        LEFT JOIN loyalty_transactions lt ON c.id::text = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
           AND lp.business_id = ${businessIdInt}
