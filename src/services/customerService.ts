@@ -679,7 +679,7 @@ export class CustomerService {
       
       // Create notification for the customer
       const notificationTitle = `New Promo Code from ${business.name}!`;
-      const notificationMessage = `You've received a new promo code from ${business.name}!`;
+      const notificationMessage = `You've received a new promo code from ${business.name}: ${promoCode.code}`;
       
       const notificationData = {
         promoCode: promoCode.code,
