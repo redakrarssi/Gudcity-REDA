@@ -45,11 +45,13 @@ const env = defineEnv({
   FALLBACK_SHOW_INDICATOR: import.meta.env.VITE_FALLBACK_SHOW_INDICATOR !== 'false',
   FALLBACK_MOCK_DATA: import.meta.env.VITE_FALLBACK_MOCK_DATA === 'true' || true,
   
-  // Helpers
-  isDevelopment: () => env.NODE_ENV === 'development',
-  isProduction: () => env.NODE_ENV === 'production',
-  isTest: () => env.NODE_ENV === 'test',
+  // Helpers - these will be added after env is fully defined
 });
+
+// Add helper methods to the env object after it's defined
+(env as any).isDevelopment = () => env.NODE_ENV === 'development';
+(env as any).isProduction = () => env.NODE_ENV === 'production';
+(env as any).isTest = () => env.NODE_ENV === 'test';
 
 // Export constants for features
 export const FEATURES = {
