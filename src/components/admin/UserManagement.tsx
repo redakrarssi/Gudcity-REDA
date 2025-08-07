@@ -6,47 +6,63 @@ import {
 } from 'lucide-react';
 
 interface User {
-  id: string;
+  id?: number;
+  name: string;
   email: string;
-  role: 'customer' | 'business' | 'admin';
-  status: 'active' | 'suspended';
-  created_at: string;
-  last_login: string;
+  password?: string;
+  role?: string;
+  user_type?: string;
+  business_name?: string;
+  business_phone?: string;
+  avatar_url?: string;
+  reset_token?: string;
+  reset_token_expires?: Date;
+  last_login?: Date;
+  created_at?: Date;
+  status?: 'active' | 'banned' | 'restricted';
 }
 
 // Mock data for users
 const MOCK_USERS: User[] = [
   {
-    id: '1',
+    id: 1,
+    name: 'Customer User',
     email: 'customer@example.com',
     role: 'customer',
+    user_type: 'customer',
     status: 'active',
-    created_at: '2023-05-15T10:30:00Z',
-    last_login: '2023-06-20T14:45:00Z'
+    created_at: new Date('2023-05-15T10:30:00Z'),
+    last_login: new Date('2023-06-20T14:45:00Z')
   },
   {
-    id: '2',
+    id: 2,
+    name: 'Business User',
     email: 'business@example.com',
     role: 'business',
+    user_type: 'business',
     status: 'active',
-    created_at: '2023-04-20T09:15:00Z',
-    last_login: '2023-06-19T16:30:00Z'
+    created_at: new Date('2023-04-20T09:15:00Z'),
+    last_login: new Date('2023-06-19T16:30:00Z')
   },
   {
-    id: '3',
+    id: 3,
+    name: 'Admin User',
     email: 'admin@example.com',
     role: 'admin',
+    user_type: 'business',
     status: 'active',
-    created_at: '2023-01-10T11:00:00Z',
-    last_login: '2023-06-21T10:15:00Z'
+    created_at: new Date('2023-01-10T11:00:00Z'),
+    last_login: new Date('2023-06-21T10:15:00Z')
   },
   {
-    id: '4',
+    id: 4,
+    name: 'Suspended User',
     email: 'suspended@example.com',
     role: 'customer',
-    status: 'suspended',
-    created_at: '2023-03-05T14:20:00Z',
-    last_login: '2023-05-30T08:45:00Z'
+    user_type: 'customer',
+    status: 'banned',
+    created_at: new Date('2023-03-05T14:20:00Z'),
+    last_login: new Date('2023-05-30T08:45:00Z')
   }
 ];
 
@@ -88,7 +104,7 @@ export const UserManagement: React.FC = () => {
     setSelectedStatus(status === selectedStatus ? null : status);
   };
 
-  const handleUserStatusChange = async (userId: string, newStatus: 'active' | 'suspended') => {
+  const handleUserStatusChange = async (userId: number, newStatus: 'active' | 'banned' | 'restricted') => {
     try {
       // In a real app, this would be an API call
       // Simulating API latency
@@ -280,7 +296,7 @@ export const UserManagement: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   {user.status === 'active' ? (
                     <button
-                      onClick={() => handleUserStatusChange(user.id, 'suspended')}
+                      onClick={() => handleUserStatusChange(user.id, 'banned')}
                       className="text-red-600 hover:text-red-900 mr-3"
                     >
                       {t('Suspend')}

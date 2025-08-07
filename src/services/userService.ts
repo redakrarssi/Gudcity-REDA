@@ -1,26 +1,8 @@
 import sql from '../utils/db';
 import env from '../utils/env';
 import * as cryptoUtils from '../utils/cryptoUtils';
-
-export interface User {
-  id?: number;
-  name: string;
-  email: string;
-  password?: string;
-  role?: string;
-  user_type?: string;
-  business_name?: string;
-  business_phone?: string;
-  avatar_url?: string;
-  reset_token?: string;
-  reset_token_expires?: Date;
-  last_login?: Date;
-  created_at?: Date;
-  status?: 'active' | 'banned' | 'restricted';
-}
-
-export type UserType = 'customer' | 'business';
-export type UserRole = 'admin' | 'customer' | 'business';
+import { logAdminAction } from './dashboardService';
+import { User, UserType, UserRole } from '../types/user';
 
 // Hash password using bcrypt for better security
 async function hashPassword(password: string): Promise<string> {
@@ -488,44 +470,207 @@ export async function ensureDemoUsers(): Promise<void> {
 // Ban or restrict a user
 export async function updateUserStatus(id: number, status: 'active' | 'banned' | 'restricted'): Promise<boolean> {
   try {
-    // First check if the status column exists
-    try {
-      await sql`
-        ALTER TABLE users 
-        ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'
-      `;
-    } catch (alterError) {
-      console.error('Error ensuring status column exists:', alterError);
-    }
-
-    // Update the user's status
-    await sql`
-      UPDATE users
-      SET status = ${status}
+    console.log(`Updating user ${id} status to ${status}`);
+    
+    const result = await sql`
+      UPDATE users 
+      SET status = ${status}, updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id}
     `;
     
-    console.log(`Updated user ${id} status to ${status}`);
-    return true;
+    if (result && result.length > 0) {
+      console.log(`Successfully updated user ${id} status to ${status}`);
+      
+      // Log admin action
+      await logAdminAction(
+        'user_status_update',
+        `User status changed to ${status}`,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to update user ${id} status`);
+    return false;
   } catch (error) {
-    console.error(`Error updating user ${id} status to ${status}:`, error);
+    console.error('Error updating user status:', error);
     return false;
   }
 }
 
-// Ban a user
 export async function banUser(id: number): Promise<boolean> {
   return updateUserStatus(id, 'banned');
 }
 
-// Restrict a user's access
 export async function restrictUser(id: number): Promise<boolean> {
   return updateUserStatus(id, 'restricted');
 }
 
-// Activate a user (remove ban/restriction)
 export async function activateUser(id: number): Promise<boolean> {
   return updateUserStatus(id, 'active');
+}
+
+// Enhanced user management functions for admin panel
+export async function deleteUserPermanently(id: number): Promise<boolean> {
+  try {
+    console.log(`Permanently deleting user ${id}`);
+    
+    // First, check if user exists
+    const user = await getUserById(id);
+    if (!user) {
+      console.error(`User ${id} not found`);
+      return false;
+    }
+    
+    // If it's a business user, handle business-related cleanup
+    if (user.user_type === 'business') {
+      // Delete business records
+      await sql`DELETE FROM businesses WHERE user_id = ${id}`;
+      await sql`DELETE FROM business_applications WHERE user_id = ${id}`;
+      
+      // Delete business analytics
+      await sql`DELETE FROM business_analytics WHERE business_id IN (SELECT id FROM businesses WHERE user_id = ${id})`;
+      await sql`DELETE FROM business_daily_analytics WHERE business_id IN (SELECT id FROM businesses WHERE user_id = ${id})`;
+      
+      // Delete business login history
+      await sql`DELETE FROM business_login_history WHERE business_id IN (SELECT id FROM businesses WHERE user_id = ${id})`;
+    }
+    
+    // Delete user-related data
+    await sql`DELETE FROM loyalty_cards WHERE user_id = ${id}`;
+    await sql`DELETE FROM loyalty_programs WHERE business_id IN (SELECT id FROM businesses WHERE user_id = ${id})`;
+    await sql`DELETE FROM user_qr_codes WHERE user_id = ${id}`;
+    await sql`DELETE FROM customer_notifications WHERE user_id = ${id}`;
+    await sql`DELETE FROM system_logs WHERE user_id = ${id}`;
+    
+    // Finally, delete the user
+    const result = await sql`DELETE FROM users WHERE id = ${id}`;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully deleted user ${id} and all related data`);
+      
+      // Log admin action
+      await logAdminAction(
+        'user_deleted',
+        `User ${user.name} (${user.email}) permanently deleted`,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to delete user ${id}`);
+    return false;
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return false;
+  }
+}
+
+export async function getUserWithDetails(id: number): Promise<User | null> {
+  try {
+    const result = await sql`
+      SELECT 
+        u.id, u.name, u.email, u.role, u.user_type, u.business_name, 
+        u.business_phone, u.avatar_url, u.created_at, u.last_login, u.status,
+        COUNT(lc.id) as loyalty_cards_count,
+        COUNT(up.id) as programs_count,
+        COUNT(un.id) as notifications_count
+      FROM users u
+      LEFT JOIN loyalty_cards lc ON u.id = lc.user_id
+      LEFT JOIN loyalty_programs up ON u.id = up.business_id
+      LEFT JOIN customer_notifications un ON u.id = un.user_id
+      WHERE u.id = ${id}
+      GROUP BY u.id
+    `;
+    
+    if (result && result.length > 0) {
+      return result[0] as User;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    return null;
+  }
+}
+
+export async function getUsersWithStats(): Promise<User[]> {
+  try {
+    const result = await sql`
+      SELECT 
+        u.id, u.name, u.email, u.role, u.user_type, u.business_name, 
+        u.business_phone, u.avatar_url, u.created_at, u.last_login, u.status,
+        COUNT(lc.id) as loyalty_cards_count,
+        COUNT(up.id) as programs_count,
+        COUNT(un.id) as notifications_count
+      FROM users u
+      LEFT JOIN loyalty_cards lc ON u.id = lc.user_id
+      LEFT JOIN loyalty_programs up ON u.id = up.business_id
+      LEFT JOIN customer_notifications un ON u.id = un.user_id
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+    `;
+    
+    return result as User[];
+  } catch (error) {
+    console.error('Error fetching users with stats:', error);
+    return [];
+  }
+}
+
+export async function updateUserPermissions(id: number, permissions: string[]): Promise<boolean> {
+  try {
+    console.log(`Updating user ${id} permissions:`, permissions);
+    
+    // Store permissions as JSON in a new column or separate table
+    const permissionsJson = JSON.stringify(permissions);
+    
+    const result = await sql`
+      UPDATE users 
+      SET permissions = ${permissionsJson}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+    `;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully updated user ${id} permissions`);
+      
+      // Log admin action
+      await logAdminAction(
+        'user_permissions_update',
+        `User permissions updated: ${permissions.join(', ')}`,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to update user ${id} permissions`);
+    return false;
+  } catch (error) {
+    console.error('Error updating user permissions:', error);
+    return false;
+  }
+}
+
+export async function getUserActivityLog(id: number, days: number = 30): Promise<any[]> {
+  try {
+    const result = await sql`
+      SELECT 
+        sl.id, sl.action, sl.details, sl.created_at, sl.ip_address,
+        sl.user_agent, sl.status
+      FROM system_logs sl
+      WHERE sl.user_id = ${id}
+      AND sl.created_at >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY sl.created_at DESC
+    `;
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching user activity log:', error);
+    return [];
+  }
 }
 
 // Get users by type (for filtering in admin tables)
