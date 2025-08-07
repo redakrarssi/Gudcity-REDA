@@ -181,6 +181,176 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [initialized, setInitialized] = useState<boolean>(false);
   const navigate = useNavigate();
 
+  // Define functions early to prevent undefined errors
+  const login = async (email: string, password: string): Promise<AuthResult> => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Normalize email to avoid case sensitivity issues
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log(`Attempting login for: ${normalizedEmail}`);
+      
+      const dbUser = await validateUser(normalizedEmail, password);
+      
+      if (dbUser && dbUser.id) {
+        // Check if the user is banned
+        if (dbUser.status === 'banned') {
+          console.error('Login attempt by banned user:', normalizedEmail);
+          setError({
+            type: AuthErrorType.USER_BANNED,
+            message: 'Your account has been banned. Please contact support.'
+          });
+          setIsLoading(false);
+          return { success: false, error: { type: AuthErrorType.USER_BANNED, message: 'Account banned' } };
+        }
+        
+        // Check if the user is restricted
+        if (dbUser.status === 'restricted') {
+          console.error('Login attempt by restricted user:', normalizedEmail);
+          setError({
+            type: AuthErrorType.USER_RESTRICTED,
+            message: 'Your account has been restricted. Please contact support.'
+          });
+          setIsLoading(false);
+          return { success: false, error: { type: AuthErrorType.USER_RESTRICTED, message: 'Account restricted' } };
+        }
+        
+        // Convert DB user to app user
+        const appUser = convertDbUserToUser(dbUser);
+        
+        // Store user data
+        localStorage.setItem('authUserId', dbUser.id.toString());
+        localStorage.setItem('authUserData', JSON.stringify(appUser));
+        localStorage.setItem('authSessionActive', 'true');
+        localStorage.setItem('authLastLogin', new Date().toISOString());
+        
+        // If business user, record login
+        if (appUser.role === 'business') {
+          try {
+            await recordBusinessLogin(Number(appUser.id));
+          } catch (loginError) {
+            console.error('Error recording business login:', loginError);
+            // Non-critical error, continue
+          }
+        }
+        
+        // Set user in state
+        setUser(appUser);
+        setIsLoading(false);
+        console.log('Login successful for:', appUser.name);
+        return { success: true, user: appUser };
+      } else {
+        console.error('Invalid credentials for:', normalizedEmail);
+        setError({
+          type: AuthErrorType.INVALID_CREDENTIALS,
+          message: 'Invalid email or password'
+        });
+        setIsLoading(false);
+        return { success: false, error: { type: AuthErrorType.INVALID_CREDENTIALS, message: 'Invalid credentials' } };
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError({
+        type: AuthErrorType.SERVER_ERROR,
+        message: 'Server error during login'
+      });
+      setIsLoading(false);
+      return { success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Server error' } };
+    }
+  };
+
+  const register = async (data: RegisterData): Promise<RegisterResult> => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Attempting registration for:', data.email);
+      
+      // Check if user already exists
+      const existingUser = await getUserByEmail(data.email);
+      if (existingUser) {
+        console.error('Registration attempt with existing email:', data.email);
+        setError({
+          type: AuthErrorType.INVALID_CREDENTIALS,
+          message: 'User with this email already exists'
+        });
+        setIsLoading(false);
+        return { success: false, error: { type: AuthErrorType.INVALID_CREDENTIALS, message: 'Email already exists' } };
+      }
+      
+      // Create user in database
+      const dbUser = await createDbUser({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        user_type: data.userType,
+        business_name: data.businessName,
+        business_phone: data.businessPhone
+      });
+      
+      if (dbUser && dbUser.id) {
+        // Convert DB user to app user
+        const appUser = convertDbUserToUser(dbUser);
+        
+        // Store user data
+        localStorage.setItem('authUserId', dbUser.id.toString());
+        localStorage.setItem('authUserData', JSON.stringify(appUser));
+        localStorage.setItem('authSessionActive', 'true');
+        localStorage.setItem('authLastLogin', new Date().toISOString());
+        
+        // Set user in state
+        setUser(appUser);
+        setIsLoading(false);
+        console.log('Registration successful for:', appUser.name);
+        return { success: true, user: appUser };
+      } else {
+        console.error('Failed to create user during registration');
+        setError({
+          type: AuthErrorType.SERVER_ERROR,
+          message: 'Failed to create user account'
+        });
+        setIsLoading(false);
+        return { success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Registration failed' } };
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError({
+        type: AuthErrorType.SERVER_ERROR,
+        message: 'Server error during registration'
+      });
+      setIsLoading(false);
+      return { success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Server error' } };
+    }
+  };
+
+  const logout = () => {
+    // Clear user from state
+    setUser(null);
+    
+    // Clear localStorage
+    localStorage.removeItem('authUserId');
+    localStorage.removeItem('authUserData');
+    localStorage.removeItem('authSessionActive');
+    localStorage.setItem('authLoggedOut', new Date().toISOString());
+    
+    // Redirect to login page
+    navigate('/login');
+  };
+
+  const hasPermission = (permission: string): boolean => {
+    if (!user) return false;
+    
+    const userRole = user.role;
+    const permissions = ROLE_PERMISSIONS[userRole] || [];
+    
+    return permissions.includes(permission);
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
   // Check if user is already logged in (from localStorage)
   useEffect(() => {
     const checkAuth = async () => {
@@ -327,12 +497,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, 100);
   }
 
-  /**
-   * Login function
-   * @param email User email
-   * @param password User password
-   * @returns Authentication result
-   */
+
   const login = async (email: string, password: string): Promise<AuthResult> => {
     setIsLoading(true);
     setError(null);
@@ -618,20 +783,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
   };
 
+  // Ensure functions are properly defined before providing context
+  const contextValue: AuthContextType = {
+    user,
+    loading: isLoading,
+    isAuthenticated: !!user,
+    error,
+    login,
+    register,
+    logout,
+    hasPermission,
+    clearError
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading: isLoading,
-        isAuthenticated: !!user,
-        error,
-        login: login || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
-        register: register || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
-        logout: logout || (() => {}),
-        hasPermission: hasPermission || (() => false),
-        clearError: clearError || (() => {})
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -670,10 +836,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const navigate = useNavigate();
   
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      navigate('/login');
-    } else if (!loading && isAuthenticated && requiredPermission && !hasPermission(requiredPermission)) {
-      navigate('/unauthorized');
+    // Add safety checks to prevent calling navigate before it's ready
+    if (typeof navigate === 'function') {
+      if (!loading && !isAuthenticated) {
+        navigate('/login');
+      } else if (!loading && isAuthenticated && requiredPermission && !hasPermission(requiredPermission)) {
+        navigate('/unauthorized');
+      }
     }
   }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission]);
   
@@ -710,10 +879,13 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   const navigate = useNavigate();
   
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      navigate('/login');
-    } else if (!loading && isAuthenticated && (!user || user.role !== 'admin')) {
-      navigate('/unauthorized');
+    // Add safety checks to prevent calling navigate before it's ready
+    if (typeof navigate === 'function') {
+      if (!loading && !isAuthenticated) {
+        navigate('/login');
+      } else if (!loading && isAuthenticated && (!user || user.role !== 'admin')) {
+        navigate('/unauthorized');
+      }
     }
   }, [user, isAuthenticated, loading, navigate]);
   

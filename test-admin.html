@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Route Test</title>
+</head>
+<body>
+    <h1>Admin Route Test</h1>
+    <p>Testing if the admin route is accessible...</p>
+    <script>
+        // Test the admin route
+        fetch('/admin')
+            .then(response => {
+                console.log('Admin route response status:', response.status);
+                return response.text();
+            })
+            .then(html => {
+                console.log('Admin route HTML length:', html.length);
+                if (html.includes('AdminDashboard') || html.includes('admin')) {
+                    console.log('✅ Admin route is working!');
+                } else {
+                    console.log('❌ Admin route may have issues');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error accessing admin route:', error);
+            });
+    </script>
+</body>
+</html>
