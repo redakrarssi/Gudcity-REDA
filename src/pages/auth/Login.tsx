@@ -63,14 +63,14 @@ const Login = () => {
             {t('Sign in to your account')}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {t('Access the GudCity platform')}
+            {t('Access the Vcarda platform')}
           </p>
           
           {/* Demo Credentials */}
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
             <h3 className="text-sm font-medium text-blue-800 mb-1">{t('Demo Credentials')}</h3>
             <p className="text-xs text-blue-700">
-              <strong>{t('Admin')}:</strong> admin@gudcity.com / password<br />
+              <strong>{t('Admin')}:</strong> admin@vcarda.com / password<br />
               <strong>{t('Customer')}:</strong> customer@example.com / password<br />
               <strong>{t('Business')}:</strong> business@example.com / password
             </p>

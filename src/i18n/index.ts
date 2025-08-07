@@ -4,7 +4,7 @@ import { initReactI18next } from 'react-i18next';
 const resources = {
   en: {
     translation: {
-      welcome: 'Welcome to GudCity',
+      welcome: 'Welcome to Vcarda',
       login: 'Login',
       register: 'Register',
       dashboard: 'Dashboard',
@@ -16,7 +16,7 @@ const resources = {
   },
   ar: {
     translation: {
-      welcome: 'مرحباً بكم في GudCity',
+      welcome: 'مرحباً بكم في Vcarda',
       login: 'تسجيل الدخول',
       register: 'التسجيل',
       dashboard: 'لوحة التحكم',
@@ -28,7 +28,7 @@ const resources = {
   },
   es: {
     translation: {
-      welcome: 'Bienvenido a GudCity',
+      welcome: 'Bienvenido a Vcarda',
       login: 'Iniciar sesión',
       register: 'Registrarse',
       dashboard: 'Panel',
@@ -40,7 +40,7 @@ const resources = {
   },
   fr: {
     translation: {
-      welcome: 'Bienvenue sur GudCity',
+      welcome: 'Bienvenue sur Vcarda',
       login: 'Connexion',
       register: 'Inscription',
       dashboard: 'Tableau de bord',

@@ -59,7 +59,7 @@ const Header: React.FC = () => {
         <div className="flex justify-between items-center py-4">
           {/* Logo */}
           <Link to="/" className="flex items-center">
-            <span className="text-xl font-bold text-blue-600">GudCity</span>
+            <span className="text-xl font-bold text-blue-600">Vcarda</span>
           </Link>
 
           {/* Desktop Navigation */}

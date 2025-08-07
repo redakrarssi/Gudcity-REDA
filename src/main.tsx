@@ -96,7 +96,7 @@ initDb();
 startAppInitialization();
 
 // Log app version and initialization
-console.log(`Gudcity App v${import.meta.env.VITE_APP_VERSION || '1.0.0'}`);
+  console.log(`Vcarda App v${import.meta.env.VITE_APP_VERSION || '1.0.0'}`);
 console.log('App initialization started...');
 
 // Temporarily enable console logging in production for debugging

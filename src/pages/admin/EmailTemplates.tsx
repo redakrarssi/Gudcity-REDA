@@ -32,12 +32,12 @@ const MOCK_TEMPLATES: EmailTemplate[] = [
   {
     id: 1,
     name: 'Welcome Email',
-    subject: 'Welcome to GudCity!',
+          subject: 'Welcome to Vcarda!',
     body: `<p>Hello {{userName}},</p>
-<p>Welcome to GudCity! We\'re excited to have you join our community.</p>
+        <p>Welcome to Vcarda! We\'re excited to have you join our community.</p>
 <p>Get started by exploring businesses near you and collecting points with every purchase.</p>
 <p>If you have any questions, please don\'t hesitate to contact our support team.</p>
-<p>Best regards,<br/>The GudCity Team</p>`,
+        <p>Best regards,<br/>The Vcarda Team</p>`,
     type: 'system',
     variables: ['userName', 'userEmail'],
     lastModified: '2023-09-10T14:30:00Z',
@@ -52,7 +52,7 @@ const MOCK_TEMPLATES: EmailTemplate[] = [
 <p><a href="{{resetLink}}" style="padding: 10px 15px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a></p>
 <p>If you didn\'t request this, please ignore this email or contact support if you have concerns.</p>
 <p>This link will expire in 24 hours.</p>
-<p>Best regards,<br/>The GudCity Team</p>`,
+        <p>Best regards,<br/>The Vcarda Team</p>`,
     type: 'system',
     variables: ['userName', 'userEmail', 'resetLink'],
     lastModified: '2023-09-12T09:45:00Z',
@@ -71,7 +71,7 @@ const MOCK_TEMPLATES: EmailTemplate[] = [
   <li>Points earned: {{pointsEarned}}</li>
 </ul>
 <p>Your current balance is now <strong>{{totalPoints}} points</strong>.</p>
-<p>Thank you for using GudCity!</p>`,
+        <p>Thank you for using Vcarda!</p>`,
     type: 'transactional',
     variables: ['userName', 'businessName', 'pointsEarned', 'transactionDate', 'transactionAmount', 'totalPoints'],
     lastModified: '2023-09-15T11:20:00Z',
@@ -97,7 +97,7 @@ const MOCK_TEMPLATES: EmailTemplate[] = [
     name: 'Business Approval',
     subject: 'Your Business Has Been Approved',
     body: `<p>Hello {{businessOwner}},</p>
-<p>We\'re pleased to inform you that your business, <strong>{{businessName}}</strong>, has been approved on the GudCity platform.</p>
+        <p>We\'re pleased to inform you that your business, <strong>{{businessName}}</strong>, has been approved on the Vcarda platform.</p>
 <p>You can now log in to your business dashboard and start setting up your loyalty program.</p>
 <p><a href="{{dashboardLink}}" style="padding: 10px 15px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Go to Dashboard</a></p>
 <p>If you need any assistance, our support team is here to help.</p>

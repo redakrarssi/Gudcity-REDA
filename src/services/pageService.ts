@@ -50,7 +50,7 @@ async function ensureDefaultPages(): Promise<void> {
       {
         title: 'Home',
         slug: '/',
-        content: '<h1>Welcome to GudCity</h1><p>Your loyalty platform for local businesses.</p>',
+        content: '<h1>Welcome to Vcarda</h1><p>Your loyalty platform for local businesses.</p>',
         template: 'landing',
         status: 'published',
         is_system: true
@@ -58,7 +58,7 @@ async function ensureDefaultPages(): Promise<void> {
       {
         title: 'About Us',
         slug: '/about',
-        content: '<h1>About GudCity</h1><p>Learn more about our mission and team.</p>',
+        content: '<h1>About Vcarda</h1><p>Learn more about our mission and team.</p>',
         template: 'default',
         status: 'published',
         is_system: false

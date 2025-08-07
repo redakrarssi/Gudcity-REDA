@@ -142,7 +142,7 @@ const Register = () => {
             {t('Create your account')}
           </h2>
           <p className="text-gray-600 mb-6">
-            {t('Join GudCity and connect with your community')}
+            {t('Join Vcarda and connect with your community')}
           </p>
         </div>
         

@@ -77,7 +77,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
           <div className="p-6 flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold text-blue-600">GudCity</h2>
+              <h2 className="text-2xl font-bold text-blue-600">Vcarda</h2>
               <p className="text-sm text-gray-500 mt-1">{t('Rewards')}</p>
             </div>
             <div className="flex items-center space-x-2">
@@ -125,7 +125,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="bg-white border-b border-gray-200 md:hidden">
             <div className="flex items-center justify-between p-4">
-              <h2 className="text-xl font-bold text-blue-600">GudCity</h2>
+              <h2 className="text-xl font-bold text-blue-600">Vcarda</h2>
               <div className="flex items-center">
                 <ThemeToggle variant="icon" className="mr-2" />
                 <NotificationIndicator className="mr-2" />

@@ -133,11 +133,11 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       
       // Return mock users for development/testing
       const mockEmail = email.toLowerCase();
-      if (mockEmail === 'admin@gudcity.com') {
+      if (mockEmail === 'admin@vcarda.com') {
         return {
           id: 1,
           name: 'Admin User',
-          email: 'admin@gudcity.com',
+          email: 'admin@vcarda.com',
           password: 'a4def47bd16d0a847e2cdf3d2e828bc9594c3e12e57398e45c59fa943dfa61a0', // password
           role: 'admin',
           user_type: 'customer',
@@ -365,12 +365,12 @@ export async function validateUser(email: string, password: string): Promise<Use
     if (!user && !env?.DATABASE_URL) {
       console.warn('No database connection, using mock users for authentication');
       
-      // Check for mock users (admin@gudcity.com/password, customer@example.com/password)
-      if (email.toLowerCase() === 'admin@gudcity.com' && password === 'password') {
+      // Check for mock users (admin@vcarda.com/password, customer@example.com/password)
+      if (email.toLowerCase() === 'admin@vcarda.com' && password === 'password') {
         return {
           id: 1,
           name: 'Admin User',
-          email: 'admin@gudcity.com',
+          email: 'admin@vcarda.com',
           role: 'admin',
           user_type: 'customer',
           status: 'active',
@@ -427,7 +427,7 @@ export async function ensureDemoUsers(): Promise<void> {
     await ensureUserTableExists();
     
     // Check if admin user exists
-    const adminEmail = 'admin@gudcity.com';
+    const adminEmail = 'admin@vcarda.com';
     const existingAdmin = await getUserByEmail(adminEmail);
     
     if (!existingAdmin) {
@@ -542,7 +542,7 @@ export async function getUsersByType(userType: UserType | 'all' | 'staff'): Prom
         {
           id: 1,
           name: 'Admin User',
-          email: 'admin@gudcity.com',
+          email: 'admin@vcarda.com',
           role: 'admin',
           user_type: 'customer',
           status: 'active',

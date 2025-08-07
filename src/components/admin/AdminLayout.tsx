@@ -192,12 +192,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-4' : 'px-6'} py-6`}>
           {!sidebarCollapsed && (
             <div className="flex items-center">
-              <h2 className={`text-2xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>GudCity</h2>
+              <h2 className={`text-2xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Vcarda</h2>
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} ml-2`}>{t('Admin')}</p>
             </div>
           )}
           {sidebarCollapsed && (
-            <div className={`text-2xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'} mx-auto`}>GC</div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'} mx-auto`}>VC</div>
           )}
           <button 
             onClick={toggleSidebar}

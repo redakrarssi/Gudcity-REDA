@@ -37,7 +37,7 @@ const AdminLogin = () => {
       
       if (success) {
         // Allow specific admin email directly (for demo purposes)
-        if (email === 'admin@gudcity.com') {
+        if (email === 'admin@vcarda.com') {
           navigate(from, { replace: true });
           return;
         }

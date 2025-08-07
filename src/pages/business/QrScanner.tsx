@@ -937,7 +937,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         
         {/* Version footer */}
         <div className="text-center mt-8 mb-2">
-          <p className="text-xs text-gray-400">gudcity 12</p>
+                      <p className="text-xs text-gray-400">vcarda 12</p>
         </div>
       </div>
 

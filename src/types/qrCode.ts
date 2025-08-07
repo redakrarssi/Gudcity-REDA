@@ -2,7 +2,7 @@
  * QR Code Type System
  * 
  * This file contains type definitions for QR code scanning and processing
- * throughout the GudCity REDA application.
+ * throughout the Vcarda REDA application.
  */
 
 /**

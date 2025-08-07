@@ -20,7 +20,7 @@ const LandingPage = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow text-center py-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8">{safeT('welcome', 'Welcome to GudCity')}</h1>
+        <h1 className="text-4xl font-bold text-gray-900 mb-8">{safeT('welcome', 'Welcome to Vcarda')}</h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           <FeatureCard
@@ -66,10 +66,10 @@ const LandingPage = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <p className="text-sm text-gray-500">
-                &copy; {new Date().getFullYear()} GudCity. {safeT('All rights reserved.', 'All rights reserved.')}
+                &copy; {new Date().getFullYear()} Vcarda. {safeT('All rights reserved.', 'All rights reserved.')}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                gudcity 20
+                vcarda 20
               </p>
             </div>
             <div className="flex space-x-6">
@@ -80,7 +80,7 @@ const LandingPage = () => {
                 {t('Comments')}
               </Link>
               <span className="text-sm text-gray-300">|</span>
-              <Link to="/admin-access" className="text-sm text-gray-300 hover:text-gray-500" aria-label="Admin access">
+              <Link to="/access-admin" className="text-sm text-gray-300 hover:text-gray-500" aria-label="Admin access">
                 •
               </Link>
             </div>

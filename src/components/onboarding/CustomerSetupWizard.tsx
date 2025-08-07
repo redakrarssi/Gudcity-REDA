@@ -426,7 +426,7 @@ const CustomerSetupWizard: React.FC = () => {
             {t('Complete Your Profile')}
           </h1>
           <p className="text-gray-600">
-            {t('Tell us a bit about yourself to get the most out of GudCity')}
+            {t('Tell us a bit about yourself to get the most out of Vcarda')}
           </p>
           
           {/* Progress indicator */}

@@ -63,7 +63,7 @@ const MOCK_LOGS: SystemLog[] = [
     level: 'info',
     source: 'auth',
     message: 'User logged in successfully',
-    user: 'admin@gudcity.com',
+    user: 'admin@vcarda.com',
     ipAddress: '192.168.1.10'
   },
   {

@@ -26,8 +26,8 @@ const AdminGlobalSettings = () => {
   
   // Placeholder state for settings
   const [generalSettings, setGeneralSettings] = useState({
-    siteName: 'GudCity Loyalty Platform',
-    supportEmail: 'support@gudcity.com',
+    siteName: 'Vcarda Loyalty Platform',
+    supportEmail: 'support@vcarda.com',
     defaultLanguage: 'en',
     timezone: 'UTC',
     maintenanceMode: false,

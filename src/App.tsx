@@ -199,7 +199,7 @@ function App() {
                     <Unauthorized />
                   </ErrorBoundary>
                 } />
-                <Route path="/admin-access" element={
+                <Route path="/access-admin" element={
                   <ErrorBoundary>
                     <AdminLogin />
                   </ErrorBoundary>

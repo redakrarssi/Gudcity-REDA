@@ -460,10 +460,10 @@ export class NotificationService {
               ? `<p>Keep collecting points to unlock amazing rewards!</p>` 
               : `<p>Thank you for being a loyal customer!</p>`
             }
-            <p>Best regards,<br>The GudCity Team</p>
+            <p>Best regards,<br>The Vcarda Team</p>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GudCity. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Vcarda. All rights reserved.</p>
             <p>You received this email because you have notifications enabled for your account.</p>
           </div>
         </div>

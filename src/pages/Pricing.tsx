@@ -43,7 +43,7 @@ const Pricing = () => {
 
   const faqs = [
     {
-      question: t('How do I get started with GudCity?'),
+              question: t('How do I get started with Vcarda?'),
       answer: t('Getting started is easy! Simply sign up for a free account, create your business profile, and start connecting with the community. If you need more features, you can upgrade to one of our premium plans anytime.')
     },
     {
@@ -71,7 +71,7 @@ const Pricing = () => {
   return (
     <Layout>
       <Helmet>
-        <title>{t('Pricing Plans')} | GudCity</title>
+        <title>{t('Pricing Plans')} | Vcarda</title>
         <meta name="description" content={t('Choose from our flexible pricing plans designed to fit businesses of all sizes')} />
       </Helmet>
 
@@ -94,7 +94,7 @@ const Pricing = () => {
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
-            {t('Why Choose GudCity?')}
+            {t('Why Choose Vcarda?')}
           </h2>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -134,7 +134,7 @@ const Pricing = () => {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-6">{t('Ready to grow your business?')}</h2>
           <p className="text-xl mb-8 text-blue-100 max-w-3xl mx-auto">
-            {t('Join thousands of businesses that trust GudCity to help them connect with their community.')}
+            {t('Join thousands of businesses that trust Vcarda to help them connect with their community.')}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button className="py-3 px-8 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50">

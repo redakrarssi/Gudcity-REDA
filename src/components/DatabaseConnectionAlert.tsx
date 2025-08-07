@@ -49,7 +49,7 @@ const DatabaseConnectionAlert: React.FC = () => {
             The application is running in mock data mode. You can login with these demo accounts:
           </p>
           <ul className="mt-1 text-xs text-amber-700 list-disc ml-6">
-            <li><strong>Admin:</strong> admin@gudcity.com / password</li>
+            <li><strong>Admin:</strong> admin@vcarda.com / password</li>
             <li><strong>Customer:</strong> customer@example.com / password</li>
             <li><strong>Business:</strong> business@example.com / password</li>
           </ul>
