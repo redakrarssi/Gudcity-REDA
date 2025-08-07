@@ -25,7 +25,17 @@ import {
   FileText,
   MapPin,
   Mail,
-  Phone
+  Phone,
+  Ban,
+  Unlock,
+  Lock,
+  Trash2,
+  AlertOctagon,
+  AlertCircle,
+  Info,
+  Activity,
+  Settings,
+  Shield
 } from 'lucide-react';
 import { 
   Business as DbBusiness, 
@@ -36,7 +46,15 @@ import {
   updateBusiness,
   ensureBusinessTablesExist,
   getAllBusinessApplications,
-  updateBusinessApplicationStatus
+  updateBusinessApplicationStatus,
+  suspendBusiness,
+  deactivateBusiness,
+  activateBusiness,
+  deleteBusinessPermanently,
+  getBusinessWithDetails,
+  getBusinessActivityLog,
+  updateBusinessComplianceStatus,
+  restrictBusinessFeatures
 } from '../../services/businessService';
 import { logSystemActivity } from '../../services/dashboardService';
 
@@ -58,7 +76,11 @@ const AdminBusinesses = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filteredBusinesses, setFilteredBusinesses] = useState<DbBusiness[]>([]);
-  
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<{ show: boolean; business: DbBusiness | null }>({ show: false, business: null });
+  const [showStatusModal, setShowStatusModal] = useState<{ show: boolean; business: DbBusiness | null; action: string }>({ show: false, business: null, action: '' });
+  const [selectedBusinessDetails, setSelectedBusinessDetails] = useState<{ business: DbBusiness; activityLog: any[] } | null>(null);
+
   // Load businesses from database
   useEffect(() => {
     const fetchBusinesses = async () => {
@@ -100,120 +122,199 @@ const AdminBusinesses = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(business => 
-        business.name.toLowerCase().includes(term) || 
+        business.name.toLowerCase().includes(term) ||
         business.owner.toLowerCase().includes(term) ||
         business.email.toLowerCase().includes(term) ||
-        (business.type && business.type.toLowerCase().includes(term))
+        business.type?.toLowerCase().includes(term)
       );
     }
     
+    // Filter by type if necessary
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(business => business.type === typeFilter);
+    }
+    
     setFilteredBusinesses(filtered);
-  }, [businesses, statusFilter, searchTerm]);
-  
-  // Filter applications by search term
-  const filteredApplications = applications.filter(app => 
-    app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // Get unique business types for filter
-  const businessTypes = ['all', ...new Set(businesses
-    .map(b => b.type)
-    .filter(Boolean) as string[]
-  )];
-  
-  // Function to handle business approval
-  const handleApproveApplication = async (id: number, notes?: string) => {
+  }, [businesses, searchTerm, statusFilter, typeFilter]);
+
+  const handleDelete = async (business: DbBusiness) => {
+    setShowDeleteModal({ show: true, business });
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteModal.business) return;
+    
+    setActionLoading(showDeleteModal.business.id!);
     try {
-      setLoading(true);
-      
-      // Update application status in the database
-      await updateBusinessApplicationStatus(id, 'approved', notes);
-      
-      // Log the activity
-      await logSystemActivity(
-        'business_approval',
-        `Business application ${id} was approved`,
-        1, // Assuming admin ID is 1
-        'admin'
-      );
-      
-      // Refetch data
-      await fetchBusinesses();
-      
-      // Reset selected application
-      setSelectedApplication(null);
-      
-      // Close modal
-      setIsApplicationModalOpen(false);
+      const success = await deleteBusinessPermanently(showDeleteModal.business.id!);
+      if (success) {
+        setBusinesses(businesses.filter(b => b.id !== showDeleteModal.business!.id));
+        setFilteredBusinesses(filteredBusinesses.filter(b => b.id !== showDeleteModal.business!.id));
+        // onRefresh(); // Assuming onRefresh is defined elsewhere or will be added
+        setShowDeleteModal({ show: false, business: null });
+      } else {
+        setError('Failed to delete business');
+      }
     } catch (err) {
-      console.error('Error approving business application:', err);
-      setError('Failed to approve business application');
+      setError('An error occurred while deleting the business');
+      console.error(err);
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
-  // Function to handle business rejection  
-  const handleRejectApplication = async (id: number, reason: string) => {
+  const handleStatusChange = async (business: DbBusiness, action: 'suspend' | 'deactivate' | 'activate') => {
+    setShowStatusModal({ show: true, business, action });
+  };
+
+  const confirmStatusChange = async () => {
+    if (!showStatusModal.business) return;
+    
+    setActionLoading(showStatusModal.business.id!);
     try {
-      setLoading(true);
+      let success = false;
       
-      // Update application status in the database
-      await updateBusinessApplicationStatus(id, 'rejected', reason);
+      switch (showStatusModal.action) {
+        case 'suspend':
+          success = await suspendBusiness(showStatusModal.business.id!);
+          break;
+        case 'deactivate':
+          success = await deactivateBusiness(showStatusModal.business.id!);
+          break;
+        case 'activate':
+          success = await activateBusiness(showStatusModal.business.id!);
+          break;
+      }
       
-      // Log the activity
-      await logSystemActivity(
-        'business_rejection',
-        `Business application ${id} was rejected`,
-        1, // Assuming admin ID is 1
-        'admin'
-      );
-      
-      // Refetch data
-      await fetchBusinesses();
-      
-      // Reset selected application
-      setSelectedApplication(null);
-      
-      // Close modal
-      setIsApplicationModalOpen(false);
+      if (success) {
+        // Update business status in state
+        const newStatus = showStatusModal.action === 'activate' ? 'active' : 
+                         showStatusModal.action === 'suspend' ? 'suspended' : 'inactive';
+        
+        setBusinesses(businesses.map(b => 
+          b.id === showStatusModal.business!.id ? { ...b, status: newStatus } : b
+        ));
+        
+        setFilteredBusinesses(filteredBusinesses.map(b => 
+          b.id === showStatusModal.business!.id ? { ...b, status: newStatus } : b
+        ));
+        
+        // onRefresh(); // Assuming onRefresh is defined elsewhere or will be added
+        setShowStatusModal({ show: false, business: null, action: '' });
+      } else {
+        setError(`Failed to ${showStatusModal.action} business`);
+      }
     } catch (err) {
-      console.error('Error rejecting business application:', err);
-      setError('Failed to reject business application');
+      setError(`An error occurred while ${showStatusModal.action}ing the business`);
+      console.error(err);
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
-  // Function to handle business status change
-  const handleBusinessStatusChange = async (id: number, newStatus: DbBusiness['status']) => {
+  const handleViewDetails = async (business: DbBusiness) => {
     try {
-      setLoading(true);
+      const businessDetails = await getBusinessWithDetails(business.id!);
+      const activityLog = await getBusinessActivityLog(business.id!);
       
-      // Update business status in the database
-      await updateBusiness(id, { status: newStatus });
-      
-      // Log the activity
-      await logSystemActivity(
-        'business_status_change',
-        `Business ${id} status changed to ${newStatus}`,
-        1, // Assuming admin ID is 1
-        'admin'
-      );
-      
-      // Refetch data
-      await fetchBusinesses();
-      
-      // Show success message
-      setError(null);
+      if (businessDetails) {
+        setSelectedBusinessDetails({
+          business: businessDetails,
+          activityLog
+        });
+      }
     } catch (err) {
-      console.error('Error changing business status:', err);
-      setError('Failed to update business status');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching business details:', err);
+      setError('Failed to load business details');
     }
+  };
+
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'active':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Active
+          </span>
+        );
+      case 'inactive':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Clock className="w-3 h-3 mr-1" />
+            Inactive
+          </span>
+        );
+      case 'suspended':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <XCircle className="w-3 h-3 mr-1" />
+            Suspended
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Info className="w-3 h-3 mr-1" />
+            Unknown
+          </span>
+        );
+    }
+  };
+
+  const getActionButtons = (business: DbBusiness) => {
+    const isActionLoading = actionLoading === business.id;
+    
+    return (
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => handleViewDetails(business)}
+          className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+          title="View Details"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+        
+        {business.status === 'active' ? (
+          <>
+            <button
+              onClick={() => handleStatusChange(business, 'deactivate')}
+              disabled={isActionLoading}
+              className="p-1 text-yellow-600 hover:text-yellow-800 transition-colors disabled:opacity-50"
+              title="Deactivate Business"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleStatusChange(business, 'suspend')}
+              disabled={isActionLoading}
+              className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+              title="Suspend Business"
+            >
+              <Ban className="w-4 h-4" />
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => handleStatusChange(business, 'activate')}
+            disabled={isActionLoading}
+            className="p-1 text-green-600 hover:text-green-800 transition-colors disabled:opacity-50"
+            title="Activate Business"
+          >
+            <Unlock className="w-4 h-4" />
+          </button>
+        )}
+        
+        <button
+          onClick={() => handleDelete(business)}
+          disabled={isActionLoading}
+          className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+          title="Delete Business"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    );
   };
 
   // Helper function to safely format dates to prevent undefined errors
@@ -251,235 +352,139 @@ const AdminBusinesses = () => {
   const ActiveBusinessesTable = () => {
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-64">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600">Loading businesses...</p>
-          </div>
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Loading businesses...</span>
         </div>
       );
     }
-    
+
     if (error) {
       return (
-        <div className="bg-red-50 p-4 rounded-lg text-red-800">
-          <p className="font-semibold">Error</p>
-          <p>{error}</p>
-          <button 
-            className="mt-2 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-    
-    if (filteredBusinesses.length === 0) {
-      return (
-        <div className="bg-white p-8 rounded-lg text-center">
-          <Building className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">No businesses found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || statusFilter !== 'all' || typeFilter !== 'all' 
-              ? 'Try adjusting your filters' 
-              : 'No businesses have been registered yet'}
-          </p>
-          {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('all');
-                setTypeFilter('all');
-              }}
-              className="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-      );
-    }
-    
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 justify-between">
-          <div className="relative flex-grow">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error loading businesses</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
-            <input
-              type="text"
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder={t('Search businesses')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
           </div>
-          <div className="flex gap-2">
-            <select
-              className="block pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'suspended')}
-            >
-              <option value="all">{t('All Status')}</option>
-              <option value="active">{t('Active')}</option>
-              <option value="inactive">{t('Inactive')}</option>
-              <option value="suspended">{t('Suspended')}</option>
-            </select>
-            
-            <select
-              className="block pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              {businessTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type === 'all' ? t('All Types') : type}
-                </option>
-              ))}
-            </select>
-            
-            <button className="p-2 border border-gray-300 rounded-md text-gray-500 hover:bg-gray-50">
-              <Filter className="w-5 h-5" />
-            </button>
-            
-            <button className="p-2 border border-gray-300 rounded-md text-gray-500 hover:bg-gray-50">
-              <Download className="w-5 h-5" />
-            </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="px-4 py-5 sm:px-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                Active Businesses ({filteredBusinesses.length})
+              </h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                Manage business accounts and their status
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search businesses..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
           </div>
         </div>
         
-        {/* Businesses Table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Business')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Type')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Status')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Customers')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Revenue')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Last Activity')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredBusinesses.map((business) => (
-                <tr 
-                  key={business.id} 
-                  className={`
-                    ${business.status === 'suspended' ? 'bg-red-50' : ''}
-                    ${business.status === 'inactive' ? 'bg-gray-50' : ''}
-                    hover:bg-gray-50
-                  `}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        {business.logo ? (
-                          <img 
-                            src={business.logo} 
-                            alt={business.name} 
-                            className="h-10 w-10 rounded-full" 
-                          />
-                        ) : (
-                          <Building className="h-5 w-5 text-gray-500" />
-                        )}
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {business.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {business.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{business.type}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${business.status === 'active' ? 'bg-green-100 text-green-800' : ''}
-                      ${business.status === 'inactive' ? 'bg-gray-100 text-gray-800' : ''}
-                      ${business.status === 'suspended' ? 'bg-red-100 text-red-800' : ''}
-                    `}>
-                      {business.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {business.customerCount || 0}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${(business.revenue || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(business.lastActivity)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => handleViewBusinessDetails(business)}
-                        className="text-gray-400 hover:text-gray-500"
-                        title={t('View Details')}
-                      >
-                        <Eye className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleViewBusinessAnalytics(business)}
-                        className="text-blue-400 hover:text-blue-500"
-                        title={t('View Analytics')}
-                      >
-                        <BarChart2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          const newStatus = business.status === 'active' ? 'inactive' : 'active';
-                          handleBusinessStatusChange(business.id as number, newStatus);
-                        }}
-                        className={`
-                          ${business.status === 'active' ? 'text-yellow-400 hover:text-yellow-500' : 'text-green-400 hover:text-green-500'}
-                        `}
-                        title={business.status === 'active' ? t('Deactivate') : t('Activate')}
-                      >
-                        {business.status === 'active' ? (
-                          <XCircle className="h-5 w-5" />
-                        ) : (
-                          <CheckCircle className="h-5 w-5" />
-                        )}
-                      </button>
-                      {business.status !== 'suspended' && (
-                        <button
-                          onClick={() => handleBusinessStatusChange(business.id as number, 'suspended')}
-                          className="text-red-400 hover:text-red-500"
-                          title={t('Suspend')}
-                        >
-                          <AlertTriangle className="h-5 w-5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
+        {filteredBusinesses.length === 0 ? (
+          <div className="text-center py-8">
+            <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No businesses found</h3>
+            <p className="text-gray-500">No businesses match your current filters.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Business
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Programs
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customers
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Registered
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredBusinesses.map((business) => (
+                  <tr key={business.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                            <Building className="w-6 h-6 text-blue-600" />
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{business.name}</div>
+                          <div className="text-sm text-gray-500">{business.owner}</div>
+                          <div className="text-sm text-gray-500">{business.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 capitalize">{business.type}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(business.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {business.programCount || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {business.customerCount || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {business.registeredAt ? new Date(business.registeredAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {getActionButtons(business)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
@@ -985,138 +990,204 @@ const AdminBusinesses = () => {
 
   return (
     <AdminLayout>
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
-        <div className="sm:flex sm:justify-between sm:items-center mb-8">
-          <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              {t('Business Management')}
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {t('Manage and monitor all business accounts')}
-            </p>
+      <div className="space-y-6">
+        {/* Confirmation Modals */}
+        {showDeleteModal.show && showDeleteModal.business && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3 text-center">
+                <AlertOctagon className="mx-auto flex items-center justify-center h-12 w-12 text-red-600" />
+                <h3 className="text-lg font-medium text-gray-900 mt-4">Delete Business</h3>
+                <div className="mt-2 px-7 py-3">
+                  <p className="text-sm text-gray-500">
+                    Are you sure you want to permanently delete <strong>{showDeleteModal.business.name}</strong>? 
+                    This action cannot be undone and will remove all associated data including programs and customer records.
+                  </p>
+                </div>
+                <div className="items-center px-4 py-3">
+                  <button
+                    onClick={confirmDelete}
+                    disabled={actionLoading === showDeleteModal.business.id}
+                    className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {actionLoading === showDeleteModal.business.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteModal({ show: false, business: null })}
+                    className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-24 hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <button
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <Plus className="-ml-1 mr-2 h-5 w-5" />
-            {t('Add Business')}
-          </button>
-        </div>
-        
-        <div className="mb-6">
-          <div className="sm:hidden">
-            <select
-              onChange={(e) => setActiveTab(e.target.value as 'applications' | 'businesses' | 'analytics')}
-              value={activeTab}
-              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            >
-              <option value="applications">{t('Applications')}</option>
-              <option value="businesses">{t('Active Businesses')}</option>
-              <option value="analytics">{t('Analytics')}</option>
-            </select>
+        )}
+
+        {showStatusModal.show && showStatusModal.business && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3 text-center">
+                <AlertTriangle className="mx-auto flex items-center justify-center h-12 w-12 text-yellow-600" />
+                <h3 className="text-lg font-medium text-gray-900 mt-4">
+                  {showStatusModal.action === 'suspend' ? 'Suspend Business' : 
+                   showStatusModal.action === 'deactivate' ? 'Deactivate Business' : 'Activate Business'}
+                </h3>
+                <div className="mt-2 px-7 py-3">
+                  <p className="text-sm text-gray-500">
+                    Are you sure you want to {showStatusModal.action} <strong>{showStatusModal.business.name}</strong>?
+                    {showStatusModal.action === 'suspend' && ' This will prevent all activity and disable their programs.'}
+                    {showStatusModal.action === 'deactivate' && ' This will limit their access to certain features.'}
+                    {showStatusModal.action === 'activate' && ' This will restore their full access.'}
+                  </p>
+                </div>
+                <div className="items-center px-4 py-3">
+                  <button
+                    onClick={confirmStatusChange}
+                    disabled={actionLoading === showStatusModal.business.id}
+                    className={`px-4 py-2 text-white text-base font-medium rounded-md w-24 mr-2 disabled:opacity-50 ${
+                      showStatusModal.action === 'suspend' ? 'bg-red-600 hover:bg-red-700' :
+                      showStatusModal.action === 'deactivate' ? 'bg-yellow-600 hover:bg-yellow-700' :
+                      'bg-green-600 hover:bg-green-700'
+                    }`}
+                  >
+                    {actionLoading === showStatusModal.business.id ? 'Updating...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setShowStatusModal({ show: false, business: null, action: '' })}
+                    className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-24 hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div className="hidden sm:block">
+        )}
+
+        {/* Business Details Modal */}
+        {selectedBusinessDetails && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-10 mx-auto p-5 border w-3/4 shadow-lg rounded-md bg-white max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Business Details</h3>
+                <button
+                  onClick={() => setSelectedBusinessDetails(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Business Information</h4>
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Name:</strong> {selectedBusinessDetails.business.name}</p>
+                    <p><strong>Owner:</strong> {selectedBusinessDetails.business.owner}</p>
+                    <p><strong>Email:</strong> {selectedBusinessDetails.business.email}</p>
+                    <p><strong>Phone:</strong> {selectedBusinessDetails.business.phone || 'N/A'}</p>
+                    <p><strong>Type:</strong> {selectedBusinessDetails.business.type}</p>
+                    <p><strong>Status:</strong> {getStatusBadge(selectedBusinessDetails.business.status)}</p>
+                    <p><strong>Registered:</strong> {selectedBusinessDetails.business.registeredAt ? new Date(selectedBusinessDetails.business.registeredAt).toLocaleString() : 'N/A'}</p>
+                    <p><strong>Address:</strong> {selectedBusinessDetails.business.address || 'N/A'}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Statistics</h4>
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Programs:</strong> {selectedBusinessDetails.business.programCount || 0}</p>
+                    <p><strong>Customers:</strong> {selectedBusinessDetails.business.customerCount || 0}</p>
+                    <p><strong>Total Revenue:</strong> ${selectedBusinessDetails.business.revenue || 0}</p>
+                    <p><strong>Analytics Records:</strong> {selectedBusinessDetails.business.analyticsCount || 0}</p>
+                  </div>
+                  
+                  <h4 className="font-medium text-gray-900 mb-2 mt-4">Activity Log (Last 30 Days)</h4>
+                  <div className="max-h-48 overflow-y-auto">
+                    {selectedBusinessDetails.activityLog.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedBusinessDetails.activityLog.slice(0, 10).map((log, index) => (
+                          <div key={index} className="text-xs p-2 bg-gray-50 rounded">
+                            <p><strong>{log.action}</strong></p>
+                            <p className="text-gray-600">{log.details}</p>
+                            <p className="text-gray-500">{new Date(log.created_at).toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No recent activity</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-800">Business Management</h1>
+                <p className="text-gray-500 mt-1">Manage business accounts, applications, and analytics</p>
+              </div>
+            </div>
+
+            {/* Tab Navigation */}
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'applications' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                  onClick={() => setActiveTab('applications')}
-                >
-                  {t('Applications')}
-                </button>
-                
-                <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'businesses' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
                   onClick={() => setActiveTab('businesses')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'businesses'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
-                  {t('Active Businesses')}
+                  <div className="flex items-center">
+                    <Building className="w-4 h-4 mr-2" />
+                    Businesses ({businesses.length})
+                  </div>
                 </button>
-                
                 <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'analytics' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                  onClick={() => setActiveTab('analytics')}
+                  onClick={() => setActiveTab('applications')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'applications'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
-                  {t('Analytics')}
+                  <div className="flex items-center">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Applications ({applications.length})
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'analytics'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <BarChart2 className="w-4 h-4 mr-2" />
+                    Analytics
+                  </div>
                 </button>
               </nav>
             </div>
-          </div>
-        </div>
-        
-        {activeTab === 'applications' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Business Applications')}
-            </h2>
-            
-            <ApplicationsTable />
-          </div>
-        )}
-        
-        {activeTab === 'businesses' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Active Businesses')}
-            </h2>
-            
-            <ActiveBusinessesTable />
-          </div>
-        )}
-        
-        {activeTab === 'analytics' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Business Analytics Overview')}
-            </h2>
-            
-            {/* Analytics Dashboard Will Go Here */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-              <BarChart2 className="h-16 w-16 text-blue-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {t('Business Analytics Dashboard')}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {t('Select a business from the Active Businesses tab to view detailed analytics')}
-              </p>
-              <button
-                onClick={() => setActiveTab('businesses')}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                {t('View Businesses')}
-              </button>
+
+            {/* Tab Content */}
+            <div className="mt-6">
+              {activeTab === 'businesses' && <ActiveBusinessesTable />}
+              {activeTab === 'applications' && <ApplicationsTable />}
+              {activeTab === 'analytics' && <BusinessAnalyticsModal />}
             </div>
           </div>
-        )}
-        
-        {/* Application Detail Modal */}
-        {selectedApplication && (
-          <ApplicationDetailModal />
-        )}
-        
-        {/* Business Detail Modal */}
-        {selectedBusiness && (
-          <BusinessDetailModal />
-        )}
-        
-        {/* Business Analytics Modal */}
-        <BusinessAnalyticsModal />
+        </div>
       </div>
     </AdminLayout>
   );

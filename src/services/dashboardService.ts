@@ -343,18 +343,121 @@ export async function ensureSystemLogsTableExists(): Promise<void> {
 
 // Log system activity
 export async function logSystemActivity(
-  action: string, 
-  description: string, 
-  actorId?: number, 
-  actorType?: string,
-  ipAddress?: string
-): Promise<void> {
+  action: string,
+  details: string,
+  userId?: number,
+  userType: 'admin' | 'business' | 'customer' = 'admin',
+  businessId?: number,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<boolean> {
   try {
-    await sql`
-      INSERT INTO system_logs (action, description, actor_id, actor_type, ip_address)
-      VALUES (${action}, ${description}, ${actorId || null}, ${actorType || null}, ${ipAddress || null})
+    console.log(`Logging system activity: ${action} - ${details}`);
+    
+    const result = await sql`
+      INSERT INTO system_logs (
+        action, details, user_id, user_type, business_id, 
+        ip_address, user_agent, created_at
+      ) VALUES (
+        ${action}, ${details}, ${userId}, ${userType}, ${businessId},
+        ${ipAddress}, ${userAgent}, CURRENT_TIMESTAMP
+      )
     `;
+    
+    if (result && result.length > 0) {
+      console.log('System activity logged successfully');
+      return true;
+    }
+    
+    console.error('Failed to log system activity');
+    return false;
   } catch (error) {
     console.error('Error logging system activity:', error);
+    return false;
+  }
+}
+
+export async function getSystemLogs(
+  filters: {
+    action?: string;
+    userType?: string;
+    businessId?: number;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  } = {}
+): Promise<any[]> {
+  try {
+    let query = sql`SELECT * FROM system_logs WHERE 1=1`;
+    const params: any[] = [];
+    
+    if (filters.action) {
+      query = sql`${query} AND action = ${filters.action}`;
+    }
+    
+    if (filters.userType) {
+      query = sql`${query} AND user_type = ${filters.userType}`;
+    }
+    
+    if (filters.businessId) {
+      query = sql`${query} AND business_id = ${filters.businessId}`;
+    }
+    
+    if (filters.startDate) {
+      query = sql`${query} AND created_at >= ${filters.startDate}`;
+    }
+    
+    if (filters.endDate) {
+      query = sql`${query} AND created_at <= ${filters.endDate}`;
+    }
+    
+    query = sql`${query} ORDER BY created_at DESC`;
+    
+    if (filters.limit) {
+      query = sql`${query} LIMIT ${filters.limit}`;
+    }
+    
+    const result = await query;
+    return result;
+  } catch (error) {
+    console.error('Error fetching system logs:', error);
+    return [];
+  }
+}
+
+export async function logAdminAction(
+  action: string,
+  details: string,
+  targetUserId?: number,
+  targetBusinessId?: number,
+  adminUserId: number = 1
+): Promise<boolean> {
+  return logSystemActivity(
+    action,
+    details,
+    adminUserId,
+    'admin',
+    targetBusinessId
+  );
+}
+
+export async function getAdminActionLogs(days: number = 30): Promise<any[]> {
+  try {
+    const result = await sql`
+      SELECT 
+        sl.id, sl.action, sl.details, sl.created_at, sl.ip_address,
+        sl.user_agent, sl.user_id, sl.business_id,
+        u.name as admin_name, u.email as admin_email
+      FROM system_logs sl
+      LEFT JOIN users u ON sl.user_id = u.id
+      WHERE sl.user_type = 'admin'
+      AND sl.created_at >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY sl.created_at DESC
+    `;
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching admin action logs:', error);
+    return [];
   }
 } 

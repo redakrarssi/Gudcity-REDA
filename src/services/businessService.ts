@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { logAdminAction } from './dashboardService';
 
 // Business types and interfaces
 export interface BusinessApplication {
@@ -774,9 +775,8 @@ export async function createSampleBusinessData(): Promise<void> {
     if (businesses.length > 0) {
       const firstBusiness = businesses[0];
       
-      // Create sample logins (for the past 30 days)
+      // Create login records for the past 30 days
       if (firstBusiness.id) {
-        // Create login records for the past 30 days
         const today = new Date();
         for (let i = 0; i < 30; i++) {
           const date = new Date();
@@ -1060,4 +1060,247 @@ function mapDbApplicationToApplication(dbApplication: any): BusinessApplication 
     address: dbApplication.address || '',
     notes: dbApplication.notes
   };
+} 
+
+export async function updateBusinessStatus(id: number, status: 'active' | 'inactive' | 'suspended'): Promise<boolean> {
+  try {
+    console.log(`Updating business ${id} status to ${status}`);
+    
+    const result = await sql`
+      UPDATE businesses 
+      SET status = ${status}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+    `;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully updated business ${id} status to ${status}`);
+      
+      // If suspending, also update related programs and cards
+      if (status === 'suspended') {
+        await sql`
+          UPDATE loyalty_programs 
+          SET status = 'suspended', updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${id}
+        `;
+        
+        await sql`
+          UPDATE loyalty_cards 
+          SET status = 'suspended', updated_at = CURRENT_TIMESTAMP
+          WHERE business_id = ${id}
+        `;
+      }
+      
+      // Log admin action
+      await logAdminAction(
+        'business_status_update',
+        `Business status changed to ${status}`,
+        undefined,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to update business ${id} status`);
+    return false;
+  } catch (error) {
+    console.error('Error updating business status:', error);
+    return false;
+  }
+}
+
+export async function suspendBusiness(id: number): Promise<boolean> {
+  return updateBusinessStatus(id, 'suspended');
+}
+
+export async function deactivateBusiness(id: number): Promise<boolean> {
+  return updateBusinessStatus(id, 'inactive');
+}
+
+export async function activateBusiness(id: number): Promise<boolean> {
+  return updateBusinessStatus(id, 'active');
+}
+
+export async function deleteBusinessPermanently(id: number): Promise<boolean> {
+  try {
+    console.log(`Permanently deleting business ${id}`);
+    
+    // First, check if business exists
+    const business = await getBusinessById(id);
+    if (!business) {
+      console.error(`Business ${id} not found`);
+      return false;
+    }
+    
+    // Delete business-related data in order
+    await sql`DELETE FROM business_analytics WHERE business_id = ${id}`;
+    await sql`DELETE FROM business_daily_analytics WHERE business_id = ${id}`;
+    await sql`DELETE FROM business_login_history WHERE business_id = ${id}`;
+    await sql`DELETE FROM loyalty_cards WHERE business_id = ${id}`;
+    await sql`DELETE FROM loyalty_programs WHERE business_id = ${id}`;
+    await sql`DELETE FROM business_applications WHERE business_id = ${id}`;
+    
+    // Finally, delete the business
+    const result = await sql`DELETE FROM businesses WHERE id = ${id}`;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully deleted business ${id} and all related data`);
+      
+      // Log admin action
+      await logAdminAction(
+        'business_deleted',
+        `Business ${business.name} (${business.email}) permanently deleted`,
+        undefined,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to delete business ${id}`);
+    return false;
+  } catch (error) {
+    console.error('Error deleting business:', error);
+    return false;
+  }
+}
+
+export async function getBusinessWithDetails(id: number): Promise<Business | null> {
+  try {
+    const result = await sql`
+      SELECT 
+        b.id, b.name, b.owner, b.email, b.phone, b.type, b.status,
+        b.registered_at, b.address, b.logo, b.description, b.notes, b.user_id,
+        COUNT(lp.id) as program_count,
+        COUNT(lc.id) as customer_count,
+        COUNT(ba.id) as analytics_count,
+        SUM(ba.revenue) as total_revenue
+      FROM businesses b
+      LEFT JOIN loyalty_programs lp ON b.id = lp.business_id
+      LEFT JOIN loyalty_cards lc ON b.id = lc.business_id
+      LEFT JOIN business_analytics ba ON b.id = ba.business_id
+      WHERE b.id = ${id}
+      GROUP BY b.id
+    `;
+    
+    if (result && result.length > 0) {
+      return mapDbBusinessToBusiness(result[0]);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching business details:', error);
+    return null;
+  }
+}
+
+export async function getBusinessesWithStats(): Promise<Business[]> {
+  try {
+    const result = await sql`
+      SELECT 
+        b.id, b.name, b.owner, b.email, b.phone, b.type, b.status,
+        b.registered_at, b.address, b.logo, b.description, b.notes, b.user_id,
+        COUNT(lp.id) as program_count,
+        COUNT(lc.id) as customer_count,
+        COUNT(ba.id) as analytics_count,
+        SUM(ba.revenue) as total_revenue
+      FROM businesses b
+      LEFT JOIN loyalty_programs lp ON b.id = lp.business_id
+      LEFT JOIN loyalty_cards lc ON b.id = lc.business_id
+      LEFT JOIN business_analytics ba ON b.id = ba.business_id
+      GROUP BY b.id
+      ORDER BY b.registered_at DESC
+    `;
+    
+    return result.map(mapDbBusinessToBusiness);
+  } catch (error) {
+    console.error('Error fetching businesses with stats:', error);
+    return [];
+  }
+}
+
+export async function updateBusinessComplianceStatus(id: number, complianceStatus: 'compliant' | 'warning' | 'violation'): Promise<boolean> {
+  try {
+    console.log(`Updating business ${id} compliance status to ${complianceStatus}`);
+    
+    const result = await sql`
+      UPDATE businesses 
+      SET compliance_status = ${complianceStatus}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+    `;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully updated business ${id} compliance status to ${complianceStatus}`);
+      
+      // Log admin action
+      await logAdminAction(
+        'business_compliance_update',
+        `Business compliance status changed to ${complianceStatus}`,
+        undefined,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to update business ${id} compliance status`);
+    return false;
+  } catch (error) {
+    console.error('Error updating business compliance status:', error);
+    return false;
+  }
+}
+
+export async function getBusinessActivityLog(id: number, days: number = 30): Promise<any[]> {
+  try {
+    const result = await sql`
+      SELECT 
+        sl.id, sl.action, sl.details, sl.created_at, sl.ip_address,
+        sl.user_agent, sl.status
+      FROM system_logs sl
+      WHERE sl.business_id = ${id}
+      AND sl.created_at >= CURRENT_DATE - INTERVAL '${days} days'
+      ORDER BY sl.created_at DESC
+    `;
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching business activity log:', error);
+    return [];
+  }
+}
+
+export async function restrictBusinessFeatures(id: number, restrictedFeatures: string[]): Promise<boolean> {
+  try {
+    console.log(`Restricting features for business ${id}:`, restrictedFeatures);
+    
+    // Store restricted features as JSON
+    const featuresJson = JSON.stringify(restrictedFeatures);
+    
+    const result = await sql`
+      UPDATE businesses 
+      SET restricted_features = ${featuresJson}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+    `;
+    
+    if (result && result.length > 0) {
+      console.log(`Successfully restricted features for business ${id}`);
+      
+      // Log admin action
+      await logAdminAction(
+        'business_features_restricted',
+        `Business features restricted: ${restrictedFeatures.join(', ')}`,
+        undefined,
+        id
+      );
+      
+      return true;
+    }
+    
+    console.error(`Failed to restrict features for business ${id}`);
+    return false;
+  } catch (error) {
+    console.error('Error restricting business features:', error);
+    return false;
+  }
 } 
