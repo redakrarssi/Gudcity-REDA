@@ -39,6 +39,7 @@ import {
   updateBusinessApplicationStatus
 } from '../../services/businessService';
 import { logSystemActivity } from '../../services/dashboardService';
+import api from '../../api/api';
 
 const AdminBusinesses = () => {
   const { t } = useTranslation();
@@ -59,7 +60,7 @@ const AdminBusinesses = () => {
   const [error, setError] = useState<string | null>(null);
   const [filteredBusinesses, setFilteredBusinesses] = useState<DbBusiness[]>([]);
   
-  // Load businesses from database
+  // Load businesses from database (fallback to service), but prefer admin overview API for richer data
   useEffect(() => {
     const fetchBusinesses = async () => {
       try {
@@ -69,9 +70,15 @@ const AdminBusinesses = () => {
         // Ensure required tables exist
         await ensureBusinessTablesExist();
         
-        // Fetch businesses
-        const fetchedBusinesses = await getAllBusinesses();
-        setBusinesses(fetchedBusinesses);
+        // Prefer backend admin overview for consistent aggregation & RBAC
+        const resp = await api.get('/api/businesses/admin/overview');
+        if (resp.status === 200 && resp.data?.businesses) {
+          setBusinesses(resp.data.businesses as unknown as DbBusiness[]);
+        } else {
+          // Fallback to local service if API not available
+          const fetchedBusinesses = await getAllBusinesses();
+          setBusinesses(fetchedBusinesses);
+        }
         
         // Fetch applications
         const fetchedApplications = await getAllBusinessApplications();
@@ -100,9 +107,9 @@ const AdminBusinesses = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(business => 
-        business.name.toLowerCase().includes(term) || 
-        business.owner.toLowerCase().includes(term) ||
-        business.email.toLowerCase().includes(term) ||
+        (business.name || '').toLowerCase().includes(term) || 
+        ((business as any).owner ? (business as any).owner.toLowerCase().includes(term) : false) ||
+        (business.email || '').toLowerCase().includes(term) ||
         (business.type && business.type.toLowerCase().includes(term))
       );
     }
@@ -192,8 +199,12 @@ const AdminBusinesses = () => {
     try {
       setLoading(true);
       
-      // Update business status in the database
-      await updateBusiness(id, { status: newStatus });
+      // Prefer admin API for RBAC-compliant status updates
+      const resp = await api.put(`/api/businesses/admin/${id}/status`, { status: newStatus });
+      if (resp.status !== 200) {
+        // Fallback if admin endpoint unavailable
+        await updateBusiness(id, { status: newStatus });
+      }
       
       // Log the activity
       await logSystemActivity(
@@ -239,6 +250,20 @@ const AdminBusinesses = () => {
   const handleViewBusinessDetails = (business: DbBusiness) => {
     setSelectedBusiness(business);
     setIsBusinessDetailModalOpen(true);
+    // Optionally, load additional details from admin endpoint in the background
+    (async () => {
+      try {
+        const resp = await api.get(`/api/businesses/admin/${business.id}/details`);
+        if (resp.status === 200 && resp.data?.profile) {
+          setSelectedBusiness({
+            ...(business as any),
+            ...resp.data.profile,
+          } as unknown as DbBusiness);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch business details from admin endpoint', e);
+      }
+    })();
   };
   
   // Handle viewing business analytics
@@ -855,6 +880,29 @@ const AdminBusinesses = () => {
   // Define the BusinessDetailModal component
   const BusinessDetailModal = () => {
     if (!selectedBusiness) return null;
+    const [activity, setActivity] = useState<Array<{ id: number; user_id: number; login_time: string; ip_address?: string; device?: string }>>([]);
+    const [activityLoading, setActivityLoading] = useState(false);
+
+    useEffect(() => {
+      let ignore = false;
+      const loadActivity = async () => {
+        try {
+          setActivityLoading(true);
+          const resp = await api.get(`/api/businesses/admin/${selectedBusiness.id}/activity?limit=5`);
+          if (!ignore && resp.status === 200 && resp.data?.activity) {
+            setActivity(resp.data.activity);
+          }
+        } catch (e) {
+          console.warn('Failed to load business activity', e);
+        } finally {
+          if (!ignore) setActivityLoading(false);
+        }
+      };
+      loadActivity();
+      return () => {
+        ignore = true;
+      };
+    }, [selectedBusiness?.id]);
     
     return (
       <div className={`fixed inset-0 z-50 overflow-y-auto ${isBusinessDetailModalOpen ? 'block' : 'hidden'}`}>
@@ -931,7 +979,59 @@ const AdminBusinesses = () => {
                     <p className="text-sm text-gray-800">
                       <span className="font-medium">{t('Last Activity')}:</span> {formatDate(selectedBusiness.lastActivity)}
                     </p>
+                    {/* Optional: Points and redemptions if loaded from admin/details */}
+                    {Boolean((selectedBusiness as any)?.stats?.totalPoints) && (
+                      <p className="text-sm text-gray-800">
+                        <span className="font-medium">{t('Total Points Issued')}:</span> {(selectedBusiness as any).stats.totalPoints}
+                      </p>
+                    )}
+                    {Boolean((selectedBusiness as any)?.stats?.totalRedemptions) && (
+                      <p className="text-sm text-gray-800">
+                        <span className="font-medium">{t('Total Redemptions')}:</span> {(selectedBusiness as any).stats.totalRedemptions}
+                      </p>
+                    )}
                   </div>
+                </div>
+              </div>
+
+              {/* Programs list */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-500">{t('Programs')}</h4>
+                <div className="mt-2 border rounded-md divide-y">
+                  {Array.isArray((selectedBusiness as any)?.programs) && (selectedBusiness as any).programs.length > 0 ? (
+                    ((selectedBusiness as any).programs as any[]).map((p) => (
+                      <div key={p.id} className="p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                          <p className="text-xs text-gray-500">{p.description}</p>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full border bg-gray-50 text-gray-700">{p.status}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500">{t('No programs found')}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Activity log (last 5) */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-500">{t('Recent Activity')}</h4>
+                <div className="mt-2 border rounded-md">
+                  {activityLoading ? (
+                    <div className="p-3 text-sm text-gray-500">{t('Loading...')}</div>
+                  ) : activity.length > 0 ? (
+                    <ul className="divide-y">
+                      {activity.map(a => (
+                        <li key={a.id} className="p-3 text-sm text-gray-800 flex items-center justify-between">
+                          <span>{new Date(a.login_time).toLocaleString()}</span>
+                          <span className="text-xs text-gray-500">{a.device || a.ip_address || 'session'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500">{t('No recent activity')}</div>
+                  )}
                 </div>
               </div>
               
@@ -975,6 +1075,34 @@ const AdminBusinesses = () => {
                     {t('Reactivate')}
                   </button>
                 )}
+                {/* Optional admin actions: restrict and delete */}
+                <button
+                  onClick={async () => {
+                    await handleBusinessStatusChange(selectedBusiness.id as number, 'inactive');
+                    setIsBusinessDetailModalOpen(false);
+                  }}
+                  className="px-4 py-2 border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded-md text-sm font-medium"
+                >
+                  {t('Restrict')}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to delete this business? This action cannot be undone.')) {
+                      try {
+                        const resp = await api.delete(`/api/businesses/admin/${selectedBusiness.id}`);
+                        if (resp.status === 200) {
+                          await fetchBusinesses();
+                        }
+                      } catch (e) {
+                        console.error('Delete business failed', e);
+                      }
+                      setIsBusinessDetailModalOpen(false);
+                    }
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 rounded-md text-sm font-medium"
+                >
+                  {t('Delete')}
+                </button>
               </div>
             </div>
           </div>

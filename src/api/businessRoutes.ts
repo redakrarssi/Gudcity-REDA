@@ -6,6 +6,8 @@ import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { logger } from '../utils/logger';
 import sql from '../utils/db';
 import { CustomerService } from '../services/customerService';
+import { LoyaltyProgramService } from '../services/loyaltyProgramService';
+import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
 import { v4 as uuidv4 } from 'uuid';
 // Import our dedicated handler for award-points
 import { handleAwardPoints } from './awardPointsHandler';
@@ -17,6 +19,14 @@ router.use((req: Request, res: Response, next: NextFunction) => {
   // Add any middleware specific to business routes here
   next();
 });
+
+// Admin-only guard for sensitive endpoints
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}
 
 // IMPORTANT: Explicitly declare that the router accepts POST requests for award-points
 router.post('/award-points', auth, async (req: Request, res: Response, next: NextFunction) => {
@@ -133,6 +143,197 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching businesses:', error);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Aggregated businesses overview
+ * Path: /api/businesses/admin/overview
+ */
+router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    // Mirror aggregated data similar to businessService.getAllBusinesses without modifying services
+    const rows = await sql<any[]>`
+      SELECT 
+        b.id,
+        b.name,
+        b.email,
+        b.type,
+        b.status,
+        b.address,
+        b.logo,
+        b.created_at as registered_at,
+        COUNT(DISTINCT bt.id) as total_transactions,
+        COALESCE(SUM(bt.amount), 0) as total_revenue,
+        COUNT(DISTINCT bt.customer_id) as total_customers,
+        MAX(bdl.login_time) as last_login_time
+      FROM 
+        businesses b
+      LEFT JOIN 
+        business_transactions bt ON b.id = bt.business_id
+      LEFT JOIN 
+        business_daily_logins bdl ON b.id = bdl.business_id
+      GROUP BY 
+        b.id
+      ORDER BY b.created_at DESC
+    `;
+
+    const data = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      type: r.type,
+      status: r.status,
+      address: r.address,
+      logo: r.logo,
+      registeredAt: r.registered_at,
+      customerCount: Number(r.total_customers || 0),
+      revenue: Number(r.total_revenue || 0),
+      lastLogin: r.last_login_time,
+    }));
+
+    res.json({ businesses: data });
+  } catch (error) {
+    console.error('Error fetching admin businesses overview:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Detailed business info, including programs and stats
+ * Path: /api/businesses/admin/:id/details
+ */
+router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const businessId = req.params.id;
+
+    // Base profile info from businesses table
+    const result = await sql<any[]>`
+      SELECT 
+        b.*,
+        MAX(bdl.login_time) as last_login_time,
+        COUNT(DISTINCT bt.customer_id) as total_customers,
+        COALESCE(SUM(bt.amount), 0) as total_revenue
+      FROM businesses b
+      LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
+      LEFT JOIN business_transactions bt ON b.id = bt.business_id
+      WHERE b.id = ${parseInt(businessId)}
+      GROUP BY b.id
+    `;
+
+    if (!result.length) {
+      return res.status(404).json({ error: 'Business not found' });
+    }
+
+    const base = result[0];
+
+    // Programs list
+    const programs = await LoyaltyProgramService.getBusinessPrograms(String(businessId));
+
+    // Analytics summary (total points and redemptions)
+    const analytics = await BusinessAnalyticsService.getBusinessAnalytics(String(businessId), 'month');
+
+    res.json({
+      profile: {
+        id: base.id,
+        name: base.name,
+        email: base.email,
+        owner: base.owner,
+        phone: base.phone,
+        type: base.type,
+        status: base.status,
+        address: base.address,
+        logo: base.logo,
+        description: base.description,
+        registeredAt: base.registered_at,
+        lastLogin: base.last_login_time,
+        customerCount: Number(base.total_customers || 0),
+        revenue: Number(base.total_revenue || 0),
+      },
+      programs,
+      stats: {
+        totalPoints: analytics.totalPoints,
+        totalRedemptions: analytics.totalRedemptions,
+        totalPrograms: analytics.totalPrograms,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching business details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Recent activity (last N login events)
+ * Path: /api/businesses/admin/:id/activity?limit=5
+ */
+router.get('/admin/:id/activity', auth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const businessId = parseInt(req.params.id);
+    const limit = Math.min(parseInt(String(req.query.limit || '5')), 50);
+
+    const rows = await sql<any[]>`
+      SELECT id, user_id, login_time, ip_address, device
+      FROM business_daily_logins
+      WHERE business_id = ${businessId}
+      ORDER BY login_time DESC
+      LIMIT ${limit}
+    `;
+
+    res.json({ activity: rows });
+  } catch (error) {
+    console.error('Error fetching business activity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Update business status (suspend, reactivate, restrict via status field)
+ * Path: /api/businesses/admin/:id/status
+ */
+router.put('/admin/:id/status', auth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const businessId = parseInt(req.params.id);
+    const { status } = req.body as { status?: string };
+    if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const updated = await sql<any[]>`
+      UPDATE businesses SET status = ${status}, updated_at = NOW() WHERE id = ${businessId} RETURNING *
+    `;
+    if (!updated.length) {
+      return res.status(404).json({ error: 'Business not found' });
+    }
+    res.json({ success: true, business: updated[0] });
+  } catch (error) {
+    console.error('Error updating business status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Delete business (hard delete with related cleanups where possible)
+ * Path: /api/businesses/admin/:id
+ */
+router.delete('/admin/:id', auth, requireAdmin, async (req: Request, res: Response) => {
+  const client = sql;
+  try {
+    const businessId = parseInt(req.params.id);
+
+    // Best-effort cleanup. Some FKs are ON DELETE CASCADE, others may not be.
+    await client`DELETE FROM business_transactions WHERE business_id = ${businessId}`;
+    await client`DELETE FROM business_daily_logins WHERE business_id = ${businessId}`;
+    await client`DELETE FROM loyalty_programs WHERE business_id = ${businessId}`;
+    const deleted = await client`DELETE FROM businesses WHERE id = ${businessId} RETURNING id`;
+
+    if (!deleted.length) {
+      return res.status(404).json({ error: 'Business not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting business:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
