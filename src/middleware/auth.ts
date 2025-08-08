@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/authService';
+import { getUserById } from '../services/userService';
 
 // Extend the Express Request type to include user property
 declare global {
@@ -9,6 +10,7 @@ declare global {
         id: number;
         email: string;
         role: string;
+        status?: string;
       };
     }
   }
@@ -77,14 +79,42 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
       });
     }
     
-    // Add user data to request object
+    // Fetch current user data from database to check status
+    const currentUser = await getUserById(payload.userId);
+    
+    if (!currentUser) {
+      console.error(`AUTH ERROR: User ${payload.userId} not found in database`);
+      return res.status(401).json({ 
+        error: 'User not found', 
+        code: 'AUTH_USER_NOT_FOUND',
+        message: 'User account no longer exists'
+      });
+    }
+    
+    // Check if user is banned
+    if (currentUser.status === 'banned') {
+      console.error(`AUTH ERROR: Banned user ${payload.email} (ID: ${payload.userId}) attempted to access protected resource`);
+      return res.status(403).json({ 
+        error: 'Account banned', 
+        code: 'AUTH_USER_BANNED',
+        message: 'Your account has been banned. Please contact support for assistance.'
+      });
+    }
+    
+    // Log if user is restricted (allow access but with warning)
+    if (currentUser.status === 'restricted') {
+      console.warn(`AUTH WARNING: Restricted user ${payload.email} (ID: ${payload.userId}) accessing protected resource`);
+    }
+    
+    // Add user data to request object including current status
     req.user = {
       id: payload.userId,
       email: payload.email,
-      role: payload.role
+      role: payload.role,
+      status: currentUser.status
     };
     
-    console.log(`AUTH SUCCESS: User ${payload.email} (ID: ${payload.userId}) authenticated`);
+    console.log(`AUTH SUCCESS: User ${payload.email} (ID: ${payload.userId}, Status: ${currentUser.status || 'active'}) authenticated`);
     next();
   } catch (error) {
     console.error('AUTH ERROR: Authentication failed', error);

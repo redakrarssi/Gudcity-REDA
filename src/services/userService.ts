@@ -498,17 +498,39 @@ export async function updateUserStatus(id: number, status: 'active' | 'banned' |
       console.error('Error ensuring status column exists:', alterError);
     }
 
+    // Get user details for logging before update
+    const userBefore = await getUserById(id);
+    if (!userBefore) {
+      console.error(`MODERATION ERROR: User ${id} not found for status update`);
+      return false;
+    }
+
     // Update the user's status
     await sql`
       UPDATE users
-      SET status = ${status}
+      SET status = ${status}, 
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id}
     `;
     
-    console.log(`Updated user ${id} status to ${status}`);
+    // Enhanced logging for audit trail
+    const actionTimestamp = new Date().toISOString();
+    const previousStatus = userBefore.status || 'active';
+    
+    console.log(`🔒 MODERATION ACTION: User ${userBefore.email} (ID: ${id}) status changed from '${previousStatus}' to '${status}' at ${actionTimestamp}`);
+    
+    // Log specific action type
+    if (status === 'banned') {
+      console.log(`🚫 USER BANNED: ${userBefore.email} (${userBefore.name}) has been banned and will be denied access to all protected resources`);
+    } else if (status === 'restricted') {
+      console.log(`⚠️ USER RESTRICTED: ${userBefore.email} (${userBefore.name}) has been restricted with limited access`);
+    } else if (status === 'active') {
+      console.log(`✅ USER ACTIVATED: ${userBefore.email} (${userBefore.name}) has been reactivated with full access`);
+    }
+    
     return true;
   } catch (error) {
-    console.error(`Error updating user ${id} status to ${status}:`, error);
+    console.error(`❌ MODERATION ERROR: Failed to update user ${id} status to ${status}:`, error);
     return false;
   }
 }

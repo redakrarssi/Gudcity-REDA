@@ -661,27 +661,49 @@ interface ProtectedRouteProps {
 /**
  * Protected route component
  * Redirects to login if user is not authenticated or doesn't have required permission
+ * Also checks user status and redirects to appropriate suspension page
  */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requiredPermission 
 }) => {
-  const { isAuthenticated, hasPermission, loading } = useAuth();
+  const { isAuthenticated, hasPermission, loading, user } = useAuth();
   const navigate = useNavigate();
   
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login');
-    } else if (!loading && isAuthenticated && requiredPermission && !hasPermission(requiredPermission)) {
-      navigate('/unauthorized');
+    } else if (!loading && isAuthenticated && user) {
+      // Check user status first - this takes priority over permissions
+      if (user.status === 'banned') {
+        console.log(`🚫 ACCESS DENIED: Banned user ${user.email} attempted to access protected route`);
+        navigate('/suspended?reason=banned');
+        return;
+      }
+      
+      // Restricted users can access most routes but with warnings
+      if (user.status === 'restricted') {
+        console.warn(`⚠️ RESTRICTED ACCESS: User ${user.email} accessing protected route with restrictions`);
+        // Continue to permission check - don't block access for restricted users
+      }
+      
+      // Check permissions after status validation
+      if (requiredPermission && !hasPermission(requiredPermission)) {
+        navigate('/unauthorized');
+      }
     }
-  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission]);
+  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission, user]);
   
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
   
   if (!isAuthenticated) {
+    return null;
+  }
+  
+  // Block banned users completely
+  if (user?.status === 'banned') {
     return null;
   }
   

@@ -8,6 +8,7 @@ import DiagnosticRenderer from './components/DiagnosticRenderer';
 import Pricing from './pages/Pricing';
 import CommentsPage from './pages/Comments';
 import Unauthorized from './pages/auth/Unauthorized';
+import Suspended from './pages/auth/Suspended';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerCards from './pages/customer/Cards';
 import CustomerPromotions from './pages/customer/Promotions';
@@ -46,6 +47,7 @@ import { registerNotificationListeners } from './utils/notificationHandler';
 import { queryClient } from './utils/queryClient';
 import { toast } from 'react-hot-toast';
 import AuthMonitor from './components/AuthMonitor';
+import UserStatusMonitor from './components/UserStatusMonitor';
 
 // Import auth interceptor
 import './utils/authInterceptor';
@@ -163,6 +165,9 @@ function App() {
               {/* Authentication monitor */}
               <AuthMonitor />
               
+              {/* User status monitor for real-time moderation enforcement */}
+              <UserStatusMonitor />
+              
               {/* Show database connection alert */}
               <DatabaseConnectionAlert />
 
@@ -197,6 +202,14 @@ function App() {
                 <Route path="/unauthorized" element={
                   <ErrorBoundary>
                     <Unauthorized />
+                  </ErrorBoundary>
+                } />
+                <Route path="/suspended" element={
+                  <ErrorBoundary>
+                    <Suspended 
+                      reason={new URLSearchParams(window.location.search).get('reason') as 'banned' | 'restricted' || 'banned'}
+                      message={new URLSearchParams(window.location.search).get('message') || undefined}
+                    />
                   </ErrorBoundary>
                 } />
                 <Route path="/access-admin" element={
