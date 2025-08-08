@@ -61,13 +61,8 @@ const UsersPage: React.FC = () => {
           </div>
         </div>
 
-<<<<<<< Current (Your changes)
-        {/* User Tables with tabs */}
-        <UserTables key={refreshTrigger} mode="customersOnly" onRefresh={() => setRefreshTrigger(prev => prev + 1)} />
-=======
         {/* Segmented User Tables with tabs: Customers, Businesses, Staff */}
         <UserTables key={refreshTrigger} onRefresh={() => setRefreshTrigger(prev => prev + 1)} />
->>>>>>> Incoming (Background Agent changes)
       </div>
     </AdminLayout>
   );
