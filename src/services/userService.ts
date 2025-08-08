@@ -673,7 +673,7 @@ export async function getUsersByType(userType: UserType | 'all' | 'staff'): Prom
       query = sql`
         SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
         FROM users
-        WHERE role = 'admin'
+        WHERE role IN ('admin', 'moderator')
         ORDER BY created_at DESC
       `;
     } else {
