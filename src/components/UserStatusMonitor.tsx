@@ -41,20 +41,19 @@ const UserStatusMonitor: React.FC = () => {
           if (currentStatus === 'banned') {
             console.error(`🚫 USER BANNED: ${user.email} has been banned, logging out immediately`);
             logout();
-            navigate('/suspended?reason=banned&message=Your account has been suspended by an administrator.');
+            navigate('/banned?message=Your account has been suspended by an administrator.');
             return;
           }
           
-          // Handle restricted status - log warning but allow continued use
+          // Handle restricted status - redirect to restriction page
           if (currentStatus === 'restricted') {
             console.warn(`⚠️ USER RESTRICTED: ${user.email} has been restricted`);
-            // Could show a toast notification here if desired
+            navigate('/restricted?message=Your account access is currently limited.');
           }
           
           // Handle reactivation
           if (currentStatus === 'active' && (previousStatus === 'banned' || previousStatus === 'restricted')) {
             console.log(`✅ USER REACTIVATED: ${user.email} has been reactivated`);
-            // Could show a toast notification here if desired
           }
           
           lastKnownStatus.current = currentStatus;

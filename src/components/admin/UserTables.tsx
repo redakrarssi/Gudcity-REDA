@@ -20,12 +20,14 @@ import {
   AlertOctagon, 
   RefreshCw
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface UserTableProps {
   onRefresh: () => void;
+  mode?: 'customersOnly' | 'all';
 }
 
-export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
+export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [customers, setCustomers] = useState<User[]>([]);
   const [businesses, setBusinesses] = useState<User[]>([]);
@@ -33,6 +35,7 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const { user: adminUser } = useAuth();
 
   useEffect(() => {
     console.log('Loading users...');
@@ -48,19 +51,24 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
       await ensureDemoUsers();
       console.log('Ensured demo users exist');
       
-      const [customerData, businessData, staffData] = await Promise.all([
-        getUsersByType('customer'),
-        getUsersByType('business'),
-        getUsersByType('staff')
-      ]);
-      
-      console.log('Customer data:', customerData);
-      console.log('Business data:', businessData);
-      console.log('Staff data:', staffData);
-      
-      setCustomers(customerData);
-      setBusinesses(businessData);
-      setStaff(staffData);
+      if (mode === 'customersOnly') {
+        const customerData = await getUsersByType('customer');
+        setCustomers(customerData);
+        setBusinesses([]);
+        setStaff([]);
+      } else {
+        const [customerData, businessData, staffData] = await Promise.all([
+          getUsersByType('customer'),
+          getUsersByType('business'),
+          getUsersByType('staff')
+        ]);
+        console.log('Customer data:', customerData);
+        console.log('Business data:', businessData);
+        console.log('Staff data:', staffData);
+        setCustomers(customerData);
+        setBusinesses(businessData);
+        setStaff(staffData);
+      }
       
     } catch (err) {
       console.error('Error loading users:', err);
@@ -105,13 +113,18 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
     setActionLoading(id);
     try {
       let success = false;
+      const audit = {
+        performedById: adminUser?.id,
+        performedByEmail: adminUser?.email,
+        reason: action === 'ban' ? 'Violation of terms' : action === 'restrict' ? 'Temporary restriction' : 'Reactivation by admin'
+      };
       
       if (action === 'ban') {
-        success = await banUser(id);
+        success = await banUser(id, audit);
       } else if (action === 'restrict') {
-        success = await restrictUser(id);
+        success = await restrictUser(id, audit);
       } else if (action === 'activate') {
-        success = await activateUser(id);
+        success = await activateUser(id, audit);
       }
       
       if (success) {
@@ -328,51 +341,57 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
-        <Tab.List className="flex bg-gray-100 border-b border-gray-200">
-          <Tab 
-            className={({ selected }: { selected: boolean }) => 
-              `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
-                selected
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`
-            }
-          >
-            <Users className="w-5 h-5 mr-2" />
-            Customers ({customers.length})
-          </Tab>
-          <Tab 
-            className={({ selected }: { selected: boolean }) => 
-              `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
-                selected
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`
-            }
-          >
-            <Briefcase className="w-5 h-5 mr-2" />
-            Businesses ({businesses.length})
-          </Tab>
-          <Tab 
-            className={({ selected }: { selected: boolean }) => 
-              `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
-                selected
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`
-            }
-          >
-            <Shield className="w-5 h-5 mr-2" />
-            Staff ({staff.length})
-          </Tab>
-        </Tab.List>
-        <Tab.Panels>
-          <Tab.Panel>{renderUserTable(customers, 'customer')}</Tab.Panel>
-          <Tab.Panel>{renderUserTable(businesses, 'business')}</Tab.Panel>
-          <Tab.Panel>{renderUserTable(staff, 'staff')}</Tab.Panel>
-        </Tab.Panels>
-      </Tab.Group>
+      {mode === 'customersOnly' ? (
+        <div className="p-4">
+          {renderUserTable(customers, 'customer')}
+        </div>
+      ) : (
+        <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
+          <Tab.List className="flex bg-gray-100 border-b border-gray-200">
+            <Tab 
+              className={({ selected }: { selected: boolean }) => 
+                `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
+                  selected
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`
+              }
+            >
+              <Users className="w-5 h-5 mr-2" />
+              Customers ({customers.length})
+            </Tab>
+            <Tab 
+              className={({ selected }: { selected: boolean }) => 
+                `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
+                  selected
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`
+              }
+            >
+              <Briefcase className="w-5 h-5 mr-2" />
+              Businesses ({businesses.length})
+            </Tab>
+            <Tab 
+              className={({ selected }: { selected: boolean }) => 
+                `py-3 px-6 text-sm font-medium flex items-center focus:outline-none ${
+                  selected
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`
+              }
+            >
+              <Shield className="w-5 h-5 mr-2" />
+              Staff ({staff.length})
+            </Tab>
+          </Tab.List>
+          <Tab.Panels>
+            <Tab.Panel>{renderUserTable(customers, 'customer')}</Tab.Panel>
+            <Tab.Panel>{renderUserTable(businesses, 'business')}</Tab.Panel>
+            <Tab.Panel>{renderUserTable(staff, 'staff')}</Tab.Panel>
+          </Tab.Panels>
+        </Tab.Group>
+      )}
     </div>
   );
 }; 
