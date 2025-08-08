@@ -55,10 +55,10 @@ export function initAuthInterceptor() {
             
             if (response.status === 403 && code === 'AUTH_USER_BANNED') {
               console.error('Global interceptor: Banned user attempted API access. Redirecting.');
-              window.location.href = '/suspended?reason=banned';
+              window.location.href = '/banned';
             } else if (response.status === 403 && code === 'AUTH_USER_RESTRICTED') {
               console.warn('Global interceptor: Restricted user blocked from API. Redirecting.');
-              window.location.href = '/suspended?reason=restricted';
+              window.location.href = '/restricted';
             } else if (response.status === 401) {
               // Token invalid/expired → send to login
               console.warn('Global interceptor: Unauthorized response, redirecting to login.');

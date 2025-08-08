@@ -9,6 +9,7 @@ import Pricing from './pages/Pricing';
 import CommentsPage from './pages/Comments';
 import Unauthorized from './pages/auth/Unauthorized';
 import Suspended from './pages/auth/Suspended';
+import Banned from './pages/auth/Banned';
 import CustomerDashboard from './pages/customer/Dashboard';
 import CustomerCards from './pages/customer/Cards';
 import CustomerPromotions from './pages/customer/Promotions';
@@ -204,10 +205,17 @@ function App() {
                     <Unauthorized />
                   </ErrorBoundary>
                 } />
-                <Route path="/suspended" element={
+                <Route path="/restricted" element={
                   <ErrorBoundary>
                     <Suspended 
-                      reason={new URLSearchParams(window.location.search).get('reason') as 'banned' | 'restricted' || 'banned'}
+                      reason={'restricted'}
+                      message={new URLSearchParams(window.location.search).get('message') || undefined}
+                    />
+                  </ErrorBoundary>
+                } />
+                <Route path="/banned" element={
+                  <ErrorBoundary>
+                    <Banned 
                       message={new URLSearchParams(window.location.search).get('message') || undefined}
                     />
                   </ErrorBoundary>

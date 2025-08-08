@@ -679,7 +679,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       // Check user status first - this takes priority over permissions
       if (user.status === 'banned') {
         console.log(`🚫 ACCESS DENIED: Banned user ${user.email} attempted to access protected route`);
-        navigate('/suspended?reason=banned');
+        navigate('/banned');
         return;
       }
       
@@ -687,7 +687,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       if (user.status === 'restricted') {
         if (blockRestricted) {
           console.warn(`⚠️ RESTRICTED ACCESS BLOCKED: User ${user.email} redirected from protected route`);
-          navigate('/suspended?reason=restricted');
+          navigate('/restricted');
           return;
         }
         console.warn(`⚠️ RESTRICTED ACCESS: User ${user.email} accessing protected route with restrictions`);

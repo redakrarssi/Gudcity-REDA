@@ -62,7 +62,7 @@ const UsersPage: React.FC = () => {
         </div>
 
         {/* User Tables with tabs */}
-        <UserTables key={refreshTrigger} onRefresh={() => setRefreshTrigger(prev => prev + 1)} />
+        <UserTables key={refreshTrigger} mode="customersOnly" onRefresh={() => setRefreshTrigger(prev => prev + 1)} />
       </div>
     </AdminLayout>
   );
