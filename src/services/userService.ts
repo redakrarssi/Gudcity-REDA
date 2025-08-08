@@ -1,6 +1,7 @@
 import sql from '../utils/db';
 import env from '../utils/env';
 import * as cryptoUtils from '../utils/cryptoUtils';
+import { revokeAllUserTokens } from './authService';
 
 export interface User {
   id?: number;
@@ -176,7 +177,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     
     // If we have a database connection, query it
     const result = await sql`
-      SELECT id, name, email, password, role, user_type, business_name, business_phone, avatar_url, created_at, last_login 
+      SELECT id, name, email, password, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
       FROM users WHERE LOWER(email) = LOWER(${email})
     `;
     
@@ -193,7 +194,8 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       name: user.name, 
       email: user.email,
       role: user.role,
-      user_type: user.user_type
+      user_type: user.user_type,
+      status: user.status
     });
     
     return user as User || null;
@@ -486,7 +488,11 @@ export async function ensureDemoUsers(): Promise<void> {
 }
 
 // Ban or restrict a user
-export async function updateUserStatus(id: number, status: 'active' | 'banned' | 'restricted'): Promise<boolean> {
+export async function updateUserStatus(
+  id: number, 
+  status: 'active' | 'banned' | 'restricted',
+  options?: { performedById?: number; performedByEmail?: string; reason?: string }
+): Promise<boolean> {
   try {
     // First check if the status column exists
     try {
@@ -496,6 +502,25 @@ export async function updateUserStatus(id: number, status: 'active' | 'banned' |
       `;
     } catch (alterError) {
       console.error('Error ensuring status column exists:', alterError);
+    }
+
+    // Ensure moderation audit table exists
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS moderation_logs (
+          id SERIAL PRIMARY KEY,
+          target_user_id INTEGER NOT NULL,
+          action VARCHAR(20) NOT NULL,
+          previous_status VARCHAR(20),
+          new_status VARCHAR(20),
+          reason TEXT,
+          performed_by_id INTEGER,
+          performed_by_email VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+    } catch (logTableError) {
+      console.error('Error ensuring moderation_logs table exists:', logTableError);
     }
 
     // Get user details for logging before update
@@ -513,11 +538,33 @@ export async function updateUserStatus(id: number, status: 'active' | 'banned' |
       WHERE id = ${id}
     `;
     
+    // Revoke all refresh tokens immediately for banned users
+    if (status === 'banned') {
+      try {
+        await revokeAllUserTokens(id);
+      } catch (tokenErr) {
+        console.error('Failed to revoke user tokens after ban:', tokenErr);
+      }
+    }
+    
     // Enhanced logging for audit trail
     const actionTimestamp = new Date().toISOString();
     const previousStatus = userBefore.status || 'active';
     
     console.log(`🔒 MODERATION ACTION: User ${userBefore.email} (ID: ${id}) status changed from '${previousStatus}' to '${status}' at ${actionTimestamp}`);
+    
+    // Persist audit log in DB
+    try {
+      await sql`
+        INSERT INTO moderation_logs (
+          target_user_id, action, previous_status, new_status, reason, performed_by_id, performed_by_email
+        ) VALUES (
+          ${id}, ${status}, ${previousStatus}, ${status}, ${options?.reason || null}, ${options?.performedById || null}, ${options?.performedByEmail || null}
+        )
+      `;
+    } catch (logErr) {
+      console.error('Failed to insert moderation log:', logErr);
+    }
     
     // Log specific action type
     if (status === 'banned') {
@@ -536,18 +583,18 @@ export async function updateUserStatus(id: number, status: 'active' | 'banned' |
 }
 
 // Ban a user
-export async function banUser(id: number): Promise<boolean> {
-  return updateUserStatus(id, 'banned');
+export async function banUser(id: number, options?: { performedById?: number; performedByEmail?: string; reason?: string }): Promise<boolean> {
+  return updateUserStatus(id, 'banned', options);
 }
 
 // Restrict a user's access
-export async function restrictUser(id: number): Promise<boolean> {
-  return updateUserStatus(id, 'restricted');
+export async function restrictUser(id: number, options?: { performedById?: number; performedByEmail?: string; reason?: string }): Promise<boolean> {
+  return updateUserStatus(id, 'restricted', options);
 }
 
 // Activate a user (remove ban/restriction)
-export async function activateUser(id: number): Promise<boolean> {
-  return updateUserStatus(id, 'active');
+export async function activateUser(id: number, options?: { performedById?: number; performedByEmail?: string; reason?: string }): Promise<boolean> {
+  return updateUserStatus(id, 'active', options);
 }
 
 // Get users by type (for filtering in admin tables)
@@ -682,7 +729,8 @@ export async function ensureUserTableExists(): Promise<void> {
         reset_token_expires TIMESTAMP,
         last_login TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        status VARCHAR(20) DEFAULT 'active'
+        status VARCHAR(20) DEFAULT 'active',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
     
@@ -698,6 +746,16 @@ export async function ensureUserTableExists(): Promise<void> {
       console.log('Ensured status column exists');
     } catch (alterError) {
       console.error('Error ensuring status column exists:', alterError);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      `;
+      console.log('Ensured updated_at column exists');
+    } catch (alterError2) {
+      console.error('Error ensuring updated_at column exists:', alterError2);
     }
     
   } catch (error) {

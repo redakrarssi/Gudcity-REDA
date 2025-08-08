@@ -20,6 +20,7 @@ import {
   AlertOctagon, 
   RefreshCw
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface UserTableProps {
   onRefresh: () => void;
@@ -33,6 +34,7 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const { user: adminUser } = useAuth();
 
   useEffect(() => {
     console.log('Loading users...');
@@ -105,13 +107,18 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh }) => {
     setActionLoading(id);
     try {
       let success = false;
+      const audit = {
+        performedById: adminUser?.id,
+        performedByEmail: adminUser?.email,
+        reason: action === 'ban' ? 'Violation of terms' : action === 'restrict' ? 'Temporary restriction' : 'Reactivation by admin'
+      };
       
       if (action === 'ban') {
-        success = await banUser(id);
+        success = await banUser(id, audit);
       } else if (action === 'restrict') {
-        success = await restrictUser(id);
+        success = await restrictUser(id, audit);
       } else if (action === 'activate') {
-        success = await activateUser(id);
+        success = await activateUser(id, audit);
       }
       
       if (success) {

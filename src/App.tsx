@@ -237,7 +237,7 @@ function App() {
                 {/* Customer Routes */}
                 <Route path="/dashboard" element={
                   <ErrorBoundary>
-                    <ProtectedRoute>
+                    <ProtectedRoute blockRestricted>
                       <CustomerDashboard />
                     </ProtectedRoute>
                   </ErrorBoundary>
@@ -249,14 +249,14 @@ function App() {
                 } />
                 <Route path="/promotions" element={
                   <ErrorBoundary>
-                    <ProtectedRoute>
+                    <ProtectedRoute blockRestricted>
                       <CustomerPromotions />
                     </ProtectedRoute>
                   </ErrorBoundary>
                 } />
                 <Route path="/qr-card" element={
                   <ErrorBoundary>
-                    <ProtectedRoute>
+                    <ProtectedRoute blockRestricted>
                       <CustomerQrCard />
                     </ProtectedRoute>
                   </ErrorBoundary>
@@ -266,14 +266,14 @@ function App() {
                 } />
                 <Route path="/settings" element={
                   <ErrorBoundary>
-                    <ProtectedRoute>
+                    <ProtectedRoute blockRestricted>
                       <CustomerSettings />
                     </ProtectedRoute>
                   </ErrorBoundary>
                 } />
                 <Route path="/nearby" element={
                   <ErrorBoundary>
-                    <ProtectedRoute>
+                    <ProtectedRoute blockRestricted>
                       <CustomerNearby />
                     </ProtectedRoute>
                   </ErrorBoundary>
@@ -285,56 +285,56 @@ function App() {
                     <Routes>
                       <Route path="dashboard" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view">
+                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
                             <BusinessDashboard />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="programs" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.programs.view">
+                          <ProtectedRoute requiredPermission="business.programs.view" blockRestricted>
                             <BusinessPrograms />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="analytics" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.analytics.view">
+                          <ProtectedRoute requiredPermission="business.analytics.view" blockRestricted>
                             <BusinessAnalytics />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="customers" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.customers.view">
+                          <ProtectedRoute requiredPermission="business.customers.view" blockRestricted>
                             <BusinessCustomers />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="promotions" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.promotions.view">
+                          <ProtectedRoute requiredPermission="business.promotions.view" blockRestricted>
                             <BusinessPromotions />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="qr-scanner" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view">
+                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
                             <BusinessQrScanner />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="test-codes" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view">
+                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
                             <BusinessTestCodes />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
                       <Route path="settings" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view">
+                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
                             <BusinessSettings />
                           </ProtectedRoute>
                         </ErrorBoundary>

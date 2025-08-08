@@ -44,7 +44,33 @@ export function initAuthInterceptor() {
         newInit.credentials = 'include';
         
         // Call original fetch with new init
-        return originalFetch.call(window, input, newInit);
+        const response = await originalFetch.call(window, input, newInit);
+        
+        // Handle auth failures centrally
+        try {
+          if (response.status === 401 || response.status === 403) {
+            const cloned = response.clone();
+            const data = await cloned.json().catch(() => ({} as any));
+            const code = (data && (data.code || data.errorCode)) as string | undefined;
+            
+            if (response.status === 403 && code === 'AUTH_USER_BANNED') {
+              console.error('Global interceptor: Banned user attempted API access. Redirecting.');
+              window.location.href = '/suspended?reason=banned';
+            } else if (response.status === 403 && code === 'AUTH_USER_RESTRICTED') {
+              console.warn('Global interceptor: Restricted user blocked from API. Redirecting.');
+              window.location.href = '/suspended?reason=restricted';
+            } else if (response.status === 401) {
+              // Token invalid/expired → send to login
+              console.warn('Global interceptor: Unauthorized response, redirecting to login.');
+              window.location.href = '/login';
+            }
+          }
+        } catch (e) {
+          // Swallow errors from parsing/interception to not break normal flow
+          console.debug('Auth interceptor response handling error:', e);
+        }
+        
+        return response;
       }
     }
     

@@ -45,16 +45,15 @@ const UserStatusMonitor: React.FC = () => {
             return;
           }
           
-          // Handle restricted status - log warning but allow continued use
+          // Handle restricted status - redirect to restriction page
           if (currentStatus === 'restricted') {
             console.warn(`⚠️ USER RESTRICTED: ${user.email} has been restricted`);
-            // Could show a toast notification here if desired
+            navigate('/suspended?reason=restricted&message=Your account access is currently limited.');
           }
           
           // Handle reactivation
           if (currentStatus === 'active' && (previousStatus === 'banned' || previousStatus === 'restricted')) {
             console.log(`✅ USER REACTIVATED: ${user.email} has been reactivated`);
-            // Could show a toast notification here if desired
           }
           
           lastKnownStatus.current = currentStatus;

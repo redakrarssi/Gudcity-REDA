@@ -656,6 +656,7 @@ export const useAuth = (): AuthContextType => {
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredPermission?: string;
+  blockRestricted?: boolean;
 }
 
 /**
@@ -665,7 +666,8 @@ interface ProtectedRouteProps {
  */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requiredPermission 
+  requiredPermission,
+  blockRestricted = false
 }) => {
   const { isAuthenticated, hasPermission, loading, user } = useAuth();
   const navigate = useNavigate();
@@ -681,10 +683,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         return;
       }
       
-      // Restricted users can access most routes but with warnings
+      // Restricted users can be optionally blocked
       if (user.status === 'restricted') {
+        if (blockRestricted) {
+          console.warn(`⚠️ RESTRICTED ACCESS BLOCKED: User ${user.email} redirected from protected route`);
+          navigate('/suspended?reason=restricted');
+          return;
+        }
         console.warn(`⚠️ RESTRICTED ACCESS: User ${user.email} accessing protected route with restrictions`);
-        // Continue to permission check - don't block access for restricted users
       }
       
       // Check permissions after status validation
@@ -692,7 +698,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         navigate('/unauthorized');
       }
     }
-  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission, user]);
+  }, [isAuthenticated, hasPermission, loading, navigate, requiredPermission, user, blockRestricted]);
   
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -704,6 +710,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   
   // Block banned users completely
   if (user?.status === 'banned') {
+    return null;
+  }
+  
+  // Block restricted users if requested
+  if (blockRestricted && user?.status === 'restricted') {
     return null;
   }
   
