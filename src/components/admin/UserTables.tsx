@@ -40,36 +40,33 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
   useEffect(() => {
     console.log('Loading users...');
     loadUsers();
-  }, [onRefresh]);
+  }, [onRefresh, activeTab, mode]);
 
   const loadUsers = async () => {
     setLoading(true);
     setError(null);
     console.log('Fetching users from database...');
     try {
-      // First ensure demo users exist
       await ensureDemoUsers();
-      console.log('Ensured demo users exist');
-      
+
       if (mode === 'customersOnly') {
         const customerData = await getUsersByType('customer');
         setCustomers(customerData);
         setBusinesses([]);
         setStaff([]);
       } else {
-        const [customerData, businessData, staffData] = await Promise.all([
-          getUsersByType('customer'),
-          getUsersByType('business'),
-          getUsersByType('staff')
-        ]);
-        console.log('Customer data:', customerData);
-        console.log('Business data:', businessData);
-        console.log('Staff data:', staffData);
-        setCustomers(customerData);
-        setBusinesses(businessData);
-        setStaff(staffData);
+        // Lazy-fetch only the active segment per tab
+        if (activeTab === 0) {
+          const customerData = await getUsersByType('customer');
+          setCustomers(customerData);
+        } else if (activeTab === 1) {
+          const businessData = await getUsersByType('business');
+          setBusinesses(businessData);
+        } else if (activeTab === 2) {
+          const staffData = await getUsersByType('staff');
+          setStaff(staffData);
+        }
       }
-      
     } catch (err) {
       console.error('Error loading users:', err);
       setError('Failed to load users. Please check console for details.');
