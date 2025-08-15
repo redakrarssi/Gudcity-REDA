@@ -169,7 +169,20 @@ const CustomerCards = () => {
     
     try {
       console.log('Syncing enrollments to cards for customer:', user.id);
-      const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      
+      // FIXED: Get the actual customer ID, not the user ID
+      let actualCustomerId = user.id;
+      try {
+        const customerRecord = await sql`SELECT id FROM customers WHERE user_id = ${user.id}`;
+        if (customerRecord.length > 0) {
+          actualCustomerId = customerRecord[0].id;
+          console.log(`🔄 Using actual customer ID ${actualCustomerId} for sync`);
+        }
+      } catch (error) {
+        console.warn('Could not get customer ID for sync, using user ID as fallback:', error);
+      }
+      
+      const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(actualCustomerId));
       
       if (createdCardIds.length > 0) {
         console.log(`Created ${createdCardIds.length} new cards from enrollments`);
@@ -199,7 +212,7 @@ const CustomerCards = () => {
       
       // Additional sync for new users - ensure all enrollments have cards
       try {
-        const syncResult = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+        const syncResult = await LoyaltyCardService.syncEnrollmentsToCards(String(actualCustomerId));
         if (syncResult && syncResult.length > 0) {
           console.log(`🔄 Synced ${syncResult.length} enrollments to cards for new user ${user.id}`);
         }
