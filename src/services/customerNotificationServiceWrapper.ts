@@ -133,48 +133,23 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     
     const { customerId, businessId, entityId, requestType, programName, businessName, customerName, notificationId } = request[0];
     
-            // Call the stored procedure based on request type
-        let cardId: string | undefined;
+    // Call the stored procedure based on request type
+    let cardId: string | undefined;
+    
+    if (requestType === 'ENROLLMENT') {
+      try {
+        // Handle enrollment approval with robust error handling and retries
+        // Use withRetry for database operation with timeout handling
+        const result = await withRetry(async () => {
+          return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`;
+        });
         
-        if (requestType === 'ENROLLMENT') {
-          try {
-            // Handle enrollment approval with robust error handling and retries
-            // Use withRetry for database operation with timeout handling
-            const result = await withRetry(async () => {
-              return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`;
-            });
-            
-            if (result && result[0] && result[0].process_enrollment_approval) {
-              cardId = result[0].process_enrollment_approval;
-              logger.info('Stored procedure returned card ID', { cardId, requestId });
-            } else {
-              logger.warn('Stored procedure did not return a card ID', { result, requestId });
-            }
-          } catch (dbError: any) {
-            // Check for specific database error types
-            let errorCode = EnrollmentErrorCode.TRANSACTION_ERROR;
-            
-            if (dbError.message?.includes('timeout')) {
-              errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
-            } else if (dbError.code === '23505') {
-              errorCode = EnrollmentErrorCode.ALREADY_ENROLLED;
-            } else if (dbError.code === '23503') {
-              errorCode = EnrollmentErrorCode.VALIDATION_ERROR;
-            }
-            
-            const error = createDetailedError(
-              errorCode,
-              `Database transaction error: ${dbError.message || 'Unknown error'}`,
-              'enrollment_transaction'
-            );
-            reportEnrollmentError(error, { requestId, approved });
-            
-            return { 
-              success: false, 
-              error: formatEnrollmentErrorForUser(error),
-              errorCode
-            };
-          }
+        if (result && result[0] && result[0].process_enrollment_approval) {
+          cardId = result[0].process_enrollment_approval;
+          logger.info('Stored procedure returned card ID', { cardId, requestId });
+        } else {
+          logger.warn('Stored procedure did not return a card ID', { result, requestId });
+        }
         
         // Double check the notification is marked as actioned
         if (notificationId) {
@@ -231,7 +206,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
             }
           }
           
-                    // ENSURE CARD CREATION - This is critical
+          // ENSURE CARD CREATION - This is critical
           // Even if we have a cardId, force sync the cards again to be sure
           try {
             // First try to directly create the card if needed
@@ -264,119 +239,66 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
               }
             }
             
-            // Verify card exists again or use service to create it
-            const cardCheck = await sql`
-              SELECT id FROM loyalty_cards
-              WHERE customer_id = ${customerId}
-              AND program_id = ${entityId}
-            `;
-            
-            if (!cardCheck || cardCheck.length === 0) {
-              logger.warn('Card still not found, using service to create it', { customerId, programId: entityId });
-              
-              // Use the card service to ensure the card is created
-              const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(customerId));
-              
-              if (createdCardIds && createdCardIds.length > 0) {
-                logger.info('Created cards through service', { createdCardIds, customerId });
-                
-                // Get the ID of the card we just created
-                const newCardCheck = await sql`
-                  SELECT id FROM loyalty_cards
-                  WHERE customer_id = ${customerId}
-                  AND program_id = ${entityId}
-                  ORDER BY created_at DESC
-                  LIMIT 1
-                `;
-                
-                if (newCardCheck && newCardCheck.length > 0) {
-                  cardId = newCardCheck[0].id;
-                  logger.info('Retrieved card ID after service sync', { cardId });
-                }
-              }
-            } else if (!cardId) {
-              // We found a card but didn't have the ID
-              cardId = cardCheck[0].id;
-            }
-            
-            // FINAL VERIFICATION - Ensure card exists, try one more method as last resort
+            // If still no card, try a more comprehensive approach
             if (!cardId) {
-              logger.warn('Final attempt to create card', { customerId, programId: entityId });
-              
-              // As a last resort, try to manually create the relationship and force card creation
-              await sql`
-                WITH enrollment_check AS (
-                  INSERT INTO program_enrollments (
-                    customer_id, program_id, business_id, status, current_points, enrolled_at
-                  ) VALUES (
-                    ${customerId}, ${entityId}, ${businessId}, 'ACTIVE', 0, NOW()
-                  )
-                  ON CONFLICT (customer_id, program_id) DO NOTHING
-                )
-                INSERT INTO loyalty_cards (
-                  customer_id, business_id, program_id, created_at
-                ) VALUES (
-                  ${customerId}, 
-                  ${businessId}, 
-                  ${entityId}, 
-                  NOW()
-                )
-                ON CONFLICT (customer_id, program_id) DO NOTHING
-                RETURNING id
-              `;
-              
-              // Refresh from database
-              const finalCheck = await sql`
-                SELECT id FROM loyalty_cards
-                WHERE customer_id = ${customerId}
-                AND program_id = ${entityId}
-                LIMIT 1
-              `;
-              
-              if (finalCheck && finalCheck.length > 0) {
-                cardId = finalCheck[0].id;
-                logger.info('Final card creation successful', { cardId });
-              }
-            }
-            
-            // ULTIMATE FALLBACK - If still no card, create it with minimal schema requirements
-            if (!cardId) {
-              logger.error('All card creation methods failed, using ultimate fallback', { customerId, programId: entityId });
-              
               try {
-                // Check what columns actually exist in the loyalty_cards table
-                const tableInfo = await sql`
-                  SELECT column_name, data_type 
-                  FROM information_schema.columns 
-                  WHERE table_name = 'loyalty_cards'
-                  ORDER BY ordinal_position
-                `;
-                
-                logger.info('Available columns in loyalty_cards table:', tableInfo);
-                
-                // Create card with only the essential columns that we know exist
-                const essentialCardResult = await sql`
+                // Try to create card with minimal required fields
+                const minimalCardResult = await sql`
                   INSERT INTO loyalty_cards (
                     customer_id,
                     business_id,
                     program_id,
+                    card_type,
+                    status,
+                    points,
                     created_at
                   ) VALUES (
                     ${customerId},
                     ${businessId},
                     ${entityId},
+                    'STANDARD',
+                    'ACTIVE',
+                    0,
                     NOW()
                   )
-                  ON CONFLICT (customer_id, program_id) DO NOTHING
+                  ON CONFLICT (customer_id, program_id) 
+                  DO UPDATE SET updated_at = NOW()
                   RETURNING id
                 `;
                 
-                if (essentialCardResult && essentialCardResult.length > 0) {
-                  cardId = essentialCardResult[0].id;
-                  logger.info('Created card with essential columns only', { cardId });
+                if (minimalCardResult && minimalCardResult.length > 0) {
+                  cardId = minimalCardResult[0].id;
+                  logger.info('Created card with minimal fields', { cardId });
                 }
-              } catch (fallbackError) {
-                logger.error('Ultimate fallback card creation also failed', { error: fallbackError });
+              } catch (minimalError) {
+                logger.error('Minimal card creation failed', { error: minimalError });
+                
+                // Ultimate fallback: try with essential columns only
+                try {
+                  const essentialCardResult = await sql`
+                    INSERT INTO loyalty_cards (
+                      customer_id,
+                      business_id,
+                      program_id,
+                      created_at
+                    ) VALUES (
+                      ${customerId},
+                      ${businessId},
+                      ${entityId},
+                      NOW()
+                    )
+                    ON CONFLICT (customer_id, program_id) 
+                    DO UPDATE SET updated_at = NOW()
+                    RETURNING id
+                  `;
+                  
+                  if (essentialCardResult && essentialCardResult.length > 0) {
+                    cardId = essentialCardResult[0].id;
+                    logger.info('Created card with essential columns only', { cardId });
+                  }
+                } catch (fallbackError) {
+                  logger.error('Ultimate fallback card creation also failed', { error: fallbackError });
+                }
               }
             }
           } catch (cardError) {
