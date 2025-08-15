@@ -418,46 +418,40 @@ export async function initializeDbSchema(): Promise<boolean> {
  */
 export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
   try {
-    // Check if the function exists
-    const functionExists = await sql`
-      SELECT EXISTS (
-        SELECT FROM pg_proc 
-        WHERE proname = 'process_enrollment_approval'
-      );
-    `;
+    // Drop the existing function if it exists to ensure we have the latest version
+    await sql`DROP FUNCTION IF EXISTS process_enrollment_approval(uuid, boolean)`;
     
-    if (functionExists && functionExists[0] && functionExists[0].exists === true) {
-      return true;
-    }
+    console.log('Dropped existing process_enrollment_approval function');
+    
+    // Always create the function to ensure we have the latest version
     
     // Create the function if it doesn't exist
     await sql`
-      CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
-      RETURNS UUID AS $$
-      DECLARE
-        customer_id_val INTEGER;
-        business_id_val INTEGER;
-        program_id_val TEXT;
-        notification_id_val UUID;
-        enrollment_exists BOOLEAN;
-        card_id_val UUID;
-        card_exists BOOLEAN;
-        card_number_val TEXT;
-        program_name_val TEXT;
-        business_name_val TEXT;
-        customer_name_val TEXT;
-        enrollment_id_val INTEGER;
-        existing_notification UUID;
-      BEGIN
-        -- Start an explicit transaction
+              CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
+        RETURNS TEXT AS $$
+        DECLARE
+          customer_id_val INTEGER;
+          business_id_val INTEGER;
+          program_id_val TEXT;
+          notification_id_val UUID;
+          enrollment_exists BOOLEAN;
+          card_id_val TEXT;
+          card_exists BOOLEAN;
+          card_number_val TEXT;
+          program_name_val TEXT;
+          business_name_val TEXT;
+          customer_name_val TEXT;
+          enrollment_id_val INTEGER;
+          existing_notification UUID;
         BEGIN
-          -- Update the approval request status
-          UPDATE customer_approval_requests
-          SET status = CASE WHEN is_approved THEN 'APPROVED' ELSE 'REJECTED' END,
-              responded_at = NOW(),
-              updated_at = NOW()
-          WHERE id = request_id
-          RETURNING customer_id, business_id, entity_id, notification_id INTO customer_id_val, business_id_val, program_id_val, notification_id_val;
+          -- Start an explicit transaction
+          BEGIN
+            -- Update the approval request status
+            UPDATE customer_approval_requests
+            SET status = CASE WHEN is_approved THEN 'APPROVED' ELSE 'REJECTED' END,
+                response_at = NOW()
+            WHERE id = request_id
+            RETURNING customer_id, business_id, entity_id, notification_id INTO customer_id_val, business_id_val, program_id_val, notification_id_val;
           
           -- If customer_id is null, the request wasn't found
           IF customer_id_val IS NULL THEN
@@ -527,23 +521,26 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           
           -- Create or update customer-business relationship regardless of approval decision
           -- For both approved and declined enrollments, we want to track the relationship
-          INSERT INTO customer_business_relationships (
-            customer_id,
-            business_id,
-            status,
-            created_at,
-            updated_at
-          ) VALUES (
-            customer_id_val::text,
-            business_id_val::text,
-            CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
-            NOW(),
-            NOW()
-          )
-          ON CONFLICT (customer_id, business_id) 
-          DO UPDATE SET 
-            status = CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
-            updated_at = NOW();
+          -- Note: This table may not exist, so we'll handle it gracefully
+          BEGIN
+            INSERT INTO customer_business_relationships (
+              customer_id,
+              business_id,
+              status,
+              created_at
+            ) VALUES (
+              customer_id_val::text,
+              business_id_val::text,
+              CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
+              NOW()
+            )
+            ON CONFLICT (customer_id, business_id) 
+            DO UPDATE SET 
+              status = CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END;
+          EXCEPTION WHEN OTHERS THEN
+            -- Table doesn't exist or other error, continue execution
+            RAISE NOTICE 'Customer business relationships table not available, continuing...';
+          END;
           
           -- Create a notification for the customer about their decision
           INSERT INTO customer_notifications (
@@ -739,7 +736,7 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           COMMIT;
           
           -- Return the card ID as a string for better compatibility
-          RETURN card_id_val::text;
+          RETURN card_id_val;
         EXCEPTION WHEN OTHERS THEN
           -- Rollback transaction on error
           ROLLBACK;

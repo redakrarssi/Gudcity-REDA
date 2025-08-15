@@ -150,6 +150,31 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
             } else {
               logger.warn('Stored procedure did not return a card ID', { result, requestId });
             }
+          } catch (dbError: any) {
+            // Check for specific database error types
+            let errorCode = EnrollmentErrorCode.TRANSACTION_ERROR;
+            
+            if (dbError.message?.includes('timeout')) {
+              errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
+            } else if (dbError.code === '23505') {
+              errorCode = EnrollmentErrorCode.ALREADY_ENROLLED;
+            } else if (dbError.code === '23503') {
+              errorCode = EnrollmentErrorCode.VALIDATION_ERROR;
+            }
+            
+            const error = createDetailedError(
+              errorCode,
+              `Database transaction error: ${dbError.message || 'Unknown error'}`,
+              'enrollment_transaction'
+            );
+            reportEnrollmentError(error, { requestId, approved });
+            
+            return { 
+              success: false, 
+              error: formatEnrollmentErrorForUser(error),
+              errorCode
+            };
+          }
         
         // Double check the notification is marked as actioned
         if (notificationId) {
