@@ -245,16 +245,24 @@ const NotificationList: React.FC<NotificationListProps> = ({
               }, 500);
             }
           } else {
-            // Handle error case
-            setResponseStatus(createErrorResponse(
-              approvalId,
-              {
-                code: result.errorCode || EnrollmentErrorCode.UNKNOWN_ERROR,
-                message: result.message || 'An error occurred while processing the enrollment',
-                details: result.details
-              },
-              result.errorLocation || 'Enrollment processing'
-            ));
+                      // Handle error case
+          const errorMessage = result.error || result.message || 'An error occurred while processing the enrollment';
+          setResponseStatus(createErrorResponse(
+            approvalId,
+            {
+              code: result.errorCode || EnrollmentErrorCode.UNKNOWN_ERROR,
+              message: errorMessage,
+              details: result.details
+            },
+            result.errorLocation || 'Enrollment processing'
+          ));
+          
+          // Show user-friendly error message
+          if (result.errorCode === EnrollmentErrorCode.CARD_CREATION_FAILED) {
+            addNotification('error', 'Enrollment was processed but there was an issue creating your loyalty card. Please refresh the page or contact support.');
+          } else {
+            addNotification('error', errorMessage);
+          }
           }
           
           // Clear processing state

@@ -55,6 +55,29 @@ async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES):
 }
 
 /**
+ * Verifies that a loyalty card was actually created in the database
+ */
+async function verifyCardCreation(customerId: string, programId: string): Promise<string | null> {
+  try {
+    const cardCheck = await sql`
+      SELECT id FROM loyalty_cards
+      WHERE customer_id = ${customerId}
+      AND program_id = ${programId}
+      LIMIT 1
+    `;
+    
+    if (cardCheck && cardCheck.length > 0) {
+      return cardCheck[0].id.toString();
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error('Error verifying card creation', { error, customerId, programId });
+    return null;
+  }
+}
+
+/**
  * Safely respond to an approval request with proper error handling and transaction support
  * Uses a stored procedure for enrollment approvals to ensure atomicity
  */
@@ -68,6 +91,10 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
   try {
     // Ensure our stored procedure exists
     await ensureEnrollmentProcedureExists();
+    
+    // Ensure the loyalty_cards table has the correct schema
+    const { ensureLoyaltyCardsSchema } = await import('../utils/db');
+    await ensureLoyaltyCardsSchema();
     
     // Get the request details first
     const request = await sql`
@@ -119,6 +146,9 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         
         if (result && result[0] && result[0].process_enrollment_approval) {
           cardId = result[0].process_enrollment_approval;
+          logger.info('Stored procedure returned card ID', { cardId, requestId });
+        } else {
+          logger.warn('Stored procedure did not return a card ID', { result, requestId });
         }
         
         // Double check the notification is marked as actioned
@@ -187,22 +217,12 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
                     customer_id,
                     business_id,
                     program_id,
-                    card_number,
-                    card_type,
-                    status,
-                    points,
-                    created_at,
-                    updated_at
+                    created_at
                   )
                   SELECT
                     ${customerId},
                     ${businessId},
                     ${entityId},
-                    'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
-                    'STANDARD',
-                    'ACTIVE',
-                    0,
-                    NOW(),
                     NOW()
                   WHERE NOT EXISTS (
                     SELECT 1 FROM loyalty_cards
@@ -219,81 +239,66 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
               }
             }
             
-            // Verify card exists again or use service to create it
-            const cardCheck = await sql`
-              SELECT id FROM loyalty_cards
-              WHERE customer_id = ${customerId}
-              AND program_id = ${entityId}
-            `;
-            
-            if (!cardCheck || cardCheck.length === 0) {
-              logger.warn('Card still not found, using service to create it', { customerId, programId: entityId });
-              
-              // Use the card service to ensure the card is created
-              const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(customerId));
-              
-              if (createdCardIds && createdCardIds.length > 0) {
-                logger.info('Created cards through service', { createdCardIds, customerId });
-                
-                // Get the ID of the card we just created
-                const newCardCheck = await sql`
-                  SELECT id FROM loyalty_cards
-                  WHERE customer_id = ${customerId}
-                  AND program_id = ${entityId}
-                  ORDER BY created_at DESC
-                  LIMIT 1
+            // If still no card, try a more comprehensive approach
+            if (!cardId) {
+              try {
+                // Try to create card with minimal required fields
+                const minimalCardResult = await sql`
+                  INSERT INTO loyalty_cards (
+                    customer_id,
+                    business_id,
+                    program_id,
+                    card_type,
+                    status,
+                    points,
+                    created_at
+                  ) VALUES (
+                    ${customerId},
+                    ${businessId},
+                    ${entityId},
+                    'STANDARD',
+                    'ACTIVE',
+                    0,
+                    NOW()
+                  )
+                  ON CONFLICT (customer_id, program_id) 
+                  DO UPDATE SET updated_at = NOW()
+                  RETURNING id
                 `;
                 
-                if (newCardCheck && newCardCheck.length > 0) {
-                  cardId = newCardCheck[0].id;
-                  logger.info('Retrieved card ID after service sync', { cardId });
+                if (minimalCardResult && minimalCardResult.length > 0) {
+                  cardId = minimalCardResult[0].id;
+                  logger.info('Created card with minimal fields', { cardId });
                 }
-              }
-            } else if (!cardId) {
-              // We found a card but didn't have the ID
-              cardId = cardCheck[0].id;
-            }
-            
-            // FINAL VERIFICATION - Ensure card exists, try one more method as last resort
-            if (!cardId) {
-              logger.warn('Final attempt to create card', { customerId, programId: entityId });
-              
-              // As a last resort, try to manually create the relationship and force card creation
-              await sql`
-                WITH enrollment_check AS (
-                  INSERT INTO program_enrollments (
-                    customer_id, program_id, business_id, status, current_points, enrolled_at
-                  ) VALUES (
-                    ${customerId}, ${entityId}, ${businessId}, 'ACTIVE', 0, NOW()
-                  )
-                  ON CONFLICT (customer_id, program_id) DO NOTHING
-                )
-                INSERT INTO loyalty_cards (
-                  customer_id, business_id, program_id, card_number, status, points, created_at
-                ) VALUES (
-                  ${customerId}, 
-                  ${businessId}, 
-                  ${entityId}, 
-                  'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
-                  'ACTIVE',
-                  0,
-                  NOW()
-                )
-                ON CONFLICT (customer_id, program_id) DO NOTHING
-                RETURNING id
-              `;
-              
-              // Refresh from database
-              const finalCheck = await sql`
-                SELECT id FROM loyalty_cards
-                WHERE customer_id = ${customerId}
-                AND program_id = ${entityId}
-                LIMIT 1
-              `;
-              
-              if (finalCheck && finalCheck.length > 0) {
-                cardId = finalCheck[0].id;
-                logger.info('Final card creation successful', { cardId });
+              } catch (minimalError) {
+                logger.error('Minimal card creation failed', { error: minimalError });
+                
+                // Ultimate fallback: try with essential columns only
+                try {
+                  const essentialCardResult = await sql`
+                    INSERT INTO loyalty_cards (
+                      customer_id,
+                      business_id,
+                      program_id,
+                      created_at
+                    ) VALUES (
+                      ${customerId},
+                      ${businessId},
+                      ${entityId},
+                      NOW()
+                    )
+                    ON CONFLICT (customer_id, program_id) 
+                    DO UPDATE SET updated_at = NOW()
+                    RETURNING id
+                  `;
+                  
+                  if (essentialCardResult && essentialCardResult.length > 0) {
+                    cardId = essentialCardResult[0].id;
+                    logger.info('Created card with essential columns only', { cardId });
+                  }
+                } catch (fallbackError) {
+                  logger.error('Ultimate fallback card creation also failed', { error: fallbackError });
+                }
               }
             }
           } catch (cardError) {
@@ -450,7 +455,44 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
       // Continue execution even if notifications fail
     }
     
+    // Final verification: ensure the card actually exists in the database
+    if (approved && cardId) {
+      const verifiedCardId = await verifyCardCreation(String(customerId), String(entityId));
+      if (!verifiedCardId) {
+        logger.error('Card ID exists but card not found in database', { 
+          cardId, 
+          customerId, 
+          programId: entityId, 
+          requestId 
+        });
+        
+        return {
+          success: false,
+          error: 'Enrollment was processed but the loyalty card could not be verified. Please contact support.',
+          errorCode: EnrollmentErrorCode.CARD_CREATION_FAILED
+        };
+      }
+      
+      // Use the verified card ID
+      cardId = verifiedCardId;
+    }
+    
     // Return success response with card ID if available
+    // For new users, ensure we have a card ID before returning success
+    if (approved && !cardId) {
+      logger.error('Enrollment approved but no card ID was created', { 
+        customerId, 
+        programId: entityId, 
+        requestId 
+      });
+      
+      return {
+        success: false,
+        error: 'Enrollment was processed but no loyalty card was created. Please contact support.',
+        errorCode: EnrollmentErrorCode.CARD_CREATION_FAILED
+      };
+    }
+    
     return {
       success: true,
       message: approved 

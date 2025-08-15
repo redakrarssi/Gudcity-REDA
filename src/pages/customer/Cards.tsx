@@ -14,6 +14,7 @@ import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
 import { triggerCardRefresh } from '../../utils/notificationHandler';
+import sql from '../../utils/db';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -168,7 +169,20 @@ const CustomerCards = () => {
     
     try {
       console.log('Syncing enrollments to cards for customer:', user.id);
-      const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      
+      // FIXED: Get the actual customer ID, not the user ID
+      let actualCustomerId = user.id;
+      try {
+        const customerRecord = await sql`SELECT id FROM customers WHERE user_id = ${user.id}`;
+        if (customerRecord.length > 0) {
+          actualCustomerId = customerRecord[0].id;
+          console.log(`🔄 Using actual customer ID ${actualCustomerId} for sync`);
+        }
+      } catch (error) {
+        console.warn('Could not get customer ID for sync, using user ID as fallback:', error);
+      }
+      
+      const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(actualCustomerId));
       
       if (createdCardIds.length > 0) {
         console.log(`Created ${createdCardIds.length} new cards from enrollments`);
@@ -196,8 +210,30 @@ const CustomerCards = () => {
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
       await syncEnrollments();
       
+      // Additional sync for new users - ensure all enrollments have cards
+      try {
+        const syncResult = await LoyaltyCardService.syncEnrollmentsToCards(String(actualCustomerId));
+        if (syncResult && syncResult.length > 0) {
+          console.log(`🔄 Synced ${syncResult.length} enrollments to cards for new user ${user.id}`);
+        }
+      } catch (syncError) {
+        console.error('Error syncing enrollments to cards:', syncError);
+      }
+      
       // Then get all customer cards with enhanced point verification
-      const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
+      // FIXED: Get the actual customer ID from the customers table, not the user ID
+      let actualCustomerId = user.id;
+      try {
+        const customerRecord = await sql`SELECT id FROM customers WHERE user_id = ${user.id}`;
+        if (customerRecord.length > 0) {
+          actualCustomerId = customerRecord[0].id;
+          console.log(`🔄 Using actual customer ID ${actualCustomerId} instead of user ID ${user.id}`);
+        }
+      } catch (error) {
+        console.warn('Could not get customer ID, using user ID as fallback:', error);
+      }
+      
+      const cards = await LoyaltyCardService.getCustomerCards(String(actualCustomerId));
       
       // Debug: Log each card's points for troubleshooting
       cards.forEach(card => {
