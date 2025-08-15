@@ -196,6 +196,16 @@ const CustomerCards = () => {
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
       await syncEnrollments();
       
+      // Additional sync for new users - ensure all enrollments have cards
+      try {
+        const syncResult = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+        if (syncResult && syncResult.length > 0) {
+          console.log(`🔄 Synced ${syncResult.length} enrollments to cards for new user ${user.id}`);
+        }
+      } catch (syncError) {
+        console.error('Error syncing enrollments to cards:', syncError);
+      }
+      
       // Then get all customer cards with enhanced point verification
       const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
       

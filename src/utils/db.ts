@@ -730,11 +730,16 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             RAISE EXCEPTION 'Failed to create or find card record for customer % and program %', customer_id_val, program_id_val;
           END IF;
           
+          -- Ensure we have a valid card ID before returning
+          IF card_id_val IS NULL OR card_id_val = '' THEN
+            RAISE EXCEPTION 'Card ID is null or empty after creation for customer % and program %', customer_id_val, program_id_val;
+          END IF;
+          
           -- Commit transaction
           COMMIT;
           
-          -- Return the card ID
-          RETURN card_id_val;
+          -- Return the card ID as a string for better compatibility
+          RETURN card_id_val::text;
         EXCEPTION WHEN OTHERS THEN
           -- Rollback transaction on error
           ROLLBACK;
@@ -752,5 +757,32 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
   } catch (error) {
     console.error('Failed to create enrollment procedure:', error);
     throw error;
+  }
+} 
+
+/**
+ * Ensures the loyalty_cards table has the correct schema for new enrollments
+ */
+export async function ensureLoyaltyCardsSchema(): Promise<boolean> {
+  try {
+    console.log('Ensuring loyalty_cards table has correct schema...');
+    
+    // Add missing columns if they don't exist
+    await sql`
+      ALTER TABLE loyalty_cards 
+      ADD COLUMN IF NOT EXISTS card_number VARCHAR(50) DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE',
+      ADD COLUMN IF NOT EXISTS tier VARCHAR(50) DEFAULT 'STANDARD',
+      ADD COLUMN IF NOT EXISTS points_multiplier NUMERIC(10,2) DEFAULT 1.0,
+      ADD COLUMN IF NOT EXISTS card_type VARCHAR(50) DEFAULT 'STANDARD',
+      ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    `;
+    
+    console.log('Loyalty_cards table schema updated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error updating loyalty_cards table schema:', error);
+    return false;
   }
 } 
