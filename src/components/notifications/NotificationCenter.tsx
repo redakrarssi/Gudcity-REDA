@@ -317,13 +317,19 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
 
                         <div className="mt-3 flex space-x-2">
                           <button
-                            onClick={() => respondToApproval(approval.id, true)}
+                            onClick={async () => {
+                  const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
+                  await EnrollmentResponseService.processEnrollmentResponse(approval.id, true);
+                }}
                             className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
                           >
                             <ThumbsUp className="h-4 w-4 mr-1" /> Approve
                           </button>
                           <button
-                            onClick={() => respondToApproval(approval.id, false)}
+                            onClick={async () => {
+                  const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
+                  await EnrollmentResponseService.processEnrollmentResponse(approval.id, false);
+                }}
                             className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white text-sm font-medium rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
                           >
                             <ThumbsDown className="h-4 w-4 mr-1" /> Decline

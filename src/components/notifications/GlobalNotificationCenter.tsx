@@ -334,7 +334,9 @@ const GlobalNotificationCenter: React.FC = () => {
                               setErrorMessage(null);
                               setErrorCode(null);
                               try {
-                                await respondToApproval(approval.id, true);
+                                // Use the new EnrollmentResponseService for reliable processing
+        const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
+        await EnrollmentResponseService.processEnrollmentResponse(approval.id, true);
                                       setSuccessMessages(prev => ({ 
                                         ...prev, 
                                         [approval.id]: `Successfully enrolled in ${approval.data?.programName || 'the program'}` 
@@ -389,7 +391,9 @@ const GlobalNotificationCenter: React.FC = () => {
                               setErrorMessage(null);
                               setErrorCode(null);
                               try {
-                                await respondToApproval(approval.id, false);
+                                // Use the new EnrollmentResponseService for reliable processing
+        const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
+        await EnrollmentResponseService.processEnrollmentResponse(approval.id, false);
                                       setSuccessMessages(prev => ({ 
                                         ...prev, 
                                         [approval.id]: `Declined enrollment in ${approval.data?.programName || 'the program'}` 

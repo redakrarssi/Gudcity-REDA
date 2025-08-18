@@ -14,6 +14,7 @@ import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
 import { triggerCardRefresh } from '../../utils/notificationHandler';
+import { EnrollmentNotificationHandler } from '../../components/notifications/EnrollmentNotificationHandler';
 
 // Local interface for card UI notifications
 interface CardNotification {
@@ -709,11 +710,11 @@ const CustomerCards = () => {
       setIsLoading(true);
       addNotification('info', 'Processing enrollment request...');
       
-      // Import the safer wrapper service
-      const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+      // Use the new EnrollmentResponseService for reliable processing
+      const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
       
-      // Call the wrapper service with proper error handling
-      const result = await safeRespondToApproval(
+      // Process the enrollment response
+      const result = await EnrollmentResponseService.processEnrollmentResponse(
         enrollmentRequestState.approvalId,
         approved
       );
@@ -722,27 +723,31 @@ const CustomerCards = () => {
         if (approved) {
           addNotification('success', `You've joined ${enrollmentRequestState.programName}`);
           
-          // Explicitly sync enrollments to cards to ensure the new card appears
-          await syncEnrollments();
+          // Immediate cache invalidation for instant UI updates
+          await Promise.all([
+            queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] }),
+            queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms', user?.id] }),
+            queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] }),
+            queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] })
+          ]);
           
-          // Refresh all related data with proper cache invalidation
-          await queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
-          await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
-          await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
-          await queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms', user?.id] });
-          await queryClientInstance.invalidateQueries({ queryKey: ['customerBusinessRelationships', user?.id] });
+          // Force immediate refetch for critical data
+          await Promise.all([
+            queryClientInstance.refetchQueries({ queryKey: ['loyaltyCards', user?.id] }),
+            queryClientInstance.refetchQueries({ queryKey: ['enrolledPrograms', user?.id] })
+          ]);
           
-          // Force refetch immediately
-          await refetch();
-          
-          // Schedule additional fetches to ensure all data is updated
+          // Additional background sync to ensure reliability
           setTimeout(() => {
-            syncEnrollments().then(() => refetch());
+            queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+            refetch();
           }, 1000);
           
           setTimeout(() => {
-            syncEnrollments().then(() => refetch());
+            queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+            refetch();
           }, 3000);
+          
         } else {
           addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
           
@@ -762,11 +767,7 @@ const CustomerCards = () => {
           approvalId: null
         });
       } else {
-        // Show error using the EnrollmentErrorDisplay component
-        const { EnrollmentErrorCode } = await import('../../utils/enrollmentErrorReporter');
-        const errorCode = result.errorCode || EnrollmentErrorCode.GENERIC_ERROR;
-        
-        addNotification('error', result.error || 'Failed to process your response');
+        addNotification('error', result.message || 'Failed to process your response');
         
         // Close the modal on error too
         setEnrollmentRequestState(prev => ({
@@ -776,7 +777,8 @@ const CustomerCards = () => {
         
         // After a delay, try to sync again in case the error was temporary
         setTimeout(() => {
-          syncEnrollments().then(() => refetch());
+          queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+          refetch();
         }, 3000);
       }
     } catch (error) {
@@ -791,7 +793,8 @@ const CustomerCards = () => {
       
       // After a delay, try to sync again in case the error was temporary
       setTimeout(() => {
-        syncEnrollments().then(() => refetch());
+        queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+        refetch();
       }, 3000);
     } finally {
       setIsProcessingResponse(false);
@@ -1024,6 +1027,23 @@ const CustomerCards = () => {
 
   return (
     <CustomerLayout>
+      {/* Real-time enrollment notification handler */}
+      {user?.id && (
+        <EnrollmentNotificationHandler
+          customerId={user.id}
+          onEnrollmentProcessed={(result) => {
+            if (result.success) {
+              addNotification('success', result.message);
+              // Trigger immediate card refresh
+              queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user.id] });
+              refetch();
+            } else {
+              addNotification('error', result.message);
+            }
+          }}
+        />
+      )}
+      
       <div className="p-4 md:p-6 lg:p-8 space-y-8">
         {/* Total Enrollment Count */}
         <AnimatePresence>
