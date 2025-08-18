@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -9,7 +9,7 @@ import { NotificationService } from '../services/notificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { deleteCustomerNotification, deleteAllNotifications } from '../services/customerNotificationDelete';
-import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
+import { EnrollmentResponseService } from '../services/EnrollmentResponseService';
 
 interface CustomerNotification {
   id: string;
@@ -393,8 +393,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         );
       }
       
-      // Use the safe wrapper to handle enrollment with better error handling
-      const response = await safeRespondToApproval(approvalId, approved);
+      // Use the new EnrollmentResponseService for reliable enrollment processing
+      const response = await EnrollmentResponseService.processEnrollmentResponse(approvalId, approved);
       
       // Remove loading notification
       setNotifications(prev => prev.filter(n => n.id !== loadingNotificationId));

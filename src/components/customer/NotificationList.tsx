@@ -208,11 +208,11 @@ const NotificationList: React.FC<NotificationListProps> = ({
       // If this is an enrollment request, handle it through the wrapper service
       if (approval.requestType === ApprovalRequestType.ENROLLMENT) {
         try {
-          // Import the wrapper service with safer response handling
-          const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+          // Import the new EnrollmentResponseService for reliable enrollment processing
+          const { EnrollmentResponseService } = await import('../../services/EnrollmentResponseService');
           
-          // Call the wrapper service to handle the enrollment 
-          const result = await safeRespondToApproval(approvalId, approved);
+          // Call the new service to handle the enrollment 
+          const result = await EnrollmentResponseService.processEnrollmentResponse(approvalId, approved);
           
           // If success, show the appropriate message and refresh data
           if (result.success) {
