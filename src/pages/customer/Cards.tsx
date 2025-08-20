@@ -79,9 +79,14 @@ const CustomerCardsSafeWrapper = () => {
 };
 
 const CustomerCards = () => {
+  console.log('🚀 CustomerCards component initializing');
+  
   const { t } = useTranslation();
   const { user } = useAuth();
   const queryClientInstance = useQueryClient();
+  
+  console.log('🔑 Auth context loaded', { userId: user?.id, isAuthenticated: !!user });
+  
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [animateIn, setAnimateIn] = useState(false);
   const [rotateCard, setRotateCard] = useState('');
@@ -164,22 +169,29 @@ const CustomerCards = () => {
 
   // Function to sync enrollments to cards
   const syncEnrollments = useCallback(async () => {
-    if (!user?.id) return [];
+    if (!user?.id) {
+      console.log('⚠️ No user ID available for syncEnrollments');
+      return [];
+    }
     
+    console.log('🔄 Starting enrollment sync to cards', { customerId: user.id });
     try {
-      console.log('Syncing enrollments to cards for customer:', user.id);
+      console.log('📡 Calling LoyaltyCardService.syncEnrollmentsToCards...');
       const createdCardIds = await LoyaltyCardService.syncEnrollmentsToCards(String(user.id));
+      console.log('✅ syncEnrollmentsToCards completed', { createdCardIds });
       
       if (createdCardIds.length > 0) {
-        console.log(`Created ${createdCardIds.length} new cards from enrollments`);
+        console.log(`🎉 Created ${createdCardIds.length} new cards from enrollments`, { cardIds: createdCardIds });
         addNotification('success', `${createdCardIds.length} new loyalty card(s) created from your program enrollments`);
         
         // Return created card IDs for further processing
         return createdCardIds;
+      } else {
+        console.log('ℹ️ No new cards were created during sync');
+        return [];
       }
-      return [];
     } catch (error) {
-      console.error('Error syncing enrollments to cards:', error);
+      console.error('❌ Error syncing enrollments to cards:', error);
       addNotification('error', 'Failed to sync enrollments to cards');
       return [];
     }
@@ -189,15 +201,22 @@ const CustomerCards = () => {
   const { data: loyaltyCards = [], isLoading: loyaltyCardsLoading, error, refetch } = useQuery({
     queryKey: ['loyaltyCards', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) {
+        console.log('⚠️ No user ID available for loyalty cards query');
+        return [];
+      }
       
-      console.log(`🔄 Fetching loyalty cards for customer ${user.id}`);
+      console.log(`🔄 Starting loyalty cards query for customer ${user.id}`);
       
       // First synchronize enrollments to cards to ensure all enrolled programs have cards
+      console.log('🔄 Step 1: Syncing enrollments to cards...');
       await syncEnrollments();
+      console.log('✅ Step 1 completed: Enrollments synced to cards');
       
       // Then get all customer cards with enhanced point verification
+      console.log('🔄 Step 2: Fetching customer cards...');
       const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
+      console.log(`✅ Step 2 completed: Fetched ${cards.length} loyalty cards`);
       
       // Debug: Log each card's points for troubleshooting
       cards.forEach(card => {
@@ -205,17 +224,22 @@ const CustomerCards = () => {
       });
       
       // Fetch activities for each card
+      console.log('🔄 Step 3: Fetching card activities...');
       const activities: Record<string, CardActivity[]> = {};
       for (const card of cards) {
+        console.log(`📊 Fetching activities for card ${card.id}...`);
         const cardActivities = await LoyaltyCardService.getCardActivities(card.id);
         activities[card.id] = cardActivities;
+        console.log(`✅ Card ${card.id} activities loaded: ${cardActivities.length} activities`);
       }
       setCardActivities(activities);
+      console.log('✅ Step 3 completed: All card activities loaded');
       
       // Clear any cached points since we have fresh data
       setCardPointsCache({});
+      console.log('🧹 Cleared card points cache');
       
-      console.log(`✅ Loaded ${cards.length} loyalty cards with fresh points data`);
+      console.log(`✅ Loyalty cards query completed successfully: ${cards.length} cards loaded`);
       return cards;
     },
     enabled: !!user?.id,
@@ -231,36 +255,72 @@ const CustomerCards = () => {
   useEffect(() => {
     const handleCustomerNotification = (event: CustomEvent) => {
       const detail = event.detail;
-      if (!detail) return;
+      if (!detail) {
+        console.log('⚠️ Received notification event with no detail');
+        return;
+      }
+      
+      console.log('📢 Received customer notification event', { detail });
       
       // Check if this notification is for the current user
       if (user && detail.customerId === user.id.toString()) {
         if (detail.type === 'POINTS_ADDED') {
+          console.log('🎯 Processing POINTS_ADDED notification for current user');
           // Show notification toast
           addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
           
           // Just do a simple refetch - no complex state management
+          console.log('🔄 Refreshing data after points notification');
           refetch();
+        } else {
+          console.log('ℹ️ Ignoring notification type', { type: detail.type });
         }
+      } else {
+        console.log('ℹ️ Notification not for current user', { 
+          eventCustomerId: detail.customerId, 
+          currentUserId: user?.id 
+        });
       }
     };
 
     // Enhanced event listeners for multiple event types
     const handlePointsAwarded = (event: CustomEvent) => {
       const detail = event.detail;
+      console.log('🎯 Received points awarded event', { detail });
+      
       if (user && detail.customerId === user.id.toString()) {
         const programName = detail.programName || `Program ${detail.programId}`;
+        console.log('🎉 Processing points awarded for current user', { 
+          points: detail.points, 
+          programName,
+          programId: detail.programId,
+          cardId: detail.cardId 
+        });
+        
         addNotification('success', `You've received ${detail.points} points in ${programName}!`);
         console.log(`Points awarded event: ${detail.points} points to program ${detail.programId}, card ${detail.cardId}`);
         refetch();
+      } else {
+        console.log('ℹ️ Points awarded event not for current user', { 
+          eventCustomerId: detail.customerId, 
+          currentUserId: user?.id 
+        });
       }
     };
 
     const handleCardUpdateRequired = (event: CustomEvent) => {
       const detail = event.detail;
+      console.log('🔄 Received card update required event', { detail });
+      
       if (user && detail.customerId === user.id.toString()) {
-        console.log('Card update required, refreshing...');
+        console.log('🎯 Processing card update for current user');
+        // Refresh the cards data
         refetch();
+      } else {
+        console.log('ℹ️ Card update event not for current user', { 
+          eventCustomerId: detail.customerId, 
+          currentUserId: user?.id 
+        });
       }
     };
 
@@ -451,45 +511,44 @@ const CustomerCards = () => {
     // Check for notifications once on mount
     checkPointsNotifications();
     
-    // Set up localStorage polling for sync events
-    const syncInterval = setInterval(checkLocalStorageSync, 2000); // Check every 2 seconds
-    
-    // Register all event listeners
-    window.addEventListener('customer-notification', handleCustomerNotification as EventListener);
-    window.addEventListener('points-awarded', handlePointsAwarded as EventListener);
-    window.addEventListener('card-update-required', handleCardUpdateRequired as EventListener);
-    window.addEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
-    window.addEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
-    window.addEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-    window.addEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
-    window.addEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
-    window.addEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
-    window.addEventListener('refresh-customer-cards', handleRefreshCustomerCards as EventListener);
-    
-    // CRITICAL: Register the new QR points awarded event listener
-    window.addEventListener('qrPointsAwarded', handleQrPointsAwarded as EventListener);
-    
-    // Initial check for localStorage sync
-    checkLocalStorageSync();
-    
+    // Set up event listeners
+    console.log('🔧 Setting up event listeners for notifications');
+    window.addEventListener('customerNotification', handleCustomerNotification as EventListener);
+    window.addEventListener('pointsAwarded', handlePointsAwarded as EventListener);
+    window.addEventListener('cardUpdateRequired', handleCardUpdateRequired as EventListener);
+    console.log('✅ Event listeners set up successfully');
+
+    // Cleanup function
     return () => {
-      // Clean up event listeners
-      window.removeEventListener('customer-notification', handleCustomerNotification as EventListener);
-      window.removeEventListener('points-awarded', handlePointsAwarded as EventListener);
-      window.removeEventListener('card-update-required', handleCardUpdateRequired as EventListener);
-              window.removeEventListener('loyalty-cards-refresh', handleLoyaltyCardsRefresh as EventListener);
-        window.removeEventListener('program-points-updated', handleProgramPointsUpdated as EventListener);
-        window.removeEventListener('react-query-invalidate', handleReactQueryInvalidate as EventListener);
-              window.removeEventListener('delayed-points-update', handleDelayedPointsUpdate as EventListener);
-      window.removeEventListener('ultimate-cards-refresh', handleUltimateCardsRefresh as EventListener);
-      window.removeEventListener('force-reload-customer-cards', handleForceReloadCustomerCards as EventListener);
-      window.removeEventListener('refresh-customer-cards', handleRefreshCustomerCards as EventListener);
-      
-      // Clean up the new QR points awarded event listener
-      window.removeEventListener('qrPointsAwarded', handleQrPointsAwarded as EventListener);
-      
-      // Clean up sync interval
-      clearInterval(syncInterval);
+      console.log('🧹 Cleaning up event listeners');
+      window.removeEventListener('customerNotification', handleCustomerNotification as EventListener);
+      window.removeEventListener('pointsAwarded', handlePointsAwarded as EventListener);
+      window.removeEventListener('cardUpdateRequired', handleCardUpdateRequired as EventListener);
+      console.log('✅ Event listeners cleaned up');
+    };
+  }, [user, addNotification, refetch]);
+
+  // Component mount effect
+  useEffect(() => {
+    console.log('🎬 CustomerCards component mounted', { userId: user?.id });
+    
+    // Check for notifications once on mount
+    checkPointsNotifications();
+    
+    // Set up event listeners
+    console.log('🔧 Setting up event listeners for notifications');
+    window.addEventListener('customerNotification', handleCustomerNotification as EventListener);
+    window.addEventListener('pointsAwarded', handlePointsAwarded as EventListener);
+    window.addEventListener('cardUpdateRequired', handleCardUpdateRequired as EventListener);
+    console.log('✅ Event listeners set up successfully');
+
+    // Cleanup function
+    return () => {
+      console.log('🧹 Cleaning up event listeners');
+      window.removeEventListener('customerNotification', handleCustomerNotification as EventListener);
+      window.removeEventListener('pointsAwarded', handlePointsAwarded as EventListener);
+      window.removeEventListener('cardUpdateRequired', handleCardUpdateRequired as EventListener);
+      console.log('✅ Event listeners cleaned up');
     };
   }, [user, addNotification, refetch]);
 
@@ -678,80 +737,135 @@ const CustomerCards = () => {
     };
   }, [user, addNotification, refetch]);
   
-  // Simple refresh button functionality
-  const handleRefresh = useCallback(() => {
-    if (!user?.id) return;
-    
-    // Show loading state
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    console.log('🔄 Refresh button clicked, starting refresh process');
     setIsRefreshing(true);
     
-    // Refresh the data
-    refetch()
-      .catch(error => {
-        console.error('Error refreshing cards:', error);
-        addNotification('error', 'Failed to refresh cards. Please try again.');
-      })
-      .finally(() => {
-        // Hide loading state after a short delay
-        setTimeout(() => {
-          setIsRefreshing(false);
-        }, 600);
-      });
-  }, [user?.id, refetch, addNotification]);
+    try {
+      console.log('🔄 Step 1: Syncing enrollments to cards...');
+      await syncEnrollments();
+      console.log('✅ Step 1 completed: Enrollments synced');
+      
+      console.log('🔄 Step 2: Refreshing loyalty cards data...');
+      await refetch();
+      console.log('✅ Step 2 completed: Loyalty cards refreshed');
+      
+      console.log('🔄 Step 3: Invalidating related queries...');
+      await queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
+      await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
+      await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
+      console.log('✅ Step 3 completed: Queries invalidated');
+      
+      console.log('🎉 Refresh process completed successfully');
+      addNotification('success', 'Cards refreshed successfully!');
+    } catch (error) {
+      console.error('❌ Error during refresh process:', error);
+      addNotification('error', 'Failed to refresh cards. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+      console.log('✅ Refresh process finished, cleared loading state');
+    }
+  };
 
   // Handle enrollment request response
   const handleEnrollmentResponse = async (approved: boolean) => {
-    if (!enrollmentRequestState.approvalId) return;
+    if (!enrollmentRequestState.approvalId) {
+      console.error('❌ No approval ID found for enrollment response');
+      return;
+    }
+    
+    console.log('🚀 Starting enrollment response handling', { 
+      approved, 
+      approvalId: enrollmentRequestState.approvalId,
+      programName: enrollmentRequestState.programName,
+      businessName: enrollmentRequestState.businessName
+    });
     
     try {
       // Show loading state
       setIsProcessingResponse(true);
       setIsLoading(true);
+      console.log('⏳ Set loading states for enrollment response');
       addNotification('info', 'Processing enrollment request...');
       
       // Import the safer wrapper service
+      console.log('📦 Importing safeRespondToApproval wrapper service...');
       const { safeRespondToApproval } = await import('../../services/customerNotificationServiceWrapper');
+      console.log('✅ Successfully imported wrapper service');
       
       // Call the wrapper service with proper error handling
+      console.log('📡 Calling safeRespondToApproval API...');
       const result = await safeRespondToApproval(
         enrollmentRequestState.approvalId,
         approved
       );
+      console.log('✅ API call completed', { 
+        success: result.success, 
+        message: result.message,
+        cardId: result.cardId 
+      });
       
       if (result.success) {
         if (approved) {
+          console.log('🎉 Enrollment approved successfully');
           addNotification('success', `You've joined ${enrollmentRequestState.programName}`);
           
           // Explicitly sync enrollments to cards to ensure the new card appears
+          console.log('🔄 Starting enrollment sync to cards...');
           await syncEnrollments();
+          console.log('✅ Enrollment sync completed');
           
           // Refresh all related data with proper cache invalidation
+          console.log('🔄 Invalidating related queries for UI refresh...');
           await queryClientInstance.invalidateQueries({ queryKey: ['loyaltyCards', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['enrolledPrograms', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerBusinessRelationships', user?.id] });
+          console.log('✅ Query invalidation completed');
           
           // Force refetch immediately
+          console.log('🔄 Force refetching data...');
           await refetch();
+          console.log('✅ Force refetch completed');
           
           // Schedule additional fetches to ensure all data is updated
+          console.log('⏰ Scheduling delayed sync operations...');
           setTimeout(() => {
-            syncEnrollments().then(() => refetch());
+            console.log('🔄 Executing delayed sync operation (1s)...');
+            syncEnrollments().then(() => {
+              console.log('✅ Delayed sync completed (1s)');
+              return refetch();
+            }).then(() => {
+              console.log('✅ Delayed refetch completed (1s)');
+            });
           }, 1000);
           
           setTimeout(() => {
-            syncEnrollments().then(() => refetch());
+            console.log('🔄 Executing delayed sync operation (3s)...');
+            syncEnrollments().then(() => {
+              console.log('✅ Delayed sync completed (3s)');
+              return refetch();
+            }).then(() => {
+              console.log('✅ Delayed refetch completed (3s)');
+            });
           }, 3000);
+          
+          console.log('✅ All enrollment operations completed successfully');
         } else {
+          console.log('👎 Enrollment declined successfully');
           addNotification('info', `Declined to join ${enrollmentRequestState.programName}`);
           
           // Refresh notifications to remove the declined one
+          console.log('🔄 Refreshing notifications after decline...');
           await queryClientInstance.invalidateQueries({ queryKey: ['customerNotifications', user?.id] });
           await queryClientInstance.invalidateQueries({ queryKey: ['customerApprovals', user?.id] });
+          console.log('✅ Notifications refreshed after decline');
         }
         
         // Close the modal
+        console.log('🚪 Closing enrollment request modal');
         setEnrollmentRequestState({
           isOpen: false,
           businessId: null,
@@ -762,6 +876,11 @@ const CustomerCards = () => {
           approvalId: null
         });
       } else {
+        console.error('❌ Enrollment processing failed', { 
+          error: result.error,
+          errorCode: result.errorCode 
+        });
+        
         // Show error using the EnrollmentErrorDisplay component
         const { EnrollmentErrorCode } = await import('../../utils/enrollmentErrorReporter');
         const errorCode = result.errorCode || EnrollmentErrorCode.GENERIC_ERROR;
@@ -769,33 +888,41 @@ const CustomerCards = () => {
         addNotification('error', result.error || 'Failed to process your response');
         
         // Close the modal on error too
+        console.log('🚪 Closing modal due to error');
         setEnrollmentRequestState(prev => ({
           ...prev,
           isOpen: false
         }));
         
         // After a delay, try to sync again in case the error was temporary
+        console.log('⏰ Scheduling error recovery sync...');
         setTimeout(() => {
+          console.log('🔄 Attempting error recovery sync...');
           syncEnrollments().then(() => refetch());
         }, 3000);
       }
     } catch (error) {
-      console.error('Error responding to enrollment request:', error);
+      console.error('💥 Unexpected error in enrollment response handling:', error);
       addNotification('error', 'An error occurred while processing your response');
       
       // Close the modal on error too
+      console.log('🚪 Closing modal due to unexpected error');
       setEnrollmentRequestState(prev => ({
         ...prev,
         isOpen: false
       }));
       
       // After a delay, try to sync again in case the error was temporary
+      console.log('⏰ Scheduling error recovery sync for unexpected error...');
       setTimeout(() => {
+        console.log('🔄 Attempting error recovery sync for unexpected error...');
         syncEnrollments().then(() => refetch());
       }, 3000);
     } finally {
+      console.log('🧹 Cleaning up enrollment response states');
       setIsProcessingResponse(false);
       setIsLoading(false);
+      console.log('✅ Enrollment response handling completed');
     }
   };
 
@@ -1013,410 +1140,426 @@ const CustomerCards = () => {
     );
   };
 
-  // Add UI elements at the appropriate place in the return statement
-  if (loyaltyCardsLoading || isLoading) {
-    return <CustomerLayout><div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div></div></CustomerLayout>;
-  }
-
-  if (error) {
-    return <CustomerLayout><div>Error: {error.message}</div></CustomerLayout>;
-  }
-
+  // Render section
+  console.log('🎨 Rendering CustomerCards', { 
+    userId: user?.id,
+    loyaltyCardsCount: loyaltyCards.length,
+    isLoading: loyaltyCardsLoading,
+    hasError: !!error,
+    activeCard,
+    enrollmentRequestOpen: enrollmentRequestState.isOpen
+  });
+  
   return (
     <CustomerLayout>
       <div className="p-4 md:p-6 lg:p-8 space-y-8">
-        {/* Total Enrollment Count */}
-        <AnimatePresence>
-          {!hideEnrollmentInfo && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Info className="h-5 w-5 text-blue-500 mr-2" />
-                  <p className="text-blue-700">
-                    You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
-                  </p>
-                </div>
-                <button 
-                  onClick={handleHideEnrollmentInfo} 
-                  className="text-blue-500 hover:text-blue-700 focus:outline-none"
-                  aria-label="Close"
+        {/* Loading state */}
+        {loyaltyCardsLoading || isLoading ? (
+          <div className="flex justify-center">
+            {console.log('⏳ Showing loading state for loyalty cards')}
+            <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
+          </div>
+        ) : error ? (
+          <div className="text-center text-red-600">
+            {console.log('❌ Showing error state for loyalty cards', { error: error.message })}
+            Error: {error.message}
+          </div>
+        ) : (
+          <>
+            {/* Total Enrollment Count */}
+            <AnimatePresence>
+              {!hideEnrollmentInfo && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4"
                 >
-                  <X className="h-5 w-5" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Info className="h-5 w-5 text-blue-500 mr-2" />
+                      <p className="text-blue-700">
+                        You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={handleHideEnrollmentInfo} 
+                      className="text-blue-500 hover:text-blue-700 focus:outline-none"
+                      aria-label="Close"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          
+            {/* Notifications */}
+            <AnimatePresence>
+              {notifications.map(notification => (
+                <motion.div
+                  key={notification.id}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className={`mb-3 p-3 rounded-lg shadow-md flex items-center ${
+                    notification.type === 'success' ? 'bg-green-100 text-green-800' :
+                    notification.type === 'error' ? 'bg-red-100 text-red-800' :
+                    notification.type === 'scan' ? 'bg-blue-100 text-blue-800' :
+                    'bg-blue-50 text-blue-800'
+                  }`}
+                >
+                  {notification.type === 'success' && <Check className="w-5 h-5 mr-2" />}
+                  {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2" />}
+                  {notification.type === 'info' && <Info className="w-5 h-5 mr-2" />}
+                  {notification.type === 'scan' && <QrCode className="w-5 h-5 mr-2" />}
+                  <span>{notification.message}</span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* Customer Notifications and Approvals */}
+            <NotificationList />
+
+            {/* Loyalty Cards Section with Refresh Button */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center">
+                  <CreditCard className="mr-3 text-indigo-500" />
+                  {t('cards.myCards')}
+                  
+                  {/* Notification badge for pending enrollment requests */}
+                  {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
+                    <div className="ml-3 relative">
+                      <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse-slow">
+                        <Bell className="w-3.5 h-3.5 mr-1" />
+                        {pendingEnrollments.length} {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                      </div>
+                    </div>
+                  )}
+                </h1>
+                
+                {/* Add Refresh Button */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    isRefreshing 
+                      ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
+                      : 'bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700'
+                  }`}
+                  aria-label="Refresh cards"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {isRefreshing ? 'Refreshing...' : 'Refresh Cards'}
                 </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      
-        {/* Notifications */}
-        <AnimatePresence>
-          {notifications.map(notification => (
-            <motion.div
-              key={notification.id}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className={`mb-3 p-3 rounded-lg shadow-md flex items-center ${
-                notification.type === 'success' ? 'bg-green-100 text-green-800' :
-                notification.type === 'error' ? 'bg-red-100 text-red-800' :
-                notification.type === 'scan' ? 'bg-blue-100 text-blue-800' :
-                'bg-blue-50 text-blue-800'
-              }`}
-            >
-              {notification.type === 'success' && <Check className="w-5 h-5 mr-2" />}
-              {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2" />}
-              {notification.type === 'info' && <Info className="w-5 h-5 mr-2" />}
-              {notification.type === 'scan' && <QrCode className="w-5 h-5 mr-2" />}
-              <span>{notification.message}</span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Customer Notifications and Approvals */}
-        <NotificationList />
-
-        {/* Loyalty Cards Section with Refresh Button */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center">
-              <CreditCard className="mr-3 text-indigo-500" />
-              {t('cards.myCards')}
               
-              {/* Notification badge for pending enrollment requests */}
+              {/* Enrollment requests notification */}
               {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
-                <div className="ml-3 relative">
-                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse-slow">
-                    <Bell className="w-3.5 h-3.5 mr-1" />
-                    {pendingEnrollments.length} {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 p-1.5 bg-blue-100 rounded-full">
+                      <Bell className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">
+                        You have {pendingEnrollments.length} pending enrollment {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                      </h3>
+                      <p className="mt-1 text-sm text-blue-600">
+                        Check your notifications to join new loyalty programs and get rewards!
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
-            </h1>
-            
-            {/* Add Refresh Button */}
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                isRefreshing 
-                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
-                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700'
-              }`}
-              aria-label="Refresh cards"
-            >
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Refreshing...' : 'Refresh Cards'}
-            </button>
-          </div>
-          
-          {/* Enrollment requests notification */}
-          {hasUnhandledRequests && pendingEnrollments && pendingEnrollments.length > 0 && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 p-1.5 bg-blue-100 rounded-full">
-                  <Bell className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">
-                    You have {pendingEnrollments.length} pending enrollment {pendingEnrollments.length === 1 ? 'request' : 'requests'}
-                  </h3>
-                  <p className="mt-1 text-sm text-blue-600">
-                    Check your notifications to join new loyalty programs and get rewards!
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* The rest of the component remains unchanged */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loyaltyCards.map(card => (
-                <motion.div 
-                  key={card.id}
-                  className={`transition-all duration-700 ease-out ${
-                    animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-                  }`}
-                  style={{ transitionDelay: `${loyaltyCards.indexOf(card) * 150}ms` }}
-                  whileHover={{ scale: 1.02 }}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  {/* Main Card */}
-                  <div 
-                    className="bg-gradient-to-br shadow-xl rounded-2xl cursor-pointer overflow-hidden"
-                    onClick={() => handleCardClick(card.id)}
-                  >
-                    {/* Card Header */}
-                    <div className={`bg-gradient-to-r ${getCardGradient(card)} p-6 text-white relative overflow-hidden`}>
-                      {/* Background Elements */}
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mt-16 -mr-16"></div>
-                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-black opacity-10 rounded-full -mb-16 -ml-16"></div>
-                      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-black/5 to-transparent"></div>
-                      
-                      <div className="flex justify-between items-start relative z-10">
-                        {/* Left Side - Program Info */}
-                        <div className="flex items-center">
-                          <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl mr-4 shadow-inner">
-                            {getIconForCard(card)}
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-xl tracking-wide">{card.programName || 'Loyalty Program'}</h3>
-                            <div className="flex items-center mt-1">
-                              <span className="text-white/80 text-sm uppercase tracking-wider font-medium">{card.businessName}</span>
-                              {card.cardType?.toLowerCase() === 'premium' && (
-                                <Crown className="w-4 h-4 ml-1 text-amber-300" />
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Right Side - Actions */}
-                        <div className="flex space-x-2">
-                          {/* Only show promo code button if one has been assigned */}
-                          {card.promoCode && (
-                            <button 
-                              onClick={(e) => handlePromoCodeClick(e, card)}
-                              className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
-                              aria-label="View promo code"
-                            >
-                              <Tag className="w-5 h-5" />
-                            </button>
-                          )}
-                          <button 
-                            onClick={(e) => handleCardFlip(card.id, e)}
-                            className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
-                          >
-                            <RotateCw className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Points Display with Animation */}
-                      <div className="mt-6 flex justify-between items-end relative z-10">
-                        <div className="relative">
-                          <div className="flex items-baseline">
-                            <div className="text-4xl font-bold mr-2 relative">
-                              {/* Use cached points for immediate feedback, fallback to card.points */}
-                              {cardPointsCache[card.id] ?? card.points}
-                              
-                              {/* Point Animation Overlay */}
-                              <AnimatePresence>
-                                {pointAnimations
-                                  .filter(anim => anim.cardId === card.id)
-                                  .map(anim => (
-                                    <motion.div
-                                      key={anim.timestamp}
-                                      initial={{ opacity: 0, y: 0, scale: 1 }}
-                                      animate={{ 
-                                        opacity: 1, 
-                                        y: -30, 
-                                        scale: 1.2,
-                                        transition: { duration: 0.5 }
-                                      }}
-                                      exit={{ 
-                                        opacity: 0, 
-                                        y: -50, 
-                                        scale: 0.8,
-                                        transition: { duration: 0.5 }
-                                      }}
-                                      className="absolute top-0 left-0 text-green-400 font-bold pointer-events-none"
-                                    >
-                                      +{anim.points}
-                                    </motion.div>
-                                  ))
-                                }
-                              </AnimatePresence>
-                            </div>
-                            <div className="text-sm opacity-90">{t('points')}</div>
-                          </div>
-                          <div className="text-xs mt-1 opacity-80">
-                            {/* Show placeholder values since these properties might not exist */}
-                            More points needed for next reward
-                          </div>
-                        </div>
-                        
-                        <ChevronDown 
-                          className={`w-6 h-6 transition-transform duration-300 ${activeCard === card.id.toString() ? 'rotate-180' : ''}`} 
-                        />
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="mt-5 relative z-10">
-                        <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-white rounded-full transition-all duration-1000 ease-out"
-                            style={{ 
-                              width: `${(card.points / (card.points + (card.pointsToNext || 1))) * 100}%` 
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Card Details (visible when expanded) */}
-                  <AnimatePresence>
-                    {activeCard === card.id.toString() && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="bg-white rounded-b-2xl shadow-lg border border-gray-100 overflow-hidden"
+              {/* The rest of the component remains unchanged */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {loyaltyCards.map(card => (
+                    <motion.div 
+                      key={card.id}
+                      className={`transition-all duration-700 ease-out ${
+                        animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                      }`}
+                      style={{ transitionDelay: `${loyaltyCards.indexOf(card) * 150}ms` }}
+                      whileHover={{ scale: 1.02 }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      {/* Main Card */}
+                      <div 
+                        className="bg-gradient-to-br shadow-xl rounded-2xl cursor-pointer overflow-hidden"
+                        onClick={() => handleCardClick(card.id)}
                       >
-                        <div className="p-5">
-                          {/* Card Info */}
-                          <div className="grid grid-cols-3 gap-4 mb-5">
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Expiry Date')}</p>
-                              <p className="font-medium text-gray-800">{formatDate(card.expiryDate)}</p>
+                        {/* Card Header */}
+                        <div className={`bg-gradient-to-r ${getCardGradient(card)} p-6 text-white relative overflow-hidden`}>
+                          {/* Background Elements */}
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mt-16 -mr-16"></div>
+                          <div className="absolute bottom-0 left-0 w-64 h-64 bg-black opacity-10 rounded-full -mb-16 -ml-16"></div>
+                          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-black/5 to-transparent"></div>
+                          
+                          <div className="flex justify-between items-start relative z-10">
+                            {/* Left Side - Program Info */}
+                            <div className="flex items-center">
+                              <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl mr-4 shadow-inner">
+                                {getIconForCard(card)}
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-xl tracking-wide">{card.programName || 'Loyalty Program'}</h3>
+                                <div className="flex items-center mt-1">
+                                  <span className="text-white/80 text-sm uppercase tracking-wider font-medium">{card.businessName}</span>
+                                  {card.cardType?.toLowerCase() === 'premium' && (
+                                    <Crown className="w-4 h-4 ml-1 text-amber-300" />
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Last Used')}</p>
-                              <p className="font-medium text-gray-800">{formatDate(card.lastUsed)}</p>
-                            </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Card ID')}</p>
-                              <p className="font-medium text-gray-800">{card.id}</p>
+                            
+                            {/* Right Side - Actions */}
+                            <div className="flex space-x-2">
+                              {/* Only show promo code button if one has been assigned */}
+                              {card.promoCode && (
+                                <button 
+                                  onClick={(e) => handlePromoCodeClick(e, card)}
+                                  className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+                                  aria-label="View promo code"
+                                >
+                                  <Tag className="w-5 h-5" />
+                                </button>
+                              )}
+                              <button 
+                                onClick={(e) => handleCardFlip(card.id, e)}
+                                className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+                              >
+                                <RotateCw className="w-5 h-5" />
+                              </button>
                             </div>
                           </div>
                           
-                          {/* Card Activity */}
-                          <div className="mb-5">
-                            <h4 className="font-medium text-gray-800 mb-3 flex items-center">
-                              <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                              {t('Card Activity')}
-                            </h4>
-                            
-                            {cardActivities[card.id]?.length ? (
-                              <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
-                                {cardActivities[card.id].map((activity, idx) => (
-                                  <div key={idx} className="flex items-start p-2 rounded-lg bg-gray-50">
-                                    <div className={`p-1.5 rounded-full mr-3 ${
-                                      activity.type === 'EARN_POINTS' ? 'bg-green-100' :
-                                      activity.type === 'REDEEM_POINTS' ? 'bg-amber-100' :
-                                      'bg-blue-100'
-                                    }`}>
-                                      <Award className={`w-3.5 h-3.5 ${
-                                        activity.type === 'EARN_POINTS' ? 'text-green-600' :
-                                        activity.type === 'REDEEM_POINTS' ? 'text-amber-600' :
-                                        'text-blue-600'
-                                      }`} />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-800">
-                                        {activity.type === 'EARN_POINTS' 
-                                          ? `Earned ${activity.points} points`
-                                          : activity.type === 'REDEEM_POINTS'
-                                            ? `Redeemed ${activity.points} points`
-                                            : 'Card used'
-                                        }
-                                        {activity.description ? ` - ${activity.description}` : ''}
-                                      </p>
-                                      <p className="text-xs text-gray-500">{formatDate(activity.createdAt)}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="bg-gray-50 p-3 rounded-lg text-center">
-                                <p className="text-sm text-gray-500">{t('No recent activity')}</p>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Available Rewards */}
-                          <div>
-                            <h4 className="font-medium text-gray-800 mb-3 flex items-center">
-                              <Gift className="w-4 h-4 mr-2 text-gray-500" />
-                              {t('Available Rewards')}
-                            </h4>
-                            
-                            {card.availableRewards?.length ? (
-                              <div className="space-y-3">
-                                {card.availableRewards.map((reward: any, idx: number) => {
-                                  const canRedeem = reward.isRedeemable;
-                                  const pointsNeeded = reward.points - card.points;
+                          {/* Points Display with Animation */}
+                          <div className="mt-6 flex justify-between items-end relative z-10">
+                            <div className="relative">
+                              <div className="flex items-baseline">
+                                <div className="text-4xl font-bold mr-2 relative">
+                                  {/* Use cached points for immediate feedback, fallback to card.points */}
+                                  {cardPointsCache[card.id] ?? card.points}
                                   
-                                  return (
-                                    <div 
-                                      key={idx} 
-                                      className={`p-3 rounded-lg border-2 transition-all ${
-                                        canRedeem 
-                                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                                          : 'bg-gray-50 border-gray-200'
-                                      }`}
-                                    >
-                                      <div className="flex justify-between items-center">
-                                        <div className="flex items-center flex-1">
-                                          <div className={`p-2 rounded-full mr-3 ${
-                                            canRedeem ? 'bg-green-100' : 'bg-gray-100'
-                                          }`}>
-                                            <Gift className={`w-4 h-4 ${
-                                              canRedeem ? 'text-green-600' : 'text-gray-400'
-                                            }`} />
-                                          </div>
-                                          <div className="flex-1">
-                                            <span className={`text-sm font-medium ${
-                                              canRedeem ? 'text-green-800' : 'text-gray-600'
-                                            }`}>
-                                              {reward.name}
-                                            </span>
-                                            <div className="flex items-center mt-1">
-                                              <div className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                                canRedeem 
-                                                  ? 'bg-green-100 text-green-700' 
-                                                  : 'bg-gray-100 text-gray-600'
+                                  {/* Point Animation Overlay */}
+                                  <AnimatePresence>
+                                    {pointAnimations
+                                      .filter(anim => anim.cardId === card.id)
+                                      .map(anim => (
+                                        <motion.div
+                                          key={anim.timestamp}
+                                          initial={{ opacity: 0, y: 0, scale: 1 }}
+                                          animate={{ 
+                                            opacity: 1, 
+                                            y: -30, 
+                                            scale: 1.2,
+                                            transition: { duration: 0.5 }
+                                          }}
+                                          exit={{ 
+                                            opacity: 0, 
+                                            y: -50, 
+                                            scale: 0.8,
+                                            transition: { duration: 0.5 }
+                                          }}
+                                          className="absolute top-0 left-0 text-green-400 font-bold pointer-events-none"
+                                        >
+                                          +{anim.points}
+                                        </motion.div>
+                                      ))
+                                    }
+                                  </AnimatePresence>
+                                </div>
+                                <div className="text-sm opacity-90">{t('points')}</div>
+                              </div>
+                              <div className="text-xs mt-1 opacity-80">
+                                {/* Show placeholder values since these properties might not exist */}
+                                More points needed for next reward
+                              </div>
+                            </div>
+                            
+                            <ChevronDown 
+                              className={`w-6 h-6 transition-transform duration-300 ${activeCard === card.id.toString() ? 'rotate-180' : ''}`} 
+                            />
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-5 relative z-10">
+                            <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-white rounded-full transition-all duration-1000 ease-out"
+                                style={{ 
+                                  width: `${(card.points / (card.points + (card.pointsToNext || 1))) * 100}%` 
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Card Details (visible when expanded) */}
+                      <AnimatePresence>
+                        {activeCard === card.id.toString() && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="bg-white rounded-b-2xl shadow-lg border border-gray-100 overflow-hidden"
+                          >
+                            <div className="p-5">
+                              {/* Card Info */}
+                              <div className="grid grid-cols-3 gap-4 mb-5">
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">{t('Expiry Date')}</p>
+                                  <p className="font-medium text-gray-800">{formatDate(card.expiryDate)}</p>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">{t('Last Used')}</p>
+                                  <p className="font-medium text-gray-800">{formatDate(card.lastUsed)}</p>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">{t('Card ID')}</p>
+                                  <p className="font-medium text-gray-800">{card.id}</p>
+                                </div>
+                              </div>
+                              
+                              {/* Card Activity */}
+                              <div className="mb-5">
+                                <h4 className="font-medium text-gray-800 mb-3 flex items-center">
+                                  <Clock className="w-4 h-4 mr-2 text-gray-500" />
+                                  {t('Card Activity')}
+                                </h4>
+                                
+                                {cardActivities[card.id]?.length ? (
+                                  <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+                                    {cardActivities[card.id].map((activity, idx) => (
+                                      <div key={idx} className="flex items-start p-2 rounded-lg bg-gray-50">
+                                        <div className={`p-1.5 rounded-full mr-3 ${
+                                          activity.type === 'EARN_POINTS' ? 'bg-green-100' :
+                                          activity.type === 'REDEEM_POINTS' ? 'bg-amber-100' :
+                                          'bg-blue-100'
+                                        }`}>
+                                          <Award className={`w-3.5 h-3.5 ${
+                                            activity.type === 'EARN_POINTS' ? 'text-green-600' :
+                                            activity.type === 'REDEEM_POINTS' ? 'text-amber-600' :
+                                            'text-blue-600'
+                                          }`} />
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-medium text-gray-800">
+                                            {activity.type === 'EARN_POINTS' 
+                                              ? `Earned ${activity.points} points`
+                                              : activity.type === 'REDEEM_POINTS'
+                                                ? `Redeemed ${activity.points} points`
+                                                : 'Card used'
+                                            }
+                                            {activity.description ? ` - ${activity.description}` : ''}
+                                          </p>
+                                          <p className="text-xs text-gray-500">{formatDate(activity.createdAt)}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                                    <p className="text-sm text-gray-500">{t('No recent activity')}</p>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Available Rewards */}
+                              <div>
+                                <h4 className="font-medium text-gray-800 mb-3 flex items-center">
+                                  <Gift className="w-4 h-4 mr-2 text-gray-500" />
+                                  {t('Available Rewards')}
+                                </h4>
+                                
+                                {card.availableRewards?.length ? (
+                                  <div className="space-y-3">
+                                    {card.availableRewards.map((reward: any, idx: number) => {
+                                      const canRedeem = reward.isRedeemable;
+                                      const pointsNeeded = reward.points - card.points;
+                                      
+                                      return (
+                                        <div 
+                                          key={idx} 
+                                          className={`p-3 rounded-lg border-2 transition-all ${
+                                            canRedeem 
+                                              ? 'bg-green-50 border-green-200 hover:bg-green-100' 
+                                              : 'bg-gray-50 border-gray-200'
+                                          }`}
+                                        >
+                                          <div className="flex justify-between items-center">
+                                            <div className="flex items-center flex-1">
+                                              <div className={`p-2 rounded-full mr-3 ${
+                                                canRedeem ? 'bg-green-100' : 'bg-gray-100'
                                               }`}>
-                                                {reward.points} {t('points')}
+                                                <Gift className={`w-4 h-4 ${
+                                                  canRedeem ? 'text-green-600' : 'text-gray-400'
+                                                }`} />
                                               </div>
-                                              {!canRedeem && pointsNeeded > 0 && (
-                                                <span className="text-xs text-orange-600 ml-2">
-                                                  Need {pointsNeeded} more points
+                                              <div className="flex-1">
+                                                <span className={`text-sm font-medium ${
+                                                  canRedeem ? 'text-green-800' : 'text-gray-600'
+                                                }`}>
+                                                  {reward.name}
                                                 </span>
-                                              )}
+                                                <div className="flex items-center mt-1">
+                                                  <div className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                                    canRedeem 
+                                                      ? 'bg-green-100 text-green-700' 
+                                                      : 'bg-gray-100 text-gray-600'
+                                                  }`}>
+                                                    {reward.points} {t('points')}
+                                                  </div>
+                                                  {!canRedeem && pointsNeeded > 0 && (
+                                                    <span className="text-xs text-orange-600 ml-2">
+                                                      Need {pointsNeeded} more points
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
                                             </div>
+                                            
+                                            {canRedeem && (
+                                              <button
+                                                onClick={() => handleRewardRedemption(card.id, reward.id, reward.name)}
+                                                className="ml-3 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+                                              >
+                                                Redeem
+                                              </button>
+                                            )}
                                           </div>
                                         </div>
-                                        
-                                        {canRedeem && (
-                                          <button
-                                            onClick={() => handleRewardRedemption(card.id, reward.id, reward.name)}
-                                            className="ml-3 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
-                                          >
-                                            Redeem
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                                    <Gift className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-500">{t('No rewards available for this program')}</p>
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="bg-gray-50 p-4 rounded-lg text-center">
-                                <Gift className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-500">{t('No rewards available for this program')}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-            ))}
-          </div>
-          {loyaltyCards.length === 0 && (
-            <div className="text-center py-10 text-gray-500">
-              <p>{t('cards.noCards')}</p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                ))}
+              </div>
+              {loyaltyCards.length === 0 && (
+                <div className="text-center py-10 text-gray-500">
+                  <p>{t('cards.noCards')}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       {/* Promo Code Modal */}
