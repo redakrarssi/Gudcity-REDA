@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, ThumbsUp, ThumbsDown, User, Clock, AlertCircle } from 'lucide-react';
+import { Award, ThumbsUp, ThumbsDown, User, Clock, AlertCircle, RefreshCw } from 'lucide-react';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +25,87 @@ export const BusinessEnrollmentNotifications: React.FC<BusinessEnrollmentNotific
   const [notifications, setNotifications] = useState<EnrollmentNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Enhanced real-time event handling
+  useEffect(() => {
+    if (!businessId) return;
+
+    // Listen for enrollment approval events
+    const handleEnrollmentApproval = (event: CustomEvent) => {
+      const { requestId, approved, cardId } = event.detail;
+      
+      console.log('Enrollment approval event received in business component:', { requestId, approved, cardId });
+      
+      // Refresh notifications to show updated status
+      loadEnrollmentNotifications();
+    };
+
+    // Listen for card creation events
+    const handleCardCreated = (event: CustomEvent) => {
+      const { cardId, customerId, businessId: eventBusinessId } = event.detail;
+      
+      // Only refresh if this event is for our business
+      if (eventBusinessId === businessId) {
+        console.log('Card created event received for business:', { cardId, customerId, businessId: eventBusinessId });
+        loadEnrollmentNotifications();
+      }
+    };
+
+    // Listen for socket connection events
+    const handleSocketConnected = (event: CustomEvent) => {
+      console.log('Socket connected in business component:', event.detail);
+      // Force refresh when connection is restored
+      loadEnrollmentNotifications();
+    };
+
+    // Listen for storage sync events
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key && event.key.startsWith('enrollment_sync_')) {
+        try {
+          const syncEvent = JSON.parse(event.newValue || '{}');
+          console.log('Enrollment sync event received in business component:', syncEvent);
+          
+          // Only refresh if this event is for our business
+          if (syncEvent.business_id === businessId) {
+            loadEnrollmentNotifications();
+          }
+        } catch (error) {
+          console.error('Error parsing enrollment sync event:', error);
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('enrollmentApprovalProcessed', handleEnrollmentApproval as EventListener);
+    window.addEventListener('cardCreated', handleCardCreated as EventListener);
+    window.addEventListener('socketConnected', handleSocketConnected as EventListener);
+    window.addEventListener('storage', handleStorageSync);
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('enrollmentApprovalProcessed', handleEnrollmentApproval as EventListener);
+      window.removeEventListener('cardCreated', handleCardCreated as EventListener);
+      window.removeEventListener('socketConnected', handleSocketConnected as EventListener);
+      window.removeEventListener('storage', handleStorageSync);
+    };
+  }, [businessId]);
+
+  // Enhanced visibility change detection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Business page became visible, refreshing enrollment notifications');
+        loadEnrollmentNotifications();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [businessId]);
   
   useEffect(() => {
     if (businessId) {
@@ -35,6 +116,8 @@ export const BusinessEnrollmentNotifications: React.FC<BusinessEnrollmentNotific
   const loadEnrollmentNotifications = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const businessNotifications = await CustomerNotificationService.getBusinessNotifications(businessId);
       
       // Filter for enrollment-related notifications
@@ -46,12 +129,18 @@ export const BusinessEnrollmentNotifications: React.FC<BusinessEnrollmentNotific
       );
       
       setNotifications(enrollmentNotifications);
-      setLoading(false);
     } catch (err) {
       console.error('Error loading enrollment notifications:', err);
       setError('Failed to load enrollment notifications');
+    } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEnrollmentNotifications();
+    setRefreshing(false);
   };
   
   const handleMarkAsRead = async (notificationId: string) => {
@@ -99,121 +188,155 @@ export const BusinessEnrollmentNotifications: React.FC<BusinessEnrollmentNotific
       
       return date.toLocaleDateString();
     } catch (error) {
-      console.error('Error formatting timestamp:', error);
+      console.error('Error formatting time:', error);
       return t('recently');
     }
   };
-  
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'ENROLLMENT_ACCEPTED':
-        return <ThumbsUp className="h-5 w-5 text-green-500" />;
+        return <ThumbsUp className="w-5 h-5 text-green-600" />;
       case 'ENROLLMENT_REJECTED':
-        return <ThumbsDown className="h-5 w-5 text-red-500" />;
+        return <ThumbsDown className="w-5 h-5 text-red-600" />;
       case 'NEW_ENROLLMENT':
-        return <Award className="h-5 w-5 text-blue-500" />;
+        return <User className="w-5 h-5 text-blue-600" />;
       case 'ENROLLMENT_REQUEST':
-        return <Clock className="h-5 w-5 text-orange-500" />;
+        return <Clock className="w-5 h-5 text-yellow-600" />;
       default:
-        return <AlertCircle className="h-5 w-5 text-gray-500" />;
+        return <AlertCircle className="w-5 h-5 text-gray-600" />;
     }
   };
-  
+
+  const getNotificationStyle = (type: string) => {
+    switch (type) {
+      case 'ENROLLMENT_ACCEPTED':
+        return 'border-l-4 border-l-green-500 bg-green-50';
+      case 'ENROLLMENT_REJECTED':
+        return 'border-l-4 border-l-red-500 bg-red-50';
+      case 'NEW_ENROLLMENT':
+        return 'border-l-4 border-l-blue-500 bg-blue-50';
+      case 'ENROLLMENT_REQUEST':
+        return 'border-l-4 border-l-yellow-500 bg-yellow-50';
+      default:
+        return 'border-l-4 border-l-gray-500 bg-gray-50';
+    }
+  };
+
   if (loading) {
     return (
-      <div className="p-4 bg-white rounded-lg shadow">
-        <div className="animate-pulse flex space-x-4">
-          <div className="flex-1 space-y-4 py-1">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center p-6">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Loading notifications...</span>
       </div>
     );
   }
-  
+
   if (error) {
     return (
-      <div className="p-4 bg-white rounded-lg shadow">
-        <div className="flex items-center text-red-500">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          <span>{error}</span>
-        </div>
+      <div className="p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <p className="text-red-600 mb-4">{error}</p>
+        <button 
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center mx-auto"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          Try Again
+        </button>
       </div>
     );
   }
-  
-  return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">{t('Enrollment Notifications')}</h3>
+
+  if (notifications.length === 0) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+        <p>No enrollment notifications yet</p>
+        <p className="text-sm">You'll see notifications here when customers respond to enrollment requests</p>
       </div>
-      
-      <div className="divide-y divide-gray-200">
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header with refresh button */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Enrollment Notifications</h3>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+          title="Refresh notifications"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* Notifications list */}
+      <div className="space-y-3">
         <AnimatePresence>
-          {notifications.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">
-              <User className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>{t('No enrollment notifications yet')}</p>
-            </div>
-          ) : (
-            notifications.map(notification => (
-              <motion.div
-                key={notification.id}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className={`p-4 hover:bg-gray-50 cursor-pointer ${!notification.isRead ? 'bg-blue-50' : ''}`}
-                onClick={() => handleMarkAsRead(notification.id)}
-              >
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mr-3">
-                    {getNotificationIcon(notification.type)}
-                  </div>
+          {notifications.map((notification, index) => (
+            <motion.div
+              key={notification.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+              className={`p-4 rounded-lg shadow-sm ${getNotificationStyle(notification.type)} ${
+                !notification.isRead ? 'ring-2 ring-blue-200' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3 flex-1">
+                  {getNotificationIcon(notification.type)}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">
-                      {notification.title}
-                    </p>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="text-sm font-medium text-gray-900">
+                        {notification.title}
+                      </h4>
+                      {!notification.isRead && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          New
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600 mt-1">
                       {notification.message}
                     </p>
-                    <div className="flex items-center mt-1">
-                      {notification.customerName && (
-                        <span className="text-xs font-medium text-gray-500 mr-2">
-                          {notification.customerName}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-500">
-                        {formatTimeAgo(notification.createdAt)}
-                      </span>
-                    </div>
+                    {notification.data && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        {notification.data.programName && (
+                          <span className="inline-block mr-3">
+                            Program: {notification.data.programName}
+                          </span>
+                        )}
+                        {notification.data.customerName && (
+                          <span className="inline-block">
+                            Customer: {notification.data.customerName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                      {formatTimeAgo(notification.createdAt)}
+                    </p>
                   </div>
-                  {!notification.isRead && (
-                    <div className="flex-shrink-0 ml-2">
-                      <span className="inline-block h-2 w-2 rounded-full bg-blue-600"></span>
-                    </div>
-                  )}
                 </div>
-              </motion.div>
-            ))
-          )}
+                
+                {!notification.isRead && (
+                  <button
+                    onClick={() => handleMarkAsRead(notification.id)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Mark as read
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          ))}
         </AnimatePresence>
       </div>
-      
-      {notifications.length > 0 && (
-        <div className="p-4 bg-gray-50 border-t border-gray-200">
-          <button 
-            onClick={loadEnrollmentNotifications}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            {t('Refresh')}
-          </button>
-        </div>
-      )}
     </div>
   );
 }; 

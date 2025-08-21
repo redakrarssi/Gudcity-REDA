@@ -28,6 +28,64 @@ export class CustomerNotificationService {
       console.error('Error marking notification as action taken:', error);
     }
   }
+
+  /**
+   * Enhanced enrollment approval using the new stored procedure
+   */
+  static async processEnrollmentApproval(requestId: string, approved: boolean): Promise<{ success: boolean; cardId?: string; error?: string }> {
+    try {
+      logger.info('Processing enrollment approval with enhanced procedure', { requestId, approved });
+      
+      // Use the new enhanced stored procedure
+      const result = await sql`
+        SELECT process_enrollment_approval_enhanced(${requestId}::uuid, ${approved})
+      `;
+      
+      if (result && result.length > 0 && result[0].process_enrollment_approval_enhanced) {
+        const cardId = result[0].process_enrollment_approval_enhanced;
+        
+        logger.info('Enrollment approval processed successfully', { requestId, approved, cardId });
+        
+        // Trigger real-time sync events
+        if (typeof window !== 'undefined') {
+          // Create immediate sync event
+          const syncEvent = {
+            table_name: 'loyalty_cards' as const,
+            operation: 'INSERT' as const,
+            record_id: cardId,
+            customer_id: undefined,
+            business_id: undefined,
+            data: { approved, requestId },
+            created_at: new Date().toISOString()
+          };
+          
+          // Dispatch custom event for immediate UI update
+          window.dispatchEvent(new CustomEvent('enrollmentApprovalProcessed', {
+            detail: { requestId, approved, cardId, syncEvent }
+          }));
+          
+          // Store in localStorage for cross-tab sync
+          localStorage.setItem(`enrollment_sync_${Date.now()}`, JSON.stringify(syncEvent));
+        }
+        
+        return { success: true, cardId };
+      } else {
+        logger.warn('Enrollment approval returned no result', { requestId, approved, result });
+        return { success: false, error: 'No result from enrollment procedure' };
+      }
+    } catch (error) {
+      logger.error('Error processing enrollment approval', { requestId, approved, error });
+      
+      // Try to get more details about the error
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      return { success: false, error: errorMessage };
+    }
+  }
+
   /**
    * Create a new notification for a customer
    * @param notification The notification data to create
@@ -98,23 +156,35 @@ export class CustomerNotificationService {
         ) RETURNING *
       `;
       
-      if (!result.length) {
-        return null;
+      if (result && result.length > 0) {
+        const createdNotification = result[0];
+        
+        // Trigger real-time sync events for immediate UI updates
+        if (typeof window !== 'undefined') {
+          // Create sync event
+          const syncEvent = {
+            table_name: 'customer_notifications' as const,
+            operation: 'INSERT' as const,
+            record_id: notificationId,
+            customer_id: notification.customerId,
+            business_id: notification.businessId,
+            data: { type: notification.type, title: notification.title },
+            created_at: now.toISOString()
+          };
+          
+          // Dispatch custom event
+          window.dispatchEvent(new CustomEvent('notificationCreated', {
+            detail: { notification: createdNotification, syncEvent }
+          }));
+          
+          // Store in localStorage for cross-tab sync
+          localStorage.setItem(`notification_sync_${Date.now()}`, JSON.stringify(syncEvent));
+        }
+        
+        return createdNotification;
       }
       
-      // Get business name for better context
-      const businessNameResult = await sql`
-        SELECT name FROM users WHERE id = ${parseInt(notification.businessId)}
-      `;
-      
-      const businessName = businessNameResult.length ? businessNameResult[0].name : undefined;
-      
-      const createdNotification = this.mapNotification({
-        ...result[0],
-        business_name: businessName,
-      });
-      
-      return createdNotification;
+      return null;
     } catch (error) {
       console.error('Error creating notification:', error);
       return null;
