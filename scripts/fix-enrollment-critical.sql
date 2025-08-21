@@ -1,7 +1,10 @@
 -- CRITICAL ENROLLMENT SYSTEM FIX
 -- This script fixes the specific issues with Customer ID 4 & 27 and customers with 0 cards
+-- IMPORTANT: This function is ONLY for program invitation acceptance, NOT for automatic enrollment during point awarding
 
 -- 1. Create atomic function for enrollment + card creation
+-- RESTRICTION: This function should ONLY be called when customer explicitly accepts a program invitation
+-- It should NEVER be called automatically during point awarding or any other operation
 CREATE OR REPLACE FUNCTION create_enrollment_with_card(
   p_customer_id INTEGER,
   p_business_id INTEGER, 
@@ -19,6 +22,10 @@ DECLARE
 BEGIN
   -- Record transaction start time for debugging
   v_transaction_start := NOW();
+  
+  -- CRITICAL: This function is ONLY for program invitation acceptance
+  -- It should NEVER be called automatically during point awarding
+  -- ALL customers (old, new, future) must explicitly accept invitations
   
   -- Start transaction - CRITICAL for atomicity
   BEGIN
@@ -46,7 +53,7 @@ BEGIN
       AND program_id = p_program_id
       RETURNING id INTO v_enrollment_id;
     ELSE
-      -- Create new enrollment record
+      -- Create new enrollment record ONLY for explicit invitation acceptance
       INSERT INTO program_enrollments (
         customer_id,
         program_id,
@@ -105,7 +112,7 @@ BEGIN
       v_card_number := 'GC-' || to_char(NOW(), 'YYMMDD-HH24MISS') || '-' || floor(random() * 10000)::TEXT;
       v_card_id := gen_random_uuid();
       
-      -- Create new loyalty card
+      -- Create new loyalty card ONLY for explicit invitation acceptance
       INSERT INTO loyalty_cards (
         id,
         customer_id,
@@ -166,7 +173,7 @@ BEGIN
       updated_at = NOW();
     
     -- Log successful transaction
-    RAISE NOTICE 'Enrollment with card created successfully in % ms for customer % in program %', 
+    RAISE NOTICE 'Enrollment with card created successfully in % ms for customer % in program % (INVITATION ACCEPTANCE ONLY)', 
       EXTRACT(EPOCH FROM (NOW() - v_transaction_start)) * 1000, p_customer_id, p_program_id;
     
     -- Commit transaction
@@ -181,7 +188,8 @@ BEGIN
       'program_name', v_program_name,
       'business_name', v_business_name,
       'customer_name', v_customer_name,
-      'transaction_time_ms', EXTRACT(EPOCH FROM (NOW() - v_transaction_start)) * 1000
+      'transaction_time_ms', EXTRACT(EPOCH FROM (NOW() - v_transaction_start)) * 1000,
+      'enrollment_method', 'INVITATION_ACCEPTANCE_ONLY'
     );
     
     RETURN v_result;
@@ -210,6 +218,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 2. Create function to validate enrollment before point awarding
+-- This function STRICTLY blocks point awarding for non-enrolled customers
+-- NO automatic enrollment is allowed - customers must explicitly accept invitations
 CREATE OR REPLACE FUNCTION validate_enrollment_for_points(
   p_customer_id INTEGER,
   p_program_id TEXT
@@ -219,6 +229,10 @@ DECLARE
   v_enrollment_status TEXT;
   v_result JSON;
 BEGIN
+  -- CRITICAL: This function ONLY validates existing enrollments
+  -- It NEVER creates enrollments automatically
+  -- ALL customers (old, new, future) must explicitly accept program invitations
+  
   -- Check if customer is enrolled in the program
   SELECT 
     EXISTS (
@@ -242,7 +256,8 @@ BEGIN
     'enrollment_status', v_enrollment_status,
     'can_award_points', v_enrollment_exists,
     'customer_id', p_customer_id,
-    'program_id', p_program_id
+    'program_id', p_program_id,
+    'validation_note', 'NO_AUTOMATIC_ENROLLMENT_ALLOWED'
   );
   
   RETURN v_result;

@@ -3,6 +3,21 @@ import sql from '../utils/db';
 import { NotificationService } from './notificationService';
 import { logger } from '../utils/logger';
 
+/**
+ * CRITICAL RESTRICTION: NO AUTOMATIC ENROLLMENT ALLOWED
+ * 
+ * This service STRICTLY enforces that ALL customers (old, new, future) 
+ * can ONLY be enrolled when they explicitly accept program invitations.
+ * 
+ * Sending points to a customer will NEVER automatically enroll them.
+ * The old workaround where sending points created enrollments is BLOCKED.
+ * 
+ * Enrollment flow:
+ * 1. Business sends program invitation
+ * 2. Customer explicitly accepts invitation
+ * 3. Enrollment + card created atomically
+ * 4. THEN points can be awarded
+ */
 export class TransactionService {
   // Mock data stores
   private static transactions: Transaction[] = [];
@@ -76,13 +91,13 @@ export class TransactionService {
       // Convert IDs to integers for database
       const customerIdInt = parseInt(customerId);
       const businessIdInt = parseInt(businessId);
-      const programIdInt = parseInt(programId);
 
-      // CRITICAL FIX: Validate enrollment before proceeding
+      // CRITICAL FIX: STRICT enrollment validation - NO automatic enrollment
+      // ALL customers (old, new, future) must explicitly accept program invitations
       const enrollmentValidation = await this.validateEnrollmentForPoints(customerIdInt, programId);
       
       if (!enrollmentValidation.isEnrolled) {
-        logger.warn('Point awarding blocked - customer not enrolled', {
+        logger.warn('Point awarding BLOCKED - customer not enrolled', {
           customerId: customerIdInt,
           programId,
           enrollmentStatus: enrollmentValidation.enrollmentStatus,
@@ -91,7 +106,7 @@ export class TransactionService {
         
         return {
           success: false,
-          error: `Cannot award points: Customer is not enrolled in this loyalty program. Status: ${enrollmentValidation.enrollmentStatus}`
+          error: `Cannot award points: Customer must first accept an invitation to join this loyalty program. Current status: ${enrollmentValidation.enrollmentStatus}`
         };
       }
 
@@ -101,7 +116,7 @@ export class TransactionService {
         enrollmentStatus: enrollmentValidation.enrollmentStatus
       });
 
-      // Check if customer is enrolled in program (double-check)
+      // Double-check enrollment exists (should not happen due to validation above)
       const enrollment = await sql`
         SELECT * FROM program_enrollments
         WHERE customer_id = ${customerIdInt}
@@ -109,7 +124,6 @@ export class TransactionService {
         AND status = 'ACTIVE'
       `;
 
-      // If not enrolled, this should not happen due to validation above
       if (enrollment.length === 0) {
         logger.error('Enrollment validation passed but enrollment not found - data inconsistency', {
           customerId: customerIdInt,
