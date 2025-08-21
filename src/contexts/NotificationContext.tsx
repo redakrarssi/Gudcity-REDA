@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -97,6 +97,117 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [showPopup, setShowPopup] = useState(false);
   const [showBusinessPopup, setShowBusinessPopup] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+
+  // Enhanced real-time event handling
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen for enrollment approval events
+    const handleEnrollmentApproval = (event: CustomEvent) => {
+      const { requestId, approved, cardId, syncEvent } = event.detail;
+      
+      console.log('Enrollment approval event received:', { requestId, approved, cardId });
+      
+      // Update approval requests state
+      setApprovalRequests(prev => 
+        prev.map(req => 
+          req.id === requestId 
+            ? { ...req, status: approved ? 'APPROVED' : 'REJECTED' }
+            : req
+        )
+      );
+      
+      // Invalidate relevant React Query caches
+      queryClient.invalidateQueries({ queryKey: ['approvalRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+      queryClient.invalidateQueries({ queryKey: ['programEnrollments'] });
+      
+      // Show success notification
+      if (approved && cardId) {
+        setLatestNotification({
+          id: `enrollment-success-${Date.now()}`,
+          customerId: user.id.toString(),
+          businessId: user.id.toString(),
+          type: 'ENROLLMENT_SUCCESS',
+          title: 'Enrollment Successful',
+          message: 'You have been successfully enrolled in the loyalty program!',
+          data: { cardId, requestId },
+          requiresAction: false,
+          actionTaken: true,
+          isRead: false,
+          createdAt: new Date().toISOString()
+        });
+        setShowPopup(true);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          setShowPopup(false);
+          setLatestNotification(null);
+        }, 5000);
+      }
+    };
+
+    // Listen for notification creation events
+    const handleNotificationCreated = (event: CustomEvent) => {
+      const { notification, syncEvent } = event.detail;
+      
+      console.log('Notification created event received:', notification);
+      
+      // Add to notifications list
+      setNotifications(prev => [notification, ...prev]);
+      
+      // Update unread count
+      if (!notification.isRead) {
+        setUnreadCount(prev => prev + 1);
+      }
+      
+      // Invalidate notifications cache
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+
+    // Listen for localStorage sync events
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key && event.key.startsWith('enrollment_sync_')) {
+        try {
+          const syncEvent = JSON.parse(event.newValue || '{}');
+          console.log('Storage sync event received:', syncEvent);
+          
+          // Handle enrollment sync
+          if (syncEvent.table_name === 'loyalty_cards') {
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+          }
+        } catch (error) {
+          console.error('Error parsing storage sync event:', error);
+        }
+      }
+      
+      if (event.key && event.key.startsWith('notification_sync_')) {
+        try {
+          const syncEvent = JSON.parse(event.newValue || '{}');
+          console.log('Notification sync event received:', syncEvent);
+          
+          // Handle notification sync
+          if (syncEvent.table_name === 'customer_notifications') {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          }
+        } catch (error) {
+          console.error('Error parsing notification sync event:', error);
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('enrollmentApprovalProcessed', handleEnrollmentApproval as EventListener);
+    window.addEventListener('notificationCreated', handleNotificationCreated as EventListener);
+    window.addEventListener('storage', handleStorageSync);
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('enrollmentApprovalProcessed', handleEnrollmentApproval as EventListener);
+      window.removeEventListener('notificationCreated', handleNotificationCreated as EventListener);
+      window.removeEventListener('storage', handleStorageSync);
+    };
+  }, [user, queryClient]);
 
   // Fetch initial notifications and approval requests
   useEffect(() => {

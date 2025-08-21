@@ -26,6 +26,107 @@ let pollingInterval: NodeJS.Timeout | null = null;
 let lastSyncCheck = new Date();
 
 /**
+ * Enhanced enrollment sync event creation
+ */
+export function createEnrollmentSyncEvent(
+  customerId: string, 
+  businessId: string, 
+  programId: string, 
+  action: 'APPROVED' | 'REJECTED' | 'PENDING',
+  cardId?: string
+): SyncEvent {
+  return {
+    table_name: 'program_enrollments',
+    operation: action === 'APPROVED' ? 'INSERT' : 'UPDATE',
+    record_id: programId,
+    customer_id: customerId,
+    business_id: businessId,
+    data: { 
+      action, 
+      programId, 
+      cardId,
+      timestamp: new Date().toISOString() 
+    },
+    created_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Enhanced card sync event creation
+ */
+export function createCardSyncEvent(
+  cardId: string,
+  customerId: string,
+  businessId: string,
+  programId: string,
+  action: 'CREATED' | 'UPDATED' | 'DELETED'
+): SyncEvent {
+  return {
+    table_name: 'loyalty_cards',
+    operation: action === 'CREATED' ? 'INSERT' : 'UPDATED' ? 'UPDATE' : 'DELETE',
+    record_id: cardId,
+    customer_id: customerId,
+    business_id: businessId,
+    data: { 
+      action, 
+      programId, 
+      cardId,
+      timestamp: new Date().toISOString() 
+    },
+    created_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Enhanced notification sync event creation
+ */
+export function createNotificationSyncEvent(
+  notificationId: string,
+  userId: string,
+  businessId: string,
+  action: 'CREATED' | 'READ' | 'ACTIONED' | 'DELETED',
+  notificationType?: string
+): SyncEvent {
+  return {
+    table_name: 'customer_notifications',
+    operation: action === 'CREATED' ? 'INSERT' : 'UPDATED' ? 'UPDATE' : 'DELETE',
+    record_id: notificationId,
+    customer_id: userId,
+    business_id: businessId,
+    data: { 
+      action, 
+      notificationType,
+      timestamp: new Date().toISOString() 
+    },
+    created_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Enhanced business-customer relationship sync event
+ */
+export function createBusinessCustomerSyncEvent(
+  customerId: string,
+  businessId: string,
+  action: 'LINKED' | 'UNLINKED' | 'STATUS_CHANGED',
+  status?: string
+): SyncEvent {
+  return {
+    table_name: 'customer_business_relationships',
+    operation: action === 'LINKED' ? 'INSERT' : 'UPDATED' ? 'UPDATE' : 'DELETE',
+    record_id: `${customerId}-${businessId}`,
+    customer_id: customerId,
+    business_id: businessId,
+    data: { 
+      action, 
+      status,
+      timestamp: new Date().toISOString() 
+    },
+    created_at: new Date().toISOString()
+  };
+}
+
+/**
  * Subscribe to real-time sync events for a specific table
  */
 export function subscribeToSync(
@@ -65,7 +166,73 @@ export function subscribeToSync(
 }
 
 /**
- * Start polling for sync events
+ * Enhanced sync event processing with better error handling
+ */
+function processSyncEvent(event: SyncEvent) {
+  try {
+    console.log('Processing sync event:', event);
+    
+    // Invalidate relevant React Query caches based on event type
+    switch (event.table_name) {
+      case 'loyalty_cards':
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+        queryClient.invalidateQueries({ queryKey: ['cardActivities'] });
+        break;
+        
+      case 'program_enrollments':
+        queryClient.invalidateQueries({ queryKey: ['programEnrollments'] });
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+        break;
+        
+      case 'customer_notifications':
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        queryClient.invalidateQueries({ queryKey: ['approvalRequests'] });
+        break;
+        
+      case 'customer_approval_requests':
+        queryClient.invalidateQueries({ queryKey: ['approvalRequests'] });
+        break;
+        
+      case 'customer_business_relationships':
+        queryClient.invalidateQueries({ queryKey: ['businessCustomers'] });
+        queryClient.invalidateQueries({ queryKey: ['customerBusinesses'] });
+        break;
+    }
+    
+    // Notify all listeners for this event type
+    const listeners = syncListeners.get(event.table_name);
+    if (listeners) {
+      listeners.forEach(listener => {
+        try {
+          listener(event);
+        } catch (error) {
+          console.error('Error in sync event listener:', error);
+        }
+      });
+    }
+    
+    // Also notify customer-specific listeners if applicable
+    if (event.customer_id) {
+      const customerKey = `${event.table_name}:${event.customer_id}`;
+      const customerListeners = syncListeners.get(customerKey);
+      if (customerListeners) {
+        customerListeners.forEach(listener => {
+          try {
+            listener(event);
+          } catch (error) {
+            console.error('Error in customer sync event listener:', error);
+          }
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error processing sync event:', error);
+  }
+}
+
+/**
+ * Start polling for sync events with enhanced error handling
  */
 function startSyncPolling() {
   if (pollingInterval) return;
@@ -75,19 +242,38 @@ function startSyncPolling() {
       await checkForSyncEvents();
     } catch (error) {
       console.error('Error checking sync events:', error);
+      
+      // If we get too many errors, stop polling temporarily
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.warn('Sync polling timeout, stopping temporarily');
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+          
+          // Restart after 30 seconds
+          setTimeout(() => {
+            if (syncListeners.size > 0) {
+              startSyncPolling();
+            }
+          }, 30000);
+        }
+      }
     }
   }, 5000); // Check every 5 seconds
 }
 
 /**
- * Check for new sync events from the database
+ * Enhanced sync event checking with localStorage fallback
  */
 async function checkForSyncEvents() {
   try {
-    // In a real implementation, this would make an API call to fetch sync events
-    // For now, we'll use localStorage to simulate real-time updates
+    // Check localStorage for sync events (cross-tab communication)
     const storageKeys = Object.keys(localStorage);
-    const syncKeys = storageKeys.filter(key => key.startsWith('sync_'));
+    const syncKeys = storageKeys.filter(key => 
+      key.startsWith('sync_') || 
+      key.startsWith('enrollment_sync_') || 
+      key.startsWith('notification_sync_')
+    );
     
     for (const key of syncKeys) {
       const eventData = localStorage.getItem(key);
@@ -98,346 +284,110 @@ async function checkForSyncEvents() {
           // Check if this event is newer than our last check
           if (new Date(event.created_at) > lastSyncCheck) {
             processSyncEvent(event);
+            
+            // Clean up old sync events
+            if (Date.now() - new Date(event.created_at).getTime() > 60000) { // 1 minute old
+              localStorage.removeItem(key);
+            }
           }
         } catch (parseError) {
-          console.error('Error parsing sync event:', parseError);
+          console.error('Error parsing sync event data:', parseError);
+          localStorage.removeItem(key); // Clean up corrupted data
         }
-        
-        // Clean up processed events
-        localStorage.removeItem(key);
       }
     }
     
+    // Update last check time
     lastSyncCheck = new Date();
+    
   } catch (error) {
     console.error('Error in checkForSyncEvents:', error);
+    throw error;
   }
 }
 
 /**
- * Process a sync event and notify relevant listeners
+ * Force immediate cache invalidation for specific data types
  */
-function processSyncEvent(event: SyncEvent) {
-  // Notify table-specific listeners
-  const tableListeners = syncListeners.get(event.table_name);
-  if (tableListeners) {
-    tableListeners.forEach(listener => {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error('Error in sync listener:', error);
-      }
-    });
-  }
-  
-  // Notify customer-specific listeners
-  if (event.customer_id) {
-    const customerKey = `${event.table_name}:${event.customer_id}`;
-    const customerListeners = syncListeners.get(customerKey);
-    if (customerListeners) {
-      customerListeners.forEach(listener => {
-        try {
-          listener(event);
-        } catch (error) {
-          console.error('Error in customer sync listener:', error);
-        }
-      });
-    }
-  }
-  
-  // Invalidate relevant React Query caches based on the event
-  invalidateQueriesForEvent(event);
-}
-
-/**
- * Invalidate React Query caches based on sync events
- */
-function invalidateQueriesForEvent(event: SyncEvent) {
-  switch (event.table_name) {
-    case 'program_enrollments':
-      if (event.customer_id) {
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', event.customer_id] });
-        queryClient.invalidateQueries({ queryKey: ['customerPrograms', event.customer_id] });
-      }
-      if (event.business_id) {
-        queryClient.invalidateQueries({ queryKey: ['businessCustomers', event.business_id] });
-      }
-      break;
-      
-    case 'loyalty_cards':
-      if (event.customer_id) {
-        queryClient.invalidateQueries({ queryKey: ['loyaltyCards', event.customer_id] });
-      }
-      if (event.business_id) {
-        queryClient.invalidateQueries({ queryKey: ['businessCustomers', event.business_id] });
-      }
-      break;
-      
-    case 'customer_notifications':
-      if (event.customer_id) {
-        queryClient.invalidateQueries({ queryKey: ['customerNotifications', event.customer_id] });
-        queryClient.invalidateQueries({ queryKey: ['customerApprovals', event.customer_id] });
-      }
-      break;
-      
-    case 'customer_approval_requests':
-      if (event.customer_id) {
-        queryClient.invalidateQueries({ queryKey: ['customerApprovals', event.customer_id] });
-      }
-      break;
-      
-    case 'customer_business_relationships':
-      if (event.customer_id) {
-        queryClient.invalidateQueries({ queryKey: ['customerBusinessRelationships', event.customer_id] });
-      }
-      break;
-  }
-}
-
-/**
- * Manually trigger a sync event (useful for testing and immediate updates)
- */
-export function triggerSyncEvent(event: Partial<SyncEvent>) {
-  const fullEvent: SyncEvent = {
-    table_name: event.table_name || 'loyalty_cards',
-    operation: event.operation || 'UPDATE',
-    record_id: event.record_id || '',
-    customer_id: event.customer_id,
-    business_id: event.business_id,
-    data: event.data,
-    created_at: new Date().toISOString()
-  };
-  
-  // Store in localStorage to simulate database trigger
-  const storageKey = `sync_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-  localStorage.setItem(storageKey, JSON.stringify(fullEvent));
-}
-
-/**
- * This is a simplified version of the hook that doesn't use React
- * For React components, use a custom hook in your component file instead
- */
-export function useSyncEvents(
-  tableType: SyncEventType,
-  customerId?: string,
-  onEvent?: (event: SyncEvent) => void
-): { subscribe: () => () => void } {
-  // Return a subscribe function that can be called from a React useEffect
-  return {
-    subscribe: () => {
-      // Set up the subscription
-      const unsubscribe = subscribeToSync(tableType, (event) => {
-        // Call the callback if provided
-        if (onEvent) {
-          onEvent(event);
-        }
-      }, customerId);
-      
-      // Return unsubscribe function for cleanup
-      return unsubscribe;
-    }
-  };
-}
-
-/**
- * Create a sync event for customer enrollment
- */
-export function createEnrollmentSyncEvent(
-  customerId: string,
-  businessId: string,
-  programId: string,
-  operation: 'INSERT' | 'UPDATE' | 'DELETE' = 'INSERT'
-) {
-  triggerSyncEvent({
-    table_name: 'program_enrollments',
-    operation,
-    record_id: `${customerId}-${programId}`,
-    customer_id: customerId,
-    business_id: businessId,
-    data: {
-      program_id: programId,
-      customer_id: customerId,
-      business_id: businessId
+export function forceCacheInvalidation(dataTypes: SyncEventType[]) {
+  dataTypes.forEach(type => {
+    switch (type) {
+      case 'loyalty_cards':
+        queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+        break;
+      case 'program_enrollments':
+        queryClient.invalidateQueries({ queryKey: ['programEnrollments'] });
+        break;
+      case 'customer_notifications':
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        break;
+      case 'customer_approval_requests':
+        queryClient.invalidateQueries({ queryKey: ['approvalRequests'] });
+        break;
     }
   });
 }
 
 /**
- * Create a sync event for loyalty card updates
- * This function is critical for ensuring real-time UI updates when point balances change
+ * Create and dispatch a custom sync event for immediate UI updates
  */
-export function createCardSyncEvent(
-  cardId: string,
-  customerId: string,
-  businessId: string,
-  operation: 'INSERT' | 'UPDATE' | 'DELETE' = 'UPDATE',
-  data?: any
-) {
-  try {
-    // Add timestamp to force cache invalidation
-    const timestamp = new Date().toISOString();
-    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+export function dispatchSyncEvent(event: SyncEvent) {
+  if (typeof window !== 'undefined') {
+    // Dispatch custom event
+    window.dispatchEvent(new CustomEvent('syncEvent', { detail: event }));
     
-    // First, try to immediately invalidate React Query cache if available
-    if (typeof window !== 'undefined' && window.queryClient?.invalidateQueries) {
-      try {
-        // Invalidate all queries that might contain this card data
-        window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards', customerId] });
-        window.queryClient.invalidateQueries({ queryKey: ['customerCards', customerId] });
-        window.queryClient.invalidateQueries({ queryKey: ['enrolledPrograms', customerId] });
-        
-        console.log('Successfully invalidated React Query cache for card update:', cardId);
-      } catch (cacheError) {
-        console.warn('Error invalidating React Query cache:', cacheError);
-      }
-    }
+    // Store in localStorage for cross-tab sync
+    const key = `sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem(key, JSON.stringify(event));
     
-    // Then create the standard sync event via localStorage
-    const fullEvent: SyncEvent = {
-      table_name: 'loyalty_cards',
-      operation,
-      record_id: cardId,
-      customer_id: customerId,
-      business_id: businessId,
-      data: {
-        card_id: cardId,
-        timestamp,
-        uniqueId,
-        ...data
-      },
-      created_at: timestamp
-    };
-    
-    // Store in localStorage to simulate database trigger and enable cross-tab sync
-    const storageKey = `sync_${uniqueId}`;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(fullEvent));
-    }
-    
-    // Also directly trigger any existing listeners
-    const tableListeners = syncListeners.get('loyalty_cards');
-    if (tableListeners) {
-      tableListeners.forEach(listener => {
-        try {
-          listener(fullEvent);
-        } catch (error) {
-          console.error('Error in sync listener:', error);
-        }
-      });
-    }
-    
-    // Also check for customer-specific listeners
-    const customerKey = `loyalty_cards:${customerId}`;
-    const customerListeners = syncListeners.get(customerKey);
-    if (customerListeners) {
-      customerListeners.forEach(listener => {
-        try {
-          listener(fullEvent);
-        } catch (error) {
-          console.error('Error in customer sync listener:', error);
-        }
-      });
-    }
-    
-    // Create special localStorage keys for points updates to ensure immediate UI refresh
-    if (data?.pointsAdded && typeof localStorage !== 'undefined') {
-      // Points event key
-      const pointsKey = `sync_points_${uniqueId}`;
-      localStorage.setItem(pointsKey, JSON.stringify({
-        customerId,
-        businessId,
-        programId: data.programId || null,
-        programName: data.programName || 'Loyalty Program',
-        cardId,
-        points: data.pointsAdded,
-        timestamp
-      }));
-      
-      // Force card refresh key
-      localStorage.setItem('force_card_refresh', Date.now().toString());
-      
-      // Customer-specific refresh key
-      localStorage.setItem(`refresh_cards_${customerId}_${Date.now()}`, 'true');
-      
-      // Dispatch custom events if in browser environment
-      if (typeof window !== 'undefined') {
-        // General refresh event
-        const refreshEvent = new CustomEvent('refresh-customer-cards', {
-          detail: { 
-            timestamp: Date.now(),
-            customerId,
-            cardId,
-            forceRefresh: true
-          }
-        });
-        window.dispatchEvent(refreshEvent);
-        
-        // Points specific event
-        const pointsEvent = new CustomEvent('points-awarded', {
-          detail: {
-            timestamp: Date.now(),
-            customerId,
-            businessId,
-            programId: data.programId,
-            cardId,
-            points: data.pointsAdded,
-            programName: data.programName || 'Loyalty Program',
-            force: true
-          }
-        });
-        window.dispatchEvent(pointsEvent);
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Failed to create card sync event:', error);
-    return false;
+    // Clean up old events
+    setTimeout(() => {
+      localStorage.removeItem(key);
+    }, 60000); // Remove after 1 minute
   }
 }
 
 /**
- * Create a sync event for notifications
+ * Enhanced enrollment-specific sync utilities
  */
-export function createNotificationSyncEvent(
-  notificationId: string,
-  customerId: string,
-  businessId: string,
-  operation: 'INSERT' | 'UPDATE' = 'INSERT',
-  data?: any
-) {
-  triggerSyncEvent({
-    table_name: 'customer_notifications',
-    operation,
-    record_id: notificationId,
-    customer_id: customerId,
-    business_id: businessId,
-    data: {
-      notification_id: notificationId,
-      ...data
-    }
-  });
-}
-
-/**
- * Create a sync event for business-customer relationship
- * This is used to update the business dashboard with customer info
- */
-export function createBusinessCustomerSyncEvent(
-  customerId: string,
-  businessId: string,
-  operation: 'INSERT' | 'UPDATE' | 'DELETE' | 'DECLINED' = 'INSERT'
-) {
-  triggerSyncEvent({
-    table_name: 'customer_business_relationships',
-    operation: operation === 'DECLINED' ? 'UPDATE' : operation,
-    record_id: `${customerId}-${businessId}`,
-    customer_id: customerId,
-    business_id: businessId,
-    data: {
-      customer_id: customerId,
-      business_id: businessId,
-      status: operation === 'DECLINED' ? 'DECLINED' : 'ACTIVE'
-    }
-  });
-}
+export const EnrollmentSync = {
+  /**
+   * Sync enrollment approval
+   */
+  syncApproval: (requestId: string, approved: boolean, cardId?: string) => {
+    const event = createEnrollmentSyncEvent(
+      'system', // Will be replaced by actual customer ID
+      'system', // Will be replaced by actual business ID
+      requestId,
+      approved ? 'APPROVED' : 'REJECTED',
+      cardId
+    );
+    
+    dispatchSyncEvent(event);
+    
+    // Force immediate cache invalidation
+    forceCacheInvalidation(['program_enrollments', 'loyalty_cards']);
+  },
+  
+  /**
+   * Sync card creation
+   */
+  syncCardCreation: (cardId: string, customerId: string, businessId: string, programId: string) => {
+    const event = createCardSyncEvent(cardId, customerId, businessId, programId, 'CREATED');
+    dispatchSyncEvent(event);
+    
+    // Force immediate cache invalidation
+    forceCacheInvalidation(['loyalty_cards']);
+  },
+  
+  /**
+   * Sync notification creation
+   */
+  syncNotification: (notificationId: string, userId: string, businessId: string, type: string) => {
+    const event = createNotificationSyncEvent(notificationId, userId, businessId, 'CREATED', type);
+    dispatchSyncEvent(event);
+    
+    // Force immediate cache invalidation
+    forceCacheInvalidation(['customer_notifications']);
+  }
+};
