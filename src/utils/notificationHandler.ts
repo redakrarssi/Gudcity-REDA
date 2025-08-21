@@ -6,6 +6,61 @@ import sql from './db';
 import crypto from 'crypto';
 
 /**
+ * CRITICAL FIX: Enhanced notification handler for enrollment system
+ * This ensures proper notification cleanup and real-time updates
+ */
+export async function handleEnrollmentNotification(
+  notificationId: string,
+  customerId: string,
+  businessId: string,
+  programId: string,
+  action: 'ACCEPTED' | 'REJECTED'
+): Promise<boolean> {
+  try {
+    logger.info('Handling enrollment notification', { 
+      notificationId, customerId, businessId, programId, action 
+    });
+    
+    // Mark the original enrollment invitation as actioned
+    await CustomerNotificationService.markNotificationAsActioned(notificationId);
+    
+    // Create appropriate notification based on action
+    if (action === 'ACCEPTED') {
+      // Success notification will be created by the enrollment service
+      logger.info('Enrollment accepted, success notification will be created by service');
+    } else {
+      // Create rejection notification
+      await CustomerNotificationService.createNotification({
+        customerId,
+        businessId,
+        type: 'ENROLLMENT_REJECTED',
+        title: 'Enrollment Declined',
+        message: 'You have declined to join the loyalty program.',
+        data: { programId, action, timestamp: new Date().toISOString() },
+        requiresAction: false,
+        actionTaken: true,
+        isRead: false
+      });
+    }
+    
+    // Schedule cleanup of the original invitation notification after 10 seconds
+    setTimeout(async () => {
+      try {
+        await CustomerNotificationService.deleteNotification(notificationId);
+        logger.info('Original enrollment invitation notification cleaned up', { notificationId });
+      } catch (cleanupError) {
+        logger.error('Error cleaning up enrollment invitation notification', cleanupError);
+      }
+    }, 10000);
+    
+    return true;
+  } catch (error) {
+    logger.error('Error handling enrollment notification', error);
+    return false;
+  }
+}
+
+/**
  * Handler for customer point notifications
  * This is called after points are successfully awarded to trigger UI notifications
  * It consolidates multiple point notifications from the same business/program
@@ -98,91 +153,54 @@ export async function handlePointsAwarded(
           // Force card refresh flag
           localStorage.setItem('force_card_refresh', Date.now().toString());
           
-          // Customer-specific refresh flag
+          // Customer-specific refresh key
           localStorage.setItem(`refresh_cards_${customerId}_${Date.now()}`, 'true');
           
-          // Dispatch enhanced custom events for immediate response
-          window.dispatchEvent(new CustomEvent('customer-notification', {
-            detail: {
-              type: 'POINTS_ADDED',
-              customerId,
-              programId,
-              programName,
-              points
-            }
-          }));
-          
-          window.dispatchEvent(new CustomEvent('refresh-customer-cards', {
-            detail: {
-              customerId,
-              cardId,
-              forceRefresh: true,
-              timestamp: Date.now()
-            }
-          }));
-          
-          window.dispatchEvent(new CustomEvent('points-awarded', {
+          // Dispatch custom event for immediate UI update
+          const pointsEvent = new CustomEvent('pointsAwarded', {
             detail: {
               customerId,
               businessId,
               programId,
+              programName,
               cardId,
               points,
-              programName,
-              force: true,
+              source,
               timestamp: Date.now()
             }
-          }));
+          });
+          window.dispatchEvent(pointsEvent);
         }
+        
+        // Create sync event for real-time updates
+        const syncEvent = createCardSyncEvent(
+          cardId,
+          customerId,
+          businessId,
+          'UPDATED',
+          { pointsAdded: points, source, programId }
+        );
+        
+        logger.info('Points awarded notification created and sync events triggered', {
+          notificationId: notification.id,
+          customerId,
+          businessId,
+          programId,
+          points
+        });
+        
+        return true;
       } catch (syncError) {
-        logger.warn('Failed to create UI notification', { error: syncError });
+        logger.error('Error triggering sync events for points awarded', syncError);
+        // Don't fail the entire operation if sync fails
+        return true;
       }
-      
-      return true;
     }
     
-    // Fallback: If notification service fails, create a simplified notification
-    await createFallbackNotification(
-      customerId, businessId, programId, programName, businessName, points, cardId, source
-    );
-    
-    return true;
+    return false;
   } catch (error) {
-    logger.error('Failed to create points awarded notification', { error });
-    
-    // Try a direct database approach as last resort
-    try {
-      // Create a simplified notification directly in the database
-      await sql`
-        INSERT INTO customer_notifications (
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          requires_action,
-          action_taken,
-          is_read,
-          created_at
-        ) VALUES (
-          ${crypto.randomUUID()},
-          ${parseInt(customerId)},
-          ${parseInt(businessId)},
-          'POINTS_ADDED',
-          'Points Added',
-          ${`You've received ${points} points from ${businessName} in the program ${programName}`},
-          false,
-          false,
-          false,
-          ${new Date().toISOString()}
-        )
-      `;
-      return true;
-    } catch (dbError) {
-      logger.error('Final fallback notification creation failed', { error: dbError });
-      return false;
-    }
+    logger.error('Error creating points awarded notification', error);
+    return false;
   }
 }
 

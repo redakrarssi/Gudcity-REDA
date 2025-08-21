@@ -30,59 +30,338 @@ export class CustomerNotificationService {
   }
 
   /**
-   * Enhanced enrollment approval using the new stored procedure
+   * CRITICAL FIX: Enhanced enrollment approval using atomic database function
+   * This fixes the issues with Customer ID 4 & 27 and customers with 0 cards
    */
-  static async processEnrollmentApproval(requestId: string, approved: boolean): Promise<{ success: boolean; cardId?: string; error?: string }> {
+  static async processEnrollmentApproval(requestId: string, approved: boolean): Promise<{ success: boolean; cardId?: string; error?: string; enrollmentData?: any }> {
     try {
-      logger.info('Processing enrollment approval with enhanced procedure', { requestId, approved });
+      logger.info('Processing enrollment approval with atomic function', { requestId, approved });
       
-      // Use the new enhanced stored procedure
-      const result = await sql`
-        SELECT process_enrollment_approval_enhanced(${requestId}::uuid, ${approved})
+      if (!approved) {
+        // Handle rejection - just update status and return
+        const rejectResult = await sql`
+          UPDATE customer_approval_requests
+          SET status = 'REJECTED',
+              responded_at = NOW(),
+              updated_at = NOW()
+          WHERE id = ${requestId}::uuid
+          RETURNING customer_id, business_id, entity_id
+        `;
+        
+        if (rejectResult && rejectResult.length > 0) {
+          // Mark notification as actioned
+          await this.markNotificationAsActioned(requestId);
+          
+          // Create rejection notification for business
+          await this.createBusinessRejectionNotification(rejectResult[0]);
+          
+          return { success: true };
+        }
+        
+        return { success: false, error: 'Approval request not found' };
+      }
+      
+      // Get approval request details
+      const request = await sql`
+        SELECT 
+          r.id, 
+          r.customer_id as "customerId", 
+          r.business_id as "businessId", 
+          r.entity_id as "entityId", 
+          r.request_type as "requestType",
+          r.data,
+          n.id as "notificationId",
+          u1.name as "businessName",
+          u2.name as "customerName",
+          lp.name as "programName"
+        FROM customer_approval_requests r
+        LEFT JOIN customer_notifications n ON r.notification_id = n.id
+        LEFT JOIN users u1 ON r.business_id = u1.id
+        LEFT JOIN users u2 ON r.customer_id = u2.id
+        LEFT JOIN loyalty_programs lp ON r.entity_id = lp.id::text
+        WHERE r.id = ${requestId}
       `;
       
-      if (result && result.length > 0 && result[0].process_enrollment_approval_enhanced) {
-        const cardId = result[0].process_enrollment_approval_enhanced;
+      if (!request || request.length === 0) {
+        logger.error('Approval request not found', { requestId });
+        return { success: false, error: 'Approval request not found' };
+      }
+      
+      const requestData = request[0];
+      
+      // CRITICAL: Use atomic function to create enrollment + card
+      const enrollmentResult = await sql`
+        SELECT create_enrollment_with_card(
+          ${requestData.customerId}, 
+          ${requestData.businessId}, 
+          ${requestData.entityId}
+        ) as result
+      `;
+      
+      if (!enrollmentResult || enrollmentResult.length === 0) {
+        logger.error('Failed to call create_enrollment_with_card function');
+        return { success: false, error: 'Database function call failed' };
+      }
+      
+      const result = enrollmentResult[0].result;
+      
+      if (result.success) {
+        logger.info('Enrollment approval processed successfully', { requestId, approved, result });
         
-        logger.info('Enrollment approval processed successfully', { requestId, approved, cardId });
+        // Update approval request status
+        await sql`
+          UPDATE customer_approval_requests
+          SET status = 'APPROVED',
+              responded_at = NOW(),
+              updated_at = NOW()
+          WHERE id = ${requestId}::uuid
+        `;
         
-        // Trigger real-time sync events
+        // Mark notification as actioned
+        await this.markNotificationAsActioned(requestId);
+        
+        // Create success notification for customer
+        const successNotification = await this.createEnrollmentSuccessNotification(
+          requestData.customerId,
+          requestData.businessId,
+          result.program_name,
+          result.business_name,
+          result.card_id,
+          result.card_number
+        );
+        
+        // Create business notification about customer acceptance
+        await this.createBusinessAcceptanceNotification(requestData, result);
+        
+        // Schedule notification cleanup after 10 seconds
+        setTimeout(async () => {
+          try {
+            // Delete the success notification
+            if (successNotification) {
+              await this.deleteNotification(successNotification.id);
+            }
+            
+            // Delete the original enrollment invitation notification
+            if (requestData.notificationId) {
+              await this.deleteNotification(requestData.notificationId);
+            }
+            
+            logger.info('Notifications cleaned up after 10 seconds', { 
+              successNotificationId: successNotification?.id, 
+              invitationNotificationId: requestData.notificationId 
+            });
+          } catch (cleanupError) {
+            logger.error('Error during notification cleanup', cleanupError);
+          }
+        }, 10000);
+        
+        // Trigger real-time sync events for immediate UI updates
         if (typeof window !== 'undefined') {
           // Create immediate sync event
           const syncEvent = {
             table_name: 'loyalty_cards' as const,
             operation: 'INSERT' as const,
-            record_id: cardId,
-            customer_id: undefined,
-            business_id: undefined,
-            data: { approved, requestId },
+            record_id: result.card_id,
+            customer_id: requestData.customerId.toString(),
+            business_id: requestData.businessId.toString(),
+            data: { 
+              approved, 
+              requestId, 
+              programName: result.program_name,
+              businessName: result.business_name,
+              cardNumber: result.card_number
+            },
             created_at: new Date().toISOString()
           };
           
           // Dispatch custom event for immediate UI update
           window.dispatchEvent(new CustomEvent('enrollmentApprovalProcessed', {
-            detail: { requestId, approved, cardId, syncEvent }
+            detail: { 
+              requestId, 
+              approved, 
+              cardId: result.card_id,
+              enrollmentData: result,
+              syncEvent 
+            }
           }));
           
           // Store in localStorage for cross-tab sync
           localStorage.setItem(`enrollment_sync_${Date.now()}`, JSON.stringify(syncEvent));
+          
+          // Force card refresh flag
+          localStorage.setItem('force_card_refresh', Date.now().toString());
         }
         
-        return { success: true, cardId };
+        return { 
+          success: true, 
+          cardId: result.card_id,
+          enrollmentData: result
+        };
       } else {
-        logger.warn('Enrollment approval returned no result', { requestId, approved, result });
-        return { success: false, error: 'No result from enrollment procedure' };
+        logger.error('Enrollment creation failed', { requestId, error: result.error });
+        return { success: false, error: result.error || 'Enrollment creation failed' };
       }
+      
     } catch (error) {
       logger.error('Error processing enrollment approval', { requestId, approved, error });
       
-      // Try to get more details about the error
       let errorMessage = 'Unknown error occurred';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
       
       return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Create enrollment success notification for customer
+   */
+  private static async createEnrollmentSuccessNotification(
+    customerId: number,
+    businessId: number,
+    programName: string,
+    businessName: string,
+    cardId: string,
+    cardNumber: string
+  ): Promise<CustomerNotification | null> {
+    try {
+      const notification = await this.createNotification({
+        customerId: customerId.toString(),
+        businessId: businessId.toString(),
+        type: 'ENROLLMENT_SUCCESS',
+        title: 'Enrollment Successful!',
+        message: `You have successfully joined ${programName}! Your loyalty card has been created.`,
+        data: {
+          programName,
+          businessName,
+          cardId,
+          cardNumber,
+          timestamp: new Date().toISOString()
+        },
+        requiresAction: false,
+        actionTaken: true,
+        isRead: false
+      });
+      
+      logger.info('Enrollment success notification created', { 
+        customerId, businessId, programName, cardId 
+      });
+      
+      return notification;
+    } catch (error) {
+      logger.error('Error creating enrollment success notification', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create business acceptance notification
+   */
+  private static async createBusinessAcceptanceNotification(
+    requestData: any,
+    enrollmentResult: any
+  ): Promise<void> {
+    try {
+      await this.createNotification({
+        customerId: requestData.businessId.toString(),
+        businessId: requestData.businessId.toString(),
+        type: 'ENROLLMENT_ACCEPTED',
+        title: 'Customer Joined Program',
+        message: `${requestData.customerName} has joined your ${enrollmentResult.program_name} program!`,
+        data: {
+          customerId: requestData.customerId,
+          customerName: requestData.customerName,
+          programName: enrollmentResult.program_name,
+          cardId: enrollmentResult.card_id,
+          timestamp: new Date().toISOString()
+        },
+        requiresAction: false,
+        actionTaken: false,
+        isRead: false
+      });
+      
+      logger.info('Business acceptance notification created', { 
+        businessId: requestData.businessId, 
+        customerId: requestData.customerId 
+      });
+    } catch (error) {
+      logger.error('Error creating business acceptance notification', error);
+    }
+  }
+
+  /**
+   * Create business rejection notification
+   */
+  private static async createBusinessRejectionNotification(requestData: any): Promise<void> {
+    try {
+      await this.createNotification({
+        customerId: requestData.business_id.toString(),
+        businessId: requestData.business_id.toString(),
+        type: 'ENROLLMENT_REJECTED',
+        title: 'Enrollment Declined',
+        message: 'A customer has declined to join your loyalty program.',
+        data: {
+          customerId: requestData.customer_id,
+          timestamp: new Date().toISOString()
+        },
+        requiresAction: false,
+        actionTaken: false,
+        isRead: false
+      });
+    } catch (error) {
+      logger.error('Error creating business rejection notification', error);
+    }
+  }
+
+  /**
+   * Mark notification as actioned
+   */
+  private static async markNotificationAsActioned(requestId: string): Promise<void> {
+    try {
+      // Get the notification ID from the approval request
+      const notificationResult = await sql`
+        SELECT notification_id FROM customer_approval_requests WHERE id = ${requestId}::uuid
+      `;
+      
+      if (notificationResult && notificationResult.length > 0) {
+        const notificationId = notificationResult[0].notification_id;
+        
+        // Mark notification as actioned
+        await sql`
+          UPDATE customer_notifications
+          SET action_taken = TRUE,
+              is_read = TRUE,
+              read_at = NOW(),
+              updated_at = NOW()
+          WHERE id = ${notificationId}
+        `;
+        
+        logger.info('Notification marked as actioned', { notificationId });
+      }
+    } catch (error) {
+      logger.error('Error marking notification as actioned', error);
+    }
+  }
+
+  /**
+   * Delete a notification
+   */
+  static async deleteNotification(notificationId: string): Promise<boolean> {
+    try {
+      const result = await sql`
+        DELETE FROM customer_notifications WHERE id = ${notificationId}
+      `;
+      
+      if (result && result.length > 0) {
+        logger.info('Notification deleted', { notificationId });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      logger.error('Error deleting notification', error);
+      return false;
     }
   }
 

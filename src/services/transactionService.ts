@@ -1,12 +1,53 @@
 import type { Transaction, CustomerProgram, LoyaltyProgram } from '../types/loyalty';
 import sql from '../utils/db';
 import { NotificationService } from './notificationService';
+import { logger } from '../utils/logger';
 
 export class TransactionService {
   // Mock data stores
   private static transactions: Transaction[] = [];
   private static customerPrograms: CustomerProgram[] = [];
   private static loyaltyPrograms: LoyaltyProgram[] = [];
+
+  /**
+   * CRITICAL FIX: Validate enrollment before awarding points
+   * This prevents the workaround that was causing issues with Customer ID 4 & 27
+   */
+  private static async validateEnrollmentForPoints(
+    customerId: number,
+    programId: string
+  ): Promise<{ isEnrolled: boolean; enrollmentStatus: string; error?: string }> {
+    try {
+      // Use the database function to validate enrollment
+      const validationResult = await sql`
+        SELECT validate_enrollment_for_points(${customerId}, ${programId}) as result
+      `;
+      
+      if (!validationResult || validationResult.length === 0) {
+        logger.error('Failed to call validate_enrollment_for_points function');
+        return { 
+          isEnrolled: false, 
+          enrollmentStatus: 'UNKNOWN',
+          error: 'Database validation function failed' 
+        };
+      }
+      
+      const result = validationResult[0].result;
+      
+      return {
+        isEnrolled: result.is_enrolled,
+        enrollmentStatus: result.enrollment_status,
+        error: result.is_enrolled ? undefined : 'Customer not enrolled in program'
+      };
+    } catch (error) {
+      logger.error('Error validating enrollment for points', { customerId, programId, error });
+      return { 
+        isEnrolled: false, 
+        enrollmentStatus: 'ERROR',
+        error: 'Validation error occurred' 
+      };
+    }
+  }
 
   /**
    * Award loyalty points to a customer
@@ -37,39 +78,94 @@ export class TransactionService {
       const businessIdInt = parseInt(businessId);
       const programIdInt = parseInt(programId);
 
-      // Check if customer is enrolled in program
+      // CRITICAL FIX: Validate enrollment before proceeding
+      const enrollmentValidation = await this.validateEnrollmentForPoints(customerIdInt, programId);
+      
+      if (!enrollmentValidation.isEnrolled) {
+        logger.warn('Point awarding blocked - customer not enrolled', {
+          customerId: customerIdInt,
+          programId,
+          enrollmentStatus: enrollmentValidation.enrollmentStatus,
+          error: enrollmentValidation.error
+        });
+        
+        return {
+          success: false,
+          error: `Cannot award points: Customer is not enrolled in this loyalty program. Status: ${enrollmentValidation.enrollmentStatus}`
+        };
+      }
+
+      logger.info('Enrollment validation passed, proceeding with point awarding', {
+        customerId: customerIdInt,
+        programId,
+        enrollmentStatus: enrollmentValidation.enrollmentStatus
+      });
+
+      // Check if customer is enrolled in program (double-check)
       const enrollment = await sql`
-        SELECT * FROM customer_programs
+        SELECT * FROM program_enrollments
         WHERE customer_id = ${customerIdInt}
-        AND program_id = ${programIdInt}
+        AND program_id = ${programId}
+        AND status = 'ACTIVE'
       `;
 
-      // If not enrolled, enroll them
+      // If not enrolled, this should not happen due to validation above
       if (enrollment.length === 0) {
-        await sql`
-          INSERT INTO customer_programs (
-            customer_id, 
-            program_id, 
-            current_points,
-            enrolled_at
-          )
-          VALUES (
-            ${customerIdInt}, 
-            ${programIdInt}, 
-            ${points},
-            NOW()
-          )
-        `;
-      } else {
-        // Update existing points
-        await sql`
-          UPDATE customer_programs
-          SET current_points = current_points + ${points},
-              updated_at = NOW()
-          WHERE customer_id = ${customerIdInt}
-          AND program_id = ${programIdInt}
-        `;
+        logger.error('Enrollment validation passed but enrollment not found - data inconsistency', {
+          customerId: customerIdInt,
+          programId
+        });
+        
+        return {
+          success: false,
+          error: 'Data inconsistency detected: Enrollment validation passed but enrollment not found'
+        };
       }
+
+      // Get the loyalty card for this customer/program
+      const loyaltyCard = await sql`
+        SELECT id, points, points_balance, total_points_earned
+        FROM loyalty_cards
+        WHERE customer_id = ${customerIdInt}
+        AND program_id = ${programId}
+        AND is_active = true
+        LIMIT 1
+      `;
+
+      if (loyaltyCard.length === 0) {
+        logger.error('Loyalty card not found for enrolled customer', {
+          customerId: customerIdInt,
+          programId
+        });
+        
+        return {
+          success: false,
+          error: 'Loyalty card not found for enrolled customer'
+        };
+      }
+
+      const card = loyaltyCard[0];
+
+      // Update loyalty card points
+      await sql`
+        UPDATE loyalty_cards
+        SET points = points + ${points},
+            points_balance = points_balance + ${points},
+            total_points_earned = total_points_earned + ${points},
+            updated_at = NOW()
+        WHERE id = ${card.id}
+      `;
+
+      // Update program enrollment points
+      await sql`
+        UPDATE program_enrollments
+        SET current_points = current_points + ${points},
+            total_points_earned = total_points_earned + ${points},
+            updated_at = NOW()
+        WHERE customer_id = ${customerIdInt}
+        AND program_id = ${programId}
+        AND status = 'ACTIVE'
+      `;
 
       // Record the transaction
       const transaction = await sql`
@@ -84,7 +180,7 @@ export class TransactionService {
         VALUES (
           ${customerIdInt},
           ${businessIdInt},
-          ${programIdInt},
+          ${programId},
           ${points},
           'AWARD',
           NOW()
