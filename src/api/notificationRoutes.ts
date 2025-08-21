@@ -3,6 +3,7 @@ import sql from '../utils/db';
 import { auth } from '../middleware/auth';
 import { validateUserId, validateBusinessId } from '../utils/sqlSafety';
 import { CustomerNotificationService } from '../services/customerNotificationService';
+import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
 import { ApprovalRequestType } from '../types/customerNotification';
 import { emitNotification, emitApprovalRequest } from '../server';
 
@@ -109,13 +110,12 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
     // For now, we'll skip the verification check since we don't have a getApprovalRequestById method
     // In a production environment, you should implement proper verification
     
-    const success = await CustomerNotificationService.respondToApproval(requestId, approved);
-    
-    if (success) {
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ error: 'Failed to respond to approval request' });
+    const result = await safeRespondToApproval(requestId, approved);
+    if (result.success) {
+      return res.json({ success: true, cardId: result.cardId });
     }
+    const status = result.errorCode ? 400 : 404;
+    return res.status(status).json({ success: false, error: result.error || result.message, errorCode: result.errorCode });
   } catch (error) {
     console.error('Error responding to approval request:', error);
     res.status(500).json({ error: 'Failed to respond to approval request' });

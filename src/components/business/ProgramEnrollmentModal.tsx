@@ -7,6 +7,7 @@ import { LoyaltyProgram } from '../../types/loyalty';
 import { Confetti } from '../ui/Confetti';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { listenForUserEvents } from '../../utils/socket';
+import { subscribeToSync } from '../../utils/realTimeSync';
 import { safeEnrollCustomer } from '../../utils/enrollmentHelper';
 
 interface ProgramEnrollmentModalProps {
@@ -82,9 +83,27 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
     };
     
     // Set up real-time listener for enrollment responses
-    const cleanup = listenForUserEvents(businessId, 'notification', handleEnrollmentResponse);
-    
-    return cleanup;
+    const cleanupSocket = listenForUserEvents(businessId, 'notification', handleEnrollmentResponse);
+
+    // Fallback: also listen to sync events in case sockets are disabled
+    const cleanupSync = subscribeToSync('program_enrollments', (event) => {
+      if (event.business_id === businessId && event.data?.program_id === selectedProgramId && event.customer_id === customerId) {
+        if (event.operation === 'INSERT' || event.operation === 'UPDATE') {
+          setEnrollmentStatus('accepted');
+          setSuccess(`${customerName} has accepted the enrollment invitation!`);
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
+        } else if (event.operation === 'DELETE' || event.operation === 'DECLINED') {
+          setEnrollmentStatus('rejected');
+          setError(`${customerName} has declined the enrollment invitation.`);
+        }
+      }
+    });
+
+    return () => {
+      cleanupSocket && cleanupSocket();
+      cleanupSync && cleanupSync();
+    };
   }, [businessId, customerId, selectedProgramId, enrollmentStatus, customerName, isOpen]);
 
   const handleEnrollCustomer = async () => {
