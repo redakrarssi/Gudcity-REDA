@@ -418,46 +418,41 @@ export async function initializeDbSchema(): Promise<boolean> {
  */
 export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
   try {
-    // Check if the function exists
-    const functionExists = await sql`
-      SELECT EXISTS (
-        SELECT FROM pg_proc 
-        WHERE proname = 'process_enrollment_approval'
-      );
+    // Check for specific 3-arg signature, not just the function name
+    const sigRows = await sql`
+      SELECT pg_catalog.pg_get_function_identity_arguments(p.oid) AS args
+      FROM pg_catalog.pg_proc p
+      WHERE p.proname = 'process_enrollment_approval'
     `;
-    
-    if (functionExists && functionExists[0] && functionExists[0].exists === true) {
-      return true;
-    }
-    
-    // Create the function if it doesn't exist
+
+    const hasThreeArg = Array.isArray(sigRows)
+      && sigRows.some((r: any) => String(r.args).trim().toLowerCase() === 'integer, integer, uuid');
+
+    if (!hasThreeArg) {
+      console.log('Creating or replacing process_enrollment_approval(integer, integer, uuid)');
     await sql`
-      CREATE OR REPLACE FUNCTION process_enrollment_approval(
-        p_customer_id INTEGER,
-        p_program_id INTEGER,
-        p_request_id UUID
-      )
-      RETURNS INTEGER AS $$
+        CREATE OR REPLACE FUNCTION process_enrollment_approval(
+          p_customer_id INTEGER,
+          p_program_id INTEGER,
+          p_request_id UUID
+        )
+        RETURNS INTEGER AS $$
       DECLARE
-        customer_id_val INTEGER := p_customer_id;
-        program_id_int INTEGER := p_program_id;
+          customer_id_val INTEGER := p_customer_id;
+          program_id_int INTEGER := p_program_id;
         business_id_val INTEGER;
         program_name_val TEXT;
         business_name_val TEXT;
-        notification_id_val UUID;
+          notification_id_val UUID;
         enrollment_id_val INTEGER;
-        card_id_val INTEGER;
-        enrollment_exists BOOLEAN;
-        card_exists BOOLEAN;
-        existing_notification UUID;
-      BEGIN
-        -- Start an explicit transaction
+          card_id_val INTEGER;
+          enrollment_exists BOOLEAN;
+          card_exists BOOLEAN;
         BEGIN
-          -- Update the approval request status to APPROVED and fetch its notification id
+          -- Update approval request (use response_at, avoid relying on updated_at)
           UPDATE customer_approval_requests
           SET status = 'APPROVED',
-              responded_at = NOW(),
-              updated_at = NOW()
+              response_at = NOW()
           WHERE id = p_request_id
           RETURNING notification_id INTO notification_id_val;
 
@@ -469,112 +464,70 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           IF business_id_val IS NULL THEN
             RAISE EXCEPTION 'Program not found: %', program_id_int;
           END IF;
-
+          
           SELECT name INTO business_name_val FROM users WHERE id = business_id_val;
-          IF business_name_val IS NULL THEN business_name_val := 'Unknown business'; END IF;
 
           -- Mark the original notification as actioned if present
           IF notification_id_val IS NOT NULL THEN
-            UPDATE customer_notifications
-            SET action_taken = TRUE,
-                is_read = TRUE,
-                read_at = NOW()
-            WHERE id = notification_id_val;
+          UPDATE customer_notifications
+          SET action_taken = TRUE,
+              is_read = TRUE,
+              read_at = NOW()
+          WHERE id = notification_id_val;
           END IF;
-
-          -- Ensure customer-business relationship is ACTIVE
-          INSERT INTO customer_business_relationships (customer_id, business_id, status, created_at, updated_at)
-          VALUES (customer_id_val::text, business_id_val::text, 'ACTIVE', NOW(), NOW())
-          ON CONFLICT (customer_id, business_id)
-          DO UPDATE SET status = 'ACTIVE', updated_at = NOW();
-
-          -- Ensure enrollment exists and is ACTIVE
+          
+          -- Ensure enrollment exists and is ACTIVE (program_enrollments has no business_id or total_points_earned in this DB)
           SELECT EXISTS (
-            SELECT 1 FROM program_enrollments
+            SELECT 1 FROM program_enrollments 
             WHERE customer_id = customer_id_val AND program_id = program_id_int
           ) INTO enrollment_exists;
-
+          
           IF enrollment_exists THEN
             UPDATE program_enrollments
-            SET status = 'ACTIVE', updated_at = NOW()
-            WHERE customer_id = customer_id_val AND program_id = program_id_int AND status <> 'ACTIVE'
-            RETURNING id INTO enrollment_id_val;
+            SET status = 'ACTIVE', 
+                last_activity = NOW()
+            WHERE customer_id = customer_id_val AND program_id = program_id_int;
           ELSE
             INSERT INTO program_enrollments (
-              customer_id, program_id, business_id, status, current_points, total_points_earned, enrolled_at
+              customer_id, program_id, status, current_points, enrolled_at
             ) VALUES (
-              customer_id_val, program_id_int, business_id_val, 'ACTIVE', 0, 0, NOW()
+              customer_id_val, program_id_int, 'ACTIVE', 0, NOW()
             ) RETURNING id INTO enrollment_id_val;
           END IF;
-
+          
           -- Ensure loyalty card exists
           SELECT EXISTS (
             SELECT 1 FROM loyalty_cards
             WHERE customer_id = customer_id_val AND program_id = program_id_int
           ) INTO card_exists;
-
+          
           IF NOT card_exists THEN
             INSERT INTO loyalty_cards (
-              customer_id, program_id, business_id, card_number,
-              status, points, card_type, tier, points_multiplier, is_active, created_at, updated_at
+              customer_id, business_id, program_id, card_number,
+              status, card_type, points, tier, points_multiplier, is_active, created_at, updated_at
             ) VALUES (
-              customer_id_val, program_id_int, business_id_val,
+              customer_id_val, business_id_val, program_id_int,
               'GC-' || to_char(NOW(), 'YYMMDD-HH24MISS') || '-' || floor(random() * 10000)::TEXT,
-              'ACTIVE', 0, 'STANDARD', 'STANDARD', 1.0, TRUE, NOW(), NOW()
+              'ACTIVE', 'STANDARD', 0, 'STANDARD', 1.0, TRUE, NOW(), NOW()
             ) RETURNING id INTO card_id_val;
           ELSE
             SELECT id INTO card_id_val FROM loyalty_cards
             WHERE customer_id = customer_id_val AND program_id = program_id_int
             ORDER BY created_at DESC LIMIT 1;
           END IF;
-
-          -- Notify customer about created card if not already notified
-          SELECT id INTO existing_notification FROM customer_notifications
-          WHERE customer_id = customer_id_val AND type = 'CARD_CREATED'
-            AND data->>'programId' = program_id_int::text
-          LIMIT 1;
-
-          IF existing_notification IS NULL THEN
-            INSERT INTO customer_notifications (
-              id, customer_id, business_id, type, title, message, data,
-              requires_action, action_taken, is_read, created_at
-            ) VALUES (
-              gen_random_uuid(),
-              customer_id_val,
-              business_id_val,
-              'CARD_CREATED',
-              'Loyalty Card Created',
-              'Your loyalty card for ' || COALESCE(program_name_val, 'the loyalty program') || ' is ready',
-              jsonb_build_object(
-                'programId', program_id_int::text,
-                'programName', program_name_val,
-                'businessName', business_name_val,
-                'cardId', card_id_val
-              ),
-              FALSE, FALSE, FALSE, NOW()
-            );
-          END IF;
-
-          IF enrollment_id_val IS NULL OR card_id_val IS NULL THEN
-            RAISE EXCEPTION 'Enrollment or card creation failed for customer % and program %', customer_id_val, program_id_int;
-          END IF;
-
-          COMMIT;
+          
           RETURN card_id_val;
         EXCEPTION WHEN OTHERS THEN
-          ROLLBACK;
-          RAISE;
-        END;
-      EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
+          RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
         RAISE;
       END;
       $$ LANGUAGE plpgsql;
     `;
+    }
     
     return true;
   } catch (error) {
-    console.error('Failed to create enrollment procedure:', error);
+    console.error('Failed to ensure enrollment procedure:', error);
     throw error;
   }
 } 

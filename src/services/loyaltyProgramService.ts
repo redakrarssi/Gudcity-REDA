@@ -731,31 +731,36 @@ export class LoyaltyProgramService {
         return { success: false, message: `Request already ${status}` };
       }
       
-      // Update request status
+      // Update request status (use response_at; table may not have updated_at)
       await sql`
         UPDATE customer_approval_requests
-        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, updated_at = NOW()
+        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, response_at = NOW()
         WHERE id = ${requestId}
       `;
       
-      // Update notification to mark action taken
-      await sql`
-        UPDATE customer_notifications
-        SET action_taken = true
-        WHERE reference_id = ${requestId}
-      `;
+      // Update notification to mark action taken (by notification_id)
+      if (request.notification_id) {
+        await sql`
+          UPDATE customer_notifications
+          SET action_taken = true, is_read = TRUE, read_at = NOW()
+          WHERE id = ${request.notification_id}
+        `;
+      }
       
-      // Ensure we have valid IDs as strings
+      // Ensure we have integer-safe IDs for DB writes
       const customerId = request.customer_id ? request.customer_id.toString() : '';
       const businessId = request.business_id ? request.business_id.toString() : '';
       const programId = request.entity_id ? request.entity_id.toString() : '';
+      const customerIdInt = customerId ? parseInt(customerId) : NaN;
+      const businessIdInt = businessId ? parseInt(businessId) : NaN;
+      const programIdInt = programId ? parseInt(programId) : NaN;
       
       // If rejected, notify business and return
       if (!approved) {
         // Notify business that customer rejected the enrollment
         const businessNotification = await CustomerNotificationService.createNotification({
-          customerId: businessId,
-          businessId: businessId,
+          customerId: businessIdInt,
+          businessId: businessIdInt,
           type: 'ENROLLMENT_REJECTED' as CustomerNotificationType,
           title: 'Enrollment Request Rejected',
           message: `A customer has declined enrollment in ${request.program_name}`,
@@ -763,15 +768,15 @@ export class LoyaltyProgramService {
           actionTaken: false,
           isRead: false,
           data: {
-            programId: programId,
+            programId: programIdInt,
             programName: request.program_name,
-            customerId: customerId
+            customerId: customerIdInt
           }
         });
         
         if (businessNotification && typeof serverFunctions !== 'undefined' && 
             serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
-          serverFunctions.emitNotification(businessId, businessNotification);
+          serverFunctions.emitNotification(businessIdInt, businessNotification);
         }
         
         return { success: true, message: 'Enrollment request rejected' };
@@ -782,8 +787,8 @@ export class LoyaltyProgramService {
       // Check if already enrolled
       const enrollment = await sql`
         SELECT * FROM program_enrollments
-        WHERE customer_id = ${customerId}
-        AND program_id = ${programId}
+        WHERE customer_id = ${customerIdInt}
+        AND program_id = ${programIdInt}
       `;
       
       if (enrollment.length > 0) {
@@ -791,16 +796,16 @@ export class LoyaltyProgramService {
         if (enrollment[0].status !== 'ACTIVE') {
           await sql`
             UPDATE program_enrollments
-            SET status = 'ACTIVE', updated_at = NOW()
-            WHERE customer_id = ${customerId} AND program_id = ${programId}
+            SET status = 'ACTIVE', last_activity = NOW()
+            WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
           `;
         }
         
         // Check if card exists
         const cardResult = await sql`
           SELECT id FROM loyalty_cards
-          WHERE customer_id = ${customerId}
-          AND program_id = ${programId}
+          WHERE customer_id = ${customerIdInt}
+          AND program_id = ${programIdInt}
         `;
         
         if (cardResult.length > 0) {
@@ -817,17 +822,13 @@ export class LoyaltyProgramService {
           INSERT INTO program_enrollments (
             customer_id,
             program_id,
-            business_id,
             status,
             current_points,
-            total_points_earned,
             enrolled_at
           ) VALUES (
-            ${customerId},
-            ${programId},
-            ${businessId},
+            ${customerIdInt},
+            ${programIdInt},
             'ACTIVE',
-            0,
             0,
             NOW()
           )
@@ -866,9 +867,9 @@ export class LoyaltyProgramService {
             created_at,
             updated_at
           ) VALUES (
-            ${customerId},
-            ${businessId},
-            ${programId},
+            ${customerIdInt},
+            ${businessIdInt},
+            ${programIdInt},
             ${cardNumber},
             'STANDARD',
             'STANDARD',
@@ -889,13 +890,13 @@ export class LoyaltyProgramService {
         
         // Send enrollment confirmation notification
         const notification = await CustomerNotificationService.createNotification({
-          customerId: customerId,
-          businessId: businessId,
+          customerId: customerIdInt,
+          businessId: businessIdInt,
           type: 'ENROLLMENT' as CustomerNotificationType,
           title: 'Welcome to New Program',
           message: `You've been enrolled in ${request.business_name}'s ${request.program_name} program`,
           data: {
-            programId: programId,
+            programId: programIdInt,
             programName: request.program_name,
             cardId
           },
@@ -907,25 +908,25 @@ export class LoyaltyProgramService {
         if (notification && typeof serverFunctions !== 'undefined' && 
             serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
           // Emit real-time notification
-          serverFunctions.emitNotification(customerId, notification);
+          serverFunctions.emitNotification(customerIdInt, notification);
           
           // Create card sync event to trigger UI updates
           createCardSyncEvent(
             cardId, 
-            customerId, 
-            businessId, 
+            customerIdInt, 
+            businessIdInt, 
             'INSERT', 
             { 
-              programId: programId, 
+              programId: programIdInt, 
               programName: request.program_name
             }
           );
           
           // Create enrollment sync event to update enrollment status
           createEnrollmentSyncEvent(
-            customerId, 
-            businessId, 
-            programId, 
+            customerIdInt, 
+            businessIdInt, 
+            programIdInt, 
             'UPDATE'
           );
         }
@@ -933,16 +934,16 @@ export class LoyaltyProgramService {
         // Send GREEN notification to business owner about successful enrollment approval
         try {
           console.log('🔔 Creating business notification for approved enrollment:', {
-            customerId: customerId,
-            businessId: businessId,
+            customerId: customerIdInt,
+            businessId: businessIdInt,
             programName: request.program_name
           });
 
           const businessEnrollmentNotification = await NotificationService.createRedemptionNotification({
-            customerId: customerId,
+            customerId: customerIdInt,
             customerName: 'New Customer', // Will be updated by JOIN in business dashboard
-            businessId: businessId,
-            programId: programId,
+            businessId: businessIdInt,
+            programId: programIdInt,
             programName: request.program_name || 'Loyalty Program',
             points: 0, // Enrollment, not redemption
             reward: `New enrollment in ${request.program_name || 'loyalty program'}`,
@@ -952,7 +953,7 @@ export class LoyaltyProgramService {
           if (businessEnrollmentNotification.success) {
             console.log('✅ Business enrollment notification created for approval:', {
               notificationId: businessEnrollmentNotification.notificationId,
-              businessId: businessId,
+              businessId: businessIdInt,
               programName: request.program_name
             });
             
@@ -961,8 +962,8 @@ export class LoyaltyProgramService {
               const businessEvent = new CustomEvent('redemption-notification', {
                 detail: {
                   type: 'NEW_ENROLLMENT',
-                  businessId: businessId,
-                  customerId: customerId,
+                  businessId: businessIdInt,
+                  customerId: customerIdInt,
                   customerName: 'New Customer',
                   programName: request.program_name || 'Loyalty Program',
                   reward: `New enrollment in ${request.program_name || 'loyalty program'}`,
@@ -977,21 +978,21 @@ export class LoyaltyProgramService {
           } else {
             console.error('❌ Failed to create business enrollment notification for approval:', {
               error: businessEnrollmentNotification.error,
-              businessId: businessId
+              businessId: businessIdInt
             });
           }
         } catch (businessEnrollmentError) {
           console.error('🚨 Error sending business enrollment notification for approval:', {
             error: businessEnrollmentError.message || businessEnrollmentError,
-            businessId: businessId,
+            businessId: businessIdInt,
             programName: request.program_name
           });
         }
         
         // Notify business that customer accepted (legacy notification)
         const businessNotification = await CustomerNotificationService.createNotification({
-          customerId: businessId,
-          businessId: businessId,
+          customerId: businessIdInt,
+          businessId: businessIdInt,
           type: 'ENROLLMENT_ACCEPTED' as CustomerNotificationType,
           title: 'Customer Joined Program',
           message: `A customer has accepted enrollment in ${request.program_name}`,
@@ -999,16 +1000,16 @@ export class LoyaltyProgramService {
           actionTaken: false,
           isRead: false,
           data: {
-            programId: programId,
+            programId: programIdInt,
             programName: request.program_name,
-            customerId: customerId,
+            customerId: customerIdInt,
             cardId
           }
         });
         
         if (businessNotification && typeof serverFunctions !== 'undefined' && 
             serverFunctions.emitNotification && typeof serverFunctions.emitNotification === 'function') {
-          serverFunctions.emitNotification(businessId, businessNotification);
+          serverFunctions.emitNotification(businessIdInt, businessNotification);
         }
         
         // Add customer to business customers list if not already there
@@ -1035,8 +1036,8 @@ export class LoyaltyProgramService {
               created_at,
               updated_at
             ) VALUES (
-              ${customerId},
-              ${businessId},
+              ${customerIdInt},
+              ${businessIdInt},
               'ACTIVE',
               NOW(),
               NOW()
