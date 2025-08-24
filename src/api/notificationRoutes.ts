@@ -3,6 +3,7 @@ import sql from '../utils/db';
 import { auth } from '../middleware/auth';
 import { validateUserId, validateBusinessId } from '../utils/sqlSafety';
 import { CustomerNotificationService } from '../services/customerNotificationService';
+import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
 import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { ApprovalRequestType } from '../types/customerNotification';
 import { emitNotification, emitApprovalRequest } from '../server';
@@ -116,13 +117,15 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
     }
 
     console.log('Responding to approval request', { requestId, approved });
-    const success = await CustomerNotificationService.respondToApproval(requestId, approved);
-    console.log('Approval respond outcome', { requestId, approved, success });
+    // Use the robust, normalized wrapper for universal handling
+    const result = await safeRespondToApproval(requestId, approved);
+    console.log('Approval respond outcome', { requestId, approved, result });
     
-    if (success) {
-      res.json({ success: true });
+    if (result.success) {
+      res.json({ success: true, cardId: result.cardId });
     } else {
-      res.status(404).json({ error: 'Failed to respond to approval request' });
+      const status = result.errorCode === 'REQUEST_NOT_FOUND' ? 404 : 500;
+      res.status(status).json({ success: false, error: result.error, code: result.errorCode });
     }
   } catch (error) {
     console.error('Error responding to approval request:', error);

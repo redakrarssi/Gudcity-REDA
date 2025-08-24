@@ -448,7 +448,7 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           card_id_val INTEGER;
           enrollment_exists BOOLEAN;
           card_exists BOOLEAN;
-        BEGIN
+      BEGIN
           -- Update approval request (use response_at, avoid relying on updated_at)
           UPDATE customer_approval_requests
           SET status = 'APPROVED',
@@ -518,11 +518,45 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           
           RETURN card_id_val;
         EXCEPTION WHEN OTHERS THEN
-          RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
+        RAISE NOTICE 'Error in process_enrollment_approval: %', SQLERRM;
         RAISE;
       END;
       $$ LANGUAGE plpgsql;
     `;
+    }
+
+    // Create a text overload that normalizes inputs inside SQL, to support legacy callers
+    // process_enrollment_approval(text, text, uuid) -> calls the integer version
+    const hasTextOverloadRows = await sql`
+      SELECT pg_catalog.pg_get_function_identity_arguments(p.oid) AS args
+      FROM pg_catalog.pg_proc p
+      WHERE p.proname = 'process_enrollment_approval'
+    `;
+    const hasTextOverload = Array.isArray(hasTextOverloadRows)
+      && hasTextOverloadRows.some((r: any) => String(r.args).trim().toLowerCase() === 'text, text, uuid');
+    if (!hasTextOverload) {
+      await sql`
+        CREATE OR REPLACE FUNCTION process_enrollment_approval(
+          p_customer_id TEXT,
+          p_program_id TEXT,
+          p_request_id UUID
+        ) RETURNS INTEGER AS $$
+        DECLARE
+          customer_id_int INTEGER;
+          program_id_int INTEGER;
+          card_id_out INTEGER;
+        BEGIN
+          BEGIN
+            customer_id_int := COALESCE(NULLIF(regexp_replace(p_customer_id, '\\D', '', 'g'), '')::INT, -1);
+            program_id_int := COALESCE(NULLIF(regexp_replace(p_program_id, '\\D', '', 'g'), '')::INT, -1);
+          EXCEPTION WHEN OTHERS THEN
+            RAISE EXCEPTION 'Failed to normalize IDs: % / %', p_customer_id, p_program_id;
+          END;
+
+          RETURN process_enrollment_approval(customer_id_int, program_id_int, p_request_id);
+        END;
+        $$ LANGUAGE plpgsql;
+      `;
     }
     
     return true;

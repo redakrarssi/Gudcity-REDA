@@ -24,6 +24,7 @@ import {
 } from '../types/customer';
 import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { queryClient } from '../utils/queryClient';
+import { normalizeCustomerId, normalizeProgramId } from '../utils/normalize';
 
 /**
  * Maximum retry attempts for database operations
@@ -105,6 +106,10 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     }
     
     const { customerId, businessId, entityId, requestType, programName, businessName, customerName, notificationId } = request[0];
+    // Normalize IDs to integers for DB writes
+    const customerIdInt = normalizeCustomerId(customerId);
+    const programIdInt = normalizeProgramId(entityId);
+    const businessIdInt = normalizeCustomerId(businessId);
     
     // Call the stored procedure based on request type
     let cardId: string | undefined;
@@ -117,8 +122,6 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
           // Ensure function exists (idempotent)
           try { await ensureEnrollmentProcedureExists(); } catch (_) {}
           // We must pass (customer_id, program_id, request_id)
-          const customerIdInt = parseInt(String(customerId));
-          const programIdInt = parseInt(String(entityId));
           logger.info('Calling process_enrollment_approval (wrapper)', { customerIdInt, programIdInt, requestId });
           return await sql`SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) as card_id`;
         });
@@ -146,8 +149,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         if (approved) {
           const enrollmentCheck = await sql`
             SELECT id FROM program_enrollments
-            WHERE customer_id = ${customerId}
-            AND program_id = ${entityId}
+            WHERE customer_id = ${customerIdInt}
+            AND program_id = ${programIdInt}
           `;
           
           if (!enrollmentCheck || enrollmentCheck.length === 0) {
@@ -159,22 +162,18 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
                 INSERT INTO program_enrollments (
                   customer_id,
                   program_id,
-                  business_id,
                   status,
                   current_points,
-                  total_points_earned,
                   enrolled_at
                 ) VALUES (
-                  ${customerId},
-                  ${entityId},
-                  ${businessId},
+                  ${customerIdInt},
+                  ${programIdInt},
                   'ACTIVE',
-                  0,
                   0,
                   NOW()
                 )
                 ON CONFLICT (customer_id, program_id) 
-                DO UPDATE SET status = 'ACTIVE', updated_at = NOW()
+                DO UPDATE SET status = 'ACTIVE', last_activity = NOW()
               `;
               
               logger.info('Created missing enrollment record', { customerId, programId: entityId });
@@ -202,9 +201,9 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
                     updated_at
                   )
                   SELECT
-                    ${customerId},
-                    ${businessId},
-                    ${entityId},
+                    ${customerIdInt},
+                    ${businessIdInt},
+                    ${programIdInt},
                     'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
                     'STANDARD',
                     'ACTIVE',
@@ -213,8 +212,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
                     NOW()
                   WHERE NOT EXISTS (
                     SELECT 1 FROM loyalty_cards
-                    WHERE customer_id = ${customerId}
-                    AND program_id = ${entityId}
+                    WHERE customer_id = ${customerIdInt}
+                    AND program_id = ${programIdInt}
                   )
                   RETURNING id
                 `;
@@ -229,8 +228,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
             // Verify card exists again or use service to create it
             const cardCheck = await sql`
               SELECT id FROM loyalty_cards
-              WHERE customer_id = ${customerId}
-              AND program_id = ${entityId}
+              WHERE customer_id = ${customerIdInt}
+              AND program_id = ${programIdInt}
             `;
             
             if (!cardCheck || cardCheck.length === 0) {
@@ -245,8 +244,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
                 // Get the ID of the card we just created
                 const newCardCheck = await sql`
                   SELECT id FROM loyalty_cards
-                  WHERE customer_id = ${customerId}
-                  AND program_id = ${entityId}
+                  WHERE customer_id = ${customerIdInt}
+                  AND program_id = ${programIdInt}
                   ORDER BY created_at DESC
                   LIMIT 1
                 `;
@@ -269,18 +268,18 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
               await sql`
                 WITH enrollment_check AS (
                   INSERT INTO program_enrollments (
-                    customer_id, program_id, business_id, status, current_points, enrolled_at
+                    customer_id, program_id, status, current_points, enrolled_at
                   ) VALUES (
-                    ${customerId}, ${entityId}, ${businessId}, 'ACTIVE', 0, NOW()
+                    ${customerIdInt}, ${programIdInt}, 'ACTIVE', 0, NOW()
                   )
                   ON CONFLICT (customer_id, program_id) DO NOTHING
                 )
                 INSERT INTO loyalty_cards (
                   customer_id, business_id, program_id, card_number, status, points, created_at
                 ) VALUES (
-                  ${customerId}, 
-                  ${businessId}, 
-                  ${entityId}, 
+                  ${customerIdInt}, 
+                  ${businessIdInt}, 
+                  ${programIdInt}, 
                   'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
                   'ACTIVE',
                   0,
@@ -293,8 +292,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
               // Refresh from database
               const finalCheck = await sql`
                 SELECT id FROM loyalty_cards
-                WHERE customer_id = ${customerId}
-                AND program_id = ${entityId}
+                WHERE customer_id = ${customerIdInt}
+                AND program_id = ${programIdInt}
                 LIMIT 1
               `;
               
