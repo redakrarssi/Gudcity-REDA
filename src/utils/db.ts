@@ -432,130 +432,61 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
     
     // Create the function if it doesn't exist
     await sql`
-      CREATE OR REPLACE FUNCTION process_enrollment_approval(request_id UUID, is_approved BOOLEAN)
-      RETURNS TEXT AS $$
+      CREATE OR REPLACE FUNCTION process_enrollment_approval(
+        p_customer_id INTEGER,
+        p_program_id INTEGER,
+        p_request_id UUID
+      )
+      RETURNS INTEGER AS $$
       DECLARE
-        customer_id_val INTEGER;
+        customer_id_val INTEGER := p_customer_id;
+        program_id_int INTEGER := p_program_id;
         business_id_val INTEGER;
-        program_id_val TEXT;
-        program_id_int INTEGER;
-        notification_id_val UUID;
-        enrollment_exists BOOLEAN;
-        card_id_val INTEGER;
-        card_exists BOOLEAN;
-        card_number_val TEXT;
         program_name_val TEXT;
         business_name_val TEXT;
-        customer_name_val TEXT;
+        notification_id_val UUID;
         enrollment_id_val INTEGER;
+        card_id_val INTEGER;
+        enrollment_exists BOOLEAN;
+        card_exists BOOLEAN;
         existing_notification UUID;
       BEGIN
         -- Start an explicit transaction
         BEGIN
-          -- Update the approval request status and fetch IDs
+          -- Update the approval request status to APPROVED and fetch its notification id
           UPDATE customer_approval_requests
-          SET status = CASE WHEN is_approved THEN 'APPROVED' ELSE 'REJECTED' END,
+          SET status = 'APPROVED',
               responded_at = NOW(),
               updated_at = NOW()
-          WHERE id = request_id
-          RETURNING customer_id, business_id, entity_id, notification_id INTO customer_id_val, business_id_val, program_id_val, notification_id_val;
+          WHERE id = p_request_id
+          RETURNING notification_id INTO notification_id_val;
 
-          IF customer_id_val IS NULL THEN
-            RAISE EXCEPTION 'Approval request not found: %', request_id;
-          END IF;
-
-          -- Convert program id to integer safely
-          BEGIN
-            program_id_int := program_id_val::INTEGER;
-          EXCEPTION WHEN OTHERS THEN
-            RAISE EXCEPTION 'Invalid program id in approval request: %', program_id_val;
-          END;
-
-          -- Resolve names for notifications (best-effort)
-          SELECT name INTO program_name_val FROM loyalty_programs WHERE id = program_id_int;
-          IF program_name_val IS NULL THEN
-            program_name_val := 'Unknown program';
+          -- Resolve business/program info
+          SELECT lp.business_id, lp.name
+          INTO business_id_val, program_name_val
+          FROM loyalty_programs lp
+          WHERE lp.id = program_id_int;
+          IF business_id_val IS NULL THEN
+            RAISE EXCEPTION 'Program not found: %', program_id_int;
           END IF;
 
           SELECT name INTO business_name_val FROM users WHERE id = business_id_val;
-          IF business_name_val IS NULL THEN
-            business_name_val := 'Unknown business';
+          IF business_name_val IS NULL THEN business_name_val := 'Unknown business'; END IF;
+
+          -- Mark the original notification as actioned if present
+          IF notification_id_val IS NOT NULL THEN
+            UPDATE customer_notifications
+            SET action_taken = TRUE,
+                is_read = TRUE,
+                read_at = NOW()
+            WHERE id = notification_id_val;
           END IF;
 
-          SELECT name INTO customer_name_val FROM users WHERE id = customer_id_val;
-          IF customer_name_val IS NULL THEN
-            customer_name_val := 'Unknown customer';
-          END IF;
-
-          -- Mark original notification as actioned
-          UPDATE customer_notifications
-          SET action_taken = TRUE,
-              is_read = TRUE,
-              read_at = NOW()
-          WHERE id = notification_id_val;
-
-          -- Notify business of customer's decision
-          INSERT INTO customer_notifications (
-            id, customer_id, business_id, type, title, message, data,
-            requires_action, action_taken, is_read, created_at
-          ) VALUES (
-            gen_random_uuid(),
-            business_id_val,
-            business_id_val,
-            CASE WHEN is_approved THEN 'ENROLLMENT_ACCEPTED' ELSE 'ENROLLMENT_REJECTED' END,
-            CASE WHEN is_approved THEN 'Customer Joined Program' ELSE 'Enrollment Declined' END,
-            CASE WHEN is_approved
-              THEN COALESCE(customer_name_val, 'A customer') || ' has joined your ' || COALESCE(program_name_val, 'loyalty program')
-              ELSE COALESCE(customer_name_val, 'A customer') || ' has declined to join your ' || COALESCE(program_name_val, 'loyalty program')
-            END,
-            jsonb_build_object(
-              'programId', program_id_int::text,
-              'programName', program_name_val,
-              'customerId', customer_id_val,
-              'approved', is_approved
-            ),
-            FALSE, FALSE, FALSE, NOW()
-          );
-
-          -- Track/ensure customer-business relationship
-          INSERT INTO customer_business_relationships (
-            customer_id, business_id, status, created_at, updated_at
-          ) VALUES (
-            customer_id_val::text,
-            business_id_val::text,
-            CASE WHEN is_approved THEN 'ACTIVE' ELSE 'DECLINED' END,
-            NOW(), NOW()
-          )
+          -- Ensure customer-business relationship is ACTIVE
+          INSERT INTO customer_business_relationships (customer_id, business_id, status, created_at, updated_at)
+          VALUES (customer_id_val::text, business_id_val::text, 'ACTIVE', NOW(), NOW())
           ON CONFLICT (customer_id, business_id)
-          DO UPDATE SET status = EXCLUDED.status, updated_at = NOW();
-
-          -- Customer facing notification summarizing decision
-          INSERT INTO customer_notifications (
-            id, customer_id, business_id, type, title, message, data,
-            requires_action, action_taken, is_read, created_at
-          ) VALUES (
-            gen_random_uuid(),
-            customer_id_val,
-            business_id_val,
-            CASE WHEN is_approved THEN 'ENROLLMENT_SUCCESS' ELSE 'ENROLLMENT_DECLINED' END,
-            CASE WHEN is_approved THEN 'Enrollment Success' ELSE 'Enrollment Declined' END,
-            CASE WHEN is_approved
-              THEN 'You have been enrolled in ' || COALESCE(program_name_val, 'the loyalty program')
-              ELSE 'You declined to join ' || COALESCE(program_name_val, 'the loyalty program')
-            END,
-            jsonb_build_object(
-              'programId', program_id_int::text,
-              'programName', program_name_val,
-              'businessName', business_name_val
-            ),
-            FALSE, TRUE, FALSE, NOW()
-          );
-
-          -- If declined, finish
-          IF NOT is_approved THEN
-            COMMIT;
-            RETURN NULL;
-          END IF;
+          DO UPDATE SET status = 'ACTIVE', updated_at = NOW();
 
           -- Ensure enrollment exists and is ACTIVE
           SELECT EXISTS (
@@ -576,20 +507,19 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             ) RETURNING id INTO enrollment_id_val;
           END IF;
 
-          -- Ensure card exists for this enrollment
+          -- Ensure loyalty card exists
           SELECT EXISTS (
             SELECT 1 FROM loyalty_cards
             WHERE customer_id = customer_id_val AND program_id = program_id_int
           ) INTO card_exists;
 
           IF NOT card_exists THEN
-            card_number_val := 'GC-' || to_char(NOW(), 'YYMMDD-HH24MISS') || '-' || floor(random() * 10000)::TEXT;
-
             INSERT INTO loyalty_cards (
               customer_id, program_id, business_id, card_number,
               status, points, card_type, tier, points_multiplier, is_active, created_at, updated_at
             ) VALUES (
-              customer_id_val, program_id_int, business_id_val, card_number_val,
+              customer_id_val, program_id_int, business_id_val,
+              'GC-' || to_char(NOW(), 'YYMMDD-HH24MISS') || '-' || floor(random() * 10000)::TEXT,
               'ACTIVE', 0, 'STANDARD', 'STANDARD', 1.0, TRUE, NOW(), NOW()
             ) RETURNING id INTO card_id_val;
           ELSE
@@ -598,7 +528,7 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             ORDER BY created_at DESC LIMIT 1;
           END IF;
 
-          -- If card notification not already sent, send it
+          -- Notify customer about created card if not already notified
           SELECT id INTO existing_notification FROM customer_notifications
           WHERE customer_id = customer_id_val AND type = 'CARD_CREATED'
             AND data->>'programId' = program_id_int::text
@@ -614,7 +544,7 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
               business_id_val,
               'CARD_CREATED',
               'Loyalty Card Created',
-              'Your loyalty card for ' || COALESCE(program_name_val, 'the loyalty program') || ' at ' || COALESCE(business_name_val, 'the business') || ' is ready',
+              'Your loyalty card for ' || COALESCE(program_name_val, 'the loyalty program') || ' is ready',
               jsonb_build_object(
                 'programId', program_id_int::text,
                 'programName', program_name_val,
@@ -625,15 +555,12 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             );
           END IF;
 
-          IF enrollment_id_val IS NULL THEN
-            RAISE EXCEPTION 'Failed to create or find enrollment record for customer % and program %', customer_id_val, program_id_int;
-          END IF;
-          IF card_id_val IS NULL THEN
-            RAISE EXCEPTION 'Failed to create or find card record for customer % and program %', customer_id_val, program_id_int;
+          IF enrollment_id_val IS NULL OR card_id_val IS NULL THEN
+            RAISE EXCEPTION 'Enrollment or card creation failed for customer % and program %', customer_id_val, program_id_int;
           END IF;
 
           COMMIT;
-          RETURN card_id_val::TEXT;
+          RETURN card_id_val;
         EXCEPTION WHEN OTHERS THEN
           ROLLBACK;
           RAISE;

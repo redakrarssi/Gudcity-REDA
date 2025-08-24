@@ -111,9 +111,13 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
     // In a production environment, you should implement proper verification
     
     // Ensure DB procedure exists before responding (idempotent)
-    try { await ensureEnrollmentProcedureExists(); } catch (_) {}
+    try { await ensureEnrollmentProcedureExists(); } catch (e) {
+      console.warn('ensureEnrollmentProcedureExists failed or already exists', e);
+    }
 
+    console.log('Responding to approval request', { requestId, approved });
     const success = await CustomerNotificationService.respondToApproval(requestId, approved);
+    console.log('Approval respond outcome', { requestId, approved, success });
     
     if (success) {
       res.json({ success: true });

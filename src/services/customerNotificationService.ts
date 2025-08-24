@@ -432,11 +432,17 @@ export class CustomerNotificationService {
         try {
           const { ensureEnrollmentProcedureExists } = await import('../utils/db');
           await ensureEnrollmentProcedureExists();
+          // Look up customer/program from the approval request to call the 3-arg function
+          const approvalRow = request[0];
+          const customerIdInt = parseInt(approvalRow.customer_id);
+          const programIdInt = parseInt(approvalRow.entity_id);
+          console.log('Calling process_enrollment_approval with', customerIdInt, programIdInt, requestId);
           const result = await sql`
-            SELECT process_enrollment_approval(${requestId}::uuid, ${approved}) as card_id
+            SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) AS card_id
           `;
-          // Treat as success even if card_id is null when declined
-          return Array.isArray(result);
+          console.log('Enrollment procedure result:', result);
+          // Success if the call returned at least one row (card_id may be null only on errors)
+          return Array.isArray(result) && result.length > 0;
         } catch (e) {
           logger.error('Stored procedure enrollment handling failed, falling back', e);
           const { LoyaltyProgramService } = await import('./loyaltyProgramService');

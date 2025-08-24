@@ -116,11 +116,16 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         const result = await withRetry(async () => {
           // Ensure function exists (idempotent)
           try { await ensureEnrollmentProcedureExists(); } catch (_) {}
-          return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved}) as card_id`;
+          // We must pass (customer_id, program_id, request_id)
+          const customerIdInt = parseInt(String(customerId));
+          const programIdInt = parseInt(String(entityId));
+          logger.info('Calling process_enrollment_approval (wrapper)', { customerIdInt, programIdInt, requestId });
+          return await sql`SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) as card_id`;
         });
         
-        if (result && result[0] && (result[0] as any).card_id) {
-          cardId = (result[0] as any).card_id?.toString();
+        if (result && result[0]) {
+          const cid = (result[0] as any).card_id;
+          cardId = cid ? String(cid) : undefined;
         }
         
         // Double check the notification is marked as actioned
