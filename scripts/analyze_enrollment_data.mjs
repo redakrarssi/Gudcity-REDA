@@ -2,9 +2,10 @@
 import { neon } from '@neondatabase/serverless';
 
 function getDbUrl() {
-  const url = process.env.VITE_DATABASE_URL || process.env.DATABASE_URL || '';
+  const cliArg = process.argv[2];
+  const url = cliArg || process.env.VITE_DATABASE_URL || process.env.DATABASE_URL || '';
   if (!url) {
-    throw new Error('Database URL not found. Set VITE_DATABASE_URL or DATABASE_URL.');
+    throw new Error('Database URL not found. Pass as first arg or set VITE_DATABASE_URL or DATABASE_URL.');
   }
   return url;
 }

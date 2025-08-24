@@ -47,18 +47,34 @@ export async function handlePointsAwarded(
       return true;
     }
 
+    // Resolve display names from DB if incoming names look like IDs or are missing
+    let programNameSafe = programName;
+    let businessNameSafe = businessName;
+    try {
+      if (!programNameSafe || /^\d+$/.test(programNameSafe)) {
+        const p = await sql`SELECT name FROM loyalty_programs WHERE id = ${parseInt(programId)}`;
+        if (p.length) programNameSafe = p[0].name || 'Loyalty Program';
+      }
+      if (!businessNameSafe || /^\d+$/.test(businessNameSafe)) {
+        const b = await sql`SELECT name FROM users WHERE id = ${parseInt(businessId)}`;
+        if (b.length) businessNameSafe = b[0].name || 'Business';
+      }
+    } catch (_) {
+      // Non-critical: fall back to provided values
+    }
+
     // Create notification in customer notification system
     const notification = await CustomerNotificationService.createNotification({
       customerId,
       businessId,
       type: 'POINTS_ADDED',
       title: 'Points Added',
-      message: `You've received ${points} points from ${businessName} in the program ${programName}`,
+      message: `You've received ${points} points from ${businessNameSafe} in the program ${programNameSafe}`,
       data: {
         points,
         cardId,
         programId,
-        programName,
+        programName: programNameSafe,
         source,
         timestamp: new Date().toISOString()
       },
