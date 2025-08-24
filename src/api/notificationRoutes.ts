@@ -3,6 +3,7 @@ import sql from '../utils/db';
 import { auth } from '../middleware/auth';
 import { validateUserId, validateBusinessId } from '../utils/sqlSafety';
 import { CustomerNotificationService } from '../services/customerNotificationService';
+import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { ApprovalRequestType } from '../types/customerNotification';
 import { emitNotification, emitApprovalRequest } from '../server';
 
@@ -109,6 +110,9 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
     // For now, we'll skip the verification check since we don't have a getApprovalRequestById method
     // In a production environment, you should implement proper verification
     
+    // Ensure DB procedure exists before responding (idempotent)
+    try { await ensureEnrollmentProcedureExists(); } catch (_) {}
+
     const success = await CustomerNotificationService.respondToApproval(requestId, approved);
     
     if (success) {

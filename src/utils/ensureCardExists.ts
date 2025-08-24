@@ -35,7 +35,7 @@ export async function ensureCardExists(
     const existingCards = await sql`
       SELECT id, customer_id, program_id, points, points_balance
       FROM loyalty_cards 
-      WHERE (customer_id = ${customerIdNum} OR customer_id = ${customerIdStr})
+      WHERE customer_id = ${customerIdNum}
       AND program_id = ${programIdNum}
       AND is_active = true
     `;

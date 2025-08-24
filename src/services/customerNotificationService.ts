@@ -427,11 +427,22 @@ export class CustomerNotificationService {
       const entityId = request[0].entity_id.toString();
       const data = request[0].data as Record<string, any> || {};
 
-      // If this is an enrollment request, delegate full processing to LoyaltyProgramService
+      // If this is an enrollment request, use the stored procedure for atomic processing
       if (requestType === 'ENROLLMENT') {
-        const { LoyaltyProgramService } = await import('./loyaltyProgramService');
-        const result = await LoyaltyProgramService.handleEnrollmentApproval(requestId, approved);
-        return result.success;
+        try {
+          const { ensureEnrollmentProcedureExists } = await import('../utils/db');
+          await ensureEnrollmentProcedureExists();
+          const result = await sql`
+            SELECT process_enrollment_approval(${requestId}::uuid, ${approved}) as card_id
+          `;
+          // Treat as success even if card_id is null when declined
+          return Array.isArray(result);
+        } catch (e) {
+          logger.error('Stored procedure enrollment handling failed, falling back', e);
+          const { LoyaltyProgramService } = await import('./loyaltyProgramService');
+          const result = await LoyaltyProgramService.handleEnrollmentApproval(requestId, approved);
+          return result.success;
+        }
       }
 
       // Update the approval request status

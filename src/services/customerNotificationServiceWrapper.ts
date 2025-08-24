@@ -114,11 +114,13 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         // Handle enrollment approval with robust error handling and retries
         // Use withRetry for database operation with timeout handling
         const result = await withRetry(async () => {
-          return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved})`;
+          // Ensure function exists (idempotent)
+          try { await ensureEnrollmentProcedureExists(); } catch (_) {}
+          return await sql`SELECT process_enrollment_approval(${requestId}::uuid, ${approved}) as card_id`;
         });
         
-        if (result && result[0] && result[0].process_enrollment_approval) {
-          cardId = result[0].process_enrollment_approval;
+        if (result && result[0] && (result[0] as any).card_id) {
+          cardId = (result[0] as any).card_id?.toString();
         }
         
         // Double check the notification is marked as actioned
