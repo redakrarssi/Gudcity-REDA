@@ -5,6 +5,7 @@ import customerRoutes from './customerRoutes';
 import adminRoutes from './adminRoutes';
 import authRoutes from './authRoutes';
 import directApiRoutes from './directApiRoutes'; // Add direct API routes
+import notificationRoutes from './notificationRoutes';
 import testRoutes from './testRoutes'; // Add test routes for debugging
 
 const router = express.Router();
@@ -59,6 +60,10 @@ console.log('✅ Registered auth routes at /api/auth');
 // Direct API routes (direct SQL operations for problematic endpoints)
 router.use('/direct', directApiRoutes);
 console.log('✅ Registered direct API routes at /api/direct');
+
+// Notification routes (customer notifications, approvals)
+router.use('/notifications', notificationRoutes);
+console.log('✅ Registered notification routes at /api/notifications');
 
 // Test routes (for debugging)
 router.use('/debug-test', testRoutes);

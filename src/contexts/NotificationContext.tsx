@@ -393,13 +393,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         );
       }
       
-      // Use the safe wrapper to handle enrollment with better error handling
-      const response = await safeRespondToApproval(approvalId, approved);
+      // Call server API to process approval; server uses safe wrapper and stored proc
+      const apiResponse = await fetch(`/api/notifications/approval-requests/${approvalId}/respond`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ approved })
+      });
+
+      const response = await apiResponse.json();
       
       // Remove loading notification
       setNotifications(prev => prev.filter(n => n.id !== loadingNotificationId));
       
       const success = response.success;
+      const cardId = response.cardId as (string | undefined);
       
       // If there was an error, show it as a notification and throw it to be caught by the UI
       if (!success && response.message) {
@@ -468,6 +477,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           queryClient.invalidateQueries({ queryKey: ['customerApprovals', user!.id.toString()] });
           queryClient.invalidateQueries({ queryKey: ['customerNotifications', user!.id.toString()] });
           
+          // If a card was created return to /cards or refresh cards
+          if (cardId) {
+            queryClient.invalidateQueries({ queryKey: ['customers', user!.id.toString(), 'cards'] });
+            queryClient.invalidateQueries({ queryKey: ['loyaltyCards', user!.id.toString()] });
+          }
+
           // Short delay before removing the request to ensure sync between UI and backend
           const timeout1 = window.setTimeout(() => {
             // Remove the approval request from the list after successful processing
