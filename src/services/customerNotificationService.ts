@@ -6,6 +6,7 @@ import * as serverFunctions from '../server';
 import { logger } from '../utils/logger';
 import { createNotificationSyncEvent, createEnrollmentSyncEvent } from '../utils/realTimeSync';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';
+import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
 
 /**
  * Service for managing customer notifications and approval requests
@@ -49,12 +50,16 @@ export class CustomerNotificationService {
     style?: 'default' | 'success' | 'warning' | 'error';
   }): Promise<CustomerNotification | null> {
     try {
+      // Normalize IDs to integers first
+      const customerIdInt = normalizeCustomerId(notification.customerId);
+      const businessIdInt = normalizeBusinessId(notification.businessId);
+
       // For POINTS_ADDED notifications, check if we already have a recent one from the same business
       if (notification.type === 'POINTS_ADDED' && notification.data?.programId) {
         // Look for notifications from the same business in the last 60 seconds
         const recentNotifications = await this.getRecentPointsNotifications(
-          notification.customerId,
-          notification.businessId,
+          String(customerIdInt),
+          String(businessIdInt),
           notification.data.programId.toString(),
           60 // 60 seconds window
         );
@@ -84,8 +89,8 @@ export class CustomerNotificationService {
           created_at
         ) VALUES (
           ${notificationId},
-          ${parseInt(notification.customerId)},
-          ${parseInt(notification.businessId)},
+          ${customerIdInt},
+          ${businessIdInt},
           ${notification.type},
           ${notification.title},
           ${notification.message},
@@ -104,7 +109,7 @@ export class CustomerNotificationService {
       
       // Get business name for better context
       const businessNameResult = await sql`
-        SELECT name FROM users WHERE id = ${parseInt(notification.businessId)}
+        SELECT name FROM users WHERE id = ${businessIdInt}
       `;
       
       const businessName = businessNameResult.length ? businessNameResult[0].name : undefined;
@@ -147,7 +152,7 @@ export class CustomerNotificationService {
           b.name as business_name
         FROM customer_notifications cn
         JOIN users b ON cn.business_id = b.id
-        WHERE cn.customer_id = ${parseInt(customerId)}
+        WHERE cn.customer_id = ${normalizeCustomerId(customerId)}
         ORDER BY cn.created_at DESC
       `;
 
@@ -181,10 +186,12 @@ export class CustomerNotificationService {
       const results = await sql`
         SELECT 
           cn.*,
-          b.name as business_name
+          b.name as business_name,
+          COALESCE(lp.name, cn.data->>'programName') as program_name
         FROM customer_notifications cn
         JOIN users b ON cn.business_id = b.id
-        WHERE cn.customer_id = ${parseInt(customerId)} AND cn.is_read = FALSE
+        LEFT JOIN loyalty_programs lp ON (cn.data->>'programId')::int = lp.id
+        WHERE cn.customer_id = ${normalizeCustomerId(customerId)} AND cn.is_read = FALSE
         ORDER BY cn.created_at DESC
       `;
 

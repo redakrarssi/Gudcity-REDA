@@ -10,6 +10,39 @@ function getDbUrl() {
 async function main() {
   const sql = neon(getDbUrl());
 
+  console.log('Applying idempotent schema standardization for integer IDs...');
+  await sql`
+    DO $$
+    BEGIN
+      -- Convert program_enrollments.customer_id to INTEGER if needed
+      BEGIN
+        EXECUTE 'ALTER TABLE program_enrollments ALTER COLUMN customer_id TYPE INTEGER USING customer_id::integer';
+      EXCEPTION WHEN others THEN
+        -- Ignore if already integer or conversion not needed
+        NULL;
+      END;
+      
+      -- Ensure status/enrolled_at/last_activity columns exist
+      BEGIN
+        ALTER TABLE program_enrollments 
+          ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE',
+          ADD COLUMN IF NOT EXISTS enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS last_activity TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+      EXCEPTION WHEN others THEN NULL; END;
+      
+      -- Convert loyalty_cards foreign keys to INTEGER if needed
+      BEGIN
+        EXECUTE 'ALTER TABLE loyalty_cards ALTER COLUMN customer_id TYPE INTEGER USING customer_id::integer';
+      EXCEPTION WHEN others THEN NULL; END;
+      BEGIN
+        EXECUTE 'ALTER TABLE loyalty_cards ALTER COLUMN program_id TYPE INTEGER USING program_id::integer';
+      EXCEPTION WHEN others THEN NULL; END;
+      BEGIN
+        EXECUTE 'ALTER TABLE loyalty_cards ALTER COLUMN business_id TYPE INTEGER USING business_id::integer';
+      EXCEPTION WHEN others THEN NULL; END;
+    END$$;
+  `;
+
   console.log('Standardizing customer_approval_requests.entity_id to digits-only number where possible...');
   const updatedApprovals = await sql`
     UPDATE customer_approval_requests
@@ -59,6 +92,44 @@ async function main() {
     RETURNING id
   `;
   console.log('Backfilled cards:', backfilled.length);
+
+  console.log('Ensuring CARD_CREATED notifications for newly created cards...');
+  const notifs = await sql`
+    WITH recent_cards AS (
+      SELECT lc.id, lc.customer_id, lc.business_id, lc.program_id
+      FROM loyalty_cards lc
+      WHERE lc.created_at > NOW() - interval '1 day'
+    ), missing_notifs AS (
+      SELECT rc.*
+      FROM recent_cards rc
+      LEFT JOIN customer_notifications cn
+        ON cn.customer_id = rc.customer_id
+       AND cn.business_id = rc.business_id
+       AND (cn.data->>'programId')::int = rc.program_id
+       AND cn.type IN ('ENROLLMENT','CARD_CREATED')
+      WHERE cn.id IS NULL
+    )
+    INSERT INTO customer_notifications (
+      id, customer_id, business_id, type, title, message, data,
+      requires_action, action_taken, is_read, created_at
+    )
+    SELECT 
+      (
+        substr(md5(random()::text),1,8)||'-'||
+        substr(md5(random()::text),1,4)||'-'||
+        substr(md5(random()::text),1,4)||'-'||
+        substr(md5(random()::text),1,4)||'-'||
+        substr(md5(random()::text),1,12)
+      )::uuid,
+      customer_id, business_id, 'CARD_CREATED',
+      'Loyalty Card Created',
+      'Your loyalty card was created successfully',
+      jsonb_build_object('programId', program_id, 'cardId', id, 'timestamp', NOW()),
+      FALSE, FALSE, FALSE, NOW()
+    FROM missing_notifs
+    RETURNING id
+  `;
+  console.log('Created notifications:', notifs.length);
 
   console.log('Done.');
 }

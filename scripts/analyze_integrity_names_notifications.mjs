@@ -48,6 +48,15 @@ async function main() {
   `;
   print('Recent notifications with joins', notifJoin);
 
+  const numericNameNotifs = await sql`
+    SELECT id, type, title, message
+    FROM customer_notifications
+    WHERE message ~ '\\b[0-9]+\\b' AND (type = 'POINTS_ADDED' OR type = 'ENROLLMENT')
+    ORDER BY created_at DESC
+    LIMIT 20
+  `;
+  print('Notifications possibly showing numeric IDs in messages', numericNameNotifs);
+
   const enrollTrace = await sql`
     SELECT 
       ar.id as request_id,

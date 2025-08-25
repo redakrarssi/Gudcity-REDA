@@ -24,7 +24,7 @@ import {
 } from '../types/customer';
 import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { queryClient } from '../utils/queryClient';
-import { normalizeCustomerId, normalizeProgramId } from '../utils/normalize';
+import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
 
 /**
  * Maximum retry attempts for database operations
@@ -109,7 +109,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     // Normalize IDs to integers for DB writes
     const customerIdInt = normalizeCustomerId(customerId);
     const programIdInt = normalizeProgramId(entityId);
-    const businessIdInt = normalizeCustomerId(businessId);
+    const businessIdInt = normalizeBusinessId(businessId);
     
     // Call the stored procedure based on request type
     let cardId: string | undefined;

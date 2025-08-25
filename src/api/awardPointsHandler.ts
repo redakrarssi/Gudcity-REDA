@@ -8,6 +8,7 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import sql from '../utils/db';
+import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
 import { logger } from '../utils/logger';
 
 /**
@@ -50,8 +51,19 @@ export async function handleAwardPoints(req: Request, res: Response) {
       });
     }
     
-    const customerIdStr = String(customerId || '');
-    const programIdStr = String(programId || '');
+    // Normalize IDs to strict integers
+    let customerIdInt: number;
+    let programIdInt: number;
+    let businessIdInt: number;
+    try {
+      customerIdInt = normalizeCustomerId(customerId);
+      programIdInt = normalizeProgramId(programId);
+      businessIdInt = normalizeBusinessId(businessIdStr);
+    } catch (e: any) {
+      return res.status(400).json({ success: false, error: e?.message || 'Invalid identifiers' });
+    }
+    const customerIdStr = String(customerIdInt);
+    const programIdStr = String(programIdInt);
     
     // Validate points is a positive number
     if (isNaN(points) || points <= 0) {
@@ -83,7 +95,7 @@ export async function handleAwardPoints(req: Request, res: Response) {
     const businessName = program.business_name;
     
     // 2. Check if the program belongs to the business
-    if (program.business_id !== parseInt(businessIdStr)) {
+    if (program.business_id !== businessIdInt) {
       return res.status(403).json({ 
         success: false, 
         error: 'You do not have permission to award points for this program' 
@@ -93,7 +105,7 @@ export async function handleAwardPoints(req: Request, res: Response) {
     // 3. Check if customer exists
     let customerName = "Customer #" + customerIdStr;
     const customerResult = await sql`
-      SELECT id, name FROM users WHERE id = ${parseInt(customerIdStr) || 0} AND user_type = 'customer'
+      SELECT id, name FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
     `;
     
     if (customerResult.length > 0) {
@@ -105,34 +117,43 @@ export async function handleAwardPoints(req: Request, res: Response) {
     
     const cardResult = await sql`
       SELECT id FROM loyalty_cards
-      WHERE customer_id = ${customerIdStr}::integer
-      AND program_id = ${programIdStr}::integer
+      WHERE customer_id = ${customerIdInt}
+      AND program_id = ${programIdInt}
       LIMIT 1
     `;
     
     if (cardResult.length === 0) {
       // Create new card
-      cardId = uuidv4();
-      
-      await sql`
+      const inserted = await sql`
         INSERT INTO loyalty_cards (
-          id,
           customer_id,
           program_id,
           business_id,
           points,
+          card_number,
+          status,
+          card_type,
+          tier,
+          points_multiplier,
+          is_active,
           created_at,
           updated_at
         ) VALUES (
-          ${cardId},
-          ${parseInt(customerIdStr) || 0},
-          ${parseInt(programIdStr) || 0},
-          ${businessIdStr}::integer,
+          ${customerIdInt},
+          ${programIdInt},
+          ${businessIdInt},
           ${points},
+          ${'GC-' + Date.now().toString().slice(-6) + '-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0')},
+          'ACTIVE',
+          'STANDARD',
+          'STANDARD',
+          1.0,
+          TRUE,
           NOW(),
           NOW()
-        )
+        ) RETURNING id
       `;
+      cardId = inserted[0].id;
       
       console.log(`Created new card ${cardId} for customer ${customerIdStr} in program ${programIdStr}`);
     } else {
@@ -167,9 +188,9 @@ export async function handleAwardPoints(req: Request, res: Response) {
         created_at
       ) VALUES (
         ${cardId},
-        ${customerIdStr}::integer,
-        ${businessIdStr}::integer,
-        ${programIdStr}::integer,
+        ${customerIdInt},
+        ${businessIdInt},
+        ${programIdInt},
         'CREDIT',
         ${points},
         ${source || 'DIRECT_HANDLER'},
@@ -202,8 +223,8 @@ export async function handleAwardPoints(req: Request, res: Response) {
           created_at
         ) VALUES (
           ${notificationId},
-          ${parseInt(customerIdStr)},
-          ${parseInt(businessIdStr)},
+          ${customerIdInt},
+          ${businessIdInt},
           'POINTS_ADDED',
           'Points Added',
           ${`You've received ${points} points from ${businessName} in the program ${programName}`},
@@ -215,7 +236,7 @@ export async function handleAwardPoints(req: Request, res: Response) {
             source: source || 'DIRECT_HANDLER',
             timestamp: new Date().toISOString()
           })},
-          ${cardId},
+          ${String(cardId)},
           false,
           false,
           false,

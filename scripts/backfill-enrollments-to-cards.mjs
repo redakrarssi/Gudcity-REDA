@@ -1,6 +1,13 @@
-import sql from '../src/utils/db';
+import { neon } from '@neondatabase/serverless';
+
+function getDbUrl() {
+  const url = process.env.VITE_DATABASE_URL || process.env.DATABASE_URL || '';
+  if (!url) throw new Error('Database URL not found. Set VITE_DATABASE_URL or DATABASE_URL.');
+  return url;
+}
 
 async function main() {
+  const sql = neon(getDbUrl());
   console.log('Backfilling enrollments to cards...');
   // Create cards for any ACTIVE enrollments missing cards
   const rows = await sql`

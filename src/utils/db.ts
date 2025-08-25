@@ -448,6 +448,8 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           card_id_val INTEGER;
           enrollment_exists BOOLEAN;
           card_exists BOOLEAN;
+          notif_exists BOOLEAN;
+          gen_uuid UUID;
       BEGIN
           -- Update approval request (use response_at, avoid relying on updated_at)
           UPDATE customer_approval_requests
@@ -515,6 +517,63 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
             WHERE customer_id = customer_id_val AND program_id = program_id_int
             ORDER BY created_at DESC LIMIT 1;
           END IF;
+
+          -- Ensure customer-business relationship is ACTIVE (best-effort)
+          BEGIN
+            INSERT INTO customer_business_relationships (
+              customer_id, business_id, status, created_at, updated_at
+            ) VALUES (
+              customer_id_val, business_id_val, 'ACTIVE', NOW(), NOW()
+            )
+            ON CONFLICT (customer_id, business_id)
+            DO UPDATE SET status = 'ACTIVE', updated_at = NOW();
+          EXCEPTION WHEN OTHERS THEN
+            -- Table might not exist or other non-critical issues
+            RAISE NOTICE 'Relationship activation skipped: %', SQLERRM;
+          END;
+
+          -- Create CARD_CREATED notification if none exists for this (customer, program)
+          BEGIN
+            PERFORM 1 FROM customer_notifications
+            WHERE customer_id = customer_id_val
+              AND business_id = business_id_val
+              AND (type = 'ENROLLMENT' OR type = 'CARD_CREATED')
+              AND COALESCE((data->>'programId')::int, program_id_int) = program_id_int
+            LIMIT 1;
+            IF NOT FOUND THEN
+              -- generate a UUID without requiring extensions
+              SELECT (
+                substr(md5(random()::text),1,8)||'-'||
+                substr(md5(random()::text),1,4)||'-'||
+                substr(md5(random()::text),1,4)||'-'||
+                substr(md5(random()::text),1,4)||'-'||
+                substr(md5(random()::text),1,12)
+              )::uuid INTO gen_uuid;
+
+              INSERT INTO customer_notifications (
+                id, customer_id, business_id, type, title, message, data,
+                requires_action, action_taken, is_read, created_at
+              ) VALUES (
+                gen_uuid,
+                customer_id_val,
+                business_id_val,
+                'CARD_CREATED',
+                'Loyalty Card Created',
+                'Your loyalty card was created successfully',
+                jsonb_build_object(
+                  'programId', program_id_int,
+                  'programName', COALESCE(program_name_val, 'Loyalty Program'),
+                  'businessName', COALESCE(business_name_val, 'Business'),
+                  'cardId', card_id_val,
+                  'timestamp', NOW()
+                ),
+                FALSE, FALSE, FALSE, NOW()
+              );
+            END IF;
+          EXCEPTION WHEN OTHERS THEN
+            -- Non-critical; do not fail the procedure if notification insert fails
+            RAISE NOTICE 'Notification creation skipped: %', SQLERRM;
+          END;
           
           RETURN card_id_val;
         EXCEPTION WHEN OTHERS THEN

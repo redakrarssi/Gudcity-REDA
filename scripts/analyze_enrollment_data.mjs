@@ -36,6 +36,15 @@ async function main() {
   `;
   console.log(asTable(info));
 
+  printSection('program_enrollments status/enrolled_at/last_activity presence');
+  const peCols = await sql`
+    SELECT 
+      EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='program_enrollments' AND column_name='status') as has_status,
+      EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='program_enrollments' AND column_name='enrolled_at') as has_enrolled_at,
+      EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='program_enrollments' AND column_name='last_activity') as has_last_activity
+  `;
+  console.log(asTable(peCols));
+
   printSection('customer_approval_requests: entity_id digits vs non-digits');
   const entityCheck = await sql`
     SELECT 
@@ -103,6 +112,27 @@ async function main() {
     LIMIT 20
   `;
   console.log(asTable(enrollNoCard));
+
+  printSection('/cards view (joined sample)');
+  const cardsView = await sql`
+    SELECT lc.id as card_id,
+           lc.customer_id,
+           lc.program_id,
+           lc.business_id,
+           lc.card_number,
+           COALESCE(lp.name, 'Program') as program_name,
+           COALESCE(bu.name, 'Business') as business_name,
+           COALESCE(cu.name, 'Customer') as customer_name,
+           lc.points,
+           lc.created_at
+    FROM loyalty_cards lc
+    LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
+    LEFT JOIN users bu ON lc.business_id = bu.id
+    LEFT JOIN users cu ON lc.customer_id = cu.id
+    ORDER BY lc.created_at DESC
+    LIMIT 10
+  `;
+  console.log(asTable(cardsView));
 
   console.log('\nDone.');
 }

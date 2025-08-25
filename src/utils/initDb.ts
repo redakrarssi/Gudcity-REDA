@@ -161,6 +161,27 @@ export async function ensureCustomerExists(userId: number, userData: any = null)
       
       user = userResult[0];
     }
+
+    // Derive a non-generic fallback name when missing
+    const deriveFallbackName = (u: any, idNum: number): string => {
+      const rawName = (u && typeof u.name === 'string') ? u.name.trim() : '';
+      if (rawName && !/^loyalty\s*customer$/i.test(rawName) && !/^customer$/i.test(rawName)) return rawName;
+      const email: string = (u && typeof u.email === 'string') ? u.email : '';
+      if (email && email.includes('@')) {
+        const local = email.split('@')[0];
+        if (local) {
+          const pretty = local
+            .replace(/[._-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/\b\w/g, (m) => m.toUpperCase());
+          if (pretty.length > 0) return pretty;
+        }
+      }
+      return `Customer ${idNum}`;
+    };
+
+    const resolvedName = deriveFallbackName(user, userId);
     
     // Create customer record
     const result = await sql`
@@ -175,7 +196,7 @@ export async function ensureCustomerExists(userId: number, userData: any = null)
         updated_at
       ) VALUES (
         ${userId},
-        ${user.name || 'Customer'},
+        ${resolvedName},
         ${user.email},
         ${{
           email: true,
