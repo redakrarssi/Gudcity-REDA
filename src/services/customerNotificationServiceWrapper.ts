@@ -114,17 +114,43 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     // Call the stored procedure based on request type
     let cardId: string | undefined;
     
-    if (requestType === 'ENROLLMENT') {
-      try {
-        // Handle enrollment approval with robust error handling and retries
-        // Use withRetry for database operation with timeout handling
-        const result = await withRetry(async () => {
-          // Ensure function exists (idempotent)
-          try { await ensureEnrollmentProcedureExists(); } catch (_) {}
-          // We must pass (customer_id, program_id, request_id)
-          logger.info('Calling process_enrollment_approval (wrapper)', { customerIdInt, programIdInt, requestId });
-          return await sql`SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) as card_id`;
-        });
+         if (requestType === 'ENROLLMENT') {
+       try {
+         // CRITICAL FIX: Ensure customer exists before calling stored procedure
+         // This provides an additional safety net in case the stored procedure fix isn't sufficient
+         try {
+           const customerCheck = await sql`SELECT id FROM customers WHERE id = ${customerIdInt}`;
+           if (!customerCheck || customerCheck.length === 0) {
+             logger.warn('Customer not found, attempting to create', { customerIdInt });
+             
+             // Try to create customer using ensureCustomerExists
+             const { ensureCustomerExists } = await import('../utils/initDb');
+             const createdCustomerId = await ensureCustomerExists(customerIdInt);
+             
+             if (!createdCustomerId) {
+               logger.error('Failed to create customer record', { customerIdInt });
+               throw new Error(`Failed to create customer record for ID ${customerIdInt}`);
+             } else {
+               logger.info('Successfully created customer record', { customerIdInt, createdCustomerId });
+             }
+           }
+         } catch (customerCreationError: any) {
+           logger.error('Customer creation failed in wrapper', { 
+             error: customerCreationError, 
+             customerIdInt 
+           });
+           // Continue with enrollment attempt - the stored procedure will also try to create the customer
+         }
+
+         // Handle enrollment approval with robust error handling and retries
+         // Use withRetry for database operation with timeout handling
+         const result = await withRetry(async () => {
+           // Ensure function exists (idempotent)
+           try { await ensureEnrollmentProcedureExists(); } catch (_) {}
+           // We must pass (customer_id, program_id, request_id)
+           logger.info('Calling process_enrollment_approval (wrapper)', { customerIdInt, programIdInt, requestId });
+           return await sql`SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) as card_id`;
+         });
         
         if (result && result[0]) {
           const cid = (result[0] as any).card_id;

@@ -449,6 +449,10 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           enrollment_exists BOOLEAN;
           card_exists BOOLEAN;
           notif_exists BOOLEAN;
+          customer_exists BOOLEAN;
+          user_id_val INTEGER;
+          user_name_val TEXT;
+          user_email_val TEXT;
           gen_uuid UUID;
       BEGIN
           -- Update approval request (use response_at, avoid relying on updated_at)
@@ -468,6 +472,59 @@ export async function ensureEnrollmentProcedureExists(): Promise<boolean> {
           END IF;
           
           SELECT name INTO business_name_val FROM users WHERE id = business_id_val;
+
+          -- CRITICAL FIX: Ensure customer record exists before creating loyalty card
+          SELECT EXISTS (
+            SELECT 1 FROM customers WHERE id = customer_id_val
+          ) INTO customer_exists;
+          
+          IF NOT customer_exists THEN
+            -- Customer doesn't exist, we need to create it
+            -- First, find the user record that corresponds to this customer_id
+            -- Assumption: customer_id matches user_id in this case
+            SELECT id, name, email
+            INTO user_id_val, user_name_val, user_email_val
+            FROM users 
+            WHERE id = customer_id_val;
+            
+            IF user_id_val IS NULL THEN
+              RAISE EXCEPTION 'User not found for customer_id: %. Cannot create customer record.', customer_id_val;
+            END IF;
+            
+            -- Create the customer record
+            INSERT INTO customers (
+              id,
+              user_id, 
+              name, 
+              email,
+              notification_preferences,
+              regional_settings,
+              joined_at,
+              created_at,
+              updated_at
+            ) VALUES (
+              customer_id_val,
+              user_id_val,
+              COALESCE(
+                NULLIF(user_name_val, ''),
+                CASE 
+                  WHEN user_email_val LIKE '%@%' THEN 
+                    INITCAP(REPLACE(SPLIT_PART(user_email_val, '@', 1), '.', ' '))
+                  ELSE 
+                    'Customer ' || customer_id_val::TEXT
+                END
+              ),
+              user_email_val,
+              '{"email": true, "push": true, "sms": false, "promotions": true, "rewards": true, "system": true}'::jsonb,
+              '{"language": "en", "country": "United States", "currency": "USD", "timezone": "UTC"}'::jsonb,
+              NOW(),
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT (id) DO NOTHING; -- Handle race conditions gracefully
+            
+            RAISE NOTICE 'Created customer record for customer_id: %', customer_id_val;
+          END IF;
 
           -- Mark the original notification as actioned if present
           IF notification_id_val IS NOT NULL THEN
