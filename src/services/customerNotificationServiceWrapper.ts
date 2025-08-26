@@ -60,7 +60,6 @@ async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES):
  * Uses a stored procedure for enrollment approvals to ensure atomicity
  */
 export async function safeRespondToApproval(requestId: string, approved: boolean): Promise<ApprovalResponse> {
-  const startedAt = Date.now();
   logger.info('Processing approval response', { requestId, approved });
   
   // Use an AbortController to prevent request cancellation
@@ -310,129 +309,21 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
         }
         
       } catch (dbError: any) {
-        // Stored procedure failed: log and attempt idempotent fallback to meet reliability requirements
-        logger.error('Stored procedure failed, attempting fallback upsert path', { error: dbError, requestId });
-
-        try {
-          // 1) Update approval request status and mark notification
-          await sql`
-            UPDATE customer_approval_requests
-            SET status = ${approved ? 'APPROVED' : 'REJECTED'}, response_at = NOW()
-            WHERE id = ${requestId}
-          `;
-
-          if (notificationId) {
-            await sql`
-              UPDATE customer_notifications
-              SET action_taken = TRUE, is_read = TRUE, read_at = NOW()
-              WHERE id = ${notificationId}
-            `;
-          }
-
-          if (approved) {
-            // 2) Upsert enrollment ACTIVE
-            // Upsert without requiring a unique index by using WHERE NOT EXISTS
-            await sql`
-              INSERT INTO program_enrollments (
-                customer_id, program_id, status, current_points, enrolled_at
-              )
-              SELECT ${customerIdInt}, ${programIdInt}, 'ACTIVE', 0, NOW()
-              WHERE NOT EXISTS (
-                SELECT 1 FROM program_enrollments 
-                WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
-              );
-            `;
-            await sql`
-              UPDATE program_enrollments
-              SET status = 'ACTIVE', last_activity = NOW()
-              WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt};
-            `;
-
-            // 3) Create loyalty card if missing
-            const cardInsert = await sql`
-              WITH ins AS (
-                INSERT INTO loyalty_cards (
-                  customer_id, business_id, program_id, card_number,
-                  status, card_type, points, is_active, created_at, updated_at
-                )
-                SELECT ${customerIdInt}, ${businessIdInt}, ${programIdInt},
-                       'GC-' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 6) || '-C',
-                       'ACTIVE', 'STANDARD', 0, TRUE, NOW(), NOW()
-                WHERE NOT EXISTS (
-                  SELECT 1 FROM loyalty_cards
-                  WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
-                )
-                RETURNING id
-              )
-              SELECT id FROM ins
-              UNION ALL
-              SELECT id FROM loyalty_cards
-              WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
-              ORDER BY id DESC
-              LIMIT 1
-            `;
-
-            if (cardInsert && cardInsert.length > 0) {
-              cardId = String(cardInsert[0].id);
-            }
-
-            // 4) Create CARD_CREATED notification if missing
-            await sql`
-              WITH missing AS (
-                SELECT 1
-                FROM customer_notifications
-                WHERE customer_id = ${customerIdInt}
-                  AND business_id = ${businessIdInt}
-                  AND type = 'CARD_CREATED'
-                  AND COALESCE((data->>'programId')::int, ${programIdInt}) = ${programIdInt}
-                LIMIT 1
-              )
-              INSERT INTO customer_notifications (
-                id, customer_id, business_id, type, title, message, data,
-                requires_action, action_taken, is_read, created_at
-              )
-              SELECT 
-                (
-                  substr(md5(random()::text),1,8)||'-'||
-                  substr(md5(random()::text),1,4)||'-'||
-                  substr(md5(random()::text),1,4)||'-'||
-                  substr(md5(random()::text),1,4)||'-'||
-                  substr(md5(random()::text),1,12)
-                )::uuid,
-                ${customerIdInt}, ${businessIdInt}, 'CARD_CREATED',
-                'Loyalty Card Created',
-                'Your loyalty card was created successfully',
-                jsonb_build_object(
-                  'programId', ${programIdInt},
-                  'programName', ${programName || 'Loyalty Program'},
-                  'businessName', ${businessName || 'Business'},
-                  'cardId', ${cardId || null},
-                  'timestamp', NOW()
-                ),
-                FALSE, FALSE, FALSE, NOW()
-              WHERE NOT EXISTS (SELECT 1 FROM missing)
-            `;
-          }
-
-          // Fallback success; return success with cardId when approved
-          return {
-            success: true,
-            message: approved
-              ? `Successfully enrolled in ${programName || 'the program'}`
-              : `Successfully declined enrollment in ${programName || 'the program'}`,
-            cardId: cardId ? String(cardId) : undefined
-          };
-        } catch (fallbackError: any) {
-          // Fallback failed; report detailed error
-          let errorCode = EnrollmentErrorCode.TRANSACTION_ERROR;
-          if (fallbackError.message?.includes('timeout')) errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
-          else if (fallbackError.code === '23505') errorCode = EnrollmentErrorCode.ALREADY_ENROLLED;
-          else if (fallbackError.code === '23503') errorCode = EnrollmentErrorCode.VALIDATION_ERROR;
+        // Check for specific database error types
+        let errorCode = EnrollmentErrorCode.TRANSACTION_ERROR;
+        
+        if (dbError.message?.includes('timeout')) {
+          errorCode = EnrollmentErrorCode.TIMEOUT_ERROR;
+        } else if (dbError.code === '23505') {
+          errorCode = EnrollmentErrorCode.ALREADY_ENROLLED;
+        } else if (dbError.code === '23503') {
+          errorCode = EnrollmentErrorCode.VALIDATION_ERROR;
+        }
         
         const error = createDetailedError(
           errorCode,
-            `Fallback path error: ${fallbackError.message || 'Unknown error'}`,
-            'enrollment_fallback'
+          `Database transaction error: ${dbError.message || 'Unknown error'}`,
+          'enrollment_transaction'
         );
         reportEnrollmentError(error, { requestId, approved });
         
@@ -441,7 +332,6 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
           error: formatEnrollmentErrorForUser(error),
           errorCode
         };
-        }
       }
     } else {
       // For other request types, use the standard response method
@@ -567,8 +457,6 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     }
     
     // Return success response with card ID if available
-    const durationMs = Date.now() - startedAt;
-    logger.info('Approval processing complete', { requestId, approved, durationMs, cardId });
     return {
       success: true,
       message: approved 

@@ -99,14 +99,10 @@ router.get('/approval-requests', auth, async (req: Request, res: Response) => {
  */
 router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Response) => {
   try {
-    const startedAt = Date.now();
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     const { approved } = req.body;
     
     if (approved === undefined) {
-      const payload = { success: false, error: 'Response (approved) is required', code: 'VALIDATION_ERROR' };
-      res.status(400).json(payload);
-      return; // Ensure we don't fall through and send an empty body
+      return res.status(400).json({ error: 'Response (approved) is required' });
     }
     
     const requestId = req.params.id;
@@ -123,27 +119,17 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
     console.log('Responding to approval request', { requestId, approved });
     // Use the robust, normalized wrapper for universal handling
     const result = await safeRespondToApproval(requestId, approved);
-    console.log('Approval respond outcome', { requestId, approved, result, ms: Date.now() - startedAt });
+    console.log('Approval respond outcome', { requestId, approved, result });
     
     if (result.success) {
-      const payload = { success: true, cardId: result.cardId };
-      res.status(200).json(payload);
-      return;
+      res.json({ success: true, cardId: result.cardId });
     } else {
       const status = result.errorCode === 'REQUEST_NOT_FOUND' ? 404 : 500;
-      const payload = { success: false, error: result.error, code: result.errorCode };
-      res.status(status).json(payload);
-      return;
+      res.status(status).json({ success: false, error: result.error, code: result.errorCode });
     }
   } catch (error) {
     console.error('Error responding to approval request:', error);
-    try {
-      const payload = { success: false, error: 'Failed to respond to approval request', code: 'TRANSACTION_ERROR' };
-      res.status(500).json(payload);
-    } catch (_) {
-      try { res.end('{"success":false,"error":"Unhandled","code":"UNKNOWN"}'); } catch (_) {}
-    }
-    return;
+    res.status(500).json({ error: 'Failed to respond to approval request' });
   }
 });
 
