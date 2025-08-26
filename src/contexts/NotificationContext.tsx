@@ -394,10 +394,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       
       // Call server API to process approval; server uses safe wrapper and stored proc
+      const token = localStorage.getItem('token');
       const apiResponse = await fetch(`/api/notifications/approval-requests/${approvalId}/respond`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ approved })
       });
