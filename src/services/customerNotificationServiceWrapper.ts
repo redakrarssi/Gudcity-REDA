@@ -60,6 +60,7 @@ async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RETRIES):
  * Uses a stored procedure for enrollment approvals to ensure atomicity
  */
 export async function safeRespondToApproval(requestId: string, approved: boolean): Promise<ApprovalResponse> {
+  const startedAt = Date.now();
   logger.info('Processing approval response', { requestId, approved });
   
   // Use an AbortController to prevent request cancellation
@@ -330,14 +331,21 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
 
           if (approved) {
             // 2) Upsert enrollment ACTIVE
+            // Upsert without requiring a unique index by using WHERE NOT EXISTS
             await sql`
               INSERT INTO program_enrollments (
                 customer_id, program_id, status, current_points, enrolled_at
-              ) VALUES (
-                ${customerIdInt}, ${programIdInt}, 'ACTIVE', 0, NOW()
               )
-              ON CONFLICT (customer_id, program_id)
-              DO UPDATE SET status = 'ACTIVE', last_activity = NOW()
+              SELECT ${customerIdInt}, ${programIdInt}, 'ACTIVE', 0, NOW()
+              WHERE NOT EXISTS (
+                SELECT 1 FROM program_enrollments 
+                WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
+              );
+            `;
+            await sql`
+              UPDATE program_enrollments
+              SET status = 'ACTIVE', last_activity = NOW()
+              WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt};
             `;
 
             // 3) Create loyalty card if missing
@@ -559,6 +567,8 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
     }
     
     // Return success response with card ID if available
+    const durationMs = Date.now() - startedAt;
+    logger.info('Approval processing complete', { requestId, approved, durationMs, cardId });
     return {
       success: true,
       message: approved 

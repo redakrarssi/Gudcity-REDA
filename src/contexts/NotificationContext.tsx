@@ -402,7 +402,35 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         body: JSON.stringify({ approved })
       });
 
-      const response = await apiResponse.json();
+      let response: any = null;
+      try {
+        // Only attempt to parse JSON if Content-Type hints JSON
+        const contentType = apiResponse.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          response = await apiResponse.json();
+        } else {
+          // Fallback: attempt to read text and parse, otherwise synthesize an error response
+          const text = await apiResponse.text();
+          try {
+            response = text ? JSON.parse(text) : null;
+          } catch (_) {
+            response = null;
+          }
+        }
+      } catch (parseErr) {
+        console.warn('JSON parse failed for approval response, synthesizing error payload', parseErr);
+        response = null;
+      }
+
+      if (!response) {
+        // Synthesize a normalized payload to avoid UI crashes
+        response = {
+          success: apiResponse.ok,
+          cardId: undefined,
+          errorCode: apiResponse.ok ? undefined : 'NETWORK_ERROR',
+          message: apiResponse.ok ? undefined : 'Empty or malformed server response'
+        };
+      }
       
       // Remove loading notification
       setNotifications(prev => prev.filter(n => n.id !== loadingNotificationId));
