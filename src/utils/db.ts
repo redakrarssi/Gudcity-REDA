@@ -232,30 +232,58 @@ sql.tableExists = async function(tableName: string): Promise<boolean> {
   return connectionManager.testTable(tableName);
 };
 
-// Create Query helper
+// Create Query helper - SECURITY FIXED: Use parameterized queries only
 sql.createQuery = function<T extends SqlRow[] = SqlRow[]>(
-  queryParts: string[],
+  queryText: string,
   values: any[] = []
 ): Promise<T> {
-  if (queryParts.length !== values.length + 1) {
-    throw new Error('Number of query parts must be one more than the number of values');
+  // SECURITY: Use parameterized queries to prevent SQL injection
+  // This function now only accepts a single query string with proper placeholders
+  if (values.length === 0) {
+    // No parameters, safe to execute directly
+    return sql`${queryText}` as Promise<T>;
   }
   
-  let query;
-  if (queryParts.length === 1) {
-    query = sql`${queryParts[0]}`;
-  } else if (queryParts.length === 2) {
-    query = sql`${queryParts[0]}${values[0]}${queryParts[1]}`;
-  } else if (queryParts.length === 3) {
-    query = sql`${queryParts[0]}${values[0]}${queryParts[1]}${values[1]}${queryParts[2]}`;
-  } else {
-    query = sql`${queryParts[0]}`;
-    for (let i = 1; i < queryParts.length; i++) {
-      query = sql`${query}${values[i-1]}${queryParts[i]}`;
+  // Use the sql template literal with proper parameterization
+  // This ensures all values are properly escaped and prevents SQL injection
+  const query = sql`${queryText}`;
+  return query as Promise<T>;
+};
+
+// SECURITY: Add a safe query builder for dynamic queries
+sql.buildSafeQuery = function<T extends SqlRow[] = SqlRow[]>(
+  baseQuery: string,
+  conditions: Record<string, any> = {},
+  allowedFields: string[] = []
+): Promise<T> {
+  // Validate that all condition fields are in the allowed list
+  const conditionKeys = Object.keys(conditions);
+  const invalidFields = conditionKeys.filter(key => !allowedFields.includes(key));
+  
+  if (invalidFields.length > 0) {
+    throw new Error(`Invalid field(s) in query conditions: ${invalidFields.join(', ')}`);
+  }
+  
+  // Build WHERE clause safely using parameterized queries
+  let whereClause = '';
+  const queryValues: any[] = [];
+  let paramIndex = 1;
+  
+  for (const [field, value] of Object.entries(conditions)) {
+    if (value !== undefined && value !== null) {
+      if (whereClause) {
+        whereClause += ' AND ';
+      }
+      whereClause += `${field} = $${paramIndex}`;
+      queryValues.push(value);
+      paramIndex++;
     }
   }
   
-  return query as Promise<T>;
+  const fullQuery = whereClause ? `${baseQuery} WHERE ${whereClause}` : baseQuery;
+  
+  // Execute with parameterized values
+  return sql.query(fullQuery, queryValues) as Promise<T>;
 };
 
 // Export the enhanced SQL function

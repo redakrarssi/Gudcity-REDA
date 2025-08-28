@@ -270,7 +270,8 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Verify password using bcrypt or fallback to SHA-256
+ * Verify password using bcrypt only - SECURITY FIXED
+ * SECURITY: Removed SHA-256 fallback to prevent weak password attacks
  */
 export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
   try {
@@ -280,7 +281,7 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
       return false;
     }
 
-    // First try bcrypt (secure)
+    // SECURITY: Only use bcrypt for password verification
     try {
       // Import bcrypt dynamically to avoid SSR issues
       const bcrypt = await import('bcryptjs');
@@ -289,17 +290,56 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
       if (hashedPassword.startsWith('$2')) {
         return await bcrypt.compare(plainPassword, hashedPassword);
       }
+      
+      // SECURITY: If not a bcrypt hash, it's a legacy password that needs to be updated
+      console.warn('Legacy password hash detected. User should reset password.');
+      return false;
     } catch (bcryptError) {
-      console.log('bcryptjs not available, falling back to SHA-256');
+      console.error('bcryptjs not available:', bcryptError);
+      // SECURITY: Fail securely - don't fall back to weak hashing
+      throw new Error('Secure password verification not available');
     }
-    
-    // Fallback to SHA-256 hash for legacy passwords
-    const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
-    return sha256Hash === hashedPassword;
   } catch (error) {
     console.error('Error verifying password:', error);
     return false;
   }
+}
+
+/**
+ * SECURITY: Force password reset for legacy accounts
+ * This should be called when a legacy password hash is detected
+ */
+export async function forcePasswordReset(userId: number): Promise<boolean> {
+  try {
+    // Generate a secure reset token
+    const resetToken = await generateSecureResetToken();
+    
+    // Store reset token with expiry
+    await sql`
+      INSERT INTO password_reset_tokens (user_id, token, expires_at)
+      VALUES (${userId}, ${resetToken}, NOW() + INTERVAL '1 hour')
+      ON CONFLICT (user_id) 
+      DO UPDATE SET 
+        token = EXCLUDED.token,
+        expires_at = EXCLUDED.expires_at
+    `;
+    
+    // TODO: Send email notification to user
+    console.log(`Password reset required for user ${userId}`);
+    
+    return true;
+  } catch (error) {
+    console.error('Error forcing password reset:', error);
+    return false;
+  }
+}
+
+/**
+ * SECURITY: Generate secure password reset token
+ */
+async function generateSecureResetToken(): Promise<string> {
+  const crypto = await import('crypto');
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // Ensure the refresh_tokens table exists when module loads
