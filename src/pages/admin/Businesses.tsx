@@ -59,6 +59,35 @@ const AdminBusinesses = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filteredBusinesses, setFilteredBusinesses] = useState<DbBusiness[]>([]);
+  const exportBusinessesCsv = () => {
+    try {
+      const rows = filteredBusinesses;
+      const headers = ['ID','Name','Email','Type','Status','Customers','Revenue','Last Activity'];
+      const csvLines = [headers.join(',')];
+      rows.forEach((b: any) => {
+        const values = [
+          b.id ?? '',
+          (b.name ?? '').toString().replace(/"/g,'""'),
+          (b.email ?? '').toString().replace(/"/g,'""'),
+          (b.type ?? '').toString().replace(/"/g,'""'),
+          (b.status ?? '').toString().replace(/"/g,'""'),
+          b.customerCount ?? 0,
+          b.revenue ?? 0,
+          b.lastActivity ? new Date(b.lastActivity).toISOString() : ''
+        ].map(v => typeof v === 'string' ? `"${v}"` : v);
+        csvLines.push(values.join(','));
+      });
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `businesses-${new Date().toISOString()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('CSV export failed', e);
+    }
+  };
   
   // Load businesses from database (fallback to service), but prefer admin overview API for richer data
   useEffect(() => {
@@ -370,7 +399,7 @@ const AdminBusinesses = () => {
             </button>
             
             <button className="p-2 border border-gray-300 rounded-md text-gray-500 hover:bg-gray-50">
-              <Download className="w-5 h-5" />
+              <Download className="w-5 h-5" onClick={exportBusinessesCsv} />
             </button>
           </div>
         </div>

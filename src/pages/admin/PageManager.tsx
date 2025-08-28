@@ -81,6 +81,9 @@ const PageManager = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [seoTitle, setSeoTitle] = useState<string>('');
+  const [seoDescription, setSeoDescription] = useState<string>('');
   
   // Page form state
   const [pageForm, setPageForm] = useState<Partial<PageModel>>({
@@ -134,15 +137,23 @@ const PageManager = () => {
   // Handle page selection for editing
   const handleEditPage = (page: PageModel) => {
     setSelectedPage(page);
+    // Extract SEO metadata from content (stored as HTML comment)
+    const { meta, cleaned } = extractSeoFromContent(page.content || '');
+    setSeoTitle(meta.title || '');
+    setSeoDescription(meta.description || '');
     setPageForm({
-      ...page
+      ...page,
+      content: cleaned
     });
     setIsEditModalOpen(true);
+    setHasUnsavedChanges(false);
   };
   
   // Handle new page creation
   const handleCreatePage = () => {
     setSelectedPage(null);
+    setSeoTitle('');
+    setSeoDescription('');
     setPageForm({
       title: '',
       slug: '',
@@ -152,6 +163,7 @@ const PageManager = () => {
       isSystem: false
     });
     setIsEditModalOpen(true);
+    setHasUnsavedChanges(false);
   };
   
   // Handle page save
@@ -160,6 +172,8 @@ const PageManager = () => {
     
     try {
       setError(null);
+      // Inject SEO metadata at top of content as HTML comment
+      const contentWithSeo = injectSeoInContent(pageForm.content!, seoTitle, seoDescription);
       
       if (selectedPage) {
         // Update existing page
@@ -169,7 +183,7 @@ const PageManager = () => {
             ...selectedPage,
             title: pageForm.title!,
             slug: pageForm.slug!,
-            content: pageForm.content!,
+            content: contentWithSeo,
             template: pageForm.template as PageModel['template'],
             status: pageForm.status as PageModel['status'],
             isSystem: pageForm.isSystem !== undefined ? pageForm.isSystem : selectedPage.isSystem
@@ -195,7 +209,7 @@ const PageManager = () => {
             id: 0, // This will be ignored by the API
             title: pageForm.title!,
             slug: pageForm.slug!,
-            content: pageForm.content!,
+            content: contentWithSeo,
             template: pageForm.template as PageModel['template'],
             status: pageForm.status as PageModel['status'],
             isSystem: false,
@@ -219,6 +233,7 @@ const PageManager = () => {
       }
       
       setIsEditModalOpen(false);
+      setHasUnsavedChanges(false);
     } catch (err: any) {
       console.error('Error saving page:', err);
       setError(err.message || 'Failed to save page. Please try again.');
@@ -275,7 +290,39 @@ const PageManager = () => {
       ...pageForm,
       slug: `/${slug}`
     });
+    setHasUnsavedChanges(true);
   };
+
+  // Track unsaved changes on form edits
+  const markDirty = () => setHasUnsavedChanges(true);
+
+  // Helpers to embed/extract SEO metadata inside content as HTML comment
+  const SEO_BLOCK_START = '<!-- SEO:';
+  const SEO_BLOCK_END = '-->';
+  function extractSeoFromContent(content: string): { meta: { title?: string; description?: string }, cleaned: string } {
+    try {
+      const start = content.indexOf(SEO_BLOCK_START);
+      const end = content.indexOf(SEO_BLOCK_END, start + 1);
+      if (start !== -1 && end !== -1) {
+        const jsonText = content.substring(start + SEO_BLOCK_START.length, end).trim();
+        const meta = JSON.parse(jsonText) as { title?: string; description?: string };
+        const before = content.substring(0, start).trimStart();
+        const after = content.substring(end + SEO_BLOCK_END.length).trimStart();
+        const cleaned = `${before}\n${after}`.trimStart();
+        return { meta, cleaned };
+      }
+    } catch (_) {}
+    return { meta: {}, cleaned: content };
+  }
+  function injectSeoInContent(content: string, title?: string, description?: string): string {
+    const cleaned = extractSeoFromContent(content).cleaned.trimStart();
+    const meta: any = {};
+    if (title && title.trim().length > 0) meta.title = title.trim();
+    if (description && description.trim().length > 0) meta.description = description.trim();
+    if (Object.keys(meta).length === 0) return cleaned;
+    const block = `${SEO_BLOCK_START} ${JSON.stringify(meta)} ${SEO_BLOCK_END}`;
+    return `${block}\n\n${cleaned}`;
+  }
   
   // Edit Modal Component
   const EditModal = () => {
@@ -314,7 +361,7 @@ const PageManager = () => {
                     type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={pageForm.title || ''}
-                    onChange={e => setPageForm({...pageForm, title: e.target.value})}
+                    onChange={e => { setPageForm({...pageForm, title: e.target.value}); markDirty(); }}
                     placeholder={t('Enter page title')}
                     disabled={selectedPage?.isSystem}
                   />
@@ -341,7 +388,7 @@ const PageManager = () => {
                       type="text"
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={pageForm.slug || ''}
-                      onChange={e => setPageForm({...pageForm, slug: e.target.value})}
+                      onChange={e => { setPageForm({...pageForm, slug: e.target.value}); markDirty(); }}
                       placeholder="/page-slug"
                       disabled={selectedPage?.isSystem}
                     />
@@ -355,7 +402,7 @@ const PageManager = () => {
                   <textarea
                     className="w-full h-[300px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                     value={pageForm.content || ''}
-                    onChange={e => setPageForm({...pageForm, content: e.target.value})}
+                    onChange={e => { setPageForm({...pageForm, content: e.target.value}); markDirty(); }}
                     placeholder={t('Enter page content (HTML supported)')}
                     disabled={selectedPage?.isSystem}
                   ></textarea>
@@ -373,7 +420,7 @@ const PageManager = () => {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={pageForm.template}
-                    onChange={e => setPageForm({...pageForm, template: e.target.value as PageModel['template']})}
+                    onChange={e => { setPageForm({...pageForm, template: e.target.value as PageModel['template']}); markDirty(); }}
                     disabled={selectedPage?.isSystem}
                   >
                     <option value="default">{t('Default')}</option>
@@ -390,11 +437,44 @@ const PageManager = () => {
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={pageForm.status}
-                    onChange={e => setPageForm({...pageForm, status: e.target.value as PageModel['status']})}
+                    onChange={e => { setPageForm({...pageForm, status: e.target.value as PageModel['status']}); markDirty(); }}
                   >
                     <option value="published">{t('Published')}</option>
                     <option value="draft">{t('Draft')}</option>
                   </select>
+                </div>
+
+                {/* SEO Metadata embedded in content */}
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">{t('SEO Metadata')}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">{t('SEO Title')}</label>
+                      <input
+                        type="text"
+                        maxLength={60}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={seoTitle}
+                        onChange={(e) => { setSeoTitle(e.target.value); markDirty(); }}
+                        placeholder={t('Up to 60 characters')}
+                      />
+                      <div className="text-xs text-gray-500 mt-1">{seoTitle.length}/60</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">{t('SEO Description')}</label>
+                      <textarea
+                        maxLength={160}
+                        className="w-full h-[90px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={seoDescription}
+                        onChange={(e) => { setSeoDescription(e.target.value); markDirty(); }}
+                        placeholder={t('Up to 160 characters')}
+                      />
+                      <div className="text-xs text-gray-500 mt-1">{seoDescription.length}/160</div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {t('SEO data is embedded safely inside the page content (no schema changes).')}
+                    </p>
+                  </div>
                 </div>
                 
                 {selectedPage && (

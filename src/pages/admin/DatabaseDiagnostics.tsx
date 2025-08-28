@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Database, RefreshCw, AlertTriangle, Clock, BarChart3, 
   ArrowUp, ArrowDown, Filter, Download, PlusCircle, ChevronDown
@@ -10,7 +10,7 @@ import databaseConnector from '../../utils/databaseConnector';
 
 // Main page component
 export const DatabaseDiagnosticsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'metrics' | 'events' | 'queries'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'metrics' | 'events' | 'schema' | 'trends'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -20,6 +20,8 @@ export const DatabaseDiagnosticsPage: React.FC = () => {
     connectionLatency: { min: 0, max: 0, avg: 0, count: 0, p95: 0, p99: 0 },
     failedQueries: { count: 0 },
   });
+  const [schemaResults, setSchemaResults] = useState<Array<{ table: string; label: string; exists: boolean; count?: number | null; message?: string }>>([]);
+  const [trendWindow, setTrendWindow] = useState<'15m' | '1h' | '24h'>('1h');
   
   // Helper to get milliseconds for the selected time window
   const getTimeWindowMs = (): number => {
@@ -169,6 +171,75 @@ export const DatabaseDiagnosticsPage: React.FC = () => {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Schema health checks (read-only)
+  const criticalTables: Array<{ name: string; label: string; countQuery?: string }> = [
+    { name: 'users', label: 'Users', countQuery: 'SELECT COUNT(*)::int AS count FROM users' },
+    { name: 'customers', label: 'Customers', countQuery: 'SELECT COUNT(*)::int AS count FROM customers' },
+    { name: 'loyalty_programs', label: 'Loyalty Programs', countQuery: 'SELECT COUNT(*)::int AS count FROM loyalty_programs' },
+    { name: 'program_enrollments', label: 'Program Enrollments', countQuery: 'SELECT COUNT(*)::int AS count FROM program_enrollments' },
+    { name: 'loyalty_cards', label: 'Loyalty Cards', countQuery: 'SELECT COUNT(*)::int AS count FROM loyalty_cards' },
+    { name: 'customer_notifications', label: 'Notifications', countQuery: 'SELECT COUNT(*)::int AS count FROM customer_notifications' },
+    { name: 'card_activities', label: 'Card Activities', countQuery: 'SELECT COUNT(*)::int AS count FROM card_activities' },
+    { name: 'customer_qrcodes', label: 'Customer QR Codes', countQuery: 'SELECT COUNT(*)::int AS count FROM customer_qrcodes' }
+  ];
+
+  const runSchemaChecks = async () => {
+    setIsRefreshing(true);
+    try {
+      const results: Array<{ table: string; label: string; exists: boolean; count?: number | null; message?: string }> = [];
+      for (const t of criticalTables) {
+        try {
+          // @ts-ignore - tableExists is attached to the default export
+          const exists: boolean = await (db as any).tableExists(t.name);
+          let count: number | null = null;
+          if (exists && t.countQuery) {
+            try {
+              // Use text query API for dynamic table names
+              const rows = await (db as any).query(t.countQuery);
+              count = Array.isArray(rows) && rows.length > 0 ? (rows[0].count as number) : null;
+            } catch {
+              count = null;
+            }
+          }
+          results.push({ table: t.name, label: t.label, exists, count });
+        } catch (e: any) {
+          results.push({ table: t.name, label: t.label, exists: false, count: null, message: e?.message || 'Check failed' });
+        }
+      }
+      setSchemaResults(results);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Build trend series from metrics (client-side only, no backend)
+  const trendSeries = useMemo(() => {
+    const now = Date.now();
+    const windowMs = trendWindow === '15m' ? 15 * 60 * 1000 : trendWindow === '1h' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const start = now - windowMs;
+    const inWindow = metrics.filter(m => m.timestamp >= start);
+    const buckets: Record<string, { t: number; duration: number[]; failures: number }[]> = {};
+    const bucketSize = trendWindow === '24h' ? 15 * 60 * 1000 : 60 * 1000; // 15m for 24h view, 1m otherwise
+    const pushTo = (key: string, ts: number, val?: number) => {
+      const normalized = Math.floor(ts / bucketSize) * bucketSize;
+      buckets[key] = buckets[key] || [];
+      let bucket = buckets[key].find(b => b.t === normalized);
+      if (!bucket) {
+        bucket = { t: normalized, duration: [], failures: 0 };
+        buckets[key].push(bucket);
+      }
+      if (key === 'duration' && typeof val === 'number') bucket.duration.push(val);
+      if (key === 'failures') bucket.failures += 1;
+    };
+    for (const m of inWindow) {
+      if (m.name === 'db.query.duration') pushTo('duration', m.timestamp, m.value);
+      if (m.name === 'db.query.failed') pushTo('failures', m.timestamp);
+    }
+    const durationPoints = (buckets['duration'] || []).sort((a,b)=>a.t-b.t).map(b => ({ t: b.t, y: b.duration.length ? b.duration.reduce((a,c)=>a+c,0)/b.duration.length : 0 }));
+    const failurePoints = (buckets['failures'] || []).sort((a,b)=>a.t-b.t).map(b => ({ t: b.t, y: b.failures }));
+    return { durationPoints, failurePoints };
+  }, [metrics, trendWindow]);
   
   // Initialize data
   useEffect(() => {
@@ -439,6 +510,118 @@ export const DatabaseDiagnosticsPage: React.FC = () => {
             </div>
           </div>
         );
+      case 'schema':
+        return (
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium">Schema Health</h3>
+                <p className="text-sm text-gray-500">Read-only checks for critical tables</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-md text-sm flex items-center hover:bg-blue-100 transition-colors"
+                  onClick={runSchemaChecks}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Run Health Checks
+                </button>
+                <button
+                  className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-md text-sm flex items-center"
+                  onClick={exportData}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Export Snapshot
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {schemaResults.length === 0 && (
+                <div className="col-span-full text-gray-500 text-sm">No results yet. Run Health Checks to populate.</div>
+              )}
+              {schemaResults.map((r) => (
+                <div key={r.table} className="border rounded-md p-3 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-800">{r.label}</div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${r.exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {r.exists ? 'Present' : 'Missing'}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    <div>Table: <span className="font-mono">{r.table}</span></div>
+                    {r.exists && (
+                      <div>Rows: <span className="font-semibold">{typeof r.count === 'number' ? r.count : '—'}</span></div>
+                    )}
+                    {!r.exists && r.message && (
+                      <div className="text-xs text-red-600 mt-1">{r.message}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'trends':
+        return (
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium">Trends</h3>
+                <p className="text-sm text-gray-500">Client-side visualization of historical performance</p>
+              </div>
+              <select
+                className="appearance-none bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={trendWindow}
+                onChange={(e)=>setTrendWindow(e.target.value as any)}
+              >
+                <option value="15m">Last 15 minutes</option>
+                <option value="1h">Last hour</option>
+                <option value="24h">Last 24 hours</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="border rounded p-3">
+                <h4 className="text-sm font-medium mb-2">Avg Query Duration</h4>
+                <svg width="100%" height="160" viewBox="0 0 600 160">
+                  <polyline
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="2"
+                    points={trendSeries.durationPoints.map((p, i) => {
+                      const x = trendSeries.durationPoints.length > 1 ? (i/(trendSeries.durationPoints.length-1))*580+10 : 10;
+                      const maxY = Math.max(1, ...trendSeries.durationPoints.map(d=>d.y));
+                      const y = 150 - (p.y/maxY)*130;
+                      return `${x},${y}`;
+                    }).join(' ')}
+                  />
+                  <line x1="10" y1="150" x2="590" y2="150" stroke="#e5e7eb" />
+                  <line x1="10" y1="20" x2="590" y2="20" stroke="#f3f4f6" />
+                </svg>
+              </div>
+              <div className="border rounded p-3">
+                <h4 className="text-sm font-medium mb-2">Failed Queries</h4>
+                <svg width="100%" height="160" viewBox="0 0 600 160">
+                  <polyline
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="2"
+                    points={trendSeries.failurePoints.map((p, i) => {
+                      const x = trendSeries.failurePoints.length > 1 ? (i/(trendSeries.failurePoints.length-1))*580+10 : 10;
+                      const maxY = Math.max(1, ...trendSeries.failurePoints.map(d=>d.y));
+                      const y = 150 - (p.y/maxY)*130;
+                      return `${x},${y}`;
+                    }).join(' ')}
+                  />
+                  <line x1="10" y1="150" x2="590" y2="150" stroke="#e5e7eb" />
+                  <line x1="10" y1="20" x2="590" y2="20" stroke="#f3f4f6" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        );
       
       default:
         return null;
@@ -507,6 +690,26 @@ export const DatabaseDiagnosticsPage: React.FC = () => {
             onClick={() => setActiveTab('events')}
           >
             Events
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 ${
+              activeTab === 'schema' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => {
+              setActiveTab('schema');
+              // Lazy-run health checks when switching to schema tab
+              setTimeout(() => runSchemaChecks(), 0);
+            }}
+          >
+            Schema
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 ${
+              activeTab === 'trends' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => setActiveTab('trends')}
+          >
+            Trends
           </button>
         </div>
       </div>

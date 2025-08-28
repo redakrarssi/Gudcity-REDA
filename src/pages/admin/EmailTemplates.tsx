@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import {
@@ -25,6 +25,8 @@ interface EmailTemplate {
   variables: string[];
   lastModified: string;
   active: boolean;
+  version?: number;
+  history?: Array<{ version: number; name: string; subject: string; body: string; variables: string[]; modifiedAt: string }>;
 }
 
 // Mock data for email templates
@@ -121,6 +123,9 @@ const AdminEmailTemplates = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | EmailTemplate['type']>('all');
   const [copySuccess, setCopySuccess] = useState<number | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [showHistoryFor, setShowHistoryFor] = useState<number | null>(null);
   
   // Template form state
   const [templateForm, setTemplateForm] = useState<Partial<EmailTemplate>>({
@@ -148,6 +153,24 @@ const AdminEmailTemplates = () => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
+
+  // Simple validation per reda.md (non-invasive)
+  const validateTemplate = useMemo(() => {
+    return (tpl: Partial<EmailTemplate>) => {
+      const errors: string[] = [];
+      if (!tpl.name || tpl.name.trim().length < 3) errors.push('Name must be at least 3 characters');
+      if (!tpl.subject || tpl.subject.trim().length < 3) errors.push('Subject must be at least 3 characters');
+      if (!tpl.body || tpl.body.trim().length < 10) errors.push('Body must be at least 10 characters');
+      if (tpl.type && !['notification','marketing','transactional','system'].includes(tpl.type)) errors.push('Invalid type');
+      // ensure variables present in body are reflected
+      const found = extractVariablesFromBody(tpl.body || '');
+      const diff = found.filter(v => !(tpl.variables || []).includes(v));
+      if (diff.length > 0) {
+        // not an error; auto-add during save
+      }
+      return errors;
+    };
+  }, []);
   
   // Handle template selection for editing
   const handleEditTemplate = (template: EmailTemplate) => {
@@ -176,6 +199,13 @@ const AdminEmailTemplates = () => {
   // Handle template save
   const handleSaveTemplate = () => {
     if (!templateForm.name || !templateForm.subject || !templateForm.body) return;
+    const errors = validateTemplate(templateForm);
+    if (errors.length) {
+      alert(errors.join('\n'));
+      return;
+    }
+    // Ensure variables sync with body
+    const syncedVars = extractVariablesFromBody(templateForm.body);
     
     if (selectedTemplate) {
       // Update existing template
@@ -188,9 +218,21 @@ const AdminEmailTemplates = () => {
                 subject: templateForm.subject!,
                 body: templateForm.body!,
                 type: templateForm.type as EmailTemplate['type'],
-                variables: templateForm.variables || [],
+                variables: syncedVars,
                 active: templateForm.active || false,
-                lastModified: new Date().toISOString()
+                lastModified: new Date().toISOString(),
+                version: (template.version || 1) + 1,
+                history: [
+                  ...(template.history || []),
+                  {
+                    version: template.version || 1,
+                    name: template.name,
+                    subject: template.subject,
+                    body: template.body,
+                    variables: template.variables,
+                    modifiedAt: new Date().toISOString()
+                  }
+                ]
               }
             : template
         )
@@ -203,9 +245,11 @@ const AdminEmailTemplates = () => {
         subject: templateForm.subject!,
         body: templateForm.body!,
         type: templateForm.type as EmailTemplate['type'],
-        variables: templateForm.variables || [],
+        variables: syncedVars,
         active: templateForm.active || false,
-        lastModified: new Date().toISOString()
+        lastModified: new Date().toISOString(),
+        version: 1,
+        history: []
       };
       setTemplates([...templates, newTemplate]);
     }
@@ -255,7 +299,9 @@ const AdminEmailTemplates = () => {
       ...templateToCopy,
       id: Math.max(...templates.map(t => t.id)) + 1,
       name: `${templateToCopy.name} (Copy)`,
-      lastModified: new Date().toISOString()
+      lastModified: new Date().toISOString(),
+      version: 1,
+      history: []
     };
     
     setTemplates([...templates, newTemplate]);
@@ -263,6 +309,49 @@ const AdminEmailTemplates = () => {
     // Show success message
     setCopySuccess(templateId);
     setTimeout(() => setCopySuccess(null), 2000);
+  };
+
+  // Import/Export
+  const exportTemplates = () => {
+    try {
+      setExporting(true);
+      const blob = new Blob([JSON.stringify(templates, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `email-templates-${new Date().toISOString()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const importTemplates = (file: File) => {
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        if (!Array.isArray(data)) throw new Error('Invalid format');
+        const normalized: EmailTemplate[] = data.map((d: any, idx: number) => ({
+          id: typeof d.id === 'number' ? d.id : idx + 1000,
+          name: String(d.name || '').slice(0, 255),
+          subject: String(d.subject || '').slice(0, 255),
+          body: String(d.body || ''),
+          type: ['notification','marketing','transactional','system'].includes(d.type) ? d.type : 'system',
+          variables: Array.isArray(d.variables) ? d.variables.map(String) : extractVariablesFromBody(String(d.body || '')),
+          active: Boolean(d.active),
+          lastModified: new Date().toISOString(),
+          version: Number(d.version) || 1,
+          history: Array.isArray(d.history) ? d.history : []
+        }));
+        setTemplates(normalized);
+      } catch (e: any) {
+        setImportError(e?.message || 'Failed to import');
+      }
+    };
+    reader.readAsText(file);
   };
   
   // Extract variables from body
@@ -488,6 +577,14 @@ const AdminEmailTemplates = () => {
       return previewBody;
     };
     
+    // Responsive preview sizes
+    const [viewport, setViewport] = useState<'desktop'|'tablet'|'mobile'>('desktop');
+    const frameStyle = viewport === 'mobile'
+      ? { width: 360, height: 640 }
+      : viewport === 'tablet'
+      ? { width: 768, height: 1024 }
+      : { width: 1024, height: 768 };
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -504,14 +601,25 @@ const AdminEmailTemplates = () => {
           </div>
           
           <div className="flex-1 overflow-auto p-6">
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm text-gray-600">
+                {t('Responsive preview')}:
+              </div>
+              <div className="flex gap-2">
+                <button onClick={()=>setViewport('mobile')} className={`px-2 py-1 border rounded text-sm ${viewport==='mobile'?'bg-blue-50 border-blue-300 text-blue-700':'bg-white'}`}>Mobile</button>
+                <button onClick={()=>setViewport('tablet')} className={`px-2 py-1 border rounded text-sm ${viewport==='tablet'?'bg-blue-50 border-blue-300 text-blue-700':'bg-white'}`}>Tablet</button>
+                <button onClick={()=>setViewport('desktop')} className={`px-2 py-1 border rounded text-sm ${viewport==='desktop'?'bg-blue-50 border-blue-300 text-blue-700':'bg-white'}`}>Desktop</button>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden mx-auto" style={{ width: frameStyle.width, height: frameStyle.height }}>
               <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                 <div className="text-sm font-medium text-gray-800">
                   <span className="font-semibold">{t('Subject')}:</span> {selectedTemplate.subject}
                 </div>
               </div>
               
-              <div className="p-6 bg-white">
+              <div className="p-6 bg-white overflow-auto" style={{ height: frameStyle.height - 42 }}>
                 <div 
                   className="prose max-w-none" 
                   dangerouslySetInnerHTML={{ __html: getPreviewBody() }}
@@ -647,7 +755,33 @@ const AdminEmailTemplates = () => {
               <button className="p-2 border border-gray-300 rounded-md text-gray-500 hover:bg-gray-50 hidden sm:block">
                 <Filter className="w-5 h-5" />
               </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportTemplates}
+                  disabled={exporting}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50"
+                >
+                  {t('Export JSON')}
+                </button>
+                <label className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50 cursor-pointer">
+                  {t('Import JSON')}
+                  <input
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) importTemplates(f);
+                      (e.currentTarget as HTMLInputElement).value = '';
+                    }}
+                  />
+                </label>
+              </div>
             </div>
+          </div>
+          {importError && (
+            <div className="p-3 text-sm text-red-700 bg-red-50 border-t border-red-200">{importError}</div>
+          )}
           </div>
           
           <div className="overflow-x-auto">
@@ -722,6 +856,7 @@ const AdminEmailTemplates = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
+                        <span className="text-xs text-gray-500">v{template.version || 1}</span>
                           <button
                             onClick={() => handlePreviewTemplate(template)}
                             className="text-blue-600 hover:text-blue-900"
@@ -768,7 +903,6 @@ const AdminEmailTemplates = () => {
                 )}
               </tbody>
             </table>
-          </div>
         </div>
       </div>
       

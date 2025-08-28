@@ -36,6 +36,9 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const { user: adminUser } = useAuth();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all'|'active'|'restricted'|'banned'>('all');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   useEffect(() => {
     console.log('Loading users...');
@@ -73,6 +76,30 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleSelected = (id: number, checked: boolean) => {
+    setSelectedIds(prev => checked ? Array.from(new Set([...prev, id])) : prev.filter(x=>x!==id));
+  };
+  const clearSelection = () => setSelectedIds([]);
+  const applyFilter = (list: User[]) => {
+    return list.filter(u => {
+      const matchesSearch = !search || (u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()));
+      const matchesStatus = statusFilter === 'all' || u.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  };
+  const filteredCustomers = applyFilter(customers);
+  const filteredBusinesses = applyFilter(businesses);
+  const filteredStaff = applyFilter(staff);
+
+  const batchAction = async (action: 'ban'|'restrict'|'activate', userType: 'customer'|'business'|'staff') => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      await handleStatusChange(id, action, userType);
+    }
+    clearSelection();
   };
 
   const handleDelete = async (id: number, userType: 'customer' | 'business' | 'staff') => {
@@ -180,6 +207,7 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
 
   // Table render function
   const renderUserTable = (users: User[], userType: 'customer' | 'business' | 'staff') => {
+    const list = userType==='customer'?filteredCustomers:userType==='business'?filteredBusinesses:filteredStaff;
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -207,7 +235,7 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
       );
     }
 
-    if (users.length === 0) {
+    if (list.length === 0) {
       return (
         <div className="text-center p-8 text-gray-500">
           No {userType} users found
@@ -217,9 +245,42 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
 
     return (
       <div className="overflow-x-auto">
+        <div className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="px-3 py-2 border rounded text-sm"
+              placeholder={`Search ${userType}...`}
+              value={search}
+              onChange={(e)=>setSearch(e.target.value)}
+            />
+            <select className="px-3 py-2 border rounded text-sm" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as any)}>
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="restricted">Restricted</option>
+              <option value="banned">Banned</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={()=>batchAction('restrict', userType)} disabled={selectedIds.length===0} className="px-3 py-1 rounded border text-sm text-yellow-700 border-yellow-300 disabled:opacity-50">Restrict Selected</button>
+            <button onClick={()=>batchAction('ban', userType)} disabled={selectedIds.length===0} className="px-3 py-1 rounded border text-sm text-red-700 border-red-300 disabled:opacity-50">Ban Selected</button>
+            <button onClick={()=>batchAction('activate', userType)} disabled={selectedIds.length===0} className="px-3 py-1 rounded border text-sm text-green-700 border-green-300 disabled:opacity-50">Activate Selected</button>
+          </div>
+        </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-3 py-3">
+                <input type="checkbox" onChange={(e)=>{
+                  const checked = e.target.checked;
+                  if (checked) {
+                    const ids = list.map(u=>u.id!).filter(Boolean);
+                    setSelectedIds(Array.from(new Set([...selectedIds, ...ids])));
+                  } else {
+                    clearSelection();
+                  }
+                }} />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
               </th>
@@ -243,8 +304,11 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
+            {list.map((user) => (
               <tr key={user.id} className={`hover:bg-gray-50 ${user.status === 'banned' ? 'bg-red-50' : (user.status === 'restricted' ? 'bg-yellow-50' : '')}`}>
+                <td className="px-3 py-4">
+                  <input type="checkbox" checked={selectedIds.includes(user.id!)} onChange={(e)=>toggleSelected(user.id!, e.target.checked)} />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10">
