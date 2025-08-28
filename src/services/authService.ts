@@ -444,11 +444,7 @@ export default {
   revokeAllUserTokens,
   hashPassword,
   verifyPassword,
-<<<<<<< Current (Your changes)
-  checkRateLimit
-=======
   checkRateLimit,
   resetRateLimit,
   validatePassword
->>>>>>> Incoming (Background Agent changes)
 }; 

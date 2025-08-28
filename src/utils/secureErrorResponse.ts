@@ -259,15 +259,3 @@ function sanitizeLogContext(context: Record<string, any>): Record<string, any> {
   
   return sanitized;
 }
-<<<<<<< Current (Your changes)
-
-/**
- * Check if we're in development environment
- */
-export function isDevelopmentEnvironment(): boolean {
-  return process.env.NODE_ENV === 'development' || 
-         process.env.NODE_ENV === 'dev' ||
-         !process.env.NODE_ENV;
-}
-=======
->>>>>>> Incoming (Background Agent changes)

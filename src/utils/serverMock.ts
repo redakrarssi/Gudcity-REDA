@@ -57,12 +57,38 @@ const mockIo = createMockIo();
 const mockHttpServer = createMockHttpServer();
 
 // Mock notification functions
-export const emitNotification = () => {};
-export const emitApprovalRequest = () => {};
+export const emitNotification = (userId: string, notification: any): void => {
+  console.log('Mock emitNotification called, no-op in browser environment', { userId, notification });
+};
+
+export const emitApprovalRequest = (userId: string, approvalRequest: any): void => {
+  console.log('Mock emitApprovalRequest called, no-op in browser environment', { userId, approvalRequest });
+};
+
+// Additional server function mocks
+export const startServer = () => {
+  console.log('Mock startServer called, no-op in browser environment');
+};
+
+export const stopServer = () => {
+  console.log('Mock stopServer called, no-op in browser environment');
+};
 
 // Export mock server objects
 export const app = mockApp;
 export const io = mockIo;
 export const httpServer = mockHttpServer;
 
-export default mockApp; 
+// Create a serverFunctions object for * as imports
+const serverFunctions = {
+  emitNotification,
+  emitApprovalRequest,
+  startServer,
+  stopServer,
+  app: mockApp,
+  io: mockIo,
+  httpServer: mockHttpServer
+};
+
+// Export everything as default for * as imports
+export default serverFunctions; 

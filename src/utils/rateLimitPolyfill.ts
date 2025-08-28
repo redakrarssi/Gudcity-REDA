@@ -209,9 +209,5 @@ function rateLimit(options?: RateLimitOptions) {
 }
 
 // Export as both default and named export for compatibility
-<<<<<<< Current (Your changes)
-export { rateLimit };
-=======
 export { rateLimit, MemoryStore, type RedisStore };
->>>>>>> Incoming (Background Agent changes)
 export default rateLimit; 

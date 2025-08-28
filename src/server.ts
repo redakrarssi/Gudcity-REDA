@@ -35,24 +35,32 @@ if (isBrowser) {
   export default mockApp;
 } else {
   // Server-side code - only runs in Node.js environment
-  // Apply server-side fixes
+  // Apply server-side fixes (if they exist)
   try {
     require('./server-award-points-fix.js');
-    require('./apply-diagnostics.js');
-    console.log('✅ Applied server-side fixes and diagnostics');
+    console.log('✅ Applied server-award-points-fix');
   } catch (e) {
-    console.error('❌ Error applying server-side fixes:', e);
+    console.log('ℹ️ server-award-points-fix.js not found - skipping');
+  }
+  
+  try {
+    require('./apply-diagnostics.js');
+    console.log('✅ Applied diagnostics');
+  } catch (e) {
+    console.log('ℹ️ apply-diagnostics.js not found - skipping');
   }
   
   // SECURITY: Import and run environment validation
   try {
-    const { logSecurityValidation, canStartSafely } = await import('./utils/validateEnvironment');
+    const validationModule = await import('./utils/validateEnvironment.js');
     
     // Log security validation results
-    logSecurityValidation();
+    if (validationModule.logSecurityValidation) {
+      validationModule.logSecurityValidation();
+    }
     
     // Check if we can start safely
-    if (!canStartSafely()) {
+    if (validationModule.canStartSafely && !validationModule.canStartSafely()) {
       console.error('🚨 CRITICAL SECURITY ISSUES DETECTED');
       console.error('Application cannot start safely. Please fix all security issues.');
       process.exit(1);

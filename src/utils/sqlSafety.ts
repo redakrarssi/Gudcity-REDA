@@ -305,8 +305,6 @@ export function validateDateString(dateStr: any): string {
   
   // Return ISO format
   return date.toISOString();
-<<<<<<< Current (Your changes)
-=======
 }
 
 /**
@@ -336,5 +334,4 @@ export function validateNumericValue(value: any, min: number = 0, max: number = 
   }
   
   return numValue;
->>>>>>> Incoming (Background Agent changes)
 } 

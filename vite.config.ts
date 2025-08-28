@@ -77,6 +77,10 @@ export default defineConfig({
       '../server': resolve(__dirname, 'src/utils/serverMock.ts'),
       'src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
       '/src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      './server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '../server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      'src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '/src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
     }
   },
   
@@ -114,10 +118,6 @@ export default defineConfig({
     
     // More granular chunk strategy
     rollupOptions: {
-      external: [
-        /^src\/server\.ts$/,
-        /^src\/api\/.*/
-      ],
       output: {
         manualChunks: {
           // Explicitly define lodash chunk to ensure it loads before charts
