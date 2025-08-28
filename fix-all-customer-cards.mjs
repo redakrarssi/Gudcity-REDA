@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Database connection
 const pool = new Pool({
-  connectionString: "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require",
+  connectionString: "process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || """,
   ssl: true
 });
 

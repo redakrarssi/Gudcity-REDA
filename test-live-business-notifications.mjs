@@ -7,7 +7,7 @@
 
 import postgres from 'postgres';
 
-const sql = postgres("postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require");
+const sql = postgres("process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || """);
 
 async function testBusinessNotificationSystem() {
   console.log('🧪 LIVE TESTING BUSINESS NOTIFICATION SYSTEM...\n');

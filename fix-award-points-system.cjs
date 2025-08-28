@@ -43,7 +43,7 @@ try {
     if (!token) {
       console.warn('⚠️ No auth token found in localStorage');
       // Create a demo token for testing (remove in production)
-      const demoToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEiLCJyb2xlIjoiYnVzaW5lc3MiLCJpYXQiOjE2OTAwMDAwMDAsImV4cCI6MTgwMDAwMDAwMH0.6S5-JBrSGmmBE0LiveQG4X4LnexCv_0FjmLB64uTIl8";
+      const demoToken = "process.env.JWT_TOKEN || """;
       localStorage.setItem('token', demoToken);
       console.log('✅ Created demo authentication token');
       return demoToken;

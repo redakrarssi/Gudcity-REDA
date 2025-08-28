@@ -7,14 +7,29 @@ const env = defineEnv({
   // Database
   DATABASE_URL: import.meta.env.VITE_DATABASE_URL || '',
   
-  // Authentication - CRITICAL: No default secrets allowed
-  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || '',
-  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || '',
+  // Authentication - CRITICAL: Enforce non-empty secrets
+  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || (() => {
+    if (import.meta.env.MODE === 'production') {
+      throw new Error('JWT_SECRET is required in production environment');
+    }
+    return 'default-jwt-secret-change-in-production';
+  })(),
+  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || (() => {
+    if (import.meta.env.MODE === 'production') {
+      throw new Error('JWT_REFRESH_SECRET is required in production environment');
+    }
+    return 'default-jwt-refresh-secret-change-in-production';
+  })(),
   JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '1h',
   JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '7d',
   
   // QR Code Security
-  QR_SECRET_KEY: import.meta.env.VITE_QR_SECRET_KEY || '',
+  QR_SECRET_KEY: import.meta.env.VITE_QR_SECRET_KEY || (() => {
+    if (import.meta.env.MODE === 'production') {
+      throw new Error('QR_SECRET_KEY is required in production environment');
+    }
+    return 'default-qr-secret-key-change-in-production';
+  })(),
   QR_TOKEN_ROTATION_DAYS: parseInt(import.meta.env.VITE_QR_TOKEN_ROTATION_DAYS || '30'),
   QR_RATE_LIMIT_MAX: parseInt(import.meta.env.VITE_QR_RATE_LIMIT_MAX || '20'),
   QR_RATE_LIMIT_WINDOW_MS: parseInt(import.meta.env.VITE_QR_RATE_LIMIT_WINDOW_MS || '60000'), // Default: 1 minute
@@ -22,9 +37,10 @@ const env = defineEnv({
   // Application
   API_URL: import.meta.env.VITE_API_URL || '',
   APP_ENV: import.meta.env.VITE_APP_ENV || 'development',
-  DEBUG: import.meta.env.VITE_DEBUG === 'true',
-  MOCK_AUTH: import.meta.env.VITE_MOCK_AUTH === 'true',
-  MOCK_DATA: import.meta.env.VITE_MOCK_DATA === 'true',
+  // SECURITY: Disable debug features in production
+  DEBUG: import.meta.env.VITE_DEBUG === 'true' && import.meta.env.MODE !== 'production',
+  MOCK_AUTH: import.meta.env.VITE_MOCK_AUTH === 'true' && import.meta.env.MODE !== 'production',
+  MOCK_DATA: import.meta.env.VITE_MOCK_DATA === 'true' && import.meta.env.MODE !== 'production',
   NODE_ENV: import.meta.env.MODE || 'development',
   PORT: parseInt(import.meta.env.VITE_PORT || '3000', 10),
   RATE_LIMIT_WINDOW_MS: parseInt(import.meta.env.VITE_RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
@@ -54,7 +70,8 @@ const env = defineEnv({
 // Export constants for features
 export const FEATURES = {
   enableAnimations: import.meta.env.VITE_ENABLE_ANIMATIONS !== 'false',
-  debugMode: import.meta.env.VITE_DEBUG === 'true',
+  // SECURITY: Debug features only in development
+  debugMode: import.meta.env.VITE_DEBUG === 'true' && import.meta.env.MODE === 'development',
   showMockNotice: import.meta.env.VITE_SHOW_MOCK_NOTICE !== 'false',
   fallback: {
     enabled: env.FALLBACK_ENABLED,
