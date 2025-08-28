@@ -80,6 +80,7 @@ if (isBrowser) {
   import rateLimit from './utils/rateLimitPolyfill';
   import { createServer } from 'http';
   import { Server, Socket } from 'socket.io';
+  import { csrfMiddleware, ensureCsrfCookie, CSRF_HEADER_NAME } from './utils/csrf';
 
   // Import centralized API routes
   import apiRoutes from './api/index';
@@ -126,7 +127,19 @@ if (isBrowser) {
     app.use(helmet() as any);
     
     // Apply JSON body parser BEFORE routes
-    app.use(express.json());
+    app.use(express.json({ limit: '100kb' }));
+
+    // Ensure CSRF cookie is present on safe API GETs
+    app.use((req: any, res: any, next: any) => {
+      const method = (req.method || 'GET').toUpperCase();
+      if (req.path && req.path.startsWith('/api/') && method === 'GET') {
+        return ensureCsrfCookie(req, res, next);
+      }
+      return next();
+    });
+
+    // Enforce CSRF on state-changing API requests
+    app.use(csrfMiddleware as any);
     
     // Add request logging
     app.use(apiRequestLogger);

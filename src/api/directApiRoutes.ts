@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { auth } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { directAwardPoints } from '../utils/directPointsAward';
+import { validateBody, schemas } from '../utils/validation';
 
 const router = Router();
 
@@ -18,11 +19,11 @@ const router = Router();
  * This endpoint uses direct SQL operations to update customer points
  * while bypassing the problematic endpoint that returns 405 errors
  */
-router.post('/direct-award-points', auth, async (req: Request, res: Response) => {
+router.post('/direct-award-points', auth, validateBody(schemas.awardPoints) as any, async (req: Request, res: Response) => {
   console.log('ROUTE ACCESSED: POST /api/direct-award-points');
   console.log('Request body:', req.body);
   
-  const { customerId, programId, points, description, source = 'DIRECT_API' } = req.body;
+  const { customerId, programId, points, description, source = 'DIRECT_API' } = (req as any).validatedBody || req.body;
   const businessIdStr = String(req.user!.id);
   
   // Validate inputs

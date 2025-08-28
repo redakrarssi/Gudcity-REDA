@@ -28,7 +28,8 @@
     "context7": "npx -y @upstash/context7-mcp",
     "security:test": "node scripts/test-security.mjs",
     "security:validate": "node -e \"import('./src/utils/validateEnvironment.js').then(m => m.logSecurityValidation())\"",
-    "security:check": "npm run security:validate && npm run security:test",
+    "security:grep": "node scripts/security-grep.mjs",
+    "security:check": "npm run security:validate && npm run security:test && npm run security:grep",
     "security:audit": "npm audit && npm run security:check",
     "predeploy": "npm run security:check"
   },

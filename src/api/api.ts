@@ -18,6 +18,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
     this.defaultHeaders = {
       'Content-Type': 'application/json',
+      // CSRF header will be set dynamically from cookie by caller if present
     };
   }
 
@@ -27,6 +28,18 @@ class ApiClient {
       return localStorage.getItem('token');
     } catch {
       return null;
+    }
+  }
+
+  private attachCsrf(headers: Record<string, string>): void {
+    try {
+      const csrfCookie = document.cookie.split(';').map(s => s.trim()).find(c => c.startsWith('csrf_token='));
+      if (csrfCookie) {
+        const token = decodeURIComponent(csrfCookie.split('=')[1] || '');
+        if (token) headers['x-csrf-token'] = token;
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -59,6 +72,7 @@ class ApiClient {
   async get(endpoint: string, customHeaders?: Record<string, string>): Promise<ApiResponse> {
     try {
       const headers = this.getHeaders(customHeaders);
+      // no CSRF on GET
       
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'GET',
@@ -88,6 +102,7 @@ class ApiClient {
   async post(endpoint: string, body?: any, customHeaders?: Record<string, string>): Promise<ApiResponse> {
     try {
       const headers = this.getHeaders(customHeaders);
+      this.attachCsrf(headers);
       
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
@@ -118,6 +133,7 @@ class ApiClient {
   async put(endpoint: string, body?: any, customHeaders?: Record<string, string>): Promise<ApiResponse> {
     try {
       const headers = this.getHeaders(customHeaders);
+      this.attachCsrf(headers);
       
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
@@ -148,6 +164,7 @@ class ApiClient {
   async delete(endpoint: string, customHeaders?: Record<string, string>): Promise<ApiResponse> {
     try {
       const headers = this.getHeaders(customHeaders);
+      this.attachCsrf(headers);
       
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',

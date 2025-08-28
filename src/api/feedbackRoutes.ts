@@ -2,19 +2,16 @@ import { Router, Request, Response } from 'express';
 import sql from '../utils/db';
 import { auth } from '../middleware/auth';
 import { validateUserId, validateBusinessId } from '../utils/sqlSafety';
+import { validateBody, schemas } from '../utils/validation';
 
 const router = Router();
 
 /**
  * Submit feedback
  */
-router.post('/feedback', async (req: Request, res: Response) => {
+router.post('/feedback', validateBody(schemas.feedback) as any, async (req: Request, res: Response) => {
   try {
-    const { rating, comment, category, userId, page, timestamp } = req.body;
-    
-    if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Valid rating between 1-5 is required' });
-    }
+    const { rating, comment, category, userId, page, timestamp } = (req as any).validatedBody || req.body;
     
     // Insert feedback into database
     await sql`
@@ -45,13 +42,9 @@ router.post('/feedback', async (req: Request, res: Response) => {
 /**
  * Submit error report
  */
-router.post('/errors/report', async (req: Request, res: Response) => {
+router.post('/errors/report', validateBody(schemas.errorReport) as any, async (req: Request, res: Response) => {
   try {
-    const { error, context, userId, page, timestamp } = req.body;
-    
-    if (!error) {
-      return res.status(400).json({ error: 'Error details are required' });
-    }
+    const { error, context, userId, page, timestamp } = (req as any).validatedBody || req.body;
     
     // Insert error report into database
     await sql`
@@ -80,7 +73,7 @@ router.post('/errors/report', async (req: Request, res: Response) => {
 /**
  * Log QR code scan for analytics
  */
-router.post('/analytics/scan', async (req: Request, res: Response) => {
+router.post('/analytics/scan', validateBody(schemas.scanLog) as any, async (req: Request, res: Response) => {
   try {
     const {
       timestamp,
@@ -94,11 +87,7 @@ router.post('/analytics/scan', async (req: Request, res: Response) => {
       program_id,
       device_info,
       error
-    } = req.body;
-    
-    if (!type || !business_id || !customer_id) {
-      return res.status(400).json({ error: 'Missing required scan data' });
-    }
+    } = (req as any).validatedBody || req.body;
     
     // Insert scan data into database
     await sql`
