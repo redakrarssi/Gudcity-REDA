@@ -25,7 +25,12 @@
     "type-optimize": "node scripts/optimize-type-performance.js",
     "type-codemod": "node scripts/type-safety-codemod.js",
     "type-complete": "node scripts/complete-type-safety.js",
-    "context7": "npx -y @upstash/context7-mcp"
+    "context7": "npx -y @upstash/context7-mcp",
+    "security:test": "node scripts/test-security.mjs",
+    "security:validate": "node -e \"import('./src/utils/validateEnvironment.js').then(m => m.logSecurityValidation())\"",
+    "security:check": "npm run security:validate && npm run security:test",
+    "security:audit": "npm audit && npm run security:check",
+    "predeploy": "npm run security:check"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
