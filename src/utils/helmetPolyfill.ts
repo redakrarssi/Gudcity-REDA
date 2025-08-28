@@ -36,7 +36,8 @@ function helmet(options: HelmetOptions = {}) {
     // SECURITY: Enhanced Content Security Policy
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Allow inline scripts for development
+      // SECURITY: Remove 'unsafe-eval'; keep inline only for legacy content during dev via style, not scripts
+      "script-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
       "connect-src 'self' https: wss:",
@@ -47,7 +48,9 @@ function helmet(options: HelmetOptions = {}) {
       "worker-src 'self' blob:",
       "form-action 'self'",
       "base-uri 'self'",
-      "manifest-src 'self'"
+      "manifest-src 'self'",
+      // Clickjacking protection beyond X-Frame-Options
+      "frame-ancestors 'none'"
     ].join('; ');
 
     // SECURITY: Comprehensive security headers

@@ -327,9 +327,9 @@ const CustomersPage = () => {
       const response = await fetch('/api/notifications/send-notification', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           customerId: customer.id,
           type: 'PROMO_CODE',

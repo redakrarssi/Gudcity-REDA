@@ -198,22 +198,8 @@ export async function executeQuery<T extends SqlRow[] = SqlRow[]>(
       let result: T;
       
       if (typeof query === 'string') {
-        // For plain string queries, use the tagged template literal style
-        // Convert to tagged template literal format
-        const sqlParams = params.map((_, i) => `$${i + 1}`).join(', ');
-        const taggedQuery = query.replace(/\$\d+/g, () => '?');
-        
-        // Create template array with parameter placeholders
-        const templateParts = taggedQuery.split('?');
-        const template = Array(templateParts.length).fill('').map((_, i) => 
-          i < templateParts.length - 1 ? templateParts[i] + '${p' + i + '}' : templateParts[i]
-        ).join('');
-        
-        // Create a tagged template function
-        const taggedTemplate = new Function('sql', 'p', `return sql\`${template}\`;`);
-        
-        // Execute with the parameters
-        result = await taggedTemplate(sql, ...params) as T;
+        // SECURITY: Avoid dynamic code generation; use parameterized query API
+        result = await (sql as any).query(query, params) as T;
       } else {
         // For template literals, use tagged template syntax as is
         result = await sql(query, ...params) as T;

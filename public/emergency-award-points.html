@@ -115,7 +115,9 @@
             const description = document.getElementById('description').value;
             
             if (!customerId || !programId || isNaN(points) || points <= 0) {
-                document.getElementById('result').innerHTML = '<span class="error">Invalid input. Please check all fields.</span>';
+                const result = document.getElementById('result');
+                result.textContent = 'Invalid input. Please check all fields.';
+                result.className = 'error';
                 return;
             }
             
@@ -124,13 +126,18 @@
             try {
                 const result = await window.awardPointsWithFallback(customerId, programId, points, description);
                 
+                const resultEl = document.getElementById('result');
                 if (result.success) {
-                    document.getElementById('result').innerHTML = '<span class="success">Success!</span>\n\n' + JSON.stringify(result, null, 2);
+                    resultEl.className = 'success';
+                    resultEl.textContent = 'Success!\n\n' + JSON.stringify(result, null, 2);
                 } else {
-                    document.getElementById('result').innerHTML = '<span class="error">Failed!</span>\n\n' + JSON.stringify(result, null, 2);
+                    resultEl.className = 'error';
+                    resultEl.textContent = 'Failed!\n\n' + JSON.stringify(result, null, 2);
                 }
             } catch (error) {
-                document.getElementById('result').innerHTML = '<span class="error">Error!</span>\n\n' + error.message;
+                const resultEl = document.getElementById('result');
+                resultEl.className = 'error';
+                resultEl.textContent = 'Error!\n\n' + (error && error.message ? error.message : String(error));
             }
         });
     </script>

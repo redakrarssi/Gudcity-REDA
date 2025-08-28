@@ -214,26 +214,13 @@
                 
                 if (token && userData) {
                     authStatusDiv.className = 'auth-status auth-success';
-                    authStatusDiv.innerHTML = `
-                        <strong>✅ Authenticated</strong><br>
-                        User: ${userData.name || userData.email || 'Unknown'}<br>
-                        Role: ${userData.role || 'Unknown'}<br>
-                        ID: ${userData.id || 'Unknown'}
-                    `;
+                    authStatusDiv.textContent = `Authenticated as ${userData.name || userData.email || 'Unknown'} (Role: ${userData.role || 'Unknown'})`;
                 } else if (userData) {
                     authStatusDiv.className = 'auth-status auth-warning';
-                    authStatusDiv.innerHTML = `
-                        <strong>⚠️ Partial Authentication</strong><br>
-                        User data found but token is missing.<br>
-                        Click "Fix Authentication" button to fix this issue.
-                    `;
+                    authStatusDiv.textContent = 'Partial Authentication - User data found but token is missing. Click "Fix Authentication" button.';
                 } else {
                     authStatusDiv.className = 'auth-status auth-error';
-                    authStatusDiv.innerHTML = `
-                        <strong>❌ Not Authenticated</strong><br>
-                        No authentication data found.<br>
-                        Please login to the main application first.
-                    `;
+                    authStatusDiv.textContent = 'Not Authenticated - Please login to the main application first.';
                 }
             }
             
@@ -384,14 +371,20 @@
                     }
                     
                     if (success) {
+                        const esc = (s) => String(s)
+                          .replace(/&/g,'&amp;')
+                          .replace(/</g,'&lt;')
+                          .replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;')
+                          .replace(/'/g,'&#039;');
                         resultDiv.className = 'success';
                         resultDiv.innerHTML = `
                             <strong>✅ SUCCESS!</strong><br>
-                            ${points} points have been awarded to customer ${customerId} in program ${programId}.<br>
+                            ${esc(points)} points have been awarded to customer ${esc(customerId)} in program ${esc(programId)}.<br>
                             <br>
                             <strong>Details:</strong><br>
-                            Successful endpoint: ${successData.endpoint}<br>
-                            ${successData.data.message || ''}
+                            Successful endpoint: ${esc(successData.endpoint)}<br>
+                            ${successData.data.message ? esc(successData.data.message) : ''}
                         `;
                         
                         // Show confetti animation
@@ -402,14 +395,20 @@
                             const directResult = await directDatabaseAward(customerId, programId, points, description);
                             
                             if (directResult.success) {
+                                const esc = (s) => String(s)
+                                  .replace(/&/g,'&amp;')
+                                  .replace(/</g,'&lt;')
+                                  .replace(/>/g,'&gt;')
+                                  .replace(/"/g,'&quot;')
+                                  .replace(/'/g,'&#039;');
                                 resultDiv.className = 'success';
                                 resultDiv.innerHTML = `
                                     <strong>✅ SUCCESS!</strong><br>
-                                    ${points} points have been awarded to customer ${customerId} in program ${programId}.<br>
+                                    ${esc(points)} points have been awarded to customer ${esc(customerId)} in program ${esc(programId)}.<br>
                                     <br>
                                     <strong>Details:</strong><br>
                                     Method: Direct database connection<br>
-                                    Card ID: ${directResult.cardId || 'New card created'}
+                                    Card ID: ${esc(directResult.cardId || 'New card created')}
                                 `;
                                 
                                 // Show confetti animation
@@ -418,16 +417,22 @@
                                 throw new Error(directResult.error || 'Unknown error in direct database method');
                             }
                         } catch (directError) {
+                            const esc = (s) => String(s)
+                              .replace(/&/g,'&amp;')
+                              .replace(/</g,'&lt;')
+                              .replace(/>/g,'&gt;')
+                              .replace(/"/g,'&quot;')
+                              .replace(/'/g,'&#039;');
                             resultDiv.className = 'error';
                             resultDiv.innerHTML = `
                                 <strong>❌ FAILED!</strong><br>
                                 Unable to award points after trying all methods.<br>
                                 <br>
                                 <strong>Last Error:</strong><br>
-                                ${lastError ? `Endpoint: ${lastError.endpoint}<br>Error: ${lastError.error}` : directError.message}
+                                ${lastError ? `Endpoint: ${esc(lastError.endpoint)}<br>Error: ${esc(lastError.error)}` : esc(directError.message)}
                                 <br><br>
                                 <strong>Try these solutions:</strong><br>
-                                1. Click "Fix Authentication" button<br>
+                                1. Click \"Fix Authentication\" button<br>
                                 2. Log out and log back in to the main application<br>
                                 3. Contact system administrator
                             `;
@@ -486,10 +491,7 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        customerDetailsDiv.innerHTML = `
-                            <strong>Found Customer:</strong> ${data.name || 'Unknown'}<br>
-                            Email: ${data.email || 'Not available'}
-                        `;
+                        customerDetailsDiv.textContent = `Found Customer: ${data.name || 'Unknown'} | Email: ${data.email || 'Not available'}`;
                     } else {
                         customerDetailsDiv.textContent = `Customer ID ${customerId} not found or access denied`;
                     }
@@ -525,10 +527,7 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        programDetailsDiv.innerHTML = `
-                            <strong>Found Program:</strong> ${data.name || 'Unknown'}<br>
-                            Business: ${data.business_name || 'Unknown'}
-                        `;
+                        programDetailsDiv.textContent = `Found Program: ${data.name || 'Unknown'} | Business: ${data.business_name || 'Unknown'}`;
                     } else {
                         programDetailsDiv.textContent = `Program ID ${programId} not found or access denied`;
                     }

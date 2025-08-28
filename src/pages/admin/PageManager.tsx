@@ -1,25 +1,21 @@
 import React, { useState, useEffect } from 'react';
 
-// Lightweight HTML sanitizer to prevent XSS in admin previews without extra deps
+// Safer sanitizer: use DOMPurify (injected via global if available)
 function sanitizeHtml(unsafeHtml: string): string {
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(unsafeHtml, 'text/html');
-    doc.querySelectorAll('script, iframe, object, embed, link[rel="import"]').forEach(el => el.remove());
-    doc.querySelectorAll('*').forEach(el => {
-      [...(el as HTMLElement).attributes].forEach(attr => {
-        const name = attr.name.toLowerCase();
-        const value = attr.value || '';
-        if (name.startsWith('on')) (el as HTMLElement).removeAttribute(attr.name);
-        if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) {
-          (el as HTMLElement).removeAttribute(attr.name);
-        }
+    const DOMPurify = (window as any).DOMPurify;
+    if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
+      return DOMPurify.sanitize(unsafeHtml, {
+        ALLOWED_TAGS: false, // default allowlist
+        ALLOWED_ATTR: false,
+        RETURN_TRUSTED_TYPE: false
       });
-    });
-    return doc.body.innerHTML || '';
-  } catch {
-    return '';
-  }
+    }
+  } catch {}
+  // Fallback to plain text if DOMPurify not present
+  const div = document.createElement('div');
+  div.textContent = String(unsafeHtml || '');
+  return div.innerHTML;
 }
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -608,10 +604,10 @@ const PageManager = () => {
             </div>
             
             <div className="p-6 bg-white">
-              <div 
-                className="prose max-w-none" 
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedPage.content) }}
-              ></div>
+              <div className="prose max-w-none">
+                {/* Render sanitized HTML safely */}
+                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedPage.content) }} />
+              </div>
             </div>
           </div>
           

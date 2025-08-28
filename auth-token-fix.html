@@ -127,8 +127,15 @@
         function log(message, type = '') {
             const logElement = document.getElementById('log');
             const timestamp = new Date().toLocaleTimeString();
-            const logClass = type ? ` class="${type}"` : '';
-            logElement.innerHTML = `<div${logClass}>[${timestamp}] ${message}</div>` + logElement.innerHTML;
+            const entry = `[${timestamp}] ${message}`;
+            const wrapper = document.createElement('div');
+            if (type) wrapper.className = type;
+            wrapper.textContent = entry;
+            if (logElement.firstChild) {
+                logElement.insertBefore(wrapper, logElement.firstChild);
+            } else {
+                logElement.appendChild(wrapper);
+            }
             console.log(`[${type}] ${message}`);
         }
 

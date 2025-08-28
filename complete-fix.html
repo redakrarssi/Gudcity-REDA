@@ -252,7 +252,7 @@
                 
                 urls.forEach(url => {
                     try {
-                        window.open(url, '_blank');
+                        window.open(url, '_blank', 'noopener,noreferrer');
                         log(`✅ Opened: ${url}`, 'success');
                         return;
                     } catch (e) {

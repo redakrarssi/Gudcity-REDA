@@ -279,15 +279,25 @@
             /**
              * Check and display authentication status
              */
+            function escapeHtml(str) {
+                return String(str)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#039;');
+            }
+
             function checkAuthStatus() {
                 const token = getAuthToken();
                 const userData = getUserData();
                 
                 if (token && userData) {
                     authStatusDiv.className = 'auth-status auth-success';
+                    const display = escapeHtml(userData.name || userData.email || userData.id || 'Business User');
                     authStatusDiv.innerHTML = `
                         <span class="dot dot-success"></span>
-                        <strong>Authenticated</strong> as ${userData.name || userData.email || userData.id || 'Business User'}
+                        <strong>Authenticated</strong> as ${display}
                     `;
                 } else if (userData) {
                     authStatusDiv.className = 'auth-status auth-warning';
@@ -334,7 +344,7 @@
                     if (result.success) {
                         showResult('success', `
                             <strong>✅ Success!</strong>
-                            <p>${points} points were awarded to customer ${customerId} in program ${programId}.</p>
+                            <p>${escapeHtml(String(points))} points were awarded to customer ${escapeHtml(customerId)} in program ${escapeHtml(programId)}.</p>
                             ${result.message ? `<p>${result.message}</p>` : ''}
                             ${result.endpoint ? `<p><small>Via endpoint: ${result.endpoint}</small></p>` : ''}
                             ${result.offline ? `<p><small>Points will sync when you're online again</small></p>` : ''}
@@ -345,14 +355,14 @@
                     } else {
                         showResult('error', `
                             <strong>❌ Error!</strong>
-                            <p>${result.error || 'Failed to award points'}</p>
+                            <p>${escapeHtml(result.error || 'Failed to award points')}</p>
                             ${result.details ? `<pre>${JSON.stringify(result.details, null, 2)}</pre>` : ''}
                         `);
                     }
                 } catch (error) {
                     showResult('error', `
                         <strong>❌ Unexpected Error!</strong>
-                        <p>${error.message || 'An unknown error occurred'}</p>
+                        <p>${escapeHtml(error.message || 'An unknown error occurred')}</p>
                     `);
                 } finally {
                     // Re-enable button
@@ -494,8 +504,8 @@
                                 showResult('success', `
                                     <strong>✅ Authentication Fixed!</strong>
                                     <p>Authentication token created successfully.</p>
-                                    <p>User: ${name || email || authUserId}<br>
-                                    Role: ${role}</p>
+                                    <p>User: ${escapeHtml(name || email || authUserId)}<br>
+                                    Role: ${escapeHtml(role)}</p>
                                 `);
                             }
                             
@@ -507,7 +517,7 @@
                             if (showMessage) {
                                 showResult('error', `
                                     <strong>❌ Authentication Error!</strong>
-                                    <p>Failed to parse user data: ${parseError.message}</p>
+                                    <p>Failed to parse user data: ${escapeHtml(parseError.message)}</p>
                                 `);
                             }
                             return false;
@@ -540,8 +550,8 @@
                                 showResult('success', `
                                     <strong>✅ Demo Account Created!</strong>
                                     <p>Created a demo business account for testing.</p>
-                                    <p>User: ${demoUserData.name}<br>
-                                    Role: ${demoUserData.role}</p>
+                                    <p>User: ${escapeHtml(demoUserData.name)}<br>
+                                    Role: ${escapeHtml(demoUserData.role)}</p>
                                 `);
                             }
                             
@@ -563,7 +573,7 @@
                     if (showMessage) {
                         showResult('error', `
                             <strong>❌ Authentication Error!</strong>
-                            <p>${error.message || 'Unknown error fixing authentication'}</p>
+                            <p>${escapeHtml(error.message || 'Unknown error fixing authentication')}</p>
                         `);
                     }
                     return false;
@@ -575,7 +585,12 @@
              */
             function showResult(type, content) {
                 resultDiv.className = type;
-                resultDiv.innerHTML = content;
+                // Only allow simple safe markup; otherwise render as text
+                if (/^\s*<\/?(strong|p|small|br)\b/i.test(content)) {
+                  resultDiv.innerHTML = content;
+                } else {
+                  resultDiv.textContent = content;
+                }
                 resultDiv.style.display = 'block';
             }
 

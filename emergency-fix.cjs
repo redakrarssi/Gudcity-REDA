@@ -195,9 +195,9 @@ const htmlContent = `<!DOCTYPE html>
         function navigateToCards() {
             addStep('🏃 Navigating to /cards page...');
             if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
-                window.open('http://localhost:3000/cards', '_blank');
+                window.open('http://localhost:3000/cards', '_blank', 'noopener,noreferrer');
             } else {
-                window.open('/cards', '_blank');
+                window.open('/cards', '_blank', 'noopener,noreferrer');
             }
         }
         

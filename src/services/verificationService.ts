@@ -273,7 +273,8 @@ async function sendVerificationEmail(email: string, token: string): Promise<void
     }
     
     // In production, this would integrate with an email service like SendGrid, Mailgun, etc.
-    console.log(`Email verification requested for ${email} with token ${token}`);
+    const mask = (v: string) => (v ? `${v.slice(0,4)}...${v.slice(-4)}` : '');
+    console.log(`Email verification requested for ${email} with token ${mask(token)}`);
     
     // Actual email sending code would go here
     // For example, using nodemailer or a dedicated email service API
@@ -302,7 +303,8 @@ async function sendPasswordResetEmail(email: string, token: string): Promise<voi
     }
     
     // In production, this would integrate with an email service
-    console.log(`Password reset requested for ${email} with token ${token}`);
+    const mask = (v: string) => (v ? `${v.slice(0,4)}...${v.slice(-4)}` : '');
+    console.log(`Password reset requested for ${email} with token ${mask(token)}`);
     
     // Actual email sending code would go here
   } catch (error) {

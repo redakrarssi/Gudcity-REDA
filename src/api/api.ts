@@ -21,11 +21,13 @@ class ApiClient {
     };
   }
 
-  /**
-   * Get authentication token from local storage
-   */
+  // Read token for backward compatibility; cookies will also be sent via credentials: 'include'
   private getAuthToken(): string | null {
-    return localStorage.getItem('token');
+    try {
+      return localStorage.getItem('token');
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -60,7 +62,8 @@ class ApiClient {
       
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'GET',
-        headers, // TypeScript correctly handles this as HeadersInit
+        headers,
+        credentials: 'include',
       });
 
       const data = await response.json().catch(() => null);
@@ -89,6 +92,7 @@ class ApiClient {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
       });
 
@@ -118,6 +122,7 @@ class ApiClient {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
         headers,
+        credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
       });
 
@@ -147,6 +152,7 @@ class ApiClient {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',
         headers,
+        credentials: 'include',
       });
 
       const data = await response.json().catch(() => null);

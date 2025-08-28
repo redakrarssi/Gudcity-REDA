@@ -179,15 +179,22 @@
         function log(message, type = '') {
             const logElement = document.getElementById('log');
             const timestamp = new Date().toLocaleTimeString();
-            const logClass = type ? ` class="${type}"` : '';
-            logElement.innerHTML = `<div${logClass}>[${timestamp}] ${message}</div>` + logElement.innerHTML;
+            const entry = `[${timestamp}] ${message}`;
+            const wrapper = document.createElement('div');
+            if (type) wrapper.className = type;
+            wrapper.textContent = entry;
+            if (logElement.firstChild) {
+                logElement.insertBefore(wrapper, logElement.firstChild);
+            } else {
+                logElement.appendChild(wrapper);
+            }
             console.log(`[${type}] ${message}`);
         }
 
         // Check authentication status
         function checkAuthStatus() {
             const authStatusElement = document.getElementById('auth-status');
-            authStatusElement.innerHTML = '<div class="info">Checking authentication status...</div>';
+            authStatusElement.textContent = 'Checking authentication status...';
             
             // Get all relevant auth data
             const token = localStorage.getItem('token');
@@ -295,7 +302,7 @@
             const endpoint = document.getElementById('api-endpoint').value;
             const resultElement = document.getElementById('api-test-result');
             
-            resultElement.innerHTML = '<div class="info">Testing API connection...</div>';
+            resultElement.textContent = 'Testing API connection...';
             log(`Testing API connection to ${endpoint}`, 'info');
             
             try {
@@ -310,32 +317,14 @@
                 const allowedMethods = response.headers.get('Allow') || 'Not specified';
                 
                 if (response.ok) {
-                    resultElement.innerHTML = `
-                        <div class="test-success">
-                            <p><strong>Connection successful!</strong></p>
-                            <p>Status: ${statusText}</p>
-                            <p>Allowed methods: ${allowedMethods}</p>
-                        </div>
-                    `;
+                    resultElement.textContent = `Connection successful! Status: ${statusText}. Allowed methods: ${allowedMethods}`;
                     log(`API connection successful: ${statusText}`, 'success');
                 } else {
-                    resultElement.innerHTML = `
-                        <div class="test-error">
-                            <p><strong>Connection failed!</strong></p>
-                            <p>Status: ${statusText}</p>
-                            <p>This could indicate a server issue or incorrect endpoint.</p>
-                        </div>
-                    `;
+                    resultElement.textContent = `Connection failed! Status: ${statusText}. This could indicate a server issue or incorrect endpoint.`;
                     log(`API connection failed: ${statusText}`, 'error');
                 }
             } catch (error) {
-                resultElement.innerHTML = `
-                    <div class="test-error">
-                        <p><strong>Connection error!</strong></p>
-                        <p>Error: ${error.message}</p>
-                        <p>This could indicate a network issue or CORS problem.</p>
-                    </div>
-                `;
+                resultElement.textContent = `Connection error! Error: ${error && error.message ? error.message : String(error)}. This could indicate a network issue or CORS problem.`;
                 log(`API connection error: ${error.message}`, 'error');
             }
         }
@@ -357,7 +346,7 @@
                 return;
             }
             
-            resultElement.innerHTML = '<div class="info">Testing API with authentication...</div>';
+            resultElement.textContent = 'Testing API with authentication...';
             log(`Testing API with auth to ${endpoint}`, 'info');
             
             try {
@@ -373,41 +362,17 @@
                 const statusText = `${response.status} ${response.statusText}`;
                 
                 if (response.ok) {
-                    resultElement.innerHTML = `
-                        <div class="test-success">
-                            <p><strong>Authenticated connection successful!</strong></p>
-                            <p>Status: ${statusText}</p>
-                            <p>Your authentication token is working correctly.</p>
-                        </div>
-                    `;
+                    resultElement.textContent = `Authenticated connection successful! Status: ${statusText}. Your authentication token is working correctly.`;
                     log(`Authenticated API connection successful: ${statusText}`, 'success');
                 } else if (response.status === 401) {
-                    resultElement.innerHTML = `
-                        <div class="test-error">
-                            <p><strong>Authentication failed!</strong></p>
-                            <p>Status: ${statusText}</p>
-                            <p>Your token appears to be invalid or expired.</p>
-                        </div>
-                    `;
+                    resultElement.textContent = `Authentication failed! Status: ${statusText}. Your token appears to be invalid or expired.`;
                     log(`Authentication failed: ${statusText}`, 'error');
                 } else {
-                    resultElement.innerHTML = `
-                        <div class="test-warning">
-                            <p><strong>Connection issue!</strong></p>
-                            <p>Status: ${statusText}</p>
-                            <p>The connection worked but returned an unexpected status.</p>
-                        </div>
-                    `;
+                    resultElement.textContent = `Connection issue! Status: ${statusText}. The connection worked but returned an unexpected status.`;
                     log(`API connection issue: ${statusText}`, 'warning');
                 }
             } catch (error) {
-                resultElement.innerHTML = `
-                    <div class="test-error">
-                        <p><strong>Connection error!</strong></p>
-                        <p>Error: ${error.message}</p>
-                        <p>This could indicate a network issue or CORS problem.</p>
-                    </div>
-                `;
+                resultElement.textContent = `Connection error! Error: ${error && error.message ? error.message : String(error)}. This could indicate a network issue or CORS problem.`;
                 log(`API connection error: ${error.message}`, 'error');
             }
         }
