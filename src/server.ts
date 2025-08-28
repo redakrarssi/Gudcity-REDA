@@ -70,6 +70,8 @@ if (isBrowser) {
   import { apiRequestLogger, corsMiddleware, methodNotAllowedHandler } from './middleware/apiErrorHandler';
   // Import debugging middleware
   import { routeDebugMiddleware, awardPointsDebugMiddleware, logRegisteredRoutes } from './middleware/routeDebugMiddleware';
+  // Import secure error response utility
+  import { createSecureErrorResponse, logSecureError, isDevelopmentEnvironment } from './utils/secureErrorResponse';
 
   // Create Express server
   const app: any = express();
@@ -110,14 +112,14 @@ if (isBrowser) {
     console.warn('Error applying middleware:', error);
   }
 
-  // Apply rate limiting middleware using our custom polyfill
+  // Apply general rate limiting middleware using our custom polyfill
   try {
     app.use(rateLimit({
       windowMs: API_RATE_LIMIT.windowMs,
       max: API_RATE_LIMIT.maxRequests,
       message: 'Too many requests, please try again later.',
-      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+      standardHeaders: true,
+      legacyHeaders: false,
     }) as any);
   } catch (error) {
     console.warn('Error applying rate limit middleware:', error);
@@ -139,6 +141,25 @@ if (isBrowser) {
     
     // Register the main API routes
     app.use('/api', apiRoutes);
+
+    // Apply stricter rate limit to auth endpoints specifically
+    try {
+      const authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 5,
+        message: { error: 'Too many authentication attempts. Please try again later.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req: any) => {
+          const ip = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown';
+          const user = (req.body && req.body.email) || '';
+          return `auth:${ip}:${user}`;
+        }
+      });
+      app.use('/api/auth', authLimiter as any);
+    } catch (e) {
+      console.warn('Error applying auth rate limiter:', e);
+    }
     
     // Log all registered routes
     logRegisteredRoutes(app);
@@ -161,8 +182,18 @@ if (isBrowser) {
 
   // Error handling middleware
   app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(err, isDevelopmentEnvironment());
+    
+    // Log error securely without exposing sensitive information
+    logSecureError(err, response.requestId, {
+      method: req.method,
+      url: req.url,
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+      userId: (req as any).user?.id
+    });
+    
+    res.status(statusCode).json(response);
   });
 
   // Socket.IO event handlers

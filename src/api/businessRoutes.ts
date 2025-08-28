@@ -11,6 +11,9 @@ import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
 import { v4 as uuidv4 } from 'uuid';
 // Import our dedicated handler for award-points
 import { handleAwardPoints } from './awardPointsHandler';
+// Import security utilities
+import { filterBusinessData, createFilterOptionsFromRequest } from '../utils/dataFilter';
+import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
 
 const router = Router();
 
@@ -71,8 +74,12 @@ router.get('/businesses/:id', auth, async (req: Request, res: Response) => {
   try {
     const businessId = validateBusinessId(req.params.id);
     
+    // Select only necessary fields, avoiding SELECT *
     const businessResult = await sql<Business[]>`
-      SELECT * FROM users
+      SELECT id, name, email, business_name, business_phone, 
+             user_type, status, created_at, updated_at, 
+             avatar_url, description, address, phone, website
+      FROM users
       WHERE id = ${businessId}
       AND user_type = 'business'
     `;
@@ -82,12 +89,15 @@ router.get('/businesses/:id', auth, async (req: Request, res: Response) => {
     }
     
     const business = businessResult[0];
-    const { password_hash, ...businessWithoutPassword } = business;
     
-    res.json(businessWithoutPassword as BusinessWithoutSensitiveData);
+    // Filter business data based on access permissions
+    const filterOptions = createFilterOptionsFromRequest(req);
+    const filteredBusiness = filterBusinessData(business, filterOptions);
+    
+    res.json(filteredBusiness);
   } catch (error) {
-    console.error('Error fetching business:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    return res.status(statusCode).json(response);
   }
 });
 
@@ -346,8 +356,8 @@ router.get('/config/roles', auth, async (req: Request, res: Response) => {
     const roles = await sql<UserRole[]>`SELECT DISTINCT user_type FROM users`;
     res.json(roles.map(r => r.user_type));
   } catch (error) {
-    console.error('Error fetching user roles:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -356,11 +366,23 @@ router.get('/config/roles', auth, async (req: Request, res: Response) => {
  */
 router.get('/config/businesses', auth, async (req: Request, res: Response) => {
   try {
-    const businesses = await sql<Business[]>`SELECT id, name FROM users WHERE user_type = 'business'`;
-    res.json(businesses);
+    // Select only public business information
+    const businesses = await sql<Business[]>`
+      SELECT id, name, business_name, status, created_at 
+      FROM users 
+      WHERE user_type = 'business' AND status = 'active'
+    `;
+    
+    // Filter data for each business
+    const filterOptions = createFilterOptionsFromRequest(req);
+    const filteredBusinesses = businesses.map(business => 
+      filterBusinessData(business, filterOptions)
+    );
+    
+    res.json(filteredBusinesses);
   } catch (error) {
-    console.error('Error fetching businesses:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 

@@ -1,4 +1,30 @@
 import React, { useMemo, useState } from 'react';
+
+// Lightweight HTML sanitizer to prevent XSS in admin previews without extra deps
+function sanitizeHtml(unsafeHtml: string): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(unsafeHtml, 'text/html');
+    // Remove script, iframe, object, embed, link[rel=import]
+    doc.querySelectorAll('script, iframe, object, embed, link[rel="import"]').forEach(el => el.remove());
+    // Remove event handler attributes and javascript: URLs
+    doc.querySelectorAll('*').forEach(el => {
+      [...(el as HTMLElement).attributes].forEach(attr => {
+        const name = attr.name.toLowerCase();
+        const value = attr.value || '';
+        if (name.startsWith('on')) {
+          (el as HTMLElement).removeAttribute(attr.name);
+        }
+        if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) {
+          (el as HTMLElement).removeAttribute(attr.name);
+        }
+      });
+    });
+    return doc.body.innerHTML || '';
+  } catch {
+    return '';
+  }
+}
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import {
@@ -622,7 +648,7 @@ const AdminEmailTemplates = () => {
               <div className="p-6 bg-white overflow-auto" style={{ height: frameStyle.height - 42 }}>
                 <div 
                   className="prose max-w-none" 
-                  dangerouslySetInnerHTML={{ __html: getPreviewBody() }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(getPreviewBody()) }}
                 ></div>
               </div>
             </div>

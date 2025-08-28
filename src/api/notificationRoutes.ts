@@ -7,6 +7,7 @@ import { safeRespondToApproval } from '../services/customerNotificationServiceWr
 import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { ApprovalRequestType } from '../types/customerNotification';
 import { emitNotification, emitApprovalRequest } from '../server';
+import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
 
 const router = Router();
 
@@ -25,8 +26,8 @@ router.get('/notifications', auth, async (req: Request, res: Response) => {
     const notifications = await CustomerNotificationService.getCustomerNotifications(customerId);
     res.json(notifications);
   } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -48,8 +49,8 @@ router.get('/notifications/unread', auth, async (req: Request, res: Response) =>
       notifications: unreadNotifications
     });
   } catch (error) {
-    console.error('Error fetching unread notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch unread notifications' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -72,8 +73,8 @@ router.put('/notifications/:id/read', auth, async (req: Request, res: Response) 
       res.status(404).json({ error: 'Failed to mark notification as read' });
     }
   } catch (error) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({ error: 'Failed to update notification' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -89,8 +90,8 @@ router.get('/approval-requests', auth, async (req: Request, res: Response) => {
     const approvalRequests = await CustomerNotificationService.getPendingApprovals(customerId);
     res.json(approvalRequests);
   } catch (error) {
-    console.error('Error fetching approval requests:', error);
-    res.status(500).json({ error: 'Failed to fetch approval requests' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -128,8 +129,8 @@ router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Res
       res.status(status).json({ success: false, error: result.error, code: result.errorCode });
     }
   } catch (error) {
-    console.error('Error responding to approval request:', error);
-    res.status(500).json({ error: 'Failed to respond to approval request' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -173,8 +174,8 @@ router.post('/approval-requests', auth, async (req: Request, res: Response) => {
     
     res.status(201).json(request);
   } catch (error) {
-    console.error('Error creating approval request:', error);
-    res.status(500).json({ error: 'Failed to create approval request' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -188,8 +189,8 @@ router.get('/notification-preferences', auth, async (req: Request, res: Response
     const preferences = await CustomerNotificationService.getNotificationPreferences(customerId);
     res.json(preferences);
   } catch (error) {
-    console.error('Error fetching notification preferences:', error);
-    res.status(500).json({ error: 'Failed to fetch notification preferences' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -207,8 +208,8 @@ router.put('/notification-preferences', auth, async (req: Request, res: Response
     
     res.json(updatedPreferences);
   } catch (error) {
-    console.error('Error updating notification preferences:', error);
-    res.status(500).json({ error: 'Failed to update notification preferences' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -245,8 +246,8 @@ router.post('/send-notification', auth, async (req: Request, res: Response) => {
     
     res.status(201).json(notification);
   } catch (error) {
-    console.error('Error sending notification:', error);
-    res.status(500).json({ error: 'Failed to send notification' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
