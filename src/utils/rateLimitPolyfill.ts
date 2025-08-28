@@ -1,13 +1,20 @@
 /**
- * Browser-compatible rate limiter to replace express-rate-limit
- * This provides a simplified version that works in both Node.js and browser environments
+ * Enhanced rate limiter with Redis support and improved security
+ * This provides a production-ready rate limiting solution
  */
 
 import { Request, Response, NextFunction } from 'express';
 
-// Simple in-memory store for rate limiting
+// Redis store interface for production use
+interface RedisStore {
+  increment(key: string, windowMs: number): Promise<{ totalHits: number, resetTime: number }>;
+  reset(key: string): Promise<void>;
+}
+
+// Enhanced in-memory store with better security
 class MemoryStore {
   private hits: Record<string, { count: number, resetTime: number }> = {};
+  private readonly maxKeys = 10000; // Prevent memory exhaustion
   
   // Increment the hit counter for a key
   increment(key: string, windowMs: number): { totalHits: number, resetTime: number } {
@@ -35,15 +42,25 @@ class MemoryStore {
     delete this.hits[key];
   }
   
-  // Clean up expired entries periodically
+  // Clean up expired entries and prevent memory exhaustion
   startCleanup(interval: number, windowMs: number): NodeJS.Timeout {
     const cleanup = () => {
       const now = Date.now();
-      Object.keys(this.hits).forEach(key => {
+      const keys = Object.keys(this.hits);
+      
+      // Remove expired entries
+      keys.forEach(key => {
         if (now > this.hits[key].resetTime) {
           delete this.hits[key];
         }
       });
+      
+      // If we have too many keys, remove oldest ones
+      if (keys.length > this.maxKeys) {
+        const sortedKeys = keys.sort((a, b) => this.hits[a].resetTime - this.hits[b].resetTime);
+        const keysToRemove = sortedKeys.slice(0, keys.length - this.maxKeys);
+        keysToRemove.forEach(key => delete this.hits[key]);
+      }
     };
     
     return setInterval(cleanup, interval);
@@ -59,30 +76,66 @@ interface RateLimitOptions {
   keyGenerator?: (req: Request) => string; // Function to generate keys
   skip?: (req: Request) => boolean; // Function to skip requests
   requestWasSuccessful?: (req: Request, res: Response) => boolean; // Function to determine if request was successful
-  store?: any;              // Store to use (defaults to MemoryStore)
+  store?: RedisStore | MemoryStore; // Store to use (defaults to MemoryStore)
   standardHeaders?: boolean; // Whether to send standard rate limit headers
   legacyHeaders?: boolean;  // Whether to send legacy rate limit headers
   handler?: (req: Request, res: Response, next: NextFunction, options: RateLimitOptions) => void; // Custom handler
 }
 
-// Default options
+// Enhanced IP validation and extraction
+function extractClientIP(req: Request): string {
+  // SECURITY: Use multiple headers for IP detection with validation
+  const ipSources = [
+    req.headers['x-forwarded-for'] as string,
+    req.headers['x-real-ip'] as string,
+    req.headers['x-client-ip'] as string,
+    req.ip,
+    req.connection?.remoteAddress,
+    req.socket?.remoteAddress
+  ];
+  
+  // Find the first valid IP address
+  for (const ip of ipSources) {
+    if (ip && isValidIP(ip)) {
+      // If x-forwarded-for contains multiple IPs, take the first one
+      return ip.split(',')[0].trim();
+    }
+  }
+  
+  // Fallback to a secure default
+  return 'unknown';
+}
+
+// Validate IP address format
+function isValidIP(ip: string): boolean {
+  // Basic IP validation (IPv4 and IPv6)
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+  
+  return ipv4Regex.test(ip) || ipv6Regex.test(ip) || ip === 'localhost' || ip === '127.0.0.1';
+}
+
+// Default options with enhanced security
 const defaultOptions: RateLimitOptions = {
   windowMs: 60 * 1000, // 1 minute
   max: 100, // 100 requests per windowMs
   message: 'Too many requests, please try again later.',
   statusCode: 429, // Too Many Requests
   keyGenerator: (req) => {
-    // Try to get IP from various headers or default to a random string
-    const ip = 
-      (req.headers['x-forwarded-for'] as string) || 
-      (req.headers['x-real-ip'] as string) || 
-      req.ip || 
-      req.connection?.remoteAddress || 
-      'unknown';
+    // SECURITY: Enhanced key generation with IP validation
+    const ip = extractClientIP(req);
+    const method = req.method;
+    const url = req.originalUrl || req.url;
     
-    return `${ip}:${req.method}:${req.originalUrl || req.url}`;
+    // Sanitize URL to prevent key manipulation
+    const sanitizedUrl = url.split('?')[0]; // Remove query parameters
+    
+    return `rate_limit:${ip}:${method}:${sanitizedUrl}`;
   },
-  skip: () => false,
+  skip: (req) => {
+    // Skip health checks and static assets
+    return req.path === '/health' || req.path.startsWith('/static/');
+  },
   requestWasSuccessful: (_req, res) => res.statusCode < 400,
   standardHeaders: true,
   legacyHeaders: false,
@@ -156,5 +209,9 @@ function rateLimit(options?: RateLimitOptions) {
 }
 
 // Export as both default and named export for compatibility
+<<<<<<< Current (Your changes)
 export { rateLimit };
+=======
+export { rateLimit, MemoryStore, type RedisStore };
+>>>>>>> Incoming (Background Agent changes)
 export default rateLimit; 

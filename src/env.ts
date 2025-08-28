@@ -18,9 +18,15 @@ export const JWT_SETTINGS = {
   refreshTime: parseInt(import.meta.env.VITE_JWT_REFRESH || '3600')
 };
 
-// Feature flags
+// Feature flags - SECURITY: Disable debug features in production
 export const FEATURES = {
   enableFeedback: import.meta.env.VITE_ENABLE_FEEDBACK !== 'false',
   enableAnimations: import.meta.env.VITE_ENABLE_ANIMATIONS !== 'false',
+<<<<<<< Current (Your changes)
   enableAnalytics: import.meta.env.VITE_ENABLE_ANALYTICS !== 'false'
+=======
+  enableAnalytics: import.meta.env.VITE_ENABLE_ANALYTICS !== 'false',
+  // SECURITY: Debug features only in development
+  debugMode: import.meta.env.VITE_DEBUG === 'true' && import.meta.env.VITE_APP_ENV === 'development'
+>>>>>>> Incoming (Background Agent changes)
 }; 

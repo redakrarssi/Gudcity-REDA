@@ -55,6 +55,23 @@ export function getGenericErrorMessage(statusCode: number): string {
 }
 
 /**
+ * Enhanced environment detection for security
+ */
+export function isDevelopmentEnvironment(): boolean {
+  // SECURITY: More comprehensive environment detection
+  const env = process.env.NODE_ENV || process.env.APP_ENV || '';
+  const isDev = env === 'development' || env === 'dev' || env === 'local';
+  const isTest = env === 'test';
+  
+  // Never expose debug info in production-like environments
+  if (process.env.FORCE_PRODUCTION === 'true') {
+    return false;
+  }
+  
+  return isDev && !isTest;
+}
+
+/**
  * Create a secure error response that doesn't leak sensitive information
  */
 export function createSecureErrorResponse(
@@ -71,15 +88,67 @@ export function createSecureErrorResponse(
     timestamp: new Date().toISOString()
   };
   
-  // Only add debug information in development environment
-  if (isDevelopment && error) {
+  // SECURITY: Only add debug information in verified development environment
+  if (isDevelopment && isDevelopmentEnvironment() && error) {
+    // Sanitize error message to prevent information disclosure
+    const sanitizedMessage = sanitizeErrorMessage(error.message || 'Unknown error');
+    const sanitizedType = sanitizeErrorType(error.name || error.constructor?.name || 'Error');
+    
     response.debug = {
-      message: error.message || 'Unknown error',
-      type: error.name || error.constructor?.name || 'Error'
+      message: sanitizedMessage,
+      type: sanitizedType
     };
   }
   
   return { statusCode, response };
+}
+
+/**
+ * Sanitize error messages to prevent information disclosure
+ */
+function sanitizeErrorMessage(message: string): string {
+  // Remove potentially sensitive information
+  const sensitivePatterns = [
+    /database|db|sql|query/i,
+    /password|secret|key|token/i,
+    /file|path|directory/i,
+    /stack|trace/i,
+    /internal|system/i
+  ];
+  
+  let sanitized = message;
+  
+  // Replace sensitive patterns with generic messages
+  sensitivePatterns.forEach(pattern => {
+    if (pattern.test(sanitized)) {
+      sanitized = sanitized.replace(pattern, '[REDACTED]');
+    }
+  });
+  
+  // Limit message length
+  if (sanitized.length > 100) {
+    sanitized = sanitized.substring(0, 100) + '...';
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Sanitize error types to prevent information disclosure
+ */
+function sanitizeErrorType(type: string): string {
+  // Only allow safe error types
+  const safeTypes = [
+    'Error', 'ValidationError', 'AuthenticationError', 'AuthorizationError',
+    'NotFoundError', 'ConflictError', 'RateLimitError', 'ServerError'
+  ];
+  
+  if (safeTypes.includes(type)) {
+    return type;
+  }
+  
+  // Return generic type for unknown error types
+  return 'Error';
 }
 
 /**
@@ -169,7 +238,8 @@ function sanitizeLogContext(context: Record<string, any>): Record<string, any> {
   const sensitiveFields = [
     'password', 'password_hash', 'token', 'secret', 'key', 
     'authorization', 'cookie', 'session', 'credit_card', 
-    'ssn', 'phone', 'address', 'api_key'
+    'ssn', 'phone', 'address', 'api_key', 'database_url',
+    'jwt_secret', 'refresh_token'
   ];
   
   const sanitized: Record<string, any> = {};
@@ -189,6 +259,7 @@ function sanitizeLogContext(context: Record<string, any>): Record<string, any> {
   
   return sanitized;
 }
+<<<<<<< Current (Your changes)
 
 /**
  * Check if we're in development environment
@@ -198,3 +269,5 @@ export function isDevelopmentEnvironment(): boolean {
          process.env.NODE_ENV === 'dev' ||
          !process.env.NODE_ENV;
 }
+=======
+>>>>>>> Incoming (Background Agent changes)
