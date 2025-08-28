@@ -7,9 +7,9 @@ const env = defineEnv({
   // Database
   DATABASE_URL: import.meta.env.VITE_DATABASE_URL || '',
   
-  // Authentication
-  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || 'default-jwt-secret-change-in-production',
-  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || 'default-jwt-refresh-secret-change-in-production',
+  // Authentication - CRITICAL: No default values for production secrets
+  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || '',
+  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || '',
   JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '1h',
   JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '7d',
   
@@ -85,16 +85,29 @@ export function validateEnv(): boolean {
       if (varName === 'QR_SECRET_KEY') {
         console.error('⚠️ QR_SECRET_KEY is not defined. This is a security risk!');
       }
+      if (varName === 'JWT_SECRET' || varName === 'JWT_REFRESH_SECRET') {
+        console.error(`🚨 ${varName} is not defined. This is a CRITICAL security risk!`);
+      }
     });
     return false;
   }
   
   // Production specific validations
   if (env.isProduction()) {
-    // Check for default secrets in production
-    if (env.JWT_SECRET === 'default-jwt-secret-change-in-production' ||
-        env.JWT_REFRESH_SECRET === 'default-jwt-refresh-secret-change-in-production') {
-      console.error('Error: Using default JWT secrets in production!');
+    // Check for empty secrets in production
+    if (!env.JWT_SECRET || !env.JWT_REFRESH_SECRET) {
+      console.error('Error: JWT secrets are not configured in production!');
+      return false;
+    }
+    
+    // Check for weak secrets (less than 32 characters)
+    if (env.JWT_SECRET.length < 32) {
+      console.error('Error: JWT_SECRET is too weak. Must be at least 32 characters long.');
+      return false;
+    }
+    
+    if (env.JWT_REFRESH_SECRET.length < 32) {
+      console.error('Error: JWT_REFRESH_SECRET is too weak. Must be at least 32 characters long.');
       return false;
     }
     
