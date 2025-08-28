@@ -7,9 +7,9 @@ const env = defineEnv({
   // Database
   DATABASE_URL: import.meta.env.VITE_DATABASE_URL || '',
   
-  // Authentication
-  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || 'default-jwt-secret-change-in-production',
-  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || 'default-jwt-refresh-secret-change-in-production',
+  // Authentication - CRITICAL: No default secrets allowed
+  JWT_SECRET: import.meta.env.VITE_JWT_SECRET || '',
+  JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || '',
   JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '1h',
   JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '7d',
   
@@ -91,10 +91,10 @@ export function validateEnv(): boolean {
   
   // Production specific validations
   if (env.isProduction()) {
-    // Check for default secrets in production
-    if (env.JWT_SECRET === 'default-jwt-secret-change-in-production' ||
-        env.JWT_REFRESH_SECRET === 'default-jwt-refresh-secret-change-in-production') {
-      console.error('Error: Using default JWT secrets in production!');
+    // CRITICAL: Enforce JWT secrets in production
+    if (!env.JWT_SECRET || !env.JWT_REFRESH_SECRET) {
+      console.error('CRITICAL ERROR: JWT secrets are required in production!');
+      console.error('Please set VITE_JWT_SECRET and VITE_JWT_REFRESH_SECRET environment variables.');
       return false;
     }
     

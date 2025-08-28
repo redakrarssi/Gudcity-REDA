@@ -7,9 +7,10 @@ import * as cryptoUtils from '../utils/cryptoUtils';
 interface RateLimitEntry {
   count: number;
   resetAt: number;
+  lockedUntil?: number; // Account lockout timestamp
 }
 
-// In-memory rate limiting store
+// Enhanced in-memory rate limiting store with account lockout
 // In a production environment, this should be replaced with Redis or another shared store
 const loginAttempts: Record<string, RateLimitEntry> = {};
 
@@ -38,18 +39,86 @@ export interface TokenPayload {
 }
 
 /**
- * Rate limit login attempts by IP address
+ * SECURITY: Enhanced password policy validation
  */
-export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempts: number; resetAt: number } {
+export function validatePassword(password: string): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!password || password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
+  }
+  
+  if (password.length > 128) {
+    errors.push('Password cannot exceed 128 characters');
+  }
+  
+  // SECURITY: Require complexity
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  
+  if (!/\d/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+  
+  // SECURITY: Prevent common weak passwords
+  const commonPasswords = [
+    'password', '123456', 'qwerty', 'admin', 'letmein', 'welcome',
+    'monkey', 'dragon', 'master', 'football', 'baseball'
+  ];
+  
+  if (commonPasswords.includes(password.toLowerCase())) {
+    errors.push('Password is too common and easily guessable');
+  }
+  
+  // SECURITY: Check for repeated characters
+  if (/(.)\1{2,}/.test(password)) {
+    errors.push('Password cannot contain more than 2 repeated characters');
+  }
+  
+  // SECURITY: Check for sequential characters
+  if (/abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz/i.test(password)) {
+    errors.push('Password cannot contain sequential characters');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * SECURITY: Enhanced rate limit login attempts by IP address with account lockout
+ */
+export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempts: number; resetAt: number; lockedUntil?: number } {
   const now = Date.now();
   const windowMs = env.RATE_LIMIT_WINDOW_MS;
   const maxAttempts = env.RATE_LIMIT_MAX;
+  const lockoutDuration = 15 * 60 * 1000; // 15 minutes lockout
   
   // Initialize rate limit entry if it doesn't exist
   if (!loginAttempts[ip]) {
     loginAttempts[ip] = {
       count: 0,
       resetAt: now + windowMs
+    };
+  }
+  
+  // Check if account is locked
+  if (loginAttempts[ip].lockedUntil && now < loginAttempts[ip].lockedUntil) {
+    return {
+      allowed: false,
+      remainingAttempts: 0,
+      resetAt: loginAttempts[ip].lockedUntil,
+      lockedUntil: loginAttempts[ip].lockedUntil
     };
   }
   
@@ -64,6 +133,22 @@ export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempt
   // Increment counter
   loginAttempts[ip].count++;
   
+  // SECURITY: Implement progressive lockout
+  if (loginAttempts[ip].count > maxAttempts) {
+    // Lock account for progressively longer periods
+    const lockoutMultiplier = Math.min(Math.floor(loginAttempts[ip].count / maxAttempts), 4);
+    const lockoutTime = lockoutDuration * lockoutMultiplier;
+    
+    loginAttempts[ip].lockedUntil = now + lockoutTime;
+    
+    return {
+      allowed: false,
+      remainingAttempts: 0,
+      resetAt: loginAttempts[ip].lockedUntil,
+      lockedUntil: loginAttempts[ip].lockedUntil
+    };
+  }
+  
   // Check if limit exceeded
   const allowed = loginAttempts[ip].count <= maxAttempts;
   const remainingAttempts = Math.max(0, maxAttempts - loginAttempts[ip].count);
@@ -76,12 +161,26 @@ export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempt
 }
 
 /**
+ * SECURITY: Reset rate limit for successful login
+ */
+export function resetRateLimit(ip: string): void {
+  if (loginAttempts[ip]) {
+    delete loginAttempts[ip];
+  }
+}
+
+/**
  * Generate JWT tokens for authentication
  */
 export async function generateTokens(user: User): Promise<AuthTokens> {
   try {
     // Import JWT dynamically to avoid SSR issues
     const jwt = await import('jsonwebtoken');
+    
+    // SECURITY: Validate JWT secrets are set
+    if (!env.JWT_SECRET || !env.JWT_REFRESH_SECRET) {
+      throw new Error('JWT secrets are not configured');
+    }
     
     // Create token payload
     const payload: TokenPayload = {
@@ -152,6 +251,11 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
     
+    // SECURITY: Validate JWT refresh secret is set
+    if (!env.JWT_REFRESH_SECRET) {
+      throw new Error('JWT refresh secret is not configured');
+    }
+    
     // Verify the refresh token
     let payload: TokenPayload;
     try {
@@ -203,6 +307,11 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
+    
+    // SECURITY: Validate JWT secret is set
+    if (!env.JWT_SECRET) {
+      throw new Error('JWT secret is not configured');
+    }
     
     // Verify the token
     const payload = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
@@ -258,6 +367,12 @@ function parseJwtExpiry(expiry: string): number {
  */
 export async function hashPassword(password: string): Promise<string> {
   try {
+    // SECURITY: Validate password before hashing
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
+      throw new Error(`Password validation failed: ${validation.errors.join(', ')}`);
+    }
+    
     // Import bcrypt dynamically
     const bcrypt = await import('bcryptjs');
     // Use a higher cost factor (12-14 is recommended for security vs. performance)
@@ -329,5 +444,7 @@ export default {
   revokeAllUserTokens,
   hashPassword,
   verifyPassword,
-  checkRateLimit
+  checkRateLimit,
+  resetRateLimit,
+  validatePassword
 }; 

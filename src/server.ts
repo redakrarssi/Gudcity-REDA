@@ -44,6 +44,26 @@ if (isBrowser) {
     console.error('❌ Error applying server-side fixes:', e);
   }
   
+  // SECURITY: Import and run environment validation
+  try {
+    const { logSecurityValidation, canStartSafely } = await import('./utils/validateEnvironment');
+    
+    // Log security validation results
+    logSecurityValidation();
+    
+    // Check if we can start safely
+    if (!canStartSafely()) {
+      console.error('🚨 CRITICAL SECURITY ISSUES DETECTED');
+      console.error('Application cannot start safely. Please fix all security issues.');
+      process.exit(1);
+    }
+    
+    console.log('✅ Security validation passed - starting server');
+  } catch (e) {
+    console.error('❌ Error during security validation:', e);
+    console.error('Proceeding with server startup, but security is not guaranteed');
+  }
+  
   import express from 'express';
   import cors from './utils/corsPolyfill';
   // Import our custom helmet polyfill instead of the real helmet
@@ -81,8 +101,11 @@ if (isBrowser) {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: '*', // In production, set this to your frontend URL
-      methods: ['GET', 'POST']
+      origin: process.env.NODE_ENV === 'production' 
+        ? [process.env.FRONTEND_URL || 'http://localhost:5173'] // Restrict to specific frontend URL in production
+        : ['http://localhost:5173', 'http://localhost:3000'], // Development origins
+      methods: ['GET', 'POST'],
+      credentials: true
     }
   });
 
