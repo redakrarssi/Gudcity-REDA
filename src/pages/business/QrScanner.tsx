@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { QRScanner } from '../../components/QRScanner';
-import { CameraPermissionRequest } from '../../components/CameraPermissionRequest';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   QrCodeType, 
@@ -31,7 +30,7 @@ import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollm
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
 import { PointsAwardingModal } from '../../components/business/PointsAwardingModal';
-import { isCameraSupported, isQrScanningSupported, checkCameraAvailability, requestCameraPermission, requiresHttpsForCamera } from '../../utils/browserSupport';
+import { isCameraSupported, isQrScanningSupported, requiresHttpsForCamera } from '../../utils/browserSupport';
 
 // Define the interface for the component's scan result handling
 interface QrScannerPageProps {
@@ -55,9 +54,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [isHttps, setIsHttps] = useState<boolean>(false);
   const [browserSupported, setBrowserSupported] = useState<boolean>(true);
-  const [permissionRequested, setPermissionRequested] = useState<boolean>(false);
-  const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
-  const [showPermissionRequest, setShowPermissionRequest] = useState<boolean>(false);
+  // Removed custom permission gating; allow native browser prompt via QRScanner
   
   // Modal states
   const [showRedeemModal, setShowRedeemModal] = useState(false);
@@ -68,7 +65,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerQrCodeData | null>(null);
   const [selectedQrCodeData, setSelectedQrCodeData] = useState<LoyaltyCardQrCodeData | CustomerQrCodeData | null>(null);
 
-  // Check for HTTPS, browser support, and camera permissions on mount
+  // Check for HTTPS and browser support on mount
   useEffect(() => {
     const initializeScanner = async () => {
       // Check if we're on HTTPS
@@ -91,9 +88,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         return;
       }
       
-      // Don't automatically check camera permissions on mount - this would trigger the dialog immediately
-      // Instead, show the permission request modal so user can choose when to grant permission
-      setShowPermissionRequest(true);
+      // Let the QRScanner mount and request camera permission natively
       
       // Load previous scan results from localStorage
       try {
@@ -707,7 +702,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 )}
                 
                 <div className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  {browserSupported && permissionGranted ? (
+                  {browserSupported ? (
                     <>
                       {user?.id && selectedProgramId && (
                         <QRScanner
@@ -718,21 +713,6 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                         />
                       )}
                     </>
-                  ) : !permissionGranted && permissionRequested ? (
-                    <div className="flex flex-col items-center justify-center h-full p-6 bg-gray-50">
-                      <AlertTriangle size={48} className="text-yellow-500 mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Camera Permission Required</h3>
-                      <p className="text-center text-gray-600 mb-4">
-                        Camera access was denied. Please refresh the page and allow camera access to use the QR scanner.
-                      </p>
-                      <button
-                        onClick={() => setShowPermissionRequest(true)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                      >
-                        <Camera className="inline-block mr-2" size={16} />
-                        Request Permission Again
-                      </button>
-                    </div>
                   ) : (
                     renderFallbackUI()
                   )}
@@ -1042,12 +1022,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         </>
       )}
 
-      {/* Camera Permission Request Modal */}
-      <CameraPermissionRequest
-        isVisible={showPermissionRequest}
-        onPermissionGranted={handlePermissionGranted}
-        onPermissionDenied={handlePermissionDenied}
-      />
+      {/* Removed CameraPermissionRequest to allow native prompt */}
     </BusinessLayout>
   );
 };
