@@ -437,6 +437,30 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
   }
 })();
 
+// Simple token generation functions for basic auth
+export function generateToken(payload: { id: string | number; email: string; role: string }): string {
+  // Simple token generation - in production, use proper JWT
+  const tokenData = {
+    id: payload.id,
+    email: payload.email,
+    role: payload.role,
+    timestamp: Date.now()
+  };
+  return Buffer.from(JSON.stringify(tokenData)).toString('base64');
+}
+
+export function generateRefreshToken(payload: { id: string | number; email: string; role: string }): string {
+  // Simple refresh token generation - in production, use proper JWT
+  const tokenData = {
+    id: payload.id,
+    email: payload.email,
+    role: payload.role,
+    type: 'refresh',
+    timestamp: Date.now()
+  };
+  return Buffer.from(JSON.stringify(tokenData)).toString('base64');
+}
+
 export default {
   generateTokens,
   refreshTokens,
@@ -446,5 +470,7 @@ export default {
   verifyPassword,
   checkRateLimit,
   resetRateLimit,
-  validatePassword
+  validatePassword,
+  generateToken,
+  generateRefreshToken
 }; 

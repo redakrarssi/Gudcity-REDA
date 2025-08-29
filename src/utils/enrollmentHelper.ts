@@ -130,7 +130,8 @@ export async function safeCreateEnrollmentRequest(
         // Continue execution even if sync fails
       }
       
-      // 5. Try to emit real-time notification
+      // 5. Try to emit real-time notification - temporarily disabled
+      /*
       try {
         // Use dynamic import to avoid type errors
         const server = await import('../server');
@@ -141,6 +142,7 @@ export async function safeCreateEnrollmentRequest(
         logger.error('Error emitting approval notification', { error: emitError });
         // Continue execution even if emit fails
       }
+      */
       
       return { 
         success: true, 

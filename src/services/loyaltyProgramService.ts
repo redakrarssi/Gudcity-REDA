@@ -4,7 +4,7 @@ import { CustomerService } from './customerService';
 import { v4 as uuidv4 } from 'uuid';
 import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
-import * as serverFunctions from '../server';
+// import * as serverFunctions from '../server'; // Temporarily disabled
 import { createEnrollmentSyncEvent, createNotificationSyncEvent, createCardSyncEvent } from '../utils/realTimeSync';
 import { logger } from '../utils/logger';
 import type { ApprovalRequest, CustomerNotificationType, ApprovalRequestType } from '../types/customerNotification';

@@ -9,7 +9,7 @@ import sql from '../utils/db';
 import { logger } from '../utils/logger';
 import { CustomerNotificationService } from './customerNotificationService';
 import { LoyaltyCardService } from './loyaltyCardService';
-import * as serverFunctions from '../server';
+// import * as serverFunctions from '../server'; // Temporarily disabled
 import { createNotificationSyncEvent, createEnrollmentSyncEvent, createCardSyncEvent, createBusinessCustomerSyncEvent } from '../utils/realTimeSync';
 import { 
   EnrollmentErrorCode, 

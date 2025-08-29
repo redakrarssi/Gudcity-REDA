@@ -5,7 +5,7 @@ import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { emitPromoCodeGeneratedEvent, emitEnrollmentEvent, emitPointsRedeemedEvent } from '../utils/loyaltyEvents';
-import * as serverFunctions from '../server';
+// import * as serverFunctions from '../server'; // Temporarily disabled
 import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';

@@ -6,7 +6,7 @@ import { CustomerNotificationService } from '../services/customerNotificationSer
 import { safeRespondToApproval } from '../services/customerNotificationServiceWrapper';
 import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { ApprovalRequestType } from '../types/customerNotification';
-import { emitNotification, emitApprovalRequest } from '../server';
+// import { emitNotification, emitApprovalRequest } from '../server'; // Temporarily disabled
 import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
 
 const router = Router();
