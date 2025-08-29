@@ -1,6 +1,6 @@
 // Fixed authentication middleware
-const { verifyToken } = require('../services/authServiceFixed');
-const sql = require('../utils/dbFix');
+import { verifyToken } from '../services/authServiceFixed.js';
+import sql from '../utils/dbFix.js';
 
 /**
  * Authentication middleware
@@ -162,4 +162,4 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, authorize, requireAdmin };
+export { auth, authorize, requireAdmin };

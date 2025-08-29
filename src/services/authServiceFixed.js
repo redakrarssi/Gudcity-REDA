@@ -1,9 +1,9 @@
 // Fixed implementation of authService to resolve JWT import issues
 
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const sql = require('../utils/db').default;
-const env = require('../utils/env').default;
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import sql from '../utils/dbFix.js';
+import { JWT_SECRET, JWT_REFRESH_SECRET, JWT_EXPIRY, JWT_REFRESH_EXPIRY } from '../utils/env.js';
 
 // In-memory rate limiting store
 const loginAttempts = {};
@@ -24,12 +24,12 @@ setInterval(() => {
 async function generateTokens(user) {
   try {
     // SECURITY: Validate JWT secrets are set with better error messages
-    if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
+    if (!JWT_SECRET || JWT_SECRET.trim() === '') {
       console.error('JWT_SECRET is not configured. Please set VITE_JWT_SECRET in your environment variables.');
       throw new Error('JWT access token secret is not configured');
     }
     
-    if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
+    if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.trim() === '') {
       console.error('JWT_REFRESH_SECRET is not configured. Please set VITE_JWT_REFRESH_SECRET in your environment variables.');
       throw new Error('JWT refresh token secret is not configured');
     }
@@ -46,14 +46,14 @@ async function generateTokens(user) {
     };
     
     // Generate tokens with proper error handling
-    const accessToken = jwt.sign(payload, env.JWT_SECRET, { 
-      expiresIn: env.JWT_EXPIRY || '1h',
+    const accessToken = jwt.sign(payload, JWT_SECRET, { 
+      expiresIn: JWT_EXPIRY || '1h',
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'
     });
     
-    const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, { 
-      expiresIn: env.JWT_REFRESH_EXPIRY || '7d',
+    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { 
+      expiresIn: JWT_REFRESH_EXPIRY || '7d',
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'
     });
@@ -61,7 +61,7 @@ async function generateTokens(user) {
     // Store refresh token in database for validation later
     try {
       // Parse the refresh token expiry
-      const refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY || '7d');
+      const refreshExpiry = parseJwtExpiry(JWT_REFRESH_EXPIRY || '7d');
       await storeRefreshToken(user.id, refreshToken, refreshExpiry);
     } catch (storeError) {
       console.error('Error storing refresh token:', storeError);
@@ -73,7 +73,7 @@ async function generateTokens(user) {
     return {
       accessToken,
       refreshToken,
-      expiresIn: parseJwtExpiry(env.JWT_EXPIRY || '1h')
+      expiresIn: parseJwtExpiry(JWT_EXPIRY || '1h')
     };
   } catch (error) {
     console.error('Error generating tokens:', error);
@@ -119,14 +119,14 @@ async function storeRefreshToken(userId, token, expiresIn) {
 async function refreshTokens(refreshToken) {
   try {
     // SECURITY: Validate JWT refresh secret is set
-    if (!env.JWT_REFRESH_SECRET) {
+    if (!JWT_REFRESH_SECRET) {
       throw new Error('JWT refresh secret is not configured');
     }
     
     // Verify the refresh token
     let payload;
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+      payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     } catch (error) {
       console.error('Invalid refresh token:', error);
       return null;
@@ -178,12 +178,12 @@ async function refreshTokens(refreshToken) {
 function verifyToken(token) {
   try {
     // SECURITY: Validate JWT secret is set
-    if (!env.JWT_SECRET) {
+    if (!JWT_SECRET) {
       throw new Error('JWT secret is not configured');
     }
     
     // Verify the token
-    const payload = jwt.verify(token, env.JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
     return payload;
   } catch (error) {
     console.error('Invalid token:', error);
@@ -213,7 +213,7 @@ function parseJwtExpiry(expiry) {
   }
 }
 
-module.exports = {
+export {
   generateTokens,
   refreshTokens,
   verifyToken,

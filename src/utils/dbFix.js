@@ -1,7 +1,9 @@
 // Fixed database connection utility
-const { Pool } = require('pg');
-const { neon } = require('@neondatabase/serverless');
-const dotenv = require('dotenv');
+import pg from 'pg';
+import { neon } from '@neondatabase/serverless';
+import dotenv from 'dotenv';
+
+const { Pool } = pg;
 
 // Load environment variables
 dotenv.config();
@@ -88,4 +90,4 @@ sql.rollback = async () => {
 
 sql.query = query;
 
-module.exports = sql;
+export default sql;

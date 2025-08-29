@@ -1,17 +1,22 @@
 // Fixed Express server implementation
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const dotenv = require('dotenv');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
 
 // Import admin routes
-const adminBusinessRoutes = require('./api/adminBusinessRoutesFixed');
-const { auth, requireAdmin } = require('./middleware/authFixed');
+import adminBusinessRoutes from './api/adminBusinessRoutesFixed.js';
+import { auth, requireAdmin } from './middleware/authFixed.js';
 
 // Create Express server
 const app = express();
@@ -86,4 +91,4 @@ process.on('SIGTERM', () => {
   });
 });
 
-module.exports = { app, server };
+export { app, server };
