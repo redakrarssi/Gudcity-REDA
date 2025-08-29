@@ -18,7 +18,7 @@ import {
   ensureId
 } from '../../types/qrCode';
 import { 
-  QrCode, Check, AlertCircle, RotateCcw, 
+  QrCode, Check, AlertCircle, RotateCcw, RefreshCw,
   Layers, Badge, User, Coffee, ClipboardList, Info,
   Keyboard, KeyRound, ArrowRight, Settings, Award, Users,
   Trophy, Zap, Sparkles, PartyPopper, Star, Target, CheckCircle, Gift,
@@ -90,42 +90,10 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         return;
       }
       
-      // Directly request camera permissions and start scanning without showing permission modal
-      try {
-        const permissionResult = await requestCameraPermission();
-        if (permissionResult.granted) {
-          setPermissionGranted(true);
-          setPermissionRequested(true);
-          setScannerError(null);
-          // Start scanning immediately after permission is granted
-          setTimeout(() => {
-            // Find and click the start scanning button in the QRScanner component
-            const startButton = document.querySelector('button[data-testid="start-scanning"], button:contains("Start Scanner"), button:contains("Start Scanning")');
-            if (startButton) {
-              (startButton as HTMLButtonElement).click();
-            } else {
-              // Fallback: try to find any button that might start the scanner
-              const buttons = document.querySelectorAll('button');
-              const startBtn = Array.from(buttons).find(btn => 
-                btn.textContent?.toLowerCase().includes('start') && 
-                (btn.textContent?.toLowerCase().includes('scanner') || btn.textContent?.toLowerCase().includes('scanning'))
-              );
-              if (startBtn) {
-                startBtn.click();
-              }
-            }
-          }, 1500);
-        } else {
-          setPermissionGranted(false);
-          setPermissionRequested(true);
-          setScannerError(permissionResult.errorMessage || 'Camera permission denied');
-        }
-      } catch (error) {
-        console.error('Error requesting camera permission:', error);
-        setPermissionGranted(false);
-        setPermissionRequested(true);
-        setScannerError('Failed to request camera permission');
-      }
+      // Don't automatically request camera permissions - let user click a button instead
+      // This avoids browser blocking and provides better user experience
+      setPermissionRequested(false);
+      setPermissionGranted(false);
       
       // Load previous scan results from localStorage
       try {
@@ -230,6 +198,46 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   }, []);
 
 
+
+  // Handle camera permission request when user clicks start button
+  const handleStartCamera = async () => {
+    try {
+      setScannerError(null);
+      const permissionResult = await requestCameraPermission();
+      if (permissionResult.granted) {
+        setPermissionGranted(true);
+        setPermissionRequested(true);
+        setScannerError(null);
+        // Start scanning immediately after permission is granted
+        setTimeout(() => {
+          // Find and click the start scanning button in the QRScanner component
+          const startButton = document.querySelector('button[data-testid="start-scanning"], button:contains("Start Scanner"), button:contains("Start Scanning")');
+          if (startButton) {
+            (startButton as HTMLButtonElement).click();
+          } else {
+            // Fallback: try to find any button that might start the scanner
+            const buttons = document.querySelectorAll('button');
+            const startBtn = Array.from(buttons).find(btn => 
+              btn.textContent?.toLowerCase().includes('start') && 
+              (btn.textContent?.toLowerCase().includes('scanner') || btn.textContent?.toLowerCase().includes('scanning'))
+            );
+            if (startBtn) {
+              startBtn.click();
+            }
+          }
+        }, 1000);
+      } else {
+        setPermissionGranted(false);
+        setPermissionRequested(true);
+        setScannerError(permissionResult.errorMessage || 'Camera permission denied');
+      }
+    } catch (error) {
+      console.error('Error requesting camera permission:', error);
+      setPermissionGranted(false);
+      setPermissionRequested(true);
+      setScannerError('Failed to request camera permission');
+    }
+  };
 
   const playSuccessSound = () => {
     // Sound functionality disabled as per customer request
@@ -749,6 +757,21 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                       >
                         <RefreshCw className="inline-block mr-2" size={16} />
                         Refresh Page
+                      </button>
+                    </div>
+                  ) : !permissionRequested ? (
+                    <div className="flex flex-col items-center justify-center h-full p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
+                      <Camera size={64} className="text-blue-500 mb-4" />
+                      <h3 className="text-xl font-semibold text-gray-800 mb-2">Ready to Scan QR Codes</h3>
+                      <p className="text-center text-gray-600 mb-6 max-w-sm">
+                        Click the button below to start your camera and begin scanning customer QR codes for loyalty points.
+                      </p>
+                      <button
+                        onClick={handleStartCamera}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all font-medium flex items-center"
+                      >
+                        <Camera className="w-5 h-5 mr-2" />
+                        Start Camera
                       </button>
                     </div>
                   ) : (
