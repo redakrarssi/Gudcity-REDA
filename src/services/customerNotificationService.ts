@@ -2,7 +2,7 @@
 
 import sql from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
-import * as serverFunctions from '../server';
+// import * as serverFunctions from '../server'; // Temporarily disabled
 import { logger } from '../utils/logger';
 import { createNotificationSyncEvent, createEnrollmentSyncEvent } from '../utils/realTimeSync';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';

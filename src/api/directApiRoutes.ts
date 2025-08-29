@@ -8,7 +8,7 @@ console.log('🔧 Loading directApiRoutes.ts module...');
 import { Router, Request, Response } from 'express';
 import { auth } from '../middleware/auth';
 import { logger } from '../utils/logger';
-import { directAwardPoints } from '../utils/directPointsAward';
+// import { directAwardPoints } from '../utils/directPointsAward'; // Temporarily disabled
 import { validateBody, schemas } from '../utils/validation';
 
 const router = Router();
@@ -48,7 +48,8 @@ router.post('/direct-award-points', auth, validateBody(schemas.awardPoints) as a
       source
     });
     
-    // Call the direct SQL function
+    // Call the direct SQL function - temporarily disabled
+    /*
     const result = await directAwardPoints(
       customerId,
       programId,
@@ -57,6 +58,14 @@ router.post('/direct-award-points', auth, validateBody(schemas.awardPoints) as a
       description || 'Points awarded via direct API',
       businessIdStr
     );
+    */
+    
+    // Temporary response while function is disabled
+    const result = {
+      success: false,
+      error: 'Direct award points is temporarily disabled',
+      diagnostics: { reason: 'Function disabled for maintenance' }
+    };
     
     if (result.success) {
       // Success!
