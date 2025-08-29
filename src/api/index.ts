@@ -6,6 +6,7 @@ import adminRoutes from './adminRoutes';
 import authRoutes from './authRoutes';
 import directApiRoutes from './directApiRoutes'; // Add direct API routes
 import testRoutes from './testRoutes'; // Add test routes for debugging
+import analyticsRoutes from './analyticsRoutes'; // Add analytics routes for real-time data
 
 const router = express.Router();
 
@@ -63,5 +64,9 @@ console.log('✅ Registered direct API routes at /api/direct');
 // Test routes (for debugging)
 router.use('/debug-test', testRoutes);
 console.log('✅ Registered test routes at /api/debug-test');
+
+// Analytics routes (for real-time data)
+router.use('/analytics', analyticsRoutes);
+console.log('✅ Registered analytics routes at /api/analytics');
 
 export default router; 
