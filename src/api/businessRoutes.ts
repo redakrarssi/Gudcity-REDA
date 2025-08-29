@@ -162,44 +162,58 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
  */
 router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    // Mirror aggregated data similar to businessService.getAllBusinesses without modifying services
+    // Build overview from users (business owners) merged with optional businesses table + analytics
     const rows = await sql<any[]>`
       SELECT 
-        b.id,
-        b.name,
-        b.email,
-        b.type,
-        b.status,
-        b.address,
-        b.logo,
-        b.created_at as registered_at,
-        COUNT(DISTINCT bt.id) as total_transactions,
-        COALESCE(SUM(bt.amount), 0) as total_revenue,
-        COUNT(DISTINCT bt.customer_id) as total_customers,
-        MAX(bdl.login_time) as last_login_time
-      FROM 
-        businesses b
-      LEFT JOIN 
-        business_transactions bt ON b.id = bt.business_id
-      LEFT JOIN 
-        business_daily_logins bdl ON b.id = bdl.business_id
+        u.id                           AS user_id,
+        u.name                         AS user_name,
+        u.email                        AS user_email,
+        u.created_at                   AS user_created_at,
+        u.business_name                AS user_business_name,
+        u.business_phone               AS user_business_phone,
+        u.avatar_url                   AS user_avatar_url,
+        b.id                           AS business_id,
+        COALESCE(b.name, u.business_name, u.name)                         AS name,
+        COALESCE(b.owner, u.name)                                         AS owner,
+        b.type                                                             AS type,
+        COALESCE(b.status, 'active')                                      AS status,
+        COALESCE(b.address, bp.address, bs.address)                       AS address,
+        COALESCE(bp.phone, bs.phone, u.business_phone)                    AS phone,
+        b.logo                                                            AS logo,
+        MAX(bdl.login_time)                                               AS last_login_time,
+        COUNT(DISTINCT bt.id)                                             AS total_transactions,
+        COALESCE(SUM(bt.amount), 0)                                       AS total_revenue,
+        COUNT(DISTINCT bt.customer_id)                                     AS total_customers
+      FROM users u
+      LEFT JOIN businesses b ON b.user_id = u.id
+      LEFT JOIN business_profile bp ON bp.business_id = u.id
+      LEFT JOIN business_settings bs ON bs.business_id = u.id
+      LEFT JOIN business_transactions bt ON bt.business_id = b.id
+      LEFT JOIN business_daily_logins bdl ON bdl.business_id = b.id
+      WHERE u.user_type = 'business'
       GROUP BY 
-        b.id
-      ORDER BY b.created_at DESC
+        u.id, u.name, u.email, u.created_at, u.business_name, u.business_phone, u.avatar_url,
+        b.id, b.name, b.owner, b.type, b.status, b.address, b.logo,
+        bp.address, bs.address, bp.phone, bs.phone
+      ORDER BY u.created_at DESC
     `;
 
     const data = rows.map(r => ({
-      id: r.id,
+      // Prefer businesses.id when present; fall back to users.id so UI can still open basic details
+      id: r.business_id || r.user_id,
       name: r.name,
-      email: r.email,
+      email: r.user_email,
       type: r.type,
       status: r.status,
       address: r.address,
       logo: r.logo,
-      registeredAt: r.registered_at,
+      registeredAt: r.user_created_at,
       customerCount: Number(r.total_customers || 0),
       revenue: Number(r.total_revenue || 0),
       lastLogin: r.last_login_time,
+      phone: r.phone,
+      owner: r.owner,
+      userId: r.user_id,
     }));
 
     res.json({ businesses: data });
