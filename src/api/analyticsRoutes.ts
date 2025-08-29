@@ -37,11 +37,16 @@ router.get('/admin', async (req: Request, res: Response) => {
     
     console.log(`📊 Fetching admin analytics for period: ${period}, currency: ${validatedCurrency}`);
     
-    // Fetch real-time analytics data
-    const analyticsData = await AnalyticsService.getAdminAnalytics(
-      validatedCurrency as any,
-      period as 'day' | 'week' | 'month' | 'year'
-    );
+    // Fetch real-time analytics data with timeout
+    const analyticsData = await Promise.race([
+      AnalyticsService.getAdminAnalytics(
+        validatedCurrency as any,
+        period as 'day' | 'week' | 'month' | 'year'
+      ),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      )
+    ]);
     
     // Add timestamp for real-time tracking
     const responseData = {
@@ -57,11 +62,54 @@ router.get('/admin', async (req: Request, res: Response) => {
     res.json(responseData);
   } catch (error) {
     console.error('❌ Error fetching admin analytics:', error);
-    res.status(500).json({
-      error: 'Failed to fetch analytics data',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
+    
+    // Try to provide fallback data
+    try {
+      const fallbackData = {
+        platform: {
+          totalUsers: 0,
+          activeUsers: 0,
+          userGrowth: 0,
+          businessGrowth: 0,
+          programGrowth: 0,
+          totalRevenue: 0,
+          revenueGrowth: 0,
+          transactionVolume: 0,
+          averageUserValue: 0,
+          currency: 'USD'
+        },
+        regional: [],
+        engagement: {
+          dailyActiveUsers: 0,
+          monthlyActiveUsers: 0,
+          averageSessionDuration: 0,
+          interactionsByFeature: {},
+          retentionByDay: [],
+          topFeatures: []
+        },
+        periodComparison: {
+          users: 0,
+          businesses: 0,
+          revenue: 0,
+          programsCreated: 0
+        },
+        isMockData: true,
+        timestamp: new Date().toISOString(),
+        dataSource: 'fallback',
+        period: req.query.period || 'month',
+        currency: req.query.currency || 'USD',
+        error: 'Using fallback data due to service error'
+      };
+      
+      res.json(fallbackData);
+    } catch (fallbackError) {
+      res.status(500).json({
+        error: 'Failed to fetch analytics data',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+        fallbackError: 'Could not provide fallback data'
+      });
+    }
   }
 });
 
@@ -160,6 +208,19 @@ router.get('/health', async (req: Request, res: Response) => {
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+});
+
+/**
+ * GET /api/analytics/test
+ * Simple test endpoint to verify server is working
+ */
+router.get('/test', (req: Request, res: Response) => {
+  res.json({
+    message: 'Analytics API is working',
+    timestamp: new Date().toISOString(),
+    endpoint: '/api/analytics/test',
+    method: req.method
+  });
 });
 
 export default router;

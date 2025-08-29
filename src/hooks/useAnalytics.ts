@@ -53,12 +53,30 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): UseAnalyticsRet
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error details from response
+        let errorDetails = `HTTP error! status: ${response.status}`;
+        try {
+          const errorResponse = await response.json();
+          if (errorResponse.error) {
+            errorDetails = errorResponse.error;
+          }
+        } catch {
+          // If we can't parse the error response, use the status
+        }
+        throw new Error(errorDetails);
       }
 
       const analyticsData = await response.json();
       
       if (signal?.aborted) return;
+
+      // Check if this is fallback data with an error
+      if (analyticsData.error && analyticsData.dataSource === 'fallback') {
+        console.warn('Using fallback analytics data due to service error:', analyticsData.error);
+        setError(analyticsData.error);
+      } else {
+        setError(null);
+      }
 
       setData(analyticsData);
       setLastUpdated(new Date());

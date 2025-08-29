@@ -45,18 +45,20 @@ const AdminAnalytics = () => {
   
   // Generate chart data from real analytics
   const generateChartData = () => {
-    if (!analyticsData) return { users: [], businesses: [], transactions: [], revenue: [] };
+    if (!analyticsData || !analyticsData.platform) {
+      return { users: [], businesses: [], transactions: [], revenue: [] };
+    }
     
     // Generate 12 months of data based on current metrics and growth rates
-    const baseUsers = Math.max(analyticsData.platform.totalUsers, 1);
+    const baseUsers = Math.max(analyticsData.platform.totalUsers || 0, 1);
     const baseBusinesses = Math.max(Math.round(baseUsers * 0.08), 1); // Estimate businesses as 8% of users
-    const baseTransactions = Math.max(analyticsData.platform.transactionVolume, 1);
-    const baseRevenue = Math.max(analyticsData.platform.totalRevenue, 1);
+    const baseTransactions = Math.max(analyticsData.platform.transactionVolume || 0, 1);
+    const baseRevenue = Math.max(analyticsData.platform.totalRevenue || 0, 1);
     
     const months = [];
     for (let i = 11; i >= 0; i--) {
       const monthIndex = i;
-      const growthFactor = Math.pow(1 - Math.max(analyticsData.platform.userGrowth, 0.01), monthIndex);
+      const growthFactor = Math.pow(1 - Math.max(analyticsData.platform.userGrowth || 0.01, 0.01), monthIndex);
       
       months.push({
         users: Math.max(Math.round(baseUsers * growthFactor), 1),
@@ -130,12 +132,15 @@ const AdminAnalytics = () => {
             {analyticsData && (
               <div className="flex items-center gap-2 mt-2">
                 <div className={`flex items-center gap-1 text-xs ${
-                  dataSource === 'database' ? 'text-green-600' : 'text-yellow-600'
+                  dataSource === 'database' ? 'text-green-600' : 
+                  dataSource === 'fallback' ? 'text-orange-600' : 'text-yellow-600'
                 }`}>
                   <div className={`w-2 h-2 rounded-full ${
-                    dataSource === 'database' ? 'bg-green-500' : 'bg-yellow-500'
+                    dataSource === 'database' ? 'bg-green-500' : 
+                    dataSource === 'fallback' ? 'bg-orange-500' : 'bg-yellow-500'
                   } ${isRefreshing ? 'animate-pulse' : ''}`}></div>
-                  {dataSource === 'database' ? t('Live Data') : t('Mock Data')}
+                  {dataSource === 'database' ? t('Live Data') : 
+                   dataSource === 'fallback' ? t('Fallback Data') : t('Mock Data')}
                   {isRefreshing && <span className="text-blue-600">({t('Updating...')})</span>}
                 </div>
                 {lastUpdated && (
@@ -207,15 +212,36 @@ const AdminAnalytics = () => {
         
         {/* Error display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className={`border rounded-lg p-4 mb-6 ${
+            dataSource === 'fallback' 
+              ? 'bg-yellow-50 border-yellow-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-500" />
+              <AlertCircle className={`w-5 h-5 ${
+                dataSource === 'fallback' ? 'text-yellow-500' : 'text-red-500'
+              }`} />
               <div>
-                <h3 className="text-sm font-medium text-red-800">{t('Error loading analytics')}</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <h3 className={`text-sm font-medium ${
+                  dataSource === 'fallback' ? 'text-yellow-800' : 'text-red-800'
+                }`}>
+                  {dataSource === 'fallback' 
+                    ? t('Using fallback data') 
+                    : t('Error loading analytics')
+                  }
+                </h3>
+                <p className={`text-sm mt-1 ${
+                  dataSource === 'fallback' ? 'text-yellow-700' : 'text-red-700'
+                }`}>
+                  {error}
+                </p>
                 <button 
                   onClick={refresh}
-                  className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  className={`mt-2 text-sm underline ${
+                    dataSource === 'fallback' 
+                      ? 'text-yellow-600 hover:text-yellow-800' 
+                      : 'text-red-600 hover:text-red-800'
+                  }`}
                 >
                   {t('Try again')}
                 </button>
@@ -289,26 +315,26 @@ const AdminAnalytics = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                   title={t('Total Users')}
-                  value={formatNumber(analyticsData.platform.totalUsers)}
-                  change={formatChange(analyticsData.platform.userGrowth * 100)}
+                  value={formatNumber(analyticsData.platform?.totalUsers || 0)}
+                  change={formatChange((analyticsData.platform?.userGrowth || 0) * 100)}
                   icon={<Users className="w-5 h-5" />}
                 />
                 <StatCard
                   title={t('Active Businesses')}
-                  value={formatNumber(Math.round(analyticsData.platform.totalUsers * 0.08))}
-                  change={formatChange(analyticsData.platform.businessGrowth * 100)}
+                  value={formatNumber(Math.round((analyticsData.platform?.totalUsers || 0) * 0.08))}
+                  change={formatChange((analyticsData.platform?.businessGrowth || 0) * 100)}
                   icon={<Building className="w-5 h-5" />}
                 />
                 <StatCard
                   title={t('Total Transactions')}
-                  value={formatNumber(analyticsData.platform.transactionVolume)}
-                  change={formatChange(analyticsData.platform.revenueGrowth * 100)}
+                  value={formatNumber(analyticsData.platform?.transactionVolume || 0)}
+                  change={formatChange((analyticsData.platform?.revenueGrowth || 0) * 100)}
                   icon={<CreditCard className="w-5 h-5" />}
                 />
                 <StatCard
                   title={t('Platform Revenue')}
-                  value={`$${formatNumber(analyticsData.platform.totalRevenue)}`}
-                  change={formatChange(analyticsData.platform.revenueGrowth * 100)}
+                  value={`$${formatNumber(analyticsData.platform?.totalRevenue || 0)}`}
+                  change={formatChange((analyticsData.platform?.revenueGrowth || 0) * 100)}
                   icon={<DollarSign className="w-5 h-5" />}
                 />
               </div>
@@ -378,7 +404,8 @@ const AdminAnalytics = () => {
                   <div className="space-y-4">
                     {analyticsData.regional && analyticsData.regional.length > 0 ? (
                       analyticsData.regional.slice(0, 5).map((region, index) => {
-                        const percentage = Math.round((region.revenue / analyticsData.platform.totalRevenue) * 100);
+                        const totalRevenue = analyticsData.platform?.totalRevenue || 1;
+                        const percentage = Math.round((region.revenue / totalRevenue) * 100);
                         return (
                           <div key={region.region}>
                             <div className="flex justify-between items-center mb-1">
@@ -409,7 +436,7 @@ const AdminAnalytics = () => {
                         <span className="text-sm text-gray-700">{t('API Response Time')}</span>
                       </div>
                       <div className="text-sm font-medium text-gray-900">
-                        {analyticsData.engagement.averageSessionDuration > 0 ? 
+                        {analyticsData.engagement?.averageSessionDuration > 0 ? 
                           `${Math.round(analyticsData.engagement.averageSessionDuration / 1000)}ms` : 
                           '145ms'
                         }
@@ -428,7 +455,7 @@ const AdminAnalytics = () => {
                         <span className="text-sm text-gray-700">{t('Transaction Success Rate')}</span>
                       </div>
                       <div className="text-sm font-medium text-gray-900">
-                        {analyticsData.platform.revenueGrowth > 0 ? 
+                        {analyticsData.platform?.revenueGrowth > 0 ? 
                           `${Math.round((1 - analyticsData.platform.revenueGrowth) * 100)}%` : 
                           '98.2%'
                         }
@@ -440,7 +467,7 @@ const AdminAnalytics = () => {
                         <span className="text-sm text-gray-700">{t('Active Users')}</span>
                       </div>
                       <div className="text-sm font-medium text-gray-900">
-                        {formatNumber(analyticsData.platform.activeUsers)}
+                        {formatNumber(analyticsData.platform?.activeUsers || 0)}
                       </div>
                     </div>
                   </div>
