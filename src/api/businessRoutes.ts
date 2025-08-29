@@ -9,6 +9,7 @@ import { CustomerService } from '../services/customerService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
 import { v4 as uuidv4 } from 'uuid';
+import { PromoService } from '../services/promoService';
 // Import our dedicated handler for award-points
 import { handleAwardPoints } from './awardPointsHandler';
 // Import security utilities
@@ -162,30 +163,41 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
  */
 router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    // Mirror aggregated data similar to businessService.getAllBusinesses without modifying services
     const rows = await sql<any[]>`
       SELECT 
-        b.id,
-        b.name,
-        b.email,
-        b.type,
-        b.status,
-        b.address,
-        b.logo,
-        b.created_at as registered_at,
+        u.id,
+        COALESCE(b_by_id.name, b_by_user.name, u.business_name, u.name) AS name,
+        u.email,
+        COALESCE(b_by_id.type, b_by_user.type, NULL) AS type,
+        COALESCE(b_by_id.status, b_by_user.status, u.status) AS status,
+        COALESCE(b_by_id.address, b_by_user.address, NULL) AS address,
+        COALESCE(b_by_id.phone, b_by_user.phone, u.business_phone, u.phone) AS phone,
+        COALESCE(b_by_id.logo, b_by_user.logo, NULL) AS logo,
+        u.created_at as registered_at,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
         COUNT(DISTINCT bt.customer_id) as total_customers,
-        MAX(bdl.login_time) as last_login_time
+        MAX(COALESCE(bdl_by_biz.login_time, bdl_by_user.login_time)) as last_login_time,
+        MAX(bs.currency) as currency
       FROM 
-        businesses b
-      LEFT JOIN 
-        business_transactions bt ON b.id = bt.business_id
-      LEFT JOIN 
-        business_daily_logins bdl ON b.id = bdl.business_id
-      GROUP BY 
-        b.id
-      ORDER BY b.created_at DESC
+        users u
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      LEFT JOIN business_transactions bt 
+        ON bt.business_id = COALESCE(b_by_id.id, b_by_user.id, u.business_id, u.id)
+      LEFT JOIN business_daily_logins bdl_by_biz 
+        ON bdl_by_biz.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      LEFT JOIN business_daily_logins bdl_by_user 
+        ON bdl_by_user.user_id = u.id
+      LEFT JOIN business_settings bs 
+        ON bs.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      WHERE (u.user_type = 'business' OR u.role = 'business')
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at,
+               b_by_id.name, b_by_user.name, b_by_id.type, b_by_user.type,
+               b_by_id.status, b_by_user.status, b_by_id.address, b_by_user.address,
+               b_by_id.phone, b_by_user.phone, b_by_id.logo, b_by_user.logo,
+               u.business_name, u.business_phone
+      ORDER BY u.created_at DESC
     `;
 
     const data = rows.map(r => ({
@@ -195,11 +207,13 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
       type: r.type,
       status: r.status,
       address: r.address,
+      phone: r.phone,
       logo: r.logo,
       registeredAt: r.registered_at,
       customerCount: Number(r.total_customers || 0),
       revenue: Number(r.total_revenue || 0),
       lastLogin: r.last_login_time,
+      currency: r.currency || 'USD',
     }));
 
     res.json({ businesses: data });
@@ -217,18 +231,37 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
   try {
     const businessId = req.params.id;
 
-    // Base profile info from businesses table
+    // Base profile info from users (include all businesses), merging optional businesses/settings data
     const result = await sql<any[]>`
       SELECT 
-        b.*,
-        MAX(bdl.login_time) as last_login_time,
+        u.id,
+        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
+        u.email,
+        COALESCE(b_by_id.owner, b_by_user.owner, NULL) AS owner,
+        COALESCE(b_by_id.phone, b_by_user.phone, u.phone) AS phone,
+        COALESCE(b_by_id.type, b_by_user.type, NULL) AS type,
+        COALESCE(b_by_id.status, b_by_user.status, u.status) AS status,
+        COALESCE(b_by_id.address, b_by_user.address, u.address) AS address,
+        COALESCE(b_by_id.logo, b_by_user.logo, NULL) AS logo,
+        COALESCE(b_by_id.description, b_by_user.description, NULL) AS description,
+        u.created_at as registered_at,
+        MAX(COALESCE(bdl_by_biz.login_time, bdl_by_user.login_time)) as last_login_time,
         COUNT(DISTINCT bt.customer_id) as total_customers,
-        COALESCE(SUM(bt.amount), 0) as total_revenue
-      FROM businesses b
-      LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
-      LEFT JOIN business_transactions bt ON b.id = bt.business_id
-      WHERE b.id = ${parseInt(businessId)}
-      GROUP BY b.id
+        COALESCE(SUM(bt.amount), 0) as total_revenue,
+        MAX(bs.currency) as currency
+      FROM users u
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      LEFT JOIN business_daily_logins bdl_by_biz ON bdl_by_biz.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      LEFT JOIN business_daily_logins bdl_by_user ON bdl_by_user.user_id = u.id
+      LEFT JOIN business_transactions bt ON bt.business_id = COALESCE(b_by_id.id, b_by_user.id, u.business_id, u.id)
+      LEFT JOIN business_settings bs ON bs.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      WHERE u.id = ${parseInt(businessId)} AND (u.user_type = 'business' OR u.role = 'business')
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at,
+               b_by_id.name, b_by_user.name, b_by_id.owner, b_by_user.owner,
+               b_by_id.type, b_by_user.type, b_by_id.status, b_by_user.status,
+               b_by_id.address, b_by_user.address, b_by_id.phone, b_by_user.phone,
+               b_by_id.logo, b_by_user.logo, b_by_id.description, b_by_user.description
     `;
 
     if (!result.length) {
@@ -239,6 +272,12 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
 
     // Programs list
     const programs = await LoyaltyProgramService.getBusinessPrograms(String(businessId));
+
+    // Customers list
+    const customers = await CustomerService.getBusinessCustomers(String(businessId));
+
+    // Promotions list
+    const promotions = await PromoService.getBusinessPromotions(String(businessId));
 
     // Analytics summary (total points and redemptions)
     const analytics = await BusinessAnalyticsService.getBusinessAnalytics(String(businessId), 'month');
@@ -259,8 +298,11 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
         lastLogin: base.last_login_time,
         customerCount: Number(base.total_customers || 0),
         revenue: Number(base.total_revenue || 0),
+        currency: base.currency || 'USD',
       },
       programs,
+      customers,
+      promotions,
       stats: {
         totalPoints: analytics.totalPoints,
         totalRedemptions: analytics.totalRedemptions,
@@ -269,6 +311,85 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     });
   } catch (error) {
     console.error('Error fetching business details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Business timeline - programs created, customers added, promotions launched
+ * Path: /api/businesses/admin/:id/timeline
+ */
+router.get('/admin/:id/timeline', auth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const businessId = parseInt(req.params.id);
+    if (isNaN(businessId)) {
+      return res.status(400).json({ error: 'Invalid business id' });
+    }
+
+    // Business registration event (prefer businesses, fallback to users)
+    const regRows = await sql<any[]>`
+      SELECT 
+        u.id,
+        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
+        u.created_at
+      FROM users u
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      WHERE u.id = ${businessId} AND (u.user_type = 'business' OR u.role = 'business')
+    `;
+    const registrationEvent = regRows.length ? [{
+      type: 'business_registered' as const,
+      title: `Business registered: ${regRows[0].name}`,
+      referenceId: regRows[0].id,
+      timestamp: regRows[0].created_at
+    }] : [];
+
+    // Programs created
+    const programRows = await sql<any[]>`
+      SELECT id, name, created_at FROM loyalty_programs WHERE business_id = ${businessId}
+      ORDER BY created_at ASC
+    `;
+    const programEvents = programRows.map(p => ({
+      type: 'program_created' as const,
+      title: `Program created: ${p.name}`,
+      referenceId: p.id,
+      timestamp: p.created_at
+    }));
+
+    // Customers added (association and program joins)
+    const customerInteractionRows = await sql<any[]>`
+      SELECT id, customer_id, type, happened_at
+      FROM customer_interactions
+      WHERE business_id = ${businessId}
+        AND type IN ('ASSOCIATION', 'PROGRAM_JOIN')
+      ORDER BY happened_at ASC
+    `;
+    const customerEvents = customerInteractionRows.map(ci => ({
+      type: 'customer_added' as const,
+      title: ci.type === 'ASSOCIATION' ? `Customer associated (ID: ${ci.customer_id})` : `Customer joined program (ID: ${ci.customer_id})`,
+      referenceId: ci.customer_id,
+      timestamp: ci.happened_at
+    }));
+
+    // Promotions launched
+    const promotionRows = await sql<any[]>`
+      SELECT id, name, code, created_at FROM promotions WHERE business_id = ${businessId}
+      ORDER BY created_at ASC
+    `;
+    const promotionEvents = promotionRows.map(pr => ({
+      type: 'promotion_launched' as const,
+      title: `Promotion launched: ${pr.name || pr.code}`,
+      referenceId: pr.id,
+      timestamp: pr.created_at
+    }));
+
+    const timeline = [...registrationEvent, ...programEvents, ...customerEvents, ...promotionEvents]
+      .filter(e => e && e.timestamp)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    res.json({ timeline });
+  } catch (error) {
+    console.error('Error fetching business timeline:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
