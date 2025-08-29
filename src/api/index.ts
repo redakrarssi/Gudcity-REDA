@@ -12,7 +12,7 @@ const router = express.Router();
 // Log all route registrations for debugging
 console.log('📋 Registering API routes in index.ts');
 
-// User routes (auth, profile, etc)
+// User routes (auth, profile, settings)
 router.use('/users', userRoutes);
 console.log('✅ Registered user routes at /api/users');
 
