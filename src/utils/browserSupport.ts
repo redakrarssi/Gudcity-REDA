@@ -337,7 +337,7 @@ export const isQrScanningSupported = (): boolean => {
 };
 
 /**
- * Explicitly requests camera permission with user-friendly prompting
+ * Forces the browser to show the native camera permission dialog
  * @returns A promise that resolves with permission status
  */
 export const requestCameraPermission = async (): Promise<{
@@ -353,27 +353,38 @@ export const requestCameraPermission = async (): Promise<{
       };
     }
     
-    // Request camera permission explicitly
+    // Force the browser to show the permission dialog by requesting camera access
+    // This will trigger the native browser permission prompt
+    console.log('🎥 Requesting camera permission - this should trigger browser dialog...');
+    
     const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { 
+      video: {
         facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      } 
+        width: { min: 640, ideal: 1280, max: 1920 },
+        height: { min: 480, ideal: 720, max: 1080 }
+      },
+      audio: false
     });
     
-    // Stop all tracks immediately to release the camera
-    stream.getTracks().forEach(track => track.stop());
+    console.log('✅ Camera permission granted! Stream acquired.');
+    
+    // Immediately stop all tracks to release the camera
+    stream.getTracks().forEach(track => {
+      track.stop();
+      console.log(`🛑 Stopped ${track.kind} track`);
+    });
     
     return {
       granted: true
     };
   } catch (error) {
+    console.error('❌ Camera permission request failed:', error);
+    
     if (error instanceof Error) {
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         return {
           granted: false,
-          errorMessage: "Camera access denied. Please allow camera access and try again."
+          errorMessage: "Camera access was denied. Please click 'Allow' when the browser asks for camera permission."
         };
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
         return {
@@ -384,6 +395,16 @@ export const requestCameraPermission = async (): Promise<{
         return {
           granted: false,
           errorMessage: "Camera is in use by another application"
+        };
+      } else if (error.name === 'NotSupportedError') {
+        return {
+          granted: false,
+          errorMessage: "Camera access is not supported on this device"
+        };
+      } else if (error.name === 'SecurityError') {
+        return {
+          granted: false,
+          errorMessage: "Camera access blocked due to security restrictions. Please use HTTPS."
         };
       }
     }

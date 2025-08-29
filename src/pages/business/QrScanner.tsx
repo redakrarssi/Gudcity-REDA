@@ -91,22 +91,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         return;
       }
       
-      // Check camera permissions
-      try {
-        const cameraStatus = await checkCameraAvailability();
-        setPermissionGranted(cameraStatus.permissionGranted);
-        
-        if (!cameraStatus.permissionGranted) {
-          // Show permission request if not granted
-          setShowPermissionRequest(true);
-        } else if (!cameraStatus.available) {
-          setScannerError(cameraStatus.errorMessage || 'Camera not available');
-        }
-      } catch (error) {
-        console.error('Error checking camera availability:', error);
-        // If permission check fails, show permission request
-        setShowPermissionRequest(true);
-      }
+      // Don't automatically check camera permissions on mount - this would trigger the dialog immediately
+      // Instead, show the permission request modal so user can choose when to grant permission
+      setShowPermissionRequest(true);
       
       // Load previous scan results from localStorage
       try {

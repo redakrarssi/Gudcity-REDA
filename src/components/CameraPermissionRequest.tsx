@@ -23,15 +23,21 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
     setErrorMessage(null);
 
     try {
+      console.log('🚀 User clicked "Allow Camera Access" - triggering native permission dialog...');
+      
+      // This WILL trigger the browser's native camera permission dialog
       const result = await requestCameraPermission();
       
       if (result.granted) {
+        console.log('✅ Permission granted by user!');
         onPermissionGranted();
       } else {
+        console.log('❌ Permission denied by user:', result.errorMessage);
         setErrorMessage(result.errorMessage || 'Camera permission was denied');
         onPermissionDenied(result.errorMessage || 'Camera permission was denied');
       }
     } catch (error) {
+      console.error('💥 Error during permission request:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to request camera permission';
       setErrorMessage(errorMsg);
       onPermissionDenied(errorMsg);
@@ -56,7 +62,7 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
             {t('Camera Permission Required')}
           </h2>
           <p className="text-gray-600 text-sm">
-            {t('To scan QR codes, we need access to your camera. This allows the scanner to read QR codes from customers.')}
+            {t('To scan QR codes, we need access to your camera. Click the button below and your browser will ask for camera permission.')}
           </p>
         </div>
 
@@ -112,12 +118,12 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
             <div className="flex items-start">
               <Info className="w-4 h-4 text-gray-600 mt-0.5 mr-2 flex-shrink-0" />
               <div className="text-xs text-gray-600">
-                <p className="font-medium mb-1">{t('If the permission dialog doesn\'t appear')}:</p>
+                <p className="font-medium mb-1">{t('What happens when you click "Allow Camera Access"')}:</p>
                 <ul className="space-y-1">
-                  <li>• {t('Check for a camera icon in your browser\'s address bar')}</li>
+                  <li>• {t('Your browser will show a permission dialog')}</li>
+                  <li>• {t('Click "Allow" or "Allow camera access" in the browser popup')}</li>
+                  <li>• {t('If no dialog appears, check for a camera icon in your address bar')}</li>
                   <li>• {t('Make sure you\'re using HTTPS (secure connection)')}</li>
-                  <li>• {t('Try refreshing the page and clicking the button again')}</li>
-                  <li>• {t('Check browser settings to ensure camera access is allowed')}</li>
                 </ul>
               </div>
             </div>
