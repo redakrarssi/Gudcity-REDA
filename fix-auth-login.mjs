@@ -17,7 +17,7 @@ function setupEnvFile() {
   // Create the environment file with the user's actual database URL
   const envContent = `
 # Database Configuration
-VITE_DATABASE_URL=postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
+VITE_DATABASE_URL=YOUR_DATABASE_URL_HERE
 
 # JWT Authentication settings
 VITE_JWT_SECRET=secure-jwt-secret-for-authentication

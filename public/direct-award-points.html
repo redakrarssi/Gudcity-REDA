@@ -182,6 +182,48 @@
     </div>
 
     <script>
+        // SECURE HTML SANITIZATION UTILITY - Prevents XSS attacks
+        function secureSanitize(text) {
+            if (text == null) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;')
+                .replace(/\//g, '&#x2F;')
+                .replace(/\\/g, '&#x5C;')
+                .replace(/`/g, '&#x60;');
+        }
+
+        function secureInnerHTML(element, htmlTemplate, ...values) {
+            if (!element || typeof htmlTemplate !== 'string') return;
+
+            // Sanitize all values before inserting
+            const sanitizedValues = values.map(value => secureSanitize(value));
+
+            // Use a safer approach - create the HTML as text nodes where possible
+            element.innerHTML = '';
+
+            // Split template and insert sanitized values
+            const parts = htmlTemplate.split(/(\$\{\d+\})/);
+            parts.forEach(part => {
+                if (part.match(/^\$\{(\d+)\}$/)) {
+                    const index = parseInt(part.match(/^\$\{(\d+)\}$/)[1]);
+                    if (sanitizedValues[index] !== undefined) {
+                        element.appendChild(document.createTextNode(sanitizedValues[index]));
+                    }
+                } else {
+                    // For HTML parts, we still need to be careful
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = part;
+                    while (tempDiv.firstChild) {
+                        element.appendChild(tempDiv.firstChild);
+                    }
+                }
+            });
+        }
+
         // Main functionality
         document.addEventListener('DOMContentLoaded', function() {
             // Elements
@@ -371,21 +413,17 @@
                     }
                     
                     if (success) {
-                        const esc = (s) => String(s)
-                          .replace(/&/g,'&amp;')
-                          .replace(/</g,'&lt;')
-                          .replace(/>/g,'&gt;')
-                          .replace(/"/g,'&quot;')
-                          .replace(/'/g,'&#039;');
                         resultDiv.className = 'success';
-                        resultDiv.innerHTML = `
-                            <strong>✅ SUCCESS!</strong><br>
-                            ${esc(points)} points have been awarded to customer ${esc(customerId)} in program ${esc(programId)}.<br>
+                        secureInnerHTML(resultDiv,
+                            `<strong>✅ SUCCESS!</strong><br>
+                            ${0} points have been awarded to customer ${1} in program ${2}.<br>
                             <br>
                             <strong>Details:</strong><br>
-                            Successful endpoint: ${esc(successData.endpoint)}<br>
-                            ${successData.data.message ? esc(successData.data.message) : ''}
-                        `;
+                            Successful endpoint: ${3}<br>
+                            ${4}`,
+                            points, customerId, programId, successData.endpoint,
+                            successData.data.message || ''
+                        );
                         
                         // Show confetti animation
                         showConfetti();
@@ -395,21 +433,17 @@
                             const directResult = await directDatabaseAward(customerId, programId, points, description);
                             
                             if (directResult.success) {
-                                const esc = (s) => String(s)
-                                  .replace(/&/g,'&amp;')
-                                  .replace(/</g,'&lt;')
-                                  .replace(/>/g,'&gt;')
-                                  .replace(/"/g,'&quot;')
-                                  .replace(/'/g,'&#039;');
                                 resultDiv.className = 'success';
-                                resultDiv.innerHTML = `
-                                    <strong>✅ SUCCESS!</strong><br>
-                                    ${esc(points)} points have been awarded to customer ${esc(customerId)} in program ${esc(programId)}.<br>
+                                secureInnerHTML(resultDiv,
+                                    `<strong>✅ SUCCESS!</strong><br>
+                                    ${0} points have been awarded to customer ${1} in program ${2}.<br>
                                     <br>
                                     <strong>Details:</strong><br>
                                     Method: Direct database connection<br>
-                                    Card ID: ${esc(directResult.cardId || 'New card created')}
-                                `;
+                                    Card ID: ${3}`,
+                                    points, customerId, programId,
+                                    directResult.cardId || 'New card created'
+                                );
                                 
                                 // Show confetti animation
                                 showConfetti();
@@ -417,25 +451,22 @@
                                 throw new Error(directResult.error || 'Unknown error in direct database method');
                             }
                         } catch (directError) {
-                            const esc = (s) => String(s)
-                              .replace(/&/g,'&amp;')
-                              .replace(/</g,'&lt;')
-                              .replace(/>/g,'&gt;')
-                              .replace(/"/g,'&quot;')
-                              .replace(/'/g,'&#039;');
                             resultDiv.className = 'error';
-                            resultDiv.innerHTML = `
-                                <strong>❌ FAILED!</strong><br>
+                            secureInnerHTML(resultDiv,
+                                `<strong>❌ FAILED!</strong><br>
                                 Unable to award points after trying all methods.<br>
                                 <br>
                                 <strong>Last Error:</strong><br>
-                                ${lastError ? `Endpoint: ${esc(lastError.endpoint)}<br>Error: ${esc(lastError.error)}` : esc(directError.message)}
+                                ${0}
                                 <br><br>
                                 <strong>Try these solutions:</strong><br>
                                 1. Click \"Fix Authentication\" button<br>
                                 2. Log out and log back in to the main application<br>
-                                3. Contact system administrator
-                            `;
+                                3. Contact system administrator`,
+                                lastError ?
+                                    `Endpoint: ${lastError.endpoint}<br>Error: ${lastError.error}` :
+                                    directError.message
+                            );
                         }
                     }
                 } catch (error) {

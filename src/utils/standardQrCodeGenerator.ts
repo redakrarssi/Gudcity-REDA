@@ -94,7 +94,7 @@ function addSignature(data: QrCodeData): QrCodeData {
   
   // Generate a simple signature with a timestamp for verification
   const timestamp = new Date().getTime();
-  const stringToHash = JSON.stringify(dataWithoutSignature) + (env.QR_SECRET_KEY || 'fallback-key') + timestamp;
+  const stringToHash = JSON.stringify(dataWithoutSignature) + env.QR_SECRET_KEY + timestamp;
   const newSignature = simpleHash(stringToHash) + '.' + timestamp;
   
   // Return data with the new signature
@@ -254,7 +254,7 @@ export function verifyQrCodeSignature(data: QrCodeData): boolean {
     }
     
     // Recreate the hash with the same data and timestamp
-    const stringToHash = JSON.stringify(dataWithoutSignature) + (env.QR_SECRET_KEY || 'fallback-key') + signatureTimestamp;
+    const stringToHash = JSON.stringify(dataWithoutSignature) + env.QR_SECRET_KEY + signatureTimestamp;
     const expectedHash = simpleHash(stringToHash);
     
     // Compare the hashes

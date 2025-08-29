@@ -258,6 +258,48 @@
     </div>
 
     <script>
+        // SECURE HTML SANITIZATION UTILITY - Prevents XSS attacks
+        function secureSanitize(text) {
+            if (text == null) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;')
+                .replace(/\//g, '&#x2F;')
+                .replace(/\\/g, '&#x5C;')
+                .replace(/`/g, '&#x60;');
+        }
+
+        function secureInnerHTML(element, htmlTemplate, ...values) {
+            if (!element || typeof htmlTemplate !== 'string') return;
+
+            // Sanitize all values before inserting
+            const sanitizedValues = values.map(value => secureSanitize(value));
+
+            // Use a safer approach - create the HTML as text nodes where possible
+            element.innerHTML = '';
+
+            // Split template and insert sanitized values
+            const parts = htmlTemplate.split(/(\$\{\d+\})/);
+            parts.forEach(part => {
+                if (part.match(/^\$\{(\d+)\}$/)) {
+                    const index = parseInt(part.match(/^\$\{(\d+)\}$/)[1]);
+                    if (sanitizedValues[index] !== undefined) {
+                        element.appendChild(document.createTextNode(sanitizedValues[index]));
+                    }
+                } else {
+                    // For HTML parts, we still need to be careful
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = part;
+                    while (tempDiv.firstChild) {
+                        element.appendChild(tempDiv.firstChild);
+                    }
+                }
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Elements
             const customerIdInput = document.getElementById('customer-id');
@@ -294,24 +336,25 @@
                 
                 if (token && userData) {
                     authStatusDiv.className = 'auth-status auth-success';
-                    const display = escapeHtml(userData.name || userData.email || userData.id || 'Business User');
-                    authStatusDiv.innerHTML = `
-                        <span class="dot dot-success"></span>
-                        <strong>Authenticated</strong> as ${display}
-                    `;
+                    const display = userData.name || userData.email || userData.id || 'Business User';
+                    secureInnerHTML(authStatusDiv,
+                        `<span class="dot dot-success"></span>
+                        <strong>Authenticated</strong> as ${0}`,
+                        display
+                    );
                 } else if (userData) {
                     authStatusDiv.className = 'auth-status auth-warning';
-                    authStatusDiv.innerHTML = `
-                        <span class="dot dot-warning"></span>
+                    secureInnerHTML(authStatusDiv,
+                        `<span class="dot dot-warning"></span>
                         <strong>Partial Authentication</strong> - Token missing but user data found.
-                        Click "Fix Authentication" button.
-                    `;
+                        Click "Fix Authentication" button.`
+                    );
                 } else {
                     authStatusDiv.className = 'auth-status auth-error';
-                    authStatusDiv.innerHTML = `
-                        <span class="dot dot-error"></span>
-                        <strong>Not Authenticated</strong> - Please log in to the main application or click "Fix Authentication".
-                    `;
+                    secureInnerHTML(authStatusDiv,
+                        `<span class="dot dot-error"></span>
+                        <strong>Not Authenticated</strong> - Please log in to the main application or click "Fix Authentication".`
+                    );
                 }
             }
 

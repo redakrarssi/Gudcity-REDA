@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 const envContent = `# Database configuration
-VITE_DATABASE_URL=postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
+VITE_DATABASE_URL=YOUR_DATABASE_URL_HERE
 
 # Security
 JWT_SECRET=your-jwt-secret-key-here
@@ -54,7 +54,7 @@ fs.writeFileSync('.env.example', exampleContent);
 console.log('.env.example file created successfully!');
 
 // Create .env.local file explicitly for Vite
-const localEnvContent = `VITE_DATABASE_URL=postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require`;
+const localEnvContent = `VITE_DATABASE_URL=YOUR_DATABASE_URL_HERE`;
 
 fs.writeFileSync('.env.local', localEnvContent);
 console.log('.env.local file created successfully!'); 

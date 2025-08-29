@@ -58,7 +58,7 @@ export interface QrCodeCreationParams {
  * Service for securely managing customer QR codes
  */
 export class QrCodeStorageService {
-  private static readonly SECRET_KEY = process.env.QR_SECRET_KEY || 'gudcity-qr-security-key-with-additional-entropy-for-hmac-generation';
+  private static readonly SECRET_KEY = process.env.QR_SECRET_KEY;
   private static readonly SIGNATURE_EXPIRY_DAYS = 180; // Signatures are valid for 180 days by default
 
   /**

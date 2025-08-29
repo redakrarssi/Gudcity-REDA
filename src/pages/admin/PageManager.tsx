@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
 
-// Safer sanitizer: use DOMPurify (injected via global if available)
+// Enhanced HTML sanitizer with strict security policies
 function sanitizeHtml(unsafeHtml: string): string {
+  if (!unsafeHtml || typeof unsafeHtml !== 'string') {
+    return '';
+  }
+
   try {
+    // Try to use DOMPurify if available (most secure option)
     const DOMPurify = (window as any).DOMPurify;
     if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(unsafeHtml, {
-        ALLOWED_TAGS: false, // default allowlist
-        ALLOWED_ATTR: false,
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a', 'img'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title'],
+        ALLOW_DATA_ATTR: false,
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select'],
+        FORBID_ATTR: ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress', 'onchange', 'onsubmit'],
+        SANITIZE_DOM: true,
+        KEEP_CONTENT: true,
+        RETURN_DOM: false,
+        RETURN_DOM_FRAGMENT: false,
         RETURN_TRUSTED_TYPE: false
       });
     }
-  } catch {}
-  // Fallback to plain text if DOMPurify not present
+  } catch (error) {
+    console.warn('DOMPurify sanitization failed:', error);
+  }
+
+  // Fallback: Strip all HTML tags and encode special characters
   const div = document.createElement('div');
-  div.textContent = String(unsafeHtml || '');
+  div.textContent = unsafeHtml;
   return div.innerHTML;
 }
 import { useTranslation } from 'react-i18next';

@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 
 // First, ensure we have .env.local with correct content
-const envContent = 'VITE_DATABASE_URL=postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+const envContent = 'VITE_DATABASE_URL=YOUR_DATABASE_URL_HERE';
 fs.writeFileSync('.env.local', envContent);
 console.log('.env.local file created/updated successfully!');
 
@@ -12,7 +12,7 @@ console.log('You can access the application at http://localhost:5173 (or another
 
 const env = {
   ...process.env,
-  VITE_DATABASE_URL: 'postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require'
+  VITE_DATABASE_URL: process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || 'YOUR_DATABASE_URL_HERE'
 };
 
 // Start the npm run dev command with the environment variable

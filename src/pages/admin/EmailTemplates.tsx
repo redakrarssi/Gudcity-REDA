@@ -1,19 +1,35 @@
 import React, { useMemo, useState } from 'react';
 
-// Safer sanitizer using DOMPurify when available
+// Enhanced HTML sanitizer with strict security policies
 function sanitizeHtml(unsafeHtml: string): string {
+  if (!unsafeHtml || typeof unsafeHtml !== 'string') {
+    return '';
+  }
+
   try {
+    // Try to use DOMPurify if available (most secure option)
     const DOMPurify = (window as any).DOMPurify;
     if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(unsafeHtml, {
-        ALLOWED_TAGS: false,
-        ALLOWED_ATTR: false,
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote'],
+        ALLOWED_ATTR: ['href', 'target', 'rel'],
+        ALLOW_DATA_ATTR: false,
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+        FORBID_ATTR: ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress'],
+        SANITIZE_DOM: true,
+        KEEP_CONTENT: true,
+        RETURN_DOM: false,
+        RETURN_DOM_FRAGMENT: false,
         RETURN_TRUSTED_TYPE: false
       });
     }
-  } catch {}
+  } catch (error) {
+    console.warn('DOMPurify sanitization failed:', error);
+  }
+
+  // Fallback: Strip all HTML tags and encode special characters
   const div = document.createElement('div');
-  div.textContent = String(unsafeHtml || '');
+  div.textContent = unsafeHtml;
   return div.innerHTML;
 }
 import { useTranslation } from 'react-i18next';

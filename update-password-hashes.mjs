@@ -50,8 +50,14 @@ async function updatePasswordHashes() {
     
     console.log(`Found ${testUsers.length} test users to update passwords for`);
     
-    // The plain text password for our test users
-    const plainPassword = 'password123';
+    // SECURITY: Removed hardcoded password - use environment variable or require input
+    const plainPassword = process.env.TEST_USER_PASSWORD;
+
+    if (!plainPassword) {
+      console.error('SECURITY ERROR: TEST_USER_PASSWORD environment variable is required');
+      console.error('Set TEST_USER_PASSWORD to a secure password for test users');
+      process.exit(1);
+    }
     
     // Generate the browser-compatible hash
     const browserHash = await browserHashPassword(plainPassword);

@@ -3,7 +3,14 @@ import crypto from 'crypto';
 
 // Use the database URL from the environment or hardcode for testing purposes
 // This is just for testing and follows the pattern in other files like fix-db-issues.mjs
-const DATABASE_URL = process.env.VITE_DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.error('❌ SECURITY ERROR: DATABASE_URL environment variable is required');
+  console.error('Please set DATABASE_URL or VITE_DATABASE_URL in your environment');
+  console.error('Copy env.example to .env and configure with your database credentials');
+  process.exit(1);
+}
 
 // Create connection
 const sql = neon(DATABASE_URL);

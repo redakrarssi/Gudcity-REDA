@@ -14,7 +14,7 @@ import { QRCodeData } from '../types/qrCode';
  */
 export class UserQrCodeService {
   // Use the same key for consistency in security
-  private static readonly SECRET_KEY = process.env.QR_SECRET_KEY || 'gudcity-qr-security-key-with-additional-entropy-for-hmac-generation';
+  private static readonly SECRET_KEY = process.env.QR_SECRET_KEY;
 
   /**
    * Generates a consistent card number for a user

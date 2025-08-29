@@ -665,7 +665,7 @@ export class QrCodeIntegrityService {
       const dataString = typeof data === 'string' ? data : JSON.stringify(data);
       
       // Get the secret key from environment or use a default
-      const secretKey = env.QR_SECRET_KEY || 'gudcity-qr-security-key-with-additional-entropy-for-hmac-generation';
+      const secretKey = env.QR_SECRET_KEY;
       
       // Combine with secret key and current timestamp
       const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp in seconds

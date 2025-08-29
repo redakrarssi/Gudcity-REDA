@@ -363,44 +363,10 @@ export async function validateUser(email: string, password: string): Promise<Use
       return userWithoutPassword as User;
     } 
     
-    // Fall back to demo users if DB is unavailable
+    // SECURITY: Removed hardcoded demo credentials - never allow fallback to demo users in production
     if (!user && !env?.DATABASE_URL) {
-      console.warn('No database connection, using mock users for authentication');
-      
-      // Check for mock users (admin@vcarda.com/password, customer@example.com/password)
-      if (email.toLowerCase() === 'admin@vcarda.com' && password === 'password') {
-        return {
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@vcarda.com',
-          role: 'admin',
-          user_type: 'customer',
-          status: 'active',
-          last_login: new Date()
-        };
-      } else if (email.toLowerCase() === 'customer@example.com' && password === 'password') {
-        return {
-          id: 2,
-          name: 'Demo Customer',
-          email: 'customer@example.com',
-          role: 'customer',
-          user_type: 'customer',
-          status: 'active',
-          last_login: new Date()
-        };
-      } else if (email.toLowerCase() === 'business@example.com' && password === 'password') {
-        return {
-          id: 3,
-          name: 'Demo Business',
-          email: 'business@example.com',
-          role: 'business',
-          user_type: 'business',
-          business_name: 'Demo Business LLC',
-          business_phone: '+1234567890',
-          status: 'active',
-          last_login: new Date()
-        };
-      }
+      console.error('SECURITY ALERT: Database connection unavailable - authentication failed');
+      throw new Error('Authentication service unavailable. Please check database connection.');
     }
     
     return null;
