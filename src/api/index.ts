@@ -2,7 +2,7 @@ import express from 'express';
 import userRoutes from './userRoutes';
 import businessRoutes from './businessRoutes';
 import customerRoutes from './customerRoutes';
-import adminRoutes from './adminRoutes';
+import adminBusinessRoutes from './adminBusinessRoutes';
 import authRoutes from './authRoutes';
 import directApiRoutes from './directApiRoutes'; // Add direct API routes
 import testRoutes from './testRoutes'; // Add test routes for debugging
@@ -49,8 +49,8 @@ router.use('/customers', customerRoutes);
 console.log('✅ Registered customer routes at /api/customers');
 
 // Admin routes (system management, etc)
-router.use('/admin', adminRoutes);
-console.log('✅ Registered admin routes at /api/admin');
+router.use('/admin', adminBusinessRoutes);
+console.log('✅ Registered admin business routes at /api/admin');
 
 // Auth routes (login, register, etc)
 router.use('/auth', authRoutes);
