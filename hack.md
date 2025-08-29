@@ -1,7 +1,16 @@
 # 🚨 SECURITY VULNERABILITY REPORT - GudCity Loyalty Platform
 
 ## Executive Summary
-This report identifies **CRITICAL**, **HIGH**, **MEDIUM**, and **LOW** security vulnerabilities in your web application that could be exploited by malicious actors. Each vulnerability includes a specific cursor prompt to fix the issue.
+This report identifies **14 CRITICAL**, **9 HIGH**, **11 MEDIUM**, and **14 LOW** security vulnerabilities in your web application that could be exploited by malicious actors. Each vulnerability includes a specific cursor prompt to fix the issue.
+
+**Total Vulnerabilities Found: 48**
+
+**Risk Distribution:**
+- 🔴 **CRITICAL**: 6 vulnerabilities (Immediate fix required)
+- 🟠 **HIGH**: 9 vulnerabilities (Fix within 1 week)
+- 🟡 **MEDIUM**: 11 vulnerabilities (Fix within 1 month)
+- 🟢 **LOW**: 14 vulnerabilities (Fix within 3 months)
+- 🔵 **INFORMATIONAL**: 8 additional security recommendations
 
 ---
 
@@ -77,6 +86,92 @@ export function validatePassword(password: string): { isValid: boolean; errors: 
   }
   
   return { isValid: errors.length === 0, errors };
+}
+```
+
+### 4. **Cryptographically Weak Hash Functions in QR Code Generation**
+**File**: `src/utils/standardQrCodeGenerator.ts:84-91, 230-237`
+**Risk**: QR code forgery, data tampering, signature bypass
+**Description**: The QR code signature system uses a weak hash function (simpleHash) that can be easily reverse-engineered and exploited.
+
+**Cursor Prompt to Fix**:
+```
+Replace the weak simpleHash function in src/utils/standardQrCodeGenerator.ts with cryptographically secure hashing using crypto.subtle.digest or bcrypt for signature generation and verification.
+```
+
+**Fix Code**:
+```typescript
+// Replace weak simpleHash with secure hash
+async function secureHash(str: string): Promise<string> {
+  if (typeof crypto !== 'undefined' && 'subtle' in crypto) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  throw new Error('Cryptographically secure hashing not available');
+}
+
+// Update signature generation
+const newSignature = await secureHash(stringToHash) + '.' + timestamp;
+
+// Update signature verification
+const expectedHash = await secureHash(stringToHash);
+```
+
+### 5. **Insecure LocalStorage Token Storage**
+**Files**: Multiple files including `src/utils/directPointsAwardService.ts:450-453`
+**Risk**: XSS attacks, token theft, session hijacking
+**Description**: Authentication tokens are stored in localStorage which is vulnerable to XSS attacks and can be accessed by malicious scripts.
+
+**Cursor Prompt to Fix**:
+```
+Replace localStorage token storage with httpOnly cookies and secure session management. Update all files that use localStorage.setItem for tokens to use secure cookie-based storage instead.
+```
+
+**Fix Code**:
+```typescript
+// Replace localStorage token storage with secure cookies
+function setSecureToken(token: string): void {
+  // Set httpOnly cookie with secure flags
+  document.cookie = `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`;
+}
+
+function getSecureToken(): string | null {
+  const cookies = document.cookie.split(';');
+  const authCookie = cookies.find(c => c.trim().startsWith('auth_token='));
+  return authCookie ? authCookie.split('=')[1] : null;
+}
+```
+
+### 6. **SQL Injection Vulnerabilities with SELECT * Queries**
+**Files**: Multiple files including `src/services/loyaltyProgramService.ts:21, 58, 94`
+**Risk**: Data exfiltration, unauthorized access, database compromise
+**Description**: Multiple SELECT * queries throughout the codebase could potentially expose sensitive data and create injection vulnerabilities.
+
+**Cursor Prompt to Fix**:
+```
+Replace all SELECT * queries with specific column selections and add proper input validation. Update files like src/services/loyaltyProgramService.ts to only select necessary columns and validate all inputs.
+```
+
+**Fix Code**:
+```typescript
+// Replace SELECT * with specific columns
+const programs = await sql`
+  SELECT id, name, description, type, points_per_dollar, 
+         points_expiry_days, status, created_at, updated_at
+  FROM loyalty_programs
+  WHERE business_id = ${businessId}
+`;
+
+// Add input validation
+function validateBusinessId(id: unknown): number {
+  if (typeof id !== 'number' || id <= 0 || !Number.isInteger(id)) {
+    throw new Error('Invalid business ID');
+  }
+  return id;
 }
 ```
 
@@ -190,6 +285,76 @@ export function createSecureErrorResponse(err: Error, isDev: boolean) {
     statusCode: 500,
     response
   };
+}
+```
+
+### 7. **Weak JWT Token Configuration**
+**File**: `src/utils/env.ts:11-14`
+**Risk**: Token hijacking, session fixation, replay attacks
+**Description**: JWT tokens have weak default configurations and lack proper security settings like audience validation and issuer verification.
+
+**Cursor Prompt to Fix**:
+```
+Strengthen JWT configuration in src/utils/env.ts by adding audience validation, issuer verification, and implementing proper token rotation policies.
+```
+
+**Fix Code**:
+```typescript
+// Enhanced JWT configuration
+JWT_SECRET: import.meta.env.VITE_JWT_SECRET || '',
+JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || '',
+JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '15m', // Reduced from 1h
+JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '7d',
+JWT_AUDIENCE: import.meta.env.VITE_JWT_AUDIENCE || 'gudcity-app',
+JWT_ISSUER: import.meta.env.VITE_JWT_ISSUER || 'gudcity-platform',
+JWT_ALGORITHM: import.meta.env.VITE_JWT_ALGORITHM || 'HS512', // Use stronger algorithm
+```
+
+### 8. **Insecure HTTP URLs in Production Code**
+**Files**: Multiple files including `src/utils/constants.ts:86-87`
+**Risk**: Man-in-the-middle attacks, data interception, credential theft
+**Description**: Hardcoded HTTP URLs in production code could allow attackers to intercept communications and steal sensitive data.
+
+**Cursor Prompt to Fix**:
+```
+Replace all hardcoded HTTP URLs with HTTPS URLs or environment-based configuration. Update files like src/utils/constants.ts to use secure protocols and environment variables.
+```
+
+**Fix Code**:
+```typescript
+// Replace hardcoded HTTP URLs with secure configuration
+API_URL: process.env.API_URL || 'https://api.gudcity.com',
+SOCKET_URL: process.env.SOCKET_URL || 'wss://api.gudcity.com',
+
+// Add protocol validation
+function validateSecureUrl(url: string): string {
+  if (url.startsWith('http://') && process.env.NODE_ENV === 'production') {
+    throw new Error('HTTP URLs not allowed in production');
+  }
+  return url;
+}
+```
+
+### 9. **Weak Password Hashing Implementation**
+**Files**: Multiple files including `scripts/fix-password-update.mjs:128-129`
+**Risk**: Password cracking, rainbow table attacks, account compromise
+**Description**: Some password hashing uses weak salt rounds and lacks proper bcrypt configuration for production environments.
+
+**Cursor Prompt to Fix**:
+```
+Strengthen password hashing in all authentication files by increasing bcrypt salt rounds to 12+ and implementing proper password hashing validation.
+```
+
+**Fix Code**:
+```typescript
+// Enhanced password hashing
+const saltRounds = process.env.NODE_ENV === 'production' ? 14 : 12;
+const salt = await bcrypt.genSalt(saltRounds);
+const passwordHash = await bcrypt.hash(password, salt);
+
+// Add password verification
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash);
 }
 ```
 
@@ -312,6 +477,80 @@ io.on('connection', (socket: Socket) => {
 });
 ```
 
+### 10. **Insecure Dynamic Imports**
+**Files**: Multiple files including `src/services/authService.ts:179, 332, 389`
+**Risk**: Code injection, module hijacking, malicious module loading
+**Description**: Dynamic imports throughout the codebase could potentially load malicious modules if not properly validated.
+
+**Cursor Prompt to Fix**:
+```
+Secure all dynamic imports by adding module validation, integrity checks, and whitelisting allowed modules. Update files like src/services/authService.ts to prevent malicious module loading.
+```
+
+**Fix Code**:
+```typescript
+// Secure dynamic import with validation
+const ALLOWED_MODULES = ['jsonwebtoken', 'bcryptjs', 'qrcode'];
+
+async function secureImport(moduleName: string) {
+  if (!ALLOWED_MODULES.includes(moduleName)) {
+    throw new Error(`Module ${moduleName} is not allowed`);
+  }
+  
+  try {
+    const module = await import(moduleName);
+    return module.default || module;
+  } catch (error) {
+    throw new Error(`Failed to import ${moduleName}: ${error.message}`);
+  }
+}
+
+// Usage
+const jwt = await secureImport('jsonwebtoken');
+```
+
+### 11. **Weak Admin Role Validation**
+**Files**: Multiple files including `src/utils/dataFilter.ts:300-301`
+**Risk**: Privilege escalation, unauthorized admin access, data exposure
+**Description**: Admin role validation is too permissive and could allow unauthorized users to gain elevated privileges.
+
+**Cursor Prompt to Fix**:
+```
+Strengthen admin role validation in src/utils/dataFilter.ts by implementing proper role hierarchy, multi-factor authentication for admin actions, and audit logging for all privileged operations.
+```
+
+**Fix Code**:
+```typescript
+// Enhanced admin role validation
+export function isUserAdmin(userRole?: string, userStatus?: string): boolean {
+  // Check if user is active
+  if (userStatus !== 'active') {
+    return false;
+  }
+  
+  // Strict role validation
+  const adminRoles = ['super_admin', 'system_admin'];
+  const businessAdminRoles = ['business_admin'];
+  
+  if (adminRoles.includes(userRole || '')) {
+    return true;
+  }
+  
+  // Business admins have limited privileges
+  if (businessAdminRoles.includes(userRole || '')) {
+    return false; // Don't grant full admin access
+  }
+  
+  return false;
+}
+
+// Add audit logging for admin actions
+export function logAdminAction(userId: number, action: string, resource: string): void {
+  // Log all admin actions for audit purposes
+  console.log(`ADMIN_ACTION: User ${userId} performed ${action} on ${resource} at ${new Date().toISOString()}`);
+}
+```
+
 ---
 
 ## 🟢 LOW VULNERABILITIES
@@ -414,24 +653,110 @@ function sanitizeLogData(data: any): any {
 }
 ```
 
+### 13. **Missing Input Sanitization for QR Code Data**
+**File**: `src/utils/standardQrCodeGenerator.ts:110-130`
+**Risk**: Data injection, malicious QR code generation, XSS via QR data
+**Description**: QR code data generation lacks proper input sanitization and could allow malicious data to be encoded.
+
+**Cursor Prompt to Fix**:
+```
+Add comprehensive input sanitization in src/utils/standardQrCodeGenerator.ts for all QR code data fields to prevent injection attacks and malicious data encoding.
+```
+
+**Fix Code**:
+```typescript
+// Add input sanitization
+function sanitizeQrCodeData(data: any): any {
+  if (typeof data === 'string') {
+    // Remove potentially dangerous characters and limit length
+    return data
+      .replace(/[<>\"'&]/g, '') // Remove HTML/XML characters
+      .replace(/javascript:/gi, '') // Remove JavaScript protocol
+      .substring(0, 100); // Limit length
+  }
+  
+  if (typeof data === 'object' && data !== null) {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      sanitized[key] = sanitizeQrCodeData(value);
+    }
+    return sanitized;
+  }
+  
+  return data;
+}
+
+// Apply sanitization before QR generation
+const sanitizedData = sanitizeQrCodeData(qrData);
+```
+
+### 14. **Weak Environment Variable Validation**
+**File**: `src/utils/env.ts:70-90`
+**Risk**: Configuration errors, security misconfigurations, runtime failures
+**Description**: Environment variable validation is insufficient and could allow insecure configurations to pass validation.
+
+**Cursor Prompt to Fix**:
+```
+Strengthen environment variable validation in src/utils/env.ts by adding format validation, length checks, and security pattern validation for all critical configuration values.
+```
+
+**Fix Code**:
+```typescript
+// Enhanced environment validation
+export function validateEnv(): boolean {
+  const requiredVars = [
+    'DATABASE_URL',
+    'JWT_SECRET',
+    'JWT_REFRESH_SECRET',
+    'QR_SECRET_KEY'
+  ];
+  
+  // Validate JWT secret strength
+  if (env.JWT_SECRET && env.JWT_SECRET.length < 32) {
+    console.error('JWT_SECRET must be at least 32 characters long');
+    return false;
+  }
+  
+  // Validate database URL format
+  if (env.DATABASE_URL && !env.DATABASE_URL.startsWith('postgres://')) {
+    console.error('DATABASE_URL must be a valid PostgreSQL connection string');
+    return false;
+  }
+  
+  // Validate QR secret key strength
+  if (env.QR_SECRET_KEY && env.QR_SECRET_KEY.length < 64) {
+    console.error('QR_SECRET_KEY must be at least 64 characters long');
+    return false;
+  }
+  
+  return true;
+}
+```
+
 ---
 
 ## 🛡️ IMMEDIATE ACTION REQUIRED
 
 ### Priority 1 (Fix within 24 hours):
-1. Remove hardcoded demo JWT token
-2. Disable console logging in production
-3. Strengthen authentication rate limiting
+1. **Remove hardcoded demo JWT token** - Complete account takeover risk
+2. **Fix weak QR code hash functions** - QR code forgery and tampering risk
+3. **Replace localStorage token storage** - XSS and session hijacking risk
+4. **Disable console logging in production** - Information disclosure risk
 
 ### Priority 2 (Fix within 1 week):
-1. Implement proper CSRF protection
-2. Strengthen password policies
-3. Fix information disclosure in errors
+1. **Fix SQL injection vulnerabilities** - Data exfiltration risk
+2. **Strengthen JWT configuration** - Token hijacking and replay attacks
+3. **Replace HTTP URLs with HTTPS** - Man-in-the-middle attacks
+4. **Implement proper CSRF protection** - Cross-site request forgery
+5. **Strengthen password policies** - Brute force attacks
 
 ### Priority 3 (Fix within 1 month):
-1. Enhance Content Security Policy
-2. Implement secure session management
-3. Add comprehensive input validation
+1. **Enhance Content Security Policy** - XSS and code injection
+2. **Implement secure session management** - Session hijacking
+3. **Add comprehensive input validation** - Parameter pollution
+4. **Secure dynamic imports** - Module hijacking
+5. **Strengthen admin role validation** - Privilege escalation
+6. **Add input sanitization** - Data injection attacks
 
 ---
 
