@@ -56,6 +56,48 @@ router.get('/simple-businesses', (req: Request, res: Response) => {
   }
 });
 
+// Basic businesses endpoint with minimal database queries
+router.get('/basic-businesses', auth, requireAdmin, async (req: Request, res: Response) => {
+  console.log('🔍 Basic businesses endpoint accessed');
+  try {
+    // Simple query to get basic business info
+    const basicBusinesses = await sql<any[]>`
+      SELECT 
+        id,
+        name,
+        email,
+        created_at as registration_date,
+        status
+      FROM users
+      WHERE user_type = 'business'
+      ORDER BY created_at DESC
+    `;
+    
+    const businesses = basicBusinesses.map(business => ({
+      id: business.id,
+      name: business.name,
+      email: business.email,
+      status: business.status,
+      registrationDate: business.registration_date,
+      duration: calculateDuration(new Date(business.registration_date), new Date())
+    }));
+    
+    res.json({
+      success: true,
+      totalBusinesses: businesses.length,
+      businesses: businesses,
+      message: 'Basic business data retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error in basic businesses endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Database query failed',
+      message: error instanceof Error ? error.message : 'Unknown database error'
+    });
+  }
+});
+
 /**
  * GET /api/admin/businesses
  * Retrieve all businesses with comprehensive information including:
@@ -90,30 +132,66 @@ router.get('/businesses', auth, requireAdmin, async (req: Request, res: Response
     // Fetch all businesses with comprehensive data
     // First try to get from users table (business accounts)
     console.log('🔍 Fetching businesses from users table...');
-    const usersBusinessesResult = await sql<any[]>`
-      SELECT 
-        u.id,
-        u.name,
-        u.email,
-        u.created_at as registration_date,
-        u.status,
-        bp.address,
-        bp.phone,
-        bp.currency,
-        bp.country,
-        bp.timezone,
-        bp.language,
-        bp.business_hours,
-        bp.payment_settings,
-        bp.notification_settings,
-        bp.integrations,
-        bp.tax_id,
-        bp.updated_at as profile_updated_at,
-        'user_business' as source
-      FROM users u
-      LEFT JOIN business_profile bp ON u.id = bp.business_id
-      WHERE u.user_type = 'business'
-    `;
+    let usersBusinessesResult: any[] = [];
+    try {
+      usersBusinessesResult = await sql<any[]>`
+        SELECT 
+          u.id,
+          u.name,
+          u.email,
+          u.created_at as registration_date,
+          u.status,
+          bp.address,
+          bp.phone,
+          bp.currency,
+          bp.country,
+          bp.timezone,
+          bp.language,
+          COALESCE(bp.business_hours, '{}') as business_hours,
+          COALESCE(bp.payment_settings, '{}') as payment_settings,
+          COALESCE(bp.notification_settings, '{}') as notification_settings,
+          COALESCE(bp.integrations, '{}') as integrations,
+          bp.tax_id,
+          bp.updated_at as profile_updated_at,
+          'user_business' as source
+        FROM users u
+        LEFT JOIN business_profile bp ON u.id = bp.business_id
+        WHERE u.user_type = 'business'
+      `;
+      console.log(`✅ Found ${usersBusinessesResult.length} businesses in users table`);
+    } catch (userError) {
+      console.warn('⚠️ Could not fetch from users table:', userError);
+      // Fallback: try without business_profile join
+      try {
+        usersBusinessesResult = await sql<any[]>`
+          SELECT 
+            u.id,
+            u.name,
+            u.email,
+            u.created_at as registration_date,
+            u.status,
+            NULL as address,
+            NULL as phone,
+            'USD' as currency,
+            'US' as country,
+            'UTC' as timezone,
+            'en' as language,
+            '{}' as business_hours,
+            '{}' as payment_settings,
+            '{}' as notification_settings,
+            '{}' as integrations,
+            NULL as tax_id,
+            u.created_at as profile_updated_at,
+            'user_business' as source
+          FROM users u
+          WHERE u.user_type = 'business'
+        `;
+        console.log(`✅ Found ${usersBusinessesResult.length} businesses in users table (fallback)`);
+      } catch (fallbackError) {
+        console.error('❌ Fallback query also failed:', fallbackError);
+        usersBusinessesResult = [];
+      }
+    }
     console.log(`✅ Found ${usersBusinessesResult.length} businesses in users table`);
 
     // Also try to get from businesses table (legacy/separate business records)
@@ -133,10 +211,10 @@ router.get('/businesses', auth, requireAdmin, async (req: Request, res: Response
           'US' as country,
           'UTC' as timezone,
           'en' as language,
-          '{}'::jsonb as business_hours,
-          '{}'::jsonb as payment_settings,
-          '{}'::jsonb as notification_settings,
-          '{}'::jsonb as integrations,
+          '{}' as business_hours,
+          '{}' as payment_settings,
+          '{}' as notification_settings,
+          '{}' as integrations,
           NULL as tax_id,
           b.updated_at as profile_updated_at,
           'legacy_business' as source

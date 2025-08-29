@@ -18,6 +18,7 @@ const testEndpoints = [
   { path: '/api/admin/test', name: 'Admin Test' },
   { path: '/api/admin/public-test', name: 'Admin Public Test' },
   { path: '/api/admin/simple-businesses', name: 'Admin Simple Businesses' },
+  { path: '/api/admin/basic-businesses', name: 'Admin Basic Businesses (Auth Required)' },
   { path: '/api/admin/businesses', name: 'Admin Businesses (Auth Required)' }
 ];
 

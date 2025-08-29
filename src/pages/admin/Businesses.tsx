@@ -169,24 +169,45 @@ const AdminBusinesses = () => {
       setLoading(true);
       setError(null);
       
+      // Check if token exists
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+      
+      console.log('🔍 Attempting to fetch businesses from /api/admin/businesses');
+      
       const response = await fetch('/api/admin/businesses', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+
+      console.log('🔍 Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Authentication required. Please log in again.');
         } else if (response.status === 403) {
           throw new Error('Access denied. Admin privileges required.');
+        } else if (response.status === 404) {
+          throw new Error('Admin businesses endpoint not found. Please check server configuration.');
         } else {
           throw new Error(`Failed to fetch businesses: ${response.statusText}`);
         }
       }
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Non-JSON response received:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response. Please check server logs.');
+      }
+
       const data: AdminBusinessesResponse = await response.json();
+      console.log('🔍 Response data:', data);
       
       if (data.success) {
         setBusinesses(data.businesses);
@@ -195,11 +216,58 @@ const AdminBusinesses = () => {
         throw new Error('Failed to load businesses data');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Error fetching businesses:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      console.error('❌ Error fetching businesses:', err);
+      
+      // Try fallback endpoint if main endpoint fails
+      if (errorMessage.includes('not found') || errorMessage.includes('non-JSON')) {
+        console.log('🔄 Trying fallback endpoint...');
+        await tryFallbackEndpoints();
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Try fallback endpoints if main endpoint fails
+  const tryFallbackEndpoints = async () => {
+    const fallbackEndpoints = [
+      '/api/admin/basic-businesses',
+      '/api/admin/simple-businesses',
+      '/api/admin/public-test'
+    ];
+    
+    for (const endpoint of fallbackEndpoints) {
+      try {
+        console.log(`🔄 Trying fallback endpoint: ${endpoint}`);
+        const token = localStorage.getItem('token');
+        const headers: any = { 'Content-Type': 'application/json' };
+        
+        if (endpoint !== '/api/admin/public-test') {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const response = await fetch(endpoint, { headers });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`✅ Fallback endpoint ${endpoint} worked:`, data);
+          
+          if (data.businesses) {
+            setBusinesses(data.businesses);
+            setFilteredBusinesses(data.businesses);
+            setError(null);
+            return;
+          }
+        }
+      } catch (fallbackError) {
+        console.warn(`⚠️ Fallback endpoint ${endpoint} failed:`, fallbackError);
+      }
+    }
+    
+    // If all fallbacks fail, show helpful error
+    setError('All business endpoints are unavailable. Please check server status and try again later.');
   };
 
   // Load businesses on component mount
@@ -361,12 +429,33 @@ const AdminBusinesses = () => {
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-red-800 mb-2">Error Loading Businesses</h2>
             <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={fetchBusinesses}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Try Again
-            </button>
+            
+            <div className="space-y-3">
+              <button
+                onClick={fetchBusinesses}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors mr-3"
+              >
+                Try Again
+              </button>
+              
+              <button
+                onClick={tryFallbackEndpoints}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Try Fallback Endpoints
+              </button>
+            </div>
+            
+            <div className="mt-6 text-left bg-white p-4 rounded-lg border">
+              <h3 className="font-semibold text-gray-800 mb-2">Troubleshooting Steps:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Check if you're logged in as an admin user</li>
+                <li>• Verify the server is running and accessible</li>
+                <li>• Check server console for error messages</li>
+                <li>• Try refreshing the page and logging in again</li>
+                <li>• Contact system administrator if issues persist</li>
+              </ul>
+            </div>
           </div>
         </div>
       </AdminLayout>
