@@ -47,7 +47,7 @@ const AdminBusinesses = () => {
   // State variables for business management
   const [applications, setApplications] = useState<DbBusinessApplication[]>([]);
   const [businesses, setBusinesses] = useState<DbBusiness[]>([]);
-  const [activeTab, setActiveTab] = useState<'applications' | 'businesses' | 'analytics'>('businesses');
+  // Removed tab system - now shows comprehensive business view only
   const [selectedApplication, setSelectedApplication] = useState<DbBusinessApplication | null>(null);
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<DbBusiness | null>(null);
@@ -301,8 +301,36 @@ const AdminBusinesses = () => {
     setIsBusinessAnalyticsModalOpen(true);
   };
   
-  // Active Businesses Table component
-  const ActiveBusinessesTable = () => {
+  // Function to calculate time registered
+  const calculateTimeRegistered = (registeredAt: string): string => {
+    const registrationDate = new Date(registeredAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - registrationDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) {
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} registered`;
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      const remainingDays = diffDays % 30;
+      if (remainingDays === 0) {
+        return `${months} ${months === 1 ? 'month' : 'months'} registered`;
+      }
+      return `${months} ${months === 1 ? 'month' : 'months'} ${remainingDays} ${remainingDays === 1 ? 'day' : 'days'} registered`;
+    } else {
+      const years = Math.floor(diffDays / 365);
+      const remainingDays = diffDays % 365;
+      const months = Math.floor(remainingDays / 30);
+      
+      if (months === 0) {
+        return `${years} ${years === 1 ? 'year' : 'years'} registered`;
+      }
+      return `${years} ${years === 1 ? 'year' : 'years'} ${months} ${months === 1 ? 'month' : 'months'} registered`;
+    }
+  };
+
+  // Comprehensive Business Table component with all requested data
+  const ComprehensiveBusinessTable = () => {
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -410,19 +438,16 @@ const AdminBusinesses = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Business')}
+                  {t('Business Information')}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Type')}
+                  {t('Registration & Status')}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Status')}
+                  {t('Programs & Customers')}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Customers')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Revenue')}
+                  {t('Business Metrics')}
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('Last Activity')}
@@ -442,56 +467,146 @@ const AdminBusinesses = () => {
                     hover:bg-gray-50
                   `}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                  {/* Business Information Column */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0 h-12 w-12 bg-gray-200 rounded-full flex items-center justify-center">
                         {business.logo ? (
                           <img 
                             src={business.logo} 
                             alt={business.name} 
-                            className="h-10 w-10 rounded-full" 
+                            className="h-12 w-12 rounded-full object-cover" 
                           />
                         ) : (
-                          <Building className="h-5 w-5 text-gray-500" />
+                          <Building className="h-6 w-6 text-gray-500" />
                         )}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
                           {business.name}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {business.email}
+                        <div className="text-xs text-gray-500 mt-1">
+                          <div className="flex items-center">
+                            <Mail className="h-3 w-3 mr-1" />
+                            {business.email}
+                          </div>
+                        </div>
+                        {business.phone && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            <div className="flex items-center">
+                              <Phone className="h-3 w-3 mr-1" />
+                              {business.phone}
+                            </div>
+                          </div>
+                        )}
+                        {business.address && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            <div className="flex items-center">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              <span className="truncate max-w-32">{business.address}</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="text-xs text-blue-600 mt-1 font-medium">
+                          {business.type || 'General Business'}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{business.type}</div>
+
+                  {/* Registration & Status Column */}
+                  <td className="px-6 py-4">
+                    <div className="space-y-2">
+                      <div>
+                        <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full 
+                          ${business.status === 'active' ? 'bg-green-100 text-green-800' : ''}
+                          ${business.status === 'inactive' ? 'bg-gray-100 text-gray-800' : ''}
+                          ${business.status === 'suspended' ? 'bg-red-100 text-red-800' : ''}
+                        `}>
+                          {business.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <div className="flex items-center">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {business.registeredAt ? formatDate(business.registeredAt) : 'N/A'}
+                        </div>
+                      </div>
+                      <div className="text-xs text-blue-600 font-medium">
+                        <Clock className="h-3 w-3 mr-1 inline" />
+                        {business.registeredAt ? calculateTimeRegistered(business.registeredAt) : 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <CreditCard className="h-3 w-3 mr-1 inline" />
+                        Currency: USD {/* Default for now, should come from business profile */}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${business.status === 'active' ? 'bg-green-100 text-green-800' : ''}
-                      ${business.status === 'inactive' ? 'bg-gray-100 text-gray-800' : ''}
-                      ${business.status === 'suspended' ? 'bg-red-100 text-red-800' : ''}
-                    `}>
-                      {business.status}
-                    </span>
+
+                  {/* Programs & Customers Column */}
+                  <td className="px-6 py-4">
+                    <div className="space-y-2">
+                      <div className="text-sm">
+                        <div className="flex items-center text-gray-900">
+                          <User className="h-4 w-4 mr-1" />
+                          <span className="font-medium">{business.customerCount || 0}</span>
+                          <span className="text-gray-500 ml-1">customers</span>
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <div className="flex items-center text-gray-900">
+                          <Briefcase className="h-4 w-4 mr-1" />
+                          <span className="font-medium">{business.programCount || 0}</span>
+                          <span className="text-gray-500 ml-1">programs</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <span>Promotions: 0</span> {/* This would need to be added to business data */}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <span>Active Cards: {business.customerCount || 0}</span>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {business.customerCount || 0}
+
+                  {/* Business Metrics Column */}
+                  <td className="px-6 py-4">
+                    <div className="space-y-2">
+                      <div className="text-sm">
+                        <div className="flex items-center text-gray-900">
+                          <span className="font-medium">${(business.revenue || 0).toLocaleString()}</span>
+                          <span className="text-gray-500 ml-1">revenue</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <div>Total Points Awarded: N/A</div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <div>Redemptions: N/A</div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <div>Avg. Customer Value: ${business.customerCount > 0 ? ((business.revenue || 0) / business.customerCount).toFixed(2) : '0'}</div>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${(business.revenue || 0).toLocaleString()}
+
+                  {/* Last Activity Column */}
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900">
+                      {formatDate(business.lastActivity)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Last login
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(business.lastActivity)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+
+                  {/* Actions Column */}
+                  <td className="px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <button
                         onClick={() => handleViewBusinessDetails(business)}
                         className="text-gray-400 hover:text-gray-500"
-                        title={t('View Details')}
+                        title={t('View Full Details')}
                       >
                         <Eye className="h-5 w-5" />
                       </button>
@@ -1025,7 +1140,7 @@ const AdminBusinesses = () => {
 
               {/* Programs list */}
               <div className="mt-6">
-                <h4 className="text-sm font-medium text-gray-500">{t('Programs')}</h4>
+                <h4 className="text-sm font-medium text-gray-500">{t('Programs & Historical Data')}</h4>
                 <div className="mt-2 border rounded-md divide-y">
                   {Array.isArray((selectedBusiness as any)?.programs) && (selectedBusiness as any).programs.length > 0 ? (
                     ((selectedBusiness as any).programs as any[]).map((p) => (
@@ -1033,6 +1148,7 @@ const AdminBusinesses = () => {
                         <div>
                           <p className="text-sm font-medium text-gray-900">{p.name}</p>
                           <p className="text-xs text-gray-500">{p.description}</p>
+                          <p className="text-xs text-blue-600 mt-1">Created: {formatDate(p.created_at)}</p>
                         </div>
                         <span className="text-xs px-2 py-1 rounded-full border bg-gray-50 text-gray-700">{p.status}</span>
                       </div>
@@ -1040,6 +1156,110 @@ const AdminBusinesses = () => {
                   ) : (
                     <div className="p-3 text-sm text-gray-500">{t('No programs found')}</div>
                   )}
+                </div>
+              </div>
+
+              {/* Historical Timeline */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-500">{t('Business Timeline & Historical Tracking')}</h4>
+                <div className="mt-2 border rounded-md">
+                  <div className="p-4 space-y-4">
+                    {/* Registration Event */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">Business Registration</div>
+                        <div className="text-xs text-gray-500">
+                          {formatDate(selectedBusiness.registeredAt)} • {calculateTimeRegistered(selectedBusiness.registeredAt || '')}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Account opened and began operations</div>
+                      </div>
+                    </div>
+
+                    {/* Customer Acquisition */}
+                    {selectedBusiness.customerCount && selectedBusiness.customerCount > 0 && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">Customer Acquisition</div>
+                          <div className="text-xs text-gray-500">Ongoing</div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {selectedBusiness.customerCount} customers acquired
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Program Creation */}
+                    {Array.isArray((selectedBusiness as any)?.programs) && (selectedBusiness as any).programs.length > 0 && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">Loyalty Programs Created</div>
+                          <div className="text-xs text-gray-500">Multiple dates</div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {(selectedBusiness as any).programs.length} loyalty programs launched
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Revenue Generation */}
+                    {selectedBusiness.revenue && selectedBusiness.revenue > 0 && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">Revenue Generation</div>
+                          <div className="text-xs text-gray-500">Ongoing</div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            ${selectedBusiness.revenue.toLocaleString()} total revenue generated
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Last Activity */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-gray-400 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">Last Activity</div>
+                        <div className="text-xs text-gray-500">{formatDate(selectedBusiness.lastActivity)}</div>
+                        <div className="text-xs text-gray-600 mt-1">Most recent business login/activity</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Structured Business Lifecycle Summary */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-500">{t('Business Lifecycle Summary')}</h4>
+                <div className="mt-2 bg-gray-50 rounded-md p-4">
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <div className="font-medium text-gray-700">Registration Period</div>
+                      <div className="text-gray-600">{calculateTimeRegistered(selectedBusiness.registeredAt || '')}</div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Business Stage</div>
+                      <div className="text-gray-600">
+                        {selectedBusiness.customerCount > 100 ? 'Established' :
+                         selectedBusiness.customerCount > 20 ? 'Growing' :
+                         selectedBusiness.customerCount > 0 ? 'Developing' : 'New'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Customer Base</div>
+                      <div className="text-gray-600">{selectedBusiness.customerCount || 0} active customers</div>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-700">Revenue Performance</div>
+                      <div className="text-gray-600">
+                        {selectedBusiness.revenue > 10000 ? 'High' :
+                         selectedBusiness.revenue > 1000 ? 'Medium' : 'Low'} volume
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1161,106 +1381,20 @@ const AdminBusinesses = () => {
           </button>
         </div>
         
+        {/* Business header section */}
         <div className="mb-6">
-          <div className="sm:hidden">
-            <select
-              onChange={(e) => setActiveTab(e.target.value as 'applications' | 'businesses' | 'analytics')}
-              value={activeTab}
-              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            >
-              <option value="applications">{t('Applications')}</option>
-              <option value="businesses">{t('Active Businesses')}</option>
-              <option value="analytics">{t('Analytics')}</option>
-            </select>
-          </div>
-          
-          <div className="hidden sm:block">
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
-                <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'applications' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                  onClick={() => setActiveTab('applications')}
-                >
-                  {t('Applications')}
-                </button>
-                
-                <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'businesses' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                  onClick={() => setActiveTab('businesses')}
-                >
-                  {t('Active Businesses')}
-                </button>
-                
-                <button
-                  className={`
-                    whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
-                    ${activeTab === 'analytics' 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                  `}
-                  onClick={() => setActiveTab('analytics')}
-                >
-                  {t('Analytics')}
-                </button>
-              </nav>
-            </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              {t('Businesses')}
+            </h2>
+            <p className="text-gray-600">
+              {t('Comprehensive business data including registration timeline, programs, customers, promotions, and historical tracking.')}
+            </p>
           </div>
         </div>
         
-        {activeTab === 'applications' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Business Applications')}
-            </h2>
-            
-            <ApplicationsTable />
-          </div>
-        )}
-        
-        {activeTab === 'businesses' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Active Businesses')}
-            </h2>
-            
-            <ActiveBusinessesTable />
-          </div>
-        )}
-        
-        {activeTab === 'analytics' && (
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {t('Business Analytics Overview')}
-            </h2>
-            
-            {/* Analytics Dashboard Will Go Here */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-              <BarChart2 className="h-16 w-16 text-blue-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {t('Business Analytics Dashboard')}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {t('Select a business from the Active Businesses tab to view detailed analytics')}
-              </p>
-              <button
-                onClick={() => setActiveTab('businesses')}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                {t('View Businesses')}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Comprehensive Business Table */}
+        <ComprehensiveBusinessTable />
         
         {/* Application Detail Modal */}
         {selectedApplication && (
