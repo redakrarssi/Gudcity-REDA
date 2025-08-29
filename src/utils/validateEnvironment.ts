@@ -1,9 +1,10 @@
 /**
  * Environment Validation Utility
  * Ensures all required security variables are properly configured
+ * SECURITY: This file should only run on the server side
  */
 
-import env from './env';
+import { serverEnvironment, validateServerEnv } from './env';
 
 /**
  * Critical security validation results
@@ -17,97 +18,104 @@ interface SecurityValidationResult {
 
 /**
  * Validate all critical security configurations
+ * SECURITY: This function should only run on the server side
  */
 export function validateSecurityEnvironment(): SecurityValidationResult {
+  // SECURITY: Only run on server side
+  if (typeof window !== 'undefined') {
+    console.warn('Environment validation should only run on server side');
+    return {
+      isValid: true,
+      errors: [],
+      warnings: ['Environment validation skipped on client side'],
+      criticalIssues: []
+    };
+  }
+
   const errors: string[] = [];
   const warnings: string[] = [];
   const criticalIssues: string[] = [];
 
   // CRITICAL: JWT Secrets validation
-  if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
+  if (!serverEnvironment.JWT_SECRET || serverEnvironment.JWT_SECRET.trim() === '') {
     criticalIssues.push('JWT_SECRET is not configured');
     errors.push('JWT_SECRET is required for authentication');
-  } else if (env.JWT_SECRET.length < 32) {
+  } else if (serverEnvironment.JWT_SECRET.length < 32) {
     warnings.push('JWT_SECRET should be at least 32 characters long for security');
   }
 
-  if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
+  if (!serverEnvironment.JWT_REFRESH_SECRET || serverEnvironment.JWT_REFRESH_SECRET.trim() === '') {
     criticalIssues.push('JWT_REFRESH_SECRET is not configured');
     errors.push('JWT_REFRESH_SECRET is required for token refresh');
-  } else if (env.JWT_REFRESH_SECRET.length < 32) {
+  } else if (serverEnvironment.JWT_REFRESH_SECRET.length < 32) {
     warnings.push('JWT_REFRESH_SECRET should be at least 32 characters long for security');
   }
 
   // CRITICAL: Database URL validation
-  if (!env.DATABASE_URL || env.DATABASE_URL.trim() === '') {
+  if (!serverEnvironment.DATABASE_URL || serverEnvironment.DATABASE_URL.trim() === '') {
     criticalIssues.push('DATABASE_URL is not configured');
     errors.push('DATABASE_URL is required for database connectivity');
   } else {
     // Check for hardcoded credentials in database URL
-    if (env.DATABASE_URL.includes('neondb_owner:npg_rpc6Nh5oKGzt')) {
+    if (serverEnvironment.DATABASE_URL.includes('neondb_owner:npg_rpc6Nh5oKGzt')) {
       criticalIssues.push('DATABASE_URL contains hardcoded credentials - SECURITY RISK');
       errors.push('Remove hardcoded database credentials immediately');
     }
   }
 
   // CRITICAL: QR Secret Key validation
-  if (!env.QR_SECRET_KEY || env.QR_SECRET_KEY.trim() === '') {
+  if (!serverEnvironment.QR_SECRET_KEY || serverEnvironment.QR_SECRET_KEY.trim() === '') {
     criticalIssues.push('QR_SECRET_KEY is not configured');
     errors.push('QR_SECRET_KEY is required for QR code security');
-  } else if (env.QR_SECRET_KEY.length < 32) {
+  } else if (serverEnvironment.QR_SECRET_KEY.length < 32) {
     warnings.push('QR_SECRET_KEY should be at least 32 characters long for security');
   }
 
   // Production environment specific validations
-  if (env.isProduction()) {
+  if (process.env.NODE_ENV === 'production') {
     // SECURITY: Ensure production environment is properly configured
-    if (env.APP_ENV !== 'production') {
+    if (process.env.APP_ENV !== 'production') {
       criticalIssues.push('APP_ENV is not set to production in production environment');
       errors.push('Set APP_ENV=production in production');
     }
 
     // SECURITY: Disable debug mode in production
-    if (env.DEBUG) {
+    if (process.env.VITE_DEBUG === 'true') {
       criticalIssues.push('DEBUG mode is enabled in production - SECURITY RISK');
       errors.push('Disable DEBUG mode in production environment');
     }
 
     // SECURITY: Ensure HTTPS in production
-    if (!env.API_URL || !env.API_URL.startsWith('https://')) {
+    if (!serverEnvironment.API_URL || !serverEnvironment.API_URL.startsWith('https://')) {
       warnings.push('API_URL should use HTTPS in production for security');
     }
 
     // SECURITY: Email configuration in production
-    if (!env.EMAIL_HOST || !env.EMAIL_USER || !env.EMAIL_PASSWORD) {
+    if (!serverEnvironment.EMAIL_HOST || !serverEnvironment.EMAIL_USER || !serverEnvironment.EMAIL_PASSWORD) {
       warnings.push('Email configuration is incomplete in production');
     }
   }
 
   // Development environment validations
-  if (env.isDevelopment()) {
+  if (process.env.NODE_ENV === 'development') {
     // SECURITY: Warn about development defaults
-    if (env.JWT_SECRET === 'default-jwt-secret-change-in-production') {
+    if (serverEnvironment.JWT_SECRET === 'default-jwt-secret-change-in-production') {
       warnings.push('Using default JWT secret in development - change for production');
     }
     
-    if (env.JWT_REFRESH_SECRET === 'default-jwt-refresh-secret-change-in-production') {
+    if (serverEnvironment.JWT_REFRESH_SECRET === 'default-jwt-refresh-secret-change-in-production') {
       warnings.push('Using default JWT refresh secret in development - change for production');
     }
   }
 
   // Rate limiting validation
-  if (env.RATE_LIMIT_MAX > 1000) {
+  const rateLimitMax = parseInt(process.env.VITE_RATE_LIMIT_MAX || '100', 10);
+  if (rateLimitMax > 1000) {
     warnings.push('RATE_LIMIT_MAX is very high - consider reducing for security');
   }
 
-  if (env.RATE_LIMIT_WINDOW_MS < 1000) {
-    warnings.push('RATE_LIMIT_WINDOW_MS is very low - may cause performance issues');
-  }
-
-  const isValid = criticalIssues.length === 0 && errors.length === 0;
-
   return {
-    isValid,
+    isValid: criticalIssues.length === 0,
     errors,
     warnings,
     criticalIssues
@@ -115,97 +123,95 @@ export function validateSecurityEnvironment(): SecurityValidationResult {
 }
 
 /**
- * Log security validation results
- */
-export function logSecurityValidation(): void {
-  const result = validateSecurityEnvironment();
-  
-  console.log('🔒 Security Environment Validation');
-  console.log('=====================================');
-  
-  if (result.criticalIssues.length > 0) {
-    console.error('🚨 CRITICAL SECURITY ISSUES:');
-    result.criticalIssues.forEach(issue => {
-      console.error(`   ❌ ${issue}`);
-    });
-  }
-  
-  if (result.errors.length > 0) {
-    console.error('❌ Security Errors:');
-    result.errors.forEach(error => {
-      console.error(`   • ${error}`);
-    });
-  }
-  
-  if (result.warnings.length > 0) {
-    console.warn('⚠️ Security Warnings:');
-    result.warnings.forEach(warning => {
-      console.warn(`   • ${warning}`);
-    });
-  }
-  
-  if (result.isValid) {
-    console.log('✅ Security environment validation passed');
-  } else {
-    console.error('❌ Security environment validation failed');
-    
-    if (result.criticalIssues.length > 0) {
-      console.error('');
-      console.error('🚨 IMMEDIATE ACTION REQUIRED:');
-      console.error('Fix all critical security issues before deployment');
-    }
-  }
-  
-  console.log('=====================================');
-}
-
-/**
- * Check if application can start safely
+ * Check if the environment can start safely
+ * SECURITY: This function should only run on the server side
  */
 export function canStartSafely(): boolean {
-  const result = validateSecurityEnvironment();
-  
-  // Only allow startup if no critical issues
-  return result.criticalIssues.length === 0;
+  // SECURITY: Only run on server side
+  if (typeof window !== 'undefined') {
+    console.warn('Environment safety check should only run on server side');
+    return true;
+  }
+
+  const validation = validateSecurityEnvironment();
+  return validation.isValid;
 }
 
 /**
- * Get security status summary
+ * Log security validation results
+ * SECURITY: This function should only run on the server side
  */
-export function getSecurityStatus(): {
-  status: 'SECURE' | 'WARNING' | 'CRITICAL';
-  message: string;
-  score: number;
+export function logSecurityValidation(): void {
+  // SECURITY: Only run on server side
+  if (typeof window !== 'undefined') {
+    console.warn('Security validation logging should only run on server side');
+    return;
+  }
+
+  const validation = validateSecurityEnvironment();
+  
+  if (validation.criticalIssues.length > 0) {
+    console.error('🚨 CRITICAL SECURITY ISSUES:');
+    validation.criticalIssues.forEach(issue => {
+      console.error(`   - ${issue}`);
+    });
+  }
+  
+  if (validation.errors.length > 0) {
+    console.error('❌ SECURITY ERRORS:');
+    validation.errors.forEach(error => {
+      console.error(`   - ${error}`);
+    });
+  }
+  
+  if (validation.warnings.length > 0) {
+    console.warn('⚠️ SECURITY WARNINGS:');
+    validation.warnings.forEach(warning => {
+      console.warn(`   - ${warning}`);
+    });
+  }
+  
+  if (validation.isValid) {
+    console.log('✅ Security validation passed');
+  } else {
+    console.error('❌ Security validation failed');
+  }
+}
+
+/**
+ * Get environment validation status
+ * SECURITY: This function should only run on the server side
+ */
+export function getEnvironmentStatus(): {
+  isValid: boolean;
+  hasCriticalIssues: boolean;
+  hasErrors: boolean;
+  hasWarnings: boolean;
+  summary: string;
 } {
-  const result = validateSecurityEnvironment();
-  
-  if (result.criticalIssues.length > 0) {
+  // SECURITY: Only run on server side
+  if (typeof window !== 'undefined') {
     return {
-      status: 'CRITICAL',
-      message: `${result.criticalIssues.length} critical security issues detected`,
-      score: 0
+      isValid: true,
+      hasCriticalIssues: false,
+      hasErrors: false,
+      hasWarnings: false,
+      summary: 'Environment validation not available on client side'
     };
   }
-  
-  if (result.errors.length > 0) {
-    return {
-      status: 'WARNING',
-      message: `${result.errors.length} security errors detected`,
-      score: 50
-    };
-  }
-  
-  if (result.warnings.length > 0) {
-    return {
-      status: 'WARNING',
-      message: `${result.warnings.length} security warnings detected`,
-      score: 75
-    };
-  }
+
+  const validation = validateSecurityEnvironment();
   
   return {
-    status: 'SECURE',
-    message: 'All security validations passed',
-    score: 100
+    isValid: validation.isValid,
+    hasCriticalIssues: validation.criticalIssues.length > 0,
+    hasErrors: validation.errors.length > 0,
+    hasWarnings: validation.warnings.length > 0,
+    summary: validation.isValid 
+      ? 'Environment is properly configured'
+      : `Environment has ${validation.criticalIssues.length} critical issues, ${validation.errors.length} errors, and ${validation.warnings.length} warnings`
   };
 }
+
+// Export the main validation function for backward compatibility
+export const validateEnvironment = validateSecurityEnvironment;

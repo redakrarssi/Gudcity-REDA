@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-const DATABASE_URL = process.env.VITE_DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = process.env.VITE_DATABASE_URL || "process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || """;
 
 // Card tiers with their benefits
 const CARD_TIERS = {

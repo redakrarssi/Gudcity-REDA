@@ -1,5 +1,5 @@
 import sql from './db';
-import env from './env';
+import { isDevelopment, isProduction } from './env';
 
 export class AppError extends Error {
   statusCode: number;
@@ -69,7 +69,7 @@ export function logError(error: Error, req?: any): void {
   };
   
   // Log to console in development
-  if (env.isDevelopment()) {
+  if (isDevelopment()) {
     console.error('ERROR DETAILS:', JSON.stringify(errorDetails, null, 2));
   } else {
     // In production, only log basic error info to console
@@ -77,7 +77,7 @@ export function logError(error: Error, req?: any): void {
   }
   
   // Log to database if it's a production error
-  if (env.isProduction() && error instanceof AppError && error.isOperational) {
+  if (isProduction() && error instanceof AppError && error.isOperational) {
     logErrorToDatabase(errorDetails, req?.user?.id).catch(dbError => {
       console.error('Failed to log error to database:', dbError);
     });

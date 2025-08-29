@@ -1,7 +1,7 @@
 const { Pool } = require('@neondatabase/serverless');
 
 // Directly set the database URL
-const DATABASE_URL = "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = "process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || """;
 
 // Create a database connection
 const pool = new Pool({

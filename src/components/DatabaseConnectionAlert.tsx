@@ -8,9 +8,9 @@ const DatabaseConnectionAlert: React.FC = () => {
   const fallbackContext = useFallback();
   const { connectionStatus } = fallbackContext;
   
-  // Check if database connection is configured
-  const hasDbConnection = !!env.DATABASE_URL;
-  const isMockMode = !hasDbConnection || env.MOCK_DATA;
+  // SECURITY: Only check client-safe environment variables
+  // Check if mock data mode is enabled (client-safe)
+  const isMockMode = env.MOCK_DATA;
   const showAlert = isMockMode && FEATURES.showMockNotice;
   
   // Set the fallback state based on connection status
@@ -26,10 +26,10 @@ const DatabaseConnectionAlert: React.FC = () => {
       // Record telemetry event for mock mode
       telemetry.recordEvent('db.connection.lost', {
         reason: 'Mock data mode enabled',
-        configured: hasDbConnection
+        configured: false
       }, 'info');
     }
-  }, [isMockMode, hasDbConnection, fallbackContext]);
+  }, [isMockMode, fallbackContext]);
 
   if (!showAlert) {
     return null;
@@ -43,7 +43,7 @@ const DatabaseConnectionAlert: React.FC = () => {
         </div>
         <div className="ml-3">
           <h3 className="text-sm font-medium text-amber-800">
-            {!hasDbConnection ? 'Database Connection Not Configured' : 'Using Mock Data Mode'}
+            Using Mock Data Mode
           </h3>
           <p className="mt-2 text-sm text-amber-700">
             The application is running in mock data mode. You can login with these demo accounts:
@@ -54,9 +54,7 @@ const DatabaseConnectionAlert: React.FC = () => {
             <li><strong>Business:</strong> business@example.com / password</li>
           </ul>
           <p className="mt-2 text-xs text-amber-700">
-            {!hasDbConnection 
-              ? 'To connect to a real database, configure the VITE_DATABASE_URL environment variable.' 
-              : 'To disable mock data mode, set VITE_MOCK_DATA=false in your environment variables.'}
+            To disable mock data mode, set VITE_MOCK_DATA=false in your environment variables.
           </p>
         </div>
       </div>

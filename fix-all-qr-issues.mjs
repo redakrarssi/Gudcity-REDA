@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Get database connection string from environment or use default
-const DATABASE_URL = process.env.DATABASE_URL || "postgres://neondb_owner:npg_rpc6Nh5oKGzt@ep-rough-violet-a22uoev9-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL || "process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || """;
 
 // Create a database connection
 const pool = new Pool({

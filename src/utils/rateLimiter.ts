@@ -2,7 +2,7 @@
  * Rate limiter utility for QR code scanning
  * Prevents brute force attacks by limiting the number of scan attempts
  */
-import env from './env';
+import { QR_RATE_LIMIT_MAX, QR_RATE_LIMIT_WINDOW_MS } from './env';
 
 interface RateLimitRecord {
   count: number;
@@ -17,8 +17,8 @@ class RateLimiter {
   private cleanupInterval: number;
 
   constructor() {
-    this.maxAttempts = env.QR_RATE_LIMIT_MAX;
-    this.windowMs = env.QR_RATE_LIMIT_WINDOW_MS;
+    this.maxAttempts = QR_RATE_LIMIT_MAX;
+    this.windowMs = QR_RATE_LIMIT_WINDOW_MS;
     this.cleanupInterval = this.windowMs * 2; // Clean up twice the window size
     
     // Set up periodic cleanup

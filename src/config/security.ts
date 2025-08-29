@@ -1,241 +1,376 @@
 /**
  * Security Configuration
- * Centralized security settings for the GudCity Loyalty Platform
+ * Centralized security settings and policies for the application
  */
 
-export const SECURITY_CONFIG = {
-  // JWT Configuration
-  JWT: {
-    // Minimum secret length requirements
-    MIN_SECRET_LENGTH: 32,
-    // Token expiration times
-    ACCESS_TOKEN_EXPIRY: '1h',
-    REFRESH_TOKEN_EXPIRY: '7d',
-    // Algorithm
-    ALGORITHM: 'HS256',
-    // Issuer and audience for additional security
-    ISSUER: 'gudcity-loyalty-platform',
-    AUDIENCE: 'gudcity-users'
-  },
-
-  // Password Policy
-  PASSWORD: {
-    MIN_LENGTH: 8,
-    MAX_LENGTH: 128,
-    REQUIRE_LOWERCASE: true,
-    REQUIRE_UPPERCASE: true,
-    REQUIRE_NUMBERS: true,
-    REQUIRE_SPECIAL_CHARS: true,
-    // Prevent common weak passwords
-    BLOCK_COMMON_PASSWORDS: true,
-    // Prevent repeated characters
-    MAX_REPEATED_CHARS: 2,
-    // Prevent sequential characters
-    BLOCK_SEQUENTIAL_CHARS: true
-  },
-
-  // Rate Limiting
-  RATE_LIMITING: {
-    // General API rate limits
-    GENERAL: {
-      WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-      MAX_REQUESTS: 100
-    },
-    // Authentication rate limits (stricter)
-    AUTH: {
-      WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-      MAX_REQUESTS: 5,
-      LOCKOUT_DURATION: 15 * 60 * 1000, // 15 minutes
-      PROGRESSIVE_LOCKOUT: true
-    },
-    // QR code scanning rate limits
-    QR_SCANNING: {
-      WINDOW_MS: 60 * 1000, // 1 minute
-      MAX_REQUESTS: 20
-    }
-  },
-
-  // CORS Configuration
+// Security configuration interface
+export interface SecurityConfig {
+  // Authentication settings
+  AUTH: {
+    jwtSecret: string;
+    jwtRefreshSecret: string;
+    jwtExpiry: string;
+    jwtRefreshExpiry: string;
+    passwordMinLength: number;
+    passwordMaxLength: number;
+    passwordRequireUppercase: boolean;
+    passwordRequireLowercase: boolean;
+    passwordRequireNumbers: boolean;
+    passwordRequireSpecialChars: boolean;
+    maxLoginAttempts: number;
+    lockoutDuration: number;
+    sessionTimeout: number;
+    sessionRefreshThreshold: number;
+  };
+  
+  // Rate limiting settings
+  RATE_LIMIT: {
+    authWindowMs: number;
+    authMaxRequests: number;
+    apiWindowMs: number;
+    apiMaxRequests: number;
+    uploadWindowMs: number;
+    uploadMaxRequests: number;
+    qrGenerationWindowMs: number;
+    qrGenerationMaxRequests: number;
+    pointsAwardWindowMs: number;
+    pointsAwardMaxRequests: number;
+    adminWindowMs: number;
+    adminMaxRequests: number;
+  };
+  
+  // CORS settings
   CORS: {
-    // Production origins (restrictive)
-    PRODUCTION_ORIGINS: [
-      'https://gudcity.com',
-      'https://www.gudcity.com',
-      'https://app.gudcity.com'
-    ],
-    // Development origins
-    DEVELOPMENT_ORIGINS: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:3000'
-    ],
-    // Allowed methods
-    ALLOWED_METHODS: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    // Allowed headers
-    ALLOWED_HEADERS: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'X-API-Key'
-    ],
-    // Exposed headers
-    EXPOSED_HEADERS: ['X-Total-Count', 'X-Page-Count'],
-    // Credentials
-    ALLOW_CREDENTIALS: true,
-    // Max age
-    MAX_AGE: 86400 // 24 hours
-  },
-
-  // Content Security Policy
-  CSP: {
-    DIRECTIVES: {
-      'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      'img-src': ["'self'", "data:", "https:", "blob:"],
-      'connect-src': ["'self'", "https:", "wss:"],
-      'font-src': ["'self'", "https://fonts.gstatic.com"],
-      'object-src': ["'none'"],
-      'media-src': ["'self'", "https:"],
-      'frame-src': ["'none'"],
-      'worker-src': ["'self'", "blob:"],
-      'form-action': ["'self'"],
-      'base-uri': ["'self'"],
-      'manifest-src': ["'self'"]
-    }
-  },
-
-  // Security Headers
-  SECURITY_HEADERS: {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Resource-Policy': 'same-origin',
-    'Origin-Agent-Cluster': '?1'
-  },
-
-  // Session Security
-  SESSION: {
-    // Cookie settings
-    COOKIE: {
-      HTTP_ONLY: true,
-      SECURE: true, // Only send over HTTPS
-      SAME_SITE: 'strict',
-      MAX_AGE: 24 * 60 * 60 * 1000 // 24 hours
-    },
-    // Session timeout
-    TIMEOUT: 30 * 60 * 1000, // 30 minutes
-    // Regenerate session ID
-    REGENERATE_ID: true
-  },
-
-  // Input Validation
-  INPUT_VALIDATION: {
-    // Maximum string lengths
-    MAX_STRING_LENGTH: 10000,
-    // Maximum array length
-    MAX_ARRAY_LENGTH: 1000,
-    // Maximum object depth
-    MAX_OBJECT_DEPTH: 10,
-    // Sanitize HTML
-    SANITIZE_HTML: true,
-    // Block SQL injection patterns
-    BLOCK_SQL_INJECTION: true,
-    // Block XSS patterns
-    BLOCK_XSS: true
-  },
-
-  // Logging and Monitoring
+    allowedOrigins: string[];
+    allowedMethods: string[];
+    allowedHeaders: string[];
+    exposedHeaders: string[];
+    credentials: boolean;
+    maxAge: number;
+  };
+  
+  // File upload settings
+  FILE_UPLOAD: {
+    maxFileSize: number;
+    allowedImageTypes: string[];
+    allowedDocumentTypes: string[];
+    allowedQrTypes: string[];
+    scanForMalware: boolean;
+    validateFileContent: boolean;
+    secureStorage: boolean;
+  };
+  
+  // Input validation settings
+  VALIDATION: {
+    maxInputLength: number;
+    maxArrayLength: number;
+    maxObjectDepth: number;
+    sanitizeInputs: boolean;
+    validateTypes: boolean;
+    blockSuspiciousPatterns: boolean;
+  };
+  
+  // Logging and monitoring
   LOGGING: {
-    // Log security events
-    SECURITY_EVENTS: true,
-    // Log authentication attempts
-    AUTH_ATTEMPTS: true,
-    // Log rate limit violations
-    RATE_LIMIT_VIOLATIONS: true,
-    // Log suspicious activities
-    SUSPICIOUS_ACTIVITIES: true,
-    // Sanitize sensitive data in logs
-    SANITIZE_LOGS: true
-  },
-
-  // Environment-specific overrides
-  ENVIRONMENT: {
-    PRODUCTION: {
-      // Stricter settings for production
-      DEBUG_MODE: false,
-      SHOW_ERROR_DETAILS: false,
-      ALLOW_INSECURE_CONNECTIONS: false,
-      REQUIRE_HTTPS: true,
-      STRICT_CORS: true
-    },
-    DEVELOPMENT: {
-      // More permissive for development
-      DEBUG_MODE: true,
-      SHOW_ERROR_DETAILS: true,
-      ALLOW_INSECURE_CONNECTIONS: true,
-      REQUIRE_HTTPS: false,
-      STRICT_CORS: false
-    }
-  }
-};
-
-/**
- * Get security configuration for current environment
- */
-export function getSecurityConfig() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const baseConfig = SECURITY_CONFIG;
+    logLevel: string;
+    logSecurityEvents: boolean;
+    logSensitiveData: boolean;
+    logPerformance: boolean;
+    logUserActions: boolean;
+    retentionDays: number;
+  };
   
-  if (isProduction) {
-    return {
-      ...baseConfig,
-      ...baseConfig.ENVIRONMENT.PRODUCTION
-    };
-  }
+  // Session security
+  SESSION: {
+    secure: boolean;
+    httpOnly: boolean;
+    sameSite: string;
+    maxAge: number;
+    regenerateId: boolean;
+  };
   
-  return {
-    ...baseConfig,
-    ...baseConfig.ENVIRONMENT.DEVELOPMENT
+  // Headers security
+  HEADERS: {
+    contentSecurityPolicy: string;
+    xFrameOptions: string;
+    xContentTypeOptions: string;
+    xXSSProtection: string;
+    strictTransportSecurity: string;
+    referrerPolicy: string;
+  };
+  
+  // Database security
+  DATABASE: {
+    useSSL: boolean;
+    connectionTimeout: number;
+    queryTimeout: number;
+    maxConnections: number;
+    encryptData: boolean;
+    auditQueries: boolean;
+  };
+  
+  // API security
+  API: {
+    requireAuthentication: boolean;
+    validateRequests: boolean;
+    sanitizeResponses: boolean;
+    rateLimitByIP: boolean;
+    rateLimitByUser: boolean;
+    logAllRequests: boolean;
+  };
+  
+  // QR code security
+  QR_SECURITY: {
+    secretKey: string;
+    tokenRotationDays: number;
+    validateSignatures: boolean;
+    encryptData: boolean;
+    rateLimitGeneration: boolean;
+    auditUsage: boolean;
   };
 }
 
-/**
- * Validate security configuration
- */
-export function validateSecurityConfig(): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  const config = getSecurityConfig();
+// Default security configuration
+export const defaultSecurityConfig: SecurityConfig = {
+  AUTH: {
+    jwtSecret: process.env.JWT_SECRET || '',
+    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || '',
+    jwtExpiry: process.env.JWT_EXPIRY || '1h',
+    jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
+    passwordMinLength: 8,
+    passwordMaxLength: 128,
+    passwordRequireUppercase: true,
+    passwordRequireLowercase: true,
+    passwordRequireNumbers: true,
+    passwordRequireSpecialChars: true,
+    maxLoginAttempts: 5,
+    lockoutDuration: 30 * 60 * 1000, // 30 minutes
+    sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours
+    sessionRefreshThreshold: 5 * 60 * 1000 // 5 minutes
+  },
   
-  // Validate JWT configuration
-  if (config.JWT.MIN_SECRET_LENGTH < 32) {
-    errors.push('JWT minimum secret length must be at least 32 characters');
+  RATE_LIMIT: {
+    authWindowMs: 15 * 60 * 1000, // 15 minutes
+    authMaxRequests: 5,
+    apiWindowMs: 60 * 1000, // 1 minute
+    apiMaxRequests: 100,
+    uploadWindowMs: 60 * 1000, // 1 minute
+    uploadMaxRequests: 10,
+    qrGenerationWindowMs: 60 * 1000, // 1 minute
+    qrGenerationMaxRequests: 20,
+    pointsAwardWindowMs: 60 * 1000, // 1 minute
+    pointsAwardMaxRequests: 50,
+    adminWindowMs: 60 * 1000, // 1 minute
+    adminMaxRequests: 30
+  },
+  
+  CORS: {
+    allowedOrigins: process.env.NODE_ENV === 'production' 
+      ? [process.env.FRONTEND_URL || 'http://localhost:5173']
+      : ['http://localhost:5173', 'http://localhost:3000'],
+    allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 
+      'Authorization', 'X-CSRF-Token', 'X-API-Key'
+    ],
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    credentials: true,
+    maxAge: 86400 // 24 hours
+  },
+  
+  FILE_UPLOAD: {
+    maxFileSize: 5 * 1024 * 1024, // 5MB
+    allowedImageTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+    allowedDocumentTypes: ['application/pdf', 'text/plain'],
+    allowedQrTypes: ['image/png', 'image/jpeg', 'image/jpg'],
+    scanForMalware: true,
+    validateFileContent: true,
+    secureStorage: true
+  },
+  
+  VALIDATION: {
+    maxInputLength: 10000,
+    maxArrayLength: 1000,
+    maxObjectDepth: 10,
+    sanitizeInputs: true,
+    validateTypes: true,
+    blockSuspiciousPatterns: true
+  },
+  
+  LOGGING: {
+    logLevel: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
+    logSecurityEvents: true,
+    logSensitiveData: false,
+    logPerformance: true,
+    logUserActions: true,
+    retentionDays: 90
+  },
+  
+  SESSION: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    regenerateId: true
+  },
+  
+  HEADERS: {
+    contentSecurityPolicy: process.env.NODE_ENV === 'production'
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none';"
+      : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:;",
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+    xXSSProtection: '1; mode=block',
+    strictTransportSecurity: process.env.NODE_ENV === 'production' ? 'max-age=31536000; includeSubDomains' : '',
+    referrerPolicy: 'strict-origin-when-cross-origin'
+  },
+  
+  DATABASE: {
+    useSSL: process.env.NODE_ENV === 'production',
+    connectionTimeout: 30000, // 30 seconds
+    queryTimeout: 60000, // 60 seconds
+    maxConnections: 20,
+    encryptData: process.env.NODE_ENV === 'production',
+    auditQueries: true
+  },
+  
+  API: {
+    requireAuthentication: true,
+    validateRequests: true,
+    sanitizeResponses: true,
+    rateLimitByIP: true,
+    rateLimitByUser: true,
+    logAllRequests: true
+  },
+  
+  QR_SECURITY: {
+    secretKey: process.env.QR_SECRET_KEY || '',
+    tokenRotationDays: 30,
+    validateSignatures: true,
+    encryptData: true,
+    rateLimitGeneration: true,
+    auditUsage: true
+  }
+};
+
+// Security validation functions
+export function validateSecurityConfig(config: SecurityConfig): {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+} {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Validate JWT secrets
+  if (!config.AUTH.jwtSecret || config.AUTH.jwtSecret.length < 32) {
+    errors.push('JWT_SECRET must be at least 32 characters long');
+  }
+  
+  if (!config.AUTH.jwtRefreshSecret || config.AUTH.jwtRefreshSecret.length < 32) {
+    errors.push('JWT_REFRESH_SECRET must be at least 32 characters long');
+  }
+  
+  // Validate QR secret key
+  if (!config.QR_SECURITY.secretKey || config.QR_SECURITY.secretKey.length < 32) {
+    errors.push('QR_SECRET_KEY must be at least 32 characters long');
   }
   
   // Validate password policy
-  if (config.PASSWORD.MIN_LENGTH < 8) {
-    errors.push('Password minimum length must be at least 8 characters');
+  if (config.AUTH.passwordMinLength < 8) {
+    warnings.push('Password minimum length should be at least 8 characters');
   }
   
-  // Validate rate limiting
-  if (config.RATE_LIMITING.AUTH.MAX_REQUESTS > 10) {
-    errors.push('Authentication rate limit should not exceed 10 requests per window');
+  if (config.AUTH.passwordMaxLength > 128) {
+    warnings.push('Password maximum length should not exceed 128 characters');
   }
   
-  // Validate CORS
-  if (config.CORS.PRODUCTION_ORIGINS.length === 0) {
-    errors.push('Production CORS origins must be configured');
+  // Validate rate limits
+  if (config.RATE_LIMIT.authMaxRequests > 10) {
+    warnings.push('Auth rate limit should not exceed 10 attempts per window');
+  }
+  
+  if (config.RATE_LIMIT.apiMaxRequests > 1000) {
+    warnings.push('API rate limit should not exceed 1000 requests per minute');
+  }
+  
+  // Validate CORS settings
+  if (config.CORS.allowedOrigins.includes('*')) {
+    errors.push('CORS allowedOrigins should not include wildcard (*)');
+  }
+  
+  // Validate file upload settings
+  if (config.FILE_UPLOAD.maxFileSize > 50 * 1024 * 1024) {
+    warnings.push('File upload size should not exceed 50MB');
+  }
+  
+  // Validate session settings
+  if (!config.SESSION.secure && process.env.NODE_ENV === 'production') {
+    errors.push('Session cookies must be secure in production');
+  }
+  
+  // Validate headers
+  if (!config.HEADERS.contentSecurityPolicy) {
+    warnings.push('Content Security Policy should be configured');
   }
   
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    warnings
   };
+}
+
+// Get security configuration for current environment
+export function getSecurityConfig(): SecurityConfig {
+  const config = { ...defaultSecurityConfig };
+  
+  // Override with environment-specific settings
+  if (process.env.NODE_ENV === 'production') {
+    // Production overrides
+    config.LOGGING.logLevel = 'warn';
+    config.SESSION.secure = true;
+    config.DATABASE.useSSL = true;
+    config.DATABASE.encryptData = true;
+  } else if (process.env.NODE_ENV === 'development') {
+    // Development overrides
+    config.LOGGING.logLevel = 'debug';
+    config.LOGGING.logSensitiveData = true;
+    config.SESSION.secure = false;
+    config.DATABASE.useSSL = false;
+    config.DATABASE.encryptData = false;
+  }
+  
+  return config;
+}
+
+// Security utility functions
+export function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+export function isDevelopment(): boolean {
+  return process.env.NODE_ENV === 'development';
+}
+
+export function isTest(): boolean {
+  return process.env.NODE_ENV === 'test';
+}
+
+// Export the current security configuration
+export const securityConfig = getSecurityConfig();
+
+// Validate the configuration on load
+const validation = validateSecurityConfig(securityConfig);
+if (!validation.isValid) {
+  console.error('❌ Security configuration validation failed:');
+  validation.errors.forEach(error => console.error(`   - ${error}`));
+  validation.warnings.forEach(warning => console.warn(`   - ${warning}`));
+  
+  if (isProduction()) {
+    throw new Error('Security configuration validation failed in production');
+  }
+} else if (validation.warnings.length > 0) {
+  console.warn('⚠️  Security configuration warnings:');
+  validation.warnings.forEach(warning => console.warn(`   - ${warning}`));
 }

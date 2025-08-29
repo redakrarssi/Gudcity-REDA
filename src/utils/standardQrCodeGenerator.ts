@@ -11,7 +11,7 @@ import {
   PromoCodeQrCodeData,
   QrCodeData
 } from '../types/qrCode';
-import env from './env';
+// Note: QR_SECRET_KEY is server-side only for security
 
 // Polyfill for crypto.randomUUID if not available
 function generateUUID(): string {
@@ -93,8 +93,10 @@ function addSignature(data: QrCodeData): QrCodeData {
   }
   
   // Generate a simple signature with a timestamp for verification
+  // Note: In client-side context, we use a fallback signature for display purposes only
+  // Real signatures should be generated server-side for security
   const timestamp = new Date().getTime();
-  const stringToHash = JSON.stringify(dataWithoutSignature) + (env.QR_SECRET_KEY || 'fallback-key') + timestamp;
+  const stringToHash = JSON.stringify(dataWithoutSignature) + 'client-fallback-key' + timestamp;
   const newSignature = simpleHash(stringToHash) + '.' + timestamp;
   
   // Return data with the new signature

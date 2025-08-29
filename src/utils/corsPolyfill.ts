@@ -31,7 +31,7 @@ function cors(options: CorsOptions = {}) {
   const {
     origin = defaultOrigin,
     methods = 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders = 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    allowedHeaders = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token',
     exposedHeaders = '',
     credentials = false,
     maxAge = 86400, // 24 hours
@@ -42,11 +42,15 @@ function cors(options: CorsOptions = {}) {
     try {
       const requestOrigin = req.headers.origin;
       
-      // SECURITY: Validate origin
+      // SECURITY: Validate origin with strict checking
       let allowedOrigin = '';
       if (typeof origin === 'string') {
-        allowedOrigin = origin;
+        // Single origin - exact match only
+        if (requestOrigin === origin) {
+          allowedOrigin = origin;
+        }
       } else if (Array.isArray(origin)) {
+        // Multiple origins - check if request origin is in allowed list
         if (requestOrigin && origin.includes(requestOrigin)) {
           allowedOrigin = requestOrigin;
         }
@@ -61,7 +65,7 @@ function cors(options: CorsOptions = {}) {
         });
       }
       
-      // Set CORS headers
+      // Set CORS headers only if origin is allowed
       if (allowedOrigin) {
         res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
         res.setHeader('Access-Control-Allow-Methods', methods);
@@ -77,6 +81,24 @@ function cors(options: CorsOptions = {}) {
         }
       }
 
+      // SECURITY: Add additional security headers
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('X-XSS-Protection', '1; mode=block');
+      
+      // Add Content Security Policy for production
+      if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Content-Security-Policy', 
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: https:; " +
+          "font-src 'self' data:; " +
+          "connect-src 'self' ws: wss:; " +
+          "frame-ancestors 'none';"
+        );
+      }
+
       // For preflight requests, respond immediately
       if (req.method === 'OPTIONS') {
         res.status(optionsSuccessStatus).end();
@@ -84,6 +106,9 @@ function cors(options: CorsOptions = {}) {
       }
     } catch (error) {
       console.warn('CORS polyfill encountered an error:', error);
+      // SECURITY: Fail closed - don't allow requests if CORS fails
+      res.status(403).json({ error: 'CORS policy violation' });
+      return;
     }
 
     next();
