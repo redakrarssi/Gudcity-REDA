@@ -1,6 +1,6 @@
 {
-  "name": "Gudcity Loyalty Platform",
-  "short_name": "Gudcity",
+  "name": "Vcarda Loyalty Platform",
+  "short_name": "Vcarda",
   "description": "Loyalty program management for businesses and customers",
   "start_url": "https://gudcity-reda.vercel.app/",
   "display": "standalone",

@@ -2,7 +2,15 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Html5Qrcode, CameraDevice } from 'html5-qrcode';
 import { AlertCircle, Camera, Check, Award, Users, KeyRound, Scan, Zap, Shield, Target, AlertTriangle, User, Smartphone, Settings, History, SwitchCamera, RefreshCw, X, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { QrCodeService } from '../services/qrCodeService';
+import { 
+  validateQrCodeDataClient,
+  isCustomerQrCodeDataClient,
+  isLoyaltyCardQrCodeDataClient,
+  isPromoCodeQrCodeDataClient,
+  processQrCodeDataClient,
+  formatQrCodeDisplayData,
+  handleQrCodeErrorClient
+} from '../services/clientQrCodeService';
 import { RewardModal } from './business/RewardModal';
 import { ProgramEnrollmentModal } from './business/ProgramEnrollmentModal';
 import { RedemptionModal } from './business/RedemptionModal';

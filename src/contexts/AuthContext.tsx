@@ -16,7 +16,8 @@ import { UserQrCodeService } from '../services/userQrCodeService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import sql from '../utils/db';
-import { generateTokens } from '../services/authService';
+// SECURITY: Remove client-side token generation - tokens should only be generated on server
+// import { generateTokens } from '../services/authService';
 
 /**
  * Permission interface for role-based access control
@@ -342,80 +343,153 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const normalizedEmail = email.trim().toLowerCase();
       console.log(`Attempting login for: ${normalizedEmail}`);
       
-      const dbUser = await validateUser(normalizedEmail, password);
-      
-      if (dbUser && dbUser.id) {
-        // Check if the user is banned
-        if (dbUser.status === 'banned') {
-          console.error('Login attempt by banned user:', normalizedEmail);
+      // SECURITY: Make API call to server for authentication instead of client-side validation
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password: password
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          let authError: AuthError;
+          
+          if (response.status === 401) {
+            authError = {
+              type: AuthErrorType.INVALID_CREDENTIALS,
+              message: 'Invalid email or password'
+            };
+          } else if (response.status === 403) {
+            authError = {
+              type: AuthErrorType.USER_BANNED,
+              message: 'Your account has been banned. Please contact support.'
+            };
+          } else {
+            authError = {
+              type: AuthErrorType.SERVER_ERROR,
+              message: errorData.message || 'Login failed. Please try again.'
+            };
+          }
+          
+          setError(authError);
+          setIsLoading(false);
+          return { success: false, error: authError };
+        }
+
+        const authData = await response.json();
+        
+        if (authData.success && authData.user && authData.accessToken) {
+          // Store the server-generated token
+          localStorage.setItem('token', authData.accessToken);
+          console.log('JWT token received from server and saved to localStorage');
+          
+          // Convert server user data to app user format
+          const appUser = convertDbUserToUser(authData.user);
+          
+          // Store user in state
+          setUser(appUser);
+          
+          // Store user ID and data in localStorage
+          localStorage.setItem('authUserId', String(authData.user.id));
+          localStorage.setItem('authUserData', JSON.stringify(appUser));
+          localStorage.setItem('authLastLogin', new Date().toISOString());
+          localStorage.setItem('authSessionActive', 'true');
+          
+          // Record business login if applicable
+          if (authData.user.user_type === 'business' && authData.user.business_id) {
+            try {
+              await recordBusinessLogin(Number(authData.user.business_id));
+            } catch (error) {
+              console.error('Failed to record business login:', error);
+              // Non-critical error, continue with login
+            }
+          }
+          
+          console.log('Login successful for:', normalizedEmail);
+          setIsLoading(false);
+          return { success: true, user: appUser };
+        } else {
+          throw new Error('Invalid response from server');
+        }
+      } catch (apiError) {
+        console.error('API login error:', apiError);
+        
+        // Fallback to local validation if API fails (for development/testing)
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Falling back to local validation for development');
+          
+          const dbUser = await validateUser(normalizedEmail, password);
+          
+          if (dbUser && dbUser.id) {
+            // Check if the user is banned
+            if (dbUser.status === 'banned') {
+              console.error('Login attempt by banned user:', normalizedEmail);
+              const authError: AuthError = {
+                type: AuthErrorType.USER_BANNED,
+                message: 'Your account has been banned. Please contact support.'
+              };
+              setError(authError);
+              setIsLoading(false);
+              return { success: false, error: authError };
+            }
+            
+            // Check if the user is restricted
+            if (dbUser.status === 'restricted') {
+              console.warn('Login by restricted user:', normalizedEmail);
+              // Allow login but with limited permissions
+            }
+            
+            // Convert DB user to app user
+            const appUser = convertDbUserToUser(dbUser);
+            
+            // Store user in state
+            setUser(appUser);
+            
+            // Store user ID and data in localStorage
+            localStorage.setItem('authUserId', String(dbUser.id));
+            localStorage.setItem('authUserData', JSON.stringify(appUser));
+            localStorage.setItem('authLastLogin', new Date().toISOString());
+            localStorage.setItem('authSessionActive', 'true');
+            
+            // Record business login if applicable
+            if (dbUser.user_type === 'business' && dbUser.business_id) {
+              try {
+                await recordBusinessLogin(Number(dbUser.business_id));
+              } catch (error) {
+                console.error('Failed to record business login:', error);
+                // Non-critical error, continue with login
+              }
+            }
+            
+            console.log('Login successful for:', normalizedEmail);
+            setIsLoading(false);
+            return { success: true, user: appUser };
+          } else {
+            console.error('Login failed for:', normalizedEmail);
+            const authError: AuthError = {
+              type: AuthErrorType.INVALID_CREDENTIALS,
+              message: 'Invalid email or password'
+            };
+            setError(authError);
+            setIsLoading(false);
+            return { success: false, error: authError };
+          }
+        } else {
+          // In production, fail if API is not available
           const authError: AuthError = {
-            type: AuthErrorType.USER_BANNED,
-            message: 'Your account has been banned. Please contact support.'
+            type: AuthErrorType.NETWORK_ERROR,
+            message: 'Unable to connect to authentication service. Please try again later.'
           };
           setError(authError);
           setIsLoading(false);
           return { success: false, error: authError };
         }
-        
-        // Check if the user is restricted
-        if (dbUser.status === 'restricted') {
-          console.warn('Login by restricted user:', normalizedEmail);
-          // Allow login but with limited permissions
-        }
-        
-        // Convert DB user to app user
-        const appUser = convertDbUserToUser(dbUser);
-        
-        // Store user in state
-        setUser(appUser);
-        
-        // Generate JWT token
-        try {
-          // Create a user object that matches what generateTokens expects
-          const userForToken = {
-            id: appUser.id,
-            email: appUser.email,
-            role: appUser.role
-          };
-          
-          const { accessToken } = await generateTokens(userForToken);
-          
-          // Store token in localStorage with the key expected by API calls
-          localStorage.setItem('token', accessToken);
-          console.log('JWT token saved to localStorage');
-        } catch (tokenError) {
-          console.error('Failed to generate JWT token:', tokenError);
-          // Continue with login even if token generation fails
-        }
-        
-        // Store user ID and data in localStorage
-        localStorage.setItem('authUserId', String(dbUser.id));
-        localStorage.setItem('authUserData', JSON.stringify(appUser));
-        localStorage.setItem('authLastLogin', new Date().toISOString());
-        localStorage.setItem('authSessionActive', 'true');
-        
-        // Record business login if applicable
-        if (dbUser.user_type === 'business' && dbUser.business_id) {
-          try {
-            await recordBusinessLogin(Number(dbUser.business_id));
-          } catch (error) {
-            console.error('Failed to record business login:', error);
-            // Non-critical error, continue with login
-          }
-        }
-        
-        console.log('Login successful for:', normalizedEmail);
-        setIsLoading(false);
-        return { success: true, user: appUser };
-      } else {
-        console.error('Login failed for:', normalizedEmail);
-        const authError: AuthError = {
-          type: AuthErrorType.INVALID_CREDENTIALS,
-          message: 'Invalid email or password'
-        };
-        setError(authError);
-        setIsLoading(false);
-        return { success: false, error: authError };
       }
     } catch (error) {
       console.error('Login error:', error);

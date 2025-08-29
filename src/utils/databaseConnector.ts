@@ -12,7 +12,7 @@ import { SqlRow } from './db';
 import { invalidateCache, invalidateCacheByTag } from './cache';
 import { telemetry } from './telemetry';
 import { logger } from './logger';
-import env, { FEATURES } from './env';
+import { FEATURES } from './env';
 import { getConnectionState, ConnectionState } from './db';
 import mockData from './mockData';
 
@@ -94,7 +94,7 @@ const defaultOptions: DatabaseOptions = {
  */
 function shouldUseMockData(): boolean {
   // Always use mock data if explicitly enabled
-  if (env.MOCK_DATA) return true;
+  if (FEATURES.mockData) return true;
   
   // Use mock data if fallback is enabled and connection is not available
   if (FEATURES.fallback.enabled && FEATURES.fallback.useMockData) {
