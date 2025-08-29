@@ -40,6 +40,7 @@ import {
 } from '../../services/businessService';
 import { logSystemActivity } from '../../services/dashboardService';
 import api from '../../api/api';
+import { formatRegistrationDuration, formatDateTimeSafe } from '../../utils/date';
 
 const AdminBusinesses = () => {
   const { t } = useTranslation();
@@ -301,8 +302,34 @@ const AdminBusinesses = () => {
     setIsBusinessAnalyticsModalOpen(true);
   };
   
-  // Active Businesses Table component
+  // Structured Businesses List component (replaces table view)
   const ActiveBusinessesTable = () => {
+    const [expandedIds, setExpandedIds] = useState<Record<string | number, boolean>>({});
+    const [detailsById, setDetailsById] = useState<Record<string | number, any>>({});
+    const [timelineById, setTimelineById] = useState<Record<string | number, any[]>>({});
+
+    const toggleExpand = async (business: any) => {
+      const id = business.id;
+      const next = { ...expandedIds, [id]: !expandedIds[id] };
+      setExpandedIds(next);
+      if (!detailsById[id]) {
+        try {
+          const [detailsResp, timelineResp] = await Promise.all([
+            api.get(`/api/businesses/admin/${id}/details`),
+            api.get(`/api/businesses/admin/${id}/timeline`)
+          ]);
+          if (detailsResp.status === 200) {
+            setDetailsById((prev) => ({ ...prev, [id]: detailsResp.data }));
+          }
+          if (timelineResp.status === 200) {
+            setTimelineById((prev) => ({ ...prev, [id]: timelineResp.data.timeline || [] }));
+          }
+        } catch (e) {
+          console.warn('Failed to load business details/timeline', e);
+        }
+      }
+    };
+
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -403,136 +430,196 @@ const AdminBusinesses = () => {
             </button>
           </div>
         </div>
-        
-        {/* Businesses Table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Business')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Type')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Status')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Customers')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Revenue')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Last Activity')}
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('Actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredBusinesses.map((business) => (
-                <tr 
-                  key={business.id} 
-                  className={`
-                    ${business.status === 'suspended' ? 'bg-red-50' : ''}
-                    ${business.status === 'inactive' ? 'bg-gray-50' : ''}
-                    hover:bg-gray-50
-                  `}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
+        <div className="divide-y">
+          {filteredBusinesses.map((business) => {
+            const id = business.id as number | string;
+            const details = detailsById[id];
+            const profile = details?.profile;
+            const programs = details?.programs || [];
+            const customers = details?.customers || [];
+            const promotions = details?.promotions || [];
+            const currency = (business as any).currency || profile?.currency || 'USD';
+            const phone = (business as any).phone || profile?.phone || '';
+            const registeredAt = (business as any).registeredAt || profile?.registeredAt || (business as any).created_at;
+            const lastLogin = (business as any).lastLogin || (business as any).lastActivity || profile?.lastLogin;
+            const expanded = !!expandedIds[id];
+
+            return (
+              <div key={id} className={`${business.status === 'suspended' ? 'bg-red-50' : business.status === 'inactive' ? 'bg-gray-50' : 'bg-white'}`}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
                         {business.logo ? (
-                          <img 
-                            src={business.logo} 
-                            alt={business.name} 
-                            className="h-10 w-10 rounded-full" 
-                          />
+                          <img src={business.logo as any} alt={business.name} className="h-10 w-10 rounded-full" />
                         ) : (
                           <Building className="h-5 w-5 text-gray-500" />
                         )}
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {business.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {business.email}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900">{business.name}</div>
+                        <div className="text-xs text-gray-500">{business.email}</div>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{business.type}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${business.status === 'active' ? 'bg-green-100 text-green-800' : ''}
-                      ${business.status === 'inactive' ? 'bg-gray-100 text-gray-800' : ''}
-                      ${business.status === 'suspended' ? 'bg-red-100 text-red-800' : ''}
-                    `}>
-                      {business.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {business.customerCount || 0}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${(business.revenue || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(business.lastActivity)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => handleViewBusinessDetails(business)}
-                        className="text-gray-400 hover:text-gray-500"
-                        title={t('View Details')}
-                      >
-                        <Eye className="h-5 w-5" />
-                      </button>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${business.status === 'active' ? 'bg-green-100 text-green-800' : business.status === 'inactive' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800'}`}>
+                        {business.status}
+                      </span>
                       <button
                         onClick={() => handleViewBusinessAnalytics(business)}
-                        className="text-blue-400 hover:text-blue-500"
+                        className="text-blue-500 hover:text-blue-600"
                         title={t('View Analytics')}
                       >
                         <BarChart2 className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => {
-                          const newStatus = business.status === 'active' ? 'inactive' : 'active';
-                          handleBusinessStatusChange(business.id as number, newStatus);
-                        }}
-                        className={`
-                          ${business.status === 'active' ? 'text-yellow-400 hover:text-yellow-500' : 'text-green-400 hover:text-green-500'}
-                        `}
-                        title={business.status === 'active' ? t('Deactivate') : t('Activate')}
+                        onClick={() => toggleExpand(business)}
+                        className="text-gray-600 hover:text-gray-800 text-sm border px-2 py-1 rounded"
                       >
-                        {business.status === 'active' ? (
-                          <XCircle className="h-5 w-5" />
-                        ) : (
-                          <CheckCircle className="h-5 w-5" />
-                        )}
+                        {expanded ? t('Collapse') : t('Expand')}
                       </button>
-                      {business.status !== 'suspended' && (
-                        <button
-                          onClick={() => handleBusinessStatusChange(business.id as number, 'suspended')}
-                          className="text-red-400 hover:text-red-500"
-                          title={t('Suspend')}
-                        >
-                          <AlertTriangle className="h-5 w-5" />
-                        </button>
-                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+
+                  {expanded && (
+                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {/* General Info */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('General Info')}</h4>
+                        <dl className="text-sm text-gray-700 space-y-2">
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Business name')}</dt><dd className="text-gray-900">{business.name}</dd></div>
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Date of registration')}</dt><dd className="text-gray-900">{formatDateTimeSafe(registeredAt)}</dd></div>
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Address')}</dt><dd className="text-gray-900">{(business as any).address || profile?.address || 'N/A'}</dd></div>
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Phone number')}</dt><dd className="text-gray-900">{phone || 'N/A'}</dd></div>
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Currency used')}</dt><dd className="text-gray-900">{currency}</dd></div>
+                          <div className="flex justify-between"><dt className="text-gray-500">{t('Current status')}</dt><dd className="text-gray-900">{business.status}</dd></div>
+                        </dl>
+                      </div>
+
+                      {/* Registration Duration */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Registration Duration')}</h4>
+                        <p className="text-gray-900 text-sm">{formatRegistrationDuration(registeredAt)}</p>
+                      </div>
+
+                      {/* Last Login */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Last Login')}</h4>
+                        <p className="text-gray-900 text-sm">{formatDateTimeSafe(lastLogin)}</p>
+                      </div>
+
+                      {/* Programs */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Programs')}</h4>
+                        <div className="space-y-2 max-h-56 overflow-auto">
+                          {programs.length > 0 ? (
+                            programs.map((p: any) => (
+                              <div key={p.id} className="flex items-center justify-between text-sm">
+                                <div>
+                                  <div className="text-gray-900">{p.name}</div>
+                                  <div className="text-gray-500 text-xs">{p.description}</div>
+                                </div>
+                                <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-50 text-gray-700">{p.status}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">{t('No programs')}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Customers */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Customers')}</h4>
+                        <div className="text-sm text-gray-900 mb-2">{customers.length} {t('customers')}</div>
+                        <div className="space-y-2 max-h-56 overflow-auto">
+                          {customers.length > 0 ? (
+                            customers.slice(0, 10).map((c: any) => (
+                              <div key={c.id} className="flex items-center justify-between text-sm">
+                                <div className="text-gray-900">{c.name}</div>
+                                <div className="text-gray-500 text-xs">{(c.programCount || c.program_count || 1)} {t('programs')}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">{t('No customers')}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Promotions */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Promotions')}</h4>
+                        <div className="space-y-2 max-h-56 overflow-auto">
+                          {promotions.length > 0 ? (
+                            promotions.map((pr: any) => (
+                              <div key={pr.id} className="flex items-center justify-between text-sm">
+                                <div>
+                                  <div className="text-gray-900">{pr.name || pr.code}</div>
+                                  <div className="text-gray-500 text-xs">{pr.type} • {pr.value}{pr.currency ? ` ${pr.currency}` : ''}</div>
+                                </div>
+                                <div className="text-xs text-gray-500">{formatDateTimeSafe(pr.createdAt)}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">{t('No promotions')}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Timeline */}
+                      <div className="lg:col-span-3 border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('Timeline')}</h4>
+                        <div className="space-y-3 max-h-72 overflow-auto">
+                          {(timelineById[id] || []).length > 0 ? (
+                            (timelineById[id] || []).map((ev: any, idx: number) => (
+                              <div key={idx} className="flex items-start">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-blue-500 mr-3"></div>
+                                <div>
+                                  <div className="text-sm text-gray-900">{ev.title}</div>
+                                  <div className="text-xs text-gray-500">{formatDateTimeSafe(ev.timestamp)}</div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">{t('No timeline events')}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      onClick={() => {
+                        const newStatus = business.status === 'active' ? 'inactive' : 'active';
+                        handleBusinessStatusChange(business.id as number, newStatus);
+                      }}
+                      className={`${business.status === 'active' ? 'text-yellow-600 hover:text-yellow-700' : 'text-green-600 hover:text-green-700'} text-sm`}
+                      title={business.status === 'active' ? t('Deactivate') : t('Activate')}
+                    >
+                      {business.status === 'active' ? t('Deactivate') : t('Activate')}
+                    </button>
+                    {business.status !== 'suspended' && (
+                      <button
+                        onClick={() => handleBusinessStatusChange(business.id as number, 'suspended')}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                        title={t('Suspend')}
+                      >
+                        {t('Suspend')}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleViewBusinessDetails(business)}
+                      className="text-gray-600 hover:text-gray-800 text-sm"
+                    >
+                      {t('Open Modal')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );

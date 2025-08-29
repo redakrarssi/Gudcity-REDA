@@ -9,6 +9,7 @@ import { CustomerService } from '../services/customerService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
 import { v4 as uuidv4 } from 'uuid';
+import { PromoService } from '../services/promoService';
 // Import our dedicated handler for award-points
 import { handleAwardPoints } from './awardPointsHandler';
 // Import security utilities
@@ -171,20 +172,24 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
         b.type,
         b.status,
         b.address,
+        b.phone,
         b.logo,
         b.created_at as registered_at,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
         COUNT(DISTINCT bt.customer_id) as total_customers,
-        MAX(bdl.login_time) as last_login_time
+        MAX(bdl.login_time) as last_login_time,
+        bs.currency as currency
       FROM 
         businesses b
       LEFT JOIN 
         business_transactions bt ON b.id = bt.business_id
       LEFT JOIN 
         business_daily_logins bdl ON b.id = bdl.business_id
+      LEFT JOIN
+        business_settings bs ON b.id = bs.business_id
       GROUP BY 
-        b.id
+        b.id, bs.currency
       ORDER BY b.created_at DESC
     `;
 
@@ -195,11 +200,13 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
       type: r.type,
       status: r.status,
       address: r.address,
+      phone: r.phone,
       logo: r.logo,
       registeredAt: r.registered_at,
       customerCount: Number(r.total_customers || 0),
       revenue: Number(r.total_revenue || 0),
       lastLogin: r.last_login_time,
+      currency: r.currency || 'USD',
     }));
 
     res.json({ businesses: data });
@@ -223,12 +230,14 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
         b.*,
         MAX(bdl.login_time) as last_login_time,
         COUNT(DISTINCT bt.customer_id) as total_customers,
-        COALESCE(SUM(bt.amount), 0) as total_revenue
+        COALESCE(SUM(bt.amount), 0) as total_revenue,
+        bs.currency as currency
       FROM businesses b
       LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
       LEFT JOIN business_transactions bt ON b.id = bt.business_id
+      LEFT JOIN business_settings bs ON b.id = bs.business_id
       WHERE b.id = ${parseInt(businessId)}
-      GROUP BY b.id
+      GROUP BY b.id, bs.currency
     `;
 
     if (!result.length) {
@@ -239,6 +248,12 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
 
     // Programs list
     const programs = await LoyaltyProgramService.getBusinessPrograms(String(businessId));
+
+    // Customers list
+    const customers = await CustomerService.getBusinessCustomers(String(businessId));
+
+    // Promotions list
+    const promotions = await PromoService.getBusinessPromotions(String(businessId));
 
     // Analytics summary (total points and redemptions)
     const analytics = await BusinessAnalyticsService.getBusinessAnalytics(String(businessId), 'month');
@@ -259,8 +274,11 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
         lastLogin: base.last_login_time,
         customerCount: Number(base.total_customers || 0),
         revenue: Number(base.total_revenue || 0),
+        currency: base.currency || 'USD',
       },
       programs,
+      customers,
+      promotions,
       stats: {
         totalPoints: analytics.totalPoints,
         totalRedemptions: analytics.totalRedemptions,
@@ -269,6 +287,78 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     });
   } catch (error) {
     console.error('Error fetching business details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * ADMIN: Business timeline - programs created, customers added, promotions launched
+ * Path: /api/businesses/admin/:id/timeline
+ */
+router.get('/admin/:id/timeline', auth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const businessId = parseInt(req.params.id);
+    if (isNaN(businessId)) {
+      return res.status(400).json({ error: 'Invalid business id' });
+    }
+
+    // Business registration event
+    const businessRows = await sql<any[]>`
+      SELECT id, name, created_at FROM businesses WHERE id = ${businessId}
+    `;
+    const registrationEvent = businessRows.length ? [{
+      type: 'business_registered' as const,
+      title: `Business registered: ${businessRows[0].name}`,
+      referenceId: businessRows[0].id,
+      timestamp: businessRows[0].created_at
+    }] : [];
+
+    // Programs created
+    const programRows = await sql<any[]>`
+      SELECT id, name, created_at FROM loyalty_programs WHERE business_id = ${businessId}
+      ORDER BY created_at ASC
+    `;
+    const programEvents = programRows.map(p => ({
+      type: 'program_created' as const,
+      title: `Program created: ${p.name}`,
+      referenceId: p.id,
+      timestamp: p.created_at
+    }));
+
+    // Customers added (association and program joins)
+    const customerInteractionRows = await sql<any[]>`
+      SELECT id, customer_id, type, happened_at
+      FROM customer_interactions
+      WHERE business_id = ${businessId}
+        AND type IN ('ASSOCIATION', 'PROGRAM_JOIN')
+      ORDER BY happened_at ASC
+    `;
+    const customerEvents = customerInteractionRows.map(ci => ({
+      type: 'customer_added' as const,
+      title: ci.type === 'ASSOCIATION' ? `Customer associated (ID: ${ci.customer_id})` : `Customer joined program (ID: ${ci.customer_id})`,
+      referenceId: ci.customer_id,
+      timestamp: ci.happened_at
+    }));
+
+    // Promotions launched
+    const promotionRows = await sql<any[]>`
+      SELECT id, name, code, created_at FROM promotions WHERE business_id = ${businessId}
+      ORDER BY created_at ASC
+    `;
+    const promotionEvents = promotionRows.map(pr => ({
+      type: 'promotion_launched' as const,
+      title: `Promotion launched: ${pr.name || pr.code}`,
+      referenceId: pr.id,
+      timestamp: pr.created_at
+    }));
+
+    const timeline = [...registrationEvent, ...programEvents, ...customerEvents, ...promotionEvents]
+      .filter(e => e && e.timestamp)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    res.json({ timeline });
+  } catch (error) {
+    console.error('Error fetching business timeline:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
