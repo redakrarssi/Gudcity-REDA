@@ -182,11 +182,28 @@ export class UserSettingsService {
     try {
       const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId;
       
-      // Check if user exists and get current password hash
-      const userResult = await sql`
-        SELECT id, password_hash FROM users 
-        WHERE id = ${userIdNum}
+      // Check which password column exists in the database
+      const columns = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name IN ('password', 'password_hash')
       `;
+      
+      const hasPasswordHash = columns.some(col => col.column_name === 'password_hash');
+      const hasPassword = columns.some(col => col.column_name === 'password');
+      
+      // Determine which column to use
+      const passwordColumn = hasPasswordHash ? 'password_hash' : (hasPassword ? 'password' : null);
+      
+      if (!passwordColumn) {
+        console.error('No password column found in users table');
+        return false;
+      }
+      
+      // Check if user exists and get current password hash
+      // Use dynamic query building to avoid syntax errors with column names
+      const query = `SELECT id, ${passwordColumn} as password_value FROM users WHERE id = $1`;
+      const userResult = await sql.query(query, [userIdNum]);
       
       if (userResult.length === 0) {
         console.error(`No user found with ID: ${userId}`);
@@ -196,7 +213,7 @@ export class UserSettingsService {
       const user = userResult[0];
       
       // Validate the current password
-      if (!user.password_hash) {
+      if (!user.password_value) {
         console.error(`User ${userId} has no password set`);
         return false;
       }
@@ -205,7 +222,7 @@ export class UserSettingsService {
       const { verifyPassword, hashPassword } = await import('./authService');
       
       // Verify that the current password matches the stored hash
-      const isPasswordValid = await verifyPassword(currentPassword, String(user.password_hash));
+      const isPasswordValid = await verifyPassword(currentPassword, String(user.password_value));
       
       if (!isPasswordValid) {
         console.error(`Invalid current password for user ${userId}`);
@@ -215,14 +232,32 @@ export class UserSettingsService {
       // Hash the new password before storing it
       const newPasswordHash = await hashPassword(newPassword);
       
-      // Update the password with the properly hashed new password
-      await sql`
-        UPDATE users SET
-          password_hash = ${newPasswordHash},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${userIdNum}
-      `;
+      // Update both password columns if they exist for consistency
+      if (hasPasswordHash && hasPassword) {
+        await sql`
+          UPDATE users SET
+            password_hash = ${newPasswordHash},
+            password = ${newPasswordHash},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userIdNum}
+        `;
+      } else if (hasPasswordHash) {
+        await sql`
+          UPDATE users SET
+            password_hash = ${newPasswordHash},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userIdNum}
+        `;
+      } else {
+        await sql`
+          UPDATE users SET
+            password = ${newPasswordHash},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${userIdNum}
+        `;
+      }
       
+      console.log(`✅ Password updated successfully for user ${userId}`);
       return true;
     } catch (error) {
       console.error('Error updating user password:', error);

@@ -31,7 +31,9 @@
     "security:grep": "node scripts/security-grep.mjs",
     "security:check": "npm run security:validate && npm run security:test && npm run security:grep",
     "security:audit": "npm audit && npm run security:check",
-    "predeploy": "npm run security:check"
+    "predeploy": "npm run security:check",
+    "admin:init-db": "node scripts/init-admin-db.mjs",
+    "admin:check-health": "node scripts/check-admin-db-health.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

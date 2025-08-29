@@ -136,7 +136,17 @@ const AdminSettings = () => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      setError('Error updating profile. Please try again.');
+      if (error instanceof Error) {
+        if (error.message.includes('phone')) {
+          setError('Error updating phone number. This field may not be supported in your current database setup.');
+        } else if (error.message.includes('column')) {
+          setError('Database configuration error. Please contact administrator.');
+        } else {
+          setError(`Error updating profile: ${error.message}`);
+        }
+      } else {
+        setError('Error updating profile. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -185,7 +195,19 @@ const AdminSettings = () => {
       }
     } catch (error) {
       console.error('Error updating password:', error);
-      setError('Error updating password. Please try again.');
+      if (error instanceof Error) {
+        if (error.message.includes('password_hash')) {
+          setError('Password system configuration error. Please contact administrator.');
+        } else if (error.message.includes('column')) {
+          setError('Database configuration error. Password updates may not be supported.');
+        } else if (error.message.includes('Invalid current password')) {
+          setError('Current password is incorrect. Please try again.');
+        } else {
+          setError(`Error updating password: ${error.message}`);
+        }
+      } else {
+        setError('Error updating password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

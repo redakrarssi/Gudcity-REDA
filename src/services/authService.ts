@@ -174,31 +174,100 @@ export function resetRateLimit(ip: string): void {
  */
 export async function generateTokens(user: User): Promise<AuthTokens> {
   try {
-    // Import JWT dynamically to avoid SSR issues
-    const jwt = await import('jsonwebtoken');
-    
-    // SECURITY: Validate JWT secrets are set
-    if (!env.JWT_SECRET || !env.JWT_REFRESH_SECRET) {
-      throw new Error('JWT secrets are not configured');
+    // Import JWT dynamically to avoid SSR issues with proper error handling
+    let jwt: any;
+    try {
+      jwt = await import('jsonwebtoken');
+      // Check if the import has a default export or named exports
+      if (jwt.default && typeof jwt.default.sign === 'function') {
+        jwt = jwt.default;
+      }
+    } catch (importError) {
+      console.error('Failed to import jsonwebtoken:', importError);
+      throw new Error('JWT library not available');
     }
     
-    // Create token payload
+    // SECURITY: Validate JWT secrets are set with better error messages
+    if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
+      console.error('JWT_SECRET is not configured. Please set VITE_JWT_SECRET in your environment variables.');
+      throw new Error('JWT access token secret is not configured');
+    }
+    
+    if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
+      console.error('JWT_REFRESH_SECRET is not configured. Please set VITE_JWT_REFRESH_SECRET in your environment variables.');
+      throw new Error('JWT refresh token secret is not configured');
+    }
+    
+    // Validate JWT secret lengths for security
+    if (env.JWT_SECRET.length < 32) {
+      console.warn('JWT_SECRET is shorter than recommended 32 characters');
+    }
+    
+    if (env.JWT_REFRESH_SECRET.length < 32) {
+      console.warn('JWT_REFRESH_SECRET is shorter than recommended 32 characters');
+    }
+    
+    // Create token payload with proper validation
+    if (!user.id) {
+      throw new Error('User ID is required for token generation');
+    }
+    
     const payload: TokenPayload = {
-      userId: user.id!,
+      userId: user.id,
       email: user.email,
       role: user.role || 'customer'
     };
     
-    // Calculate expiry times in seconds
-    const accessExpiry = parseJwtExpiry(env.JWT_EXPIRY);
-    const refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY);
+    // Calculate expiry times in seconds with error handling
+    let accessExpiry: number;
+    let refreshExpiry: number;
     
-    // Generate tokens
-    const accessToken = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRY });
-    const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRY });
+    try {
+      accessExpiry = parseJwtExpiry(env.JWT_EXPIRY);
+      refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY);
+    } catch (expiryError) {
+      console.error('Error parsing JWT expiry times:', expiryError);
+      // Use default values if parsing fails
+      accessExpiry = 3600; // 1 hour
+      refreshExpiry = 604800; // 7 days
+    }
+    
+    // Generate tokens with proper error handling
+    let accessToken: string;
+    let refreshToken: string;
+    
+    try {
+      // Ensure we have the correct jwt function reference
+      const signFunction = jwt.sign || jwt.default?.sign;
+      if (typeof signFunction !== 'function') {
+        throw new Error('JWT sign function not available');
+      }
+      
+      accessToken = signFunction.call(jwt, payload, env.JWT_SECRET, { 
+        expiresIn: env.JWT_EXPIRY,
+        issuer: 'gudcity-loyalty-platform',
+        audience: 'gudcity-users'
+      });
+      
+      refreshToken = signFunction.call(jwt, payload, env.JWT_REFRESH_SECRET, { 
+        expiresIn: env.JWT_REFRESH_EXPIRY,
+        issuer: 'gudcity-loyalty-platform',
+        audience: 'gudcity-users'
+      });
+    } catch (signError) {
+      console.error('Error signing JWT tokens:', signError);
+      throw new Error('Failed to sign authentication tokens');
+    }
     
     // Store refresh token in database for validation later
-    await storeRefreshToken(user.id!, refreshToken, refreshExpiry);
+    try {
+      await storeRefreshToken(user.id, refreshToken, refreshExpiry);
+    } catch (storeError) {
+      console.error('Error storing refresh token:', storeError);
+      // Don't fail token generation if storage fails, but log the error
+    }
+    
+    console.log('✅ JWT tokens generated successfully for user:', user.id);
     
     return {
       accessToken,
@@ -207,6 +276,18 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
     };
   } catch (error) {
     console.error('Error generating tokens:', error);
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('JWT secrets')) {
+        throw new Error('Authentication system configuration error. Please contact administrator.');
+      } else if (error.message.includes('JWT library')) {
+        throw new Error('Authentication system unavailable. Please try again later.');
+      } else {
+        throw new Error(`Failed to generate authentication tokens: ${error.message}`);
+      }
+    }
+    
     throw new Error('Failed to generate authentication tokens');
   }
 }
