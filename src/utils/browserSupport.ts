@@ -353,20 +353,39 @@ export const requestCameraPermission = async (): Promise<{
       };
     }
     
+    // Check if we're on HTTPS (required for camera access in production)
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (!isSecure) {
+      return {
+        granted: false,
+        errorMessage: "Camera access requires HTTPS. Please access this site using https:// instead of http://"
+      };
+    }
+    
     // Force the browser to show the permission dialog by requesting camera access
     // This will trigger the native browser permission prompt
     console.log('🎥 Requesting camera permission - this should trigger browser dialog...');
+    console.log('🔒 Current protocol:', window.location.protocol);
+    console.log('🌍 Current hostname:', window.location.hostname);
     
-    const stream = await navigator.mediaDevices.getUserMedia({ 
+    // Try with more explicit constraints for production compatibility
+    const constraints = {
       video: {
-        facingMode: 'environment',
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 }
+        facingMode: { ideal: 'environment' },
+        width: { min: 320, ideal: 1280, max: 1920 },
+        height: { min: 240, ideal: 720, max: 1080 },
+        frameRate: { ideal: 30, max: 60 }
       },
       audio: false
-    });
+    };
+    
+    console.log('📹 Using constraints:', constraints);
+    
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     
     console.log('✅ Camera permission granted! Stream acquired.');
+    console.log('📊 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, label: t.label, readyState: t.readyState })));
     
     // Immediately stop all tracks to release the camera
     stream.getTracks().forEach(track => {
@@ -379,6 +398,13 @@ export const requestCameraPermission = async (): Promise<{
     };
   } catch (error) {
     console.error('❌ Camera permission request failed:', error);
+    console.error('📋 Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      protocol: window.location.protocol,
+      hostname: window.location.hostname,
+      userAgent: navigator.userAgent
+    });
     
     if (error instanceof Error) {
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
@@ -399,19 +425,29 @@ export const requestCameraPermission = async (): Promise<{
       } else if (error.name === 'NotSupportedError') {
         return {
           granted: false,
-          errorMessage: "Camera access is not supported on this device"
+          errorMessage: "Camera access is not supported on this device or browser"
         };
       } else if (error.name === 'SecurityError') {
         return {
           granted: false,
-          errorMessage: "Camera access blocked due to security restrictions. Please use HTTPS."
+          errorMessage: "Camera access blocked due to security restrictions. Please ensure you're using HTTPS and allow camera permissions."
+        };
+      } else if (error.name === 'TypeError') {
+        return {
+          granted: false,
+          errorMessage: "Camera access failed. Please ensure you're using a supported browser and HTTPS connection."
         };
       }
     }
     
+    // Production-specific error message
+    const isProduction = window.location.protocol === 'https:' && window.location.hostname !== 'localhost';
+    const baseMessage = error instanceof Error ? error.message : "Camera permission request failed";
+    const productionHint = isProduction ? " Please ensure camera permissions are enabled in your browser settings and try refreshing the page." : "";
+    
     return {
       granted: false,
-      errorMessage: error instanceof Error ? error.message : "Camera permission request failed"
+      errorMessage: baseMessage + productionHint
     };
   }
 };
@@ -582,6 +618,45 @@ export function isBrowserSupportedForQrScanning(): boolean {
   return isQrScanningSupported();
 }
 
+/**
+ * Checks if the current environment requires HTTPS for camera access
+ */
+export function requiresHttpsForCamera(): boolean {
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  
+  // Localhost and 127.0.0.1 don't require HTTPS
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
+    return false;
+  }
+  
+  // Production environments require HTTPS
+  return protocol !== 'https:';
+}
+
+/**
+ * Gets production-specific camera access recommendations
+ */
+export function getProductionCameraHelp(): string[] {
+  const isProduction = window.location.protocol === 'https:' && window.location.hostname !== 'localhost';
+  
+  if (!isProduction) {
+    return [
+      'Make sure you are using HTTPS (https://) not HTTP',
+      'Check that your camera is not being used by another app',
+      'Try refreshing the page and clicking "Allow" again'
+    ];
+  }
+  
+  return [
+    'Click "Allow" when your browser asks for camera permission',
+    'Check for a camera icon in your browser\'s address bar',
+    'Go to browser settings → Privacy & Security → Camera → Allow this site',
+    'Make sure your camera is not being used by another application',
+    'Try refreshing the page if the permission dialog doesn\'t appear'
+  ];
+}
+
 export default {
   checkCameraSupport,
   checkCanvasSupport,
@@ -595,5 +670,7 @@ export default {
   checkCameraAvailability,
   getBrowserInfo,
   isMobileBrowser,
-  isBrowserSupportedForQrScanning
+  isBrowserSupportedForQrScanning,
+  requiresHttpsForCamera,
+  getProductionCameraHelp
 }; 

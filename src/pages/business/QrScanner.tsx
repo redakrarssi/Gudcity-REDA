@@ -31,7 +31,7 @@ import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollm
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
 import { PointsAwardingModal } from '../../components/business/PointsAwardingModal';
-import { isCameraSupported, isQrScanningSupported, checkCameraAvailability, requestCameraPermission } from '../../utils/browserSupport';
+import { isCameraSupported, isQrScanningSupported, checkCameraAvailability, requestCameraPermission, requiresHttpsForCamera } from '../../utils/browserSupport';
 
 // Define the interface for the component's scan result handling
 interface QrScannerPageProps {
@@ -86,8 +86,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       } else if (!qrScanningSupport) {
         setScannerError('Your browser does not support QR code scanning');
         return;
-      } else if (!isHttpsProtocol && process.env.NODE_ENV === 'production') {
-        setScannerError('Camera access requires HTTPS. Please use a secure connection.');
+      } else if (requiresHttpsForCamera()) {
+        setScannerError('Camera access requires HTTPS. Please access this site using https:// instead of http://');
         return;
       }
       

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Camera, AlertCircle, CheckCircle, RefreshCw, Shield, Info } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Camera, AlertCircle, CheckCircle, RefreshCw, Shield, Info, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { requestCameraPermission } from '../utils/browserSupport';
+import { requestCameraPermission, requiresHttpsForCamera, getProductionCameraHelp } from '../utils/browserSupport';
+import { logCameraDebugInfo, getEnvironmentDescription } from '../utils/cameraDebug';
 
 interface CameraPermissionRequestProps {
   onPermissionGranted: () => void;
@@ -17,6 +18,15 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
   const { t } = useTranslation();
   const [isRequesting, setIsRequesting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Log debug info when component mounts
+  useEffect(() => {
+    if (isVisible) {
+      console.log('📱 Camera Permission Request Component mounted');
+      logCameraDebugInfo();
+      console.log('🏷️ Environment:', getEnvironmentDescription());
+    }
+  }, [isVisible]);
 
   const handleRequestPermission = async () => {
     setIsRequesting(true);
@@ -66,6 +76,23 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
           </p>
         </div>
 
+        {/* HTTPS Warning for Production */}
+        {requiresHttpsForCamera() && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start">
+              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-red-900 mb-1">
+                  {t('HTTPS Required')}
+                </h3>
+                <p className="text-sm text-red-800">
+                  {t('Camera access requires a secure HTTPS connection. Please access this site using https:// instead of http://')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Information Section */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-start">
@@ -97,13 +124,18 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
         <div className="space-y-3">
           <button
             onClick={handleRequestPermission}
-            disabled={isRequesting}
+            disabled={isRequesting || requiresHttpsForCamera()}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {isRequesting ? (
               <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                 {t('Requesting Permission...')}
+              </>
+            ) : requiresHttpsForCamera() ? (
+              <>
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                {t('HTTPS Required')}
               </>
             ) : (
               <>
@@ -118,12 +150,11 @@ export const CameraPermissionRequest: React.FC<CameraPermissionRequestProps> = (
             <div className="flex items-start">
               <Info className="w-4 h-4 text-gray-600 mt-0.5 mr-2 flex-shrink-0" />
               <div className="text-xs text-gray-600">
-                <p className="font-medium mb-1">{t('What happens when you click "Allow Camera Access"')}:</p>
+                <p className="font-medium mb-1">{t('Troubleshooting Camera Access')}:</p>
                 <ul className="space-y-1">
-                  <li>• {t('Your browser will show a permission dialog')}</li>
-                  <li>• {t('Click "Allow" or "Allow camera access" in the browser popup')}</li>
-                  <li>• {t('If no dialog appears, check for a camera icon in your address bar')}</li>
-                  <li>• {t('Make sure you\'re using HTTPS (secure connection)')}</li>
+                  {getProductionCameraHelp().map((tip, index) => (
+                    <li key={index}>• {t(tip)}</li>
+                  ))}
                 </ul>
               </div>
             </div>
