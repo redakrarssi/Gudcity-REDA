@@ -167,27 +167,36 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
     const rows = await sql<any[]>`
       SELECT 
         u.id,
-        COALESCE(b2.name, u.name) AS name,
+        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
         u.email,
-        COALESCE(b2.type, NULL) AS type,
-        COALESCE(b2.status, u.status) AS status,
-        COALESCE(b2.address, u.address) AS address,
-        COALESCE(b2.phone, u.phone) AS phone,
-        COALESCE(b2.logo, NULL) AS logo,
+        COALESCE(b_by_id.type, b_by_user.type, NULL) AS type,
+        COALESCE(b_by_id.status, b_by_user.status, u.status) AS status,
+        COALESCE(b_by_id.address, b_by_user.address, u.address) AS address,
+        COALESCE(b_by_id.phone, b_by_user.phone, u.phone) AS phone,
+        COALESCE(b_by_id.logo, b_by_user.logo, NULL) AS logo,
         u.created_at as registered_at,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
         COUNT(DISTINCT bt.customer_id) as total_customers,
-        MAX(bdl.login_time) as last_login_time,
+        MAX(COALESCE(bdl_by_biz.login_time, bdl_by_user.login_time)) as last_login_time,
         MAX(bs.currency) as currency
       FROM 
         users u
-      LEFT JOIN businesses b2 ON b2.id = u.id
-      LEFT JOIN business_transactions bt ON u.id = bt.business_id
-      LEFT JOIN business_daily_logins bdl ON u.id = bdl.business_id
-      LEFT JOIN business_settings bs ON u.id = bs.business_id
-      WHERE u.user_type = 'business'
-      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      LEFT JOIN business_transactions bt 
+        ON bt.business_id = COALESCE(b_by_id.id, b_by_user.id, u.business_id, u.id)
+      LEFT JOIN business_daily_logins bdl_by_biz 
+        ON bdl_by_biz.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      LEFT JOIN business_daily_logins bdl_by_user 
+        ON bdl_by_user.user_id = u.id
+      LEFT JOIN business_settings bs 
+        ON bs.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      WHERE (u.user_type = 'business' OR u.role = 'business')
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at,
+               b_by_id.name, b_by_user.name, b_by_id.type, b_by_user.type,
+               b_by_id.status, b_by_user.status, b_by_id.address, b_by_user.address,
+               b_by_id.phone, b_by_user.phone, b_by_id.logo, b_by_user.logo
       ORDER BY u.created_at DESC
     `;
 
@@ -226,27 +235,33 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     const result = await sql<any[]>`
       SELECT 
         u.id,
-        COALESCE(b2.name, u.name) AS name,
+        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
         u.email,
-        COALESCE(b2.owner, NULL) AS owner,
-        COALESCE(b2.phone, u.phone) AS phone,
-        COALESCE(b2.type, NULL) AS type,
-        COALESCE(b2.status, u.status) AS status,
-        COALESCE(b2.address, u.address) AS address,
-        COALESCE(b2.logo, NULL) AS logo,
-        COALESCE(b2.description, NULL) AS description,
+        COALESCE(b_by_id.owner, b_by_user.owner, NULL) AS owner,
+        COALESCE(b_by_id.phone, b_by_user.phone, u.phone) AS phone,
+        COALESCE(b_by_id.type, b_by_user.type, NULL) AS type,
+        COALESCE(b_by_id.status, b_by_user.status, u.status) AS status,
+        COALESCE(b_by_id.address, b_by_user.address, u.address) AS address,
+        COALESCE(b_by_id.logo, b_by_user.logo, NULL) AS logo,
+        COALESCE(b_by_id.description, b_by_user.description, NULL) AS description,
         u.created_at as registered_at,
-        MAX(bdl.login_time) as last_login_time,
+        MAX(COALESCE(bdl_by_biz.login_time, bdl_by_user.login_time)) as last_login_time,
         COUNT(DISTINCT bt.customer_id) as total_customers,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
         MAX(bs.currency) as currency
       FROM users u
-      LEFT JOIN businesses b2 ON b2.id = u.id
-      LEFT JOIN business_daily_logins bdl ON u.id = bdl.business_id
-      LEFT JOIN business_transactions bt ON u.id = bt.business_id
-      LEFT JOIN business_settings bs ON u.id = bs.business_id
-      WHERE u.id = ${parseInt(businessId)} AND u.user_type = 'business'
-      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      LEFT JOIN business_daily_logins bdl_by_biz ON bdl_by_biz.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      LEFT JOIN business_daily_logins bdl_by_user ON bdl_by_user.user_id = u.id
+      LEFT JOIN business_transactions bt ON bt.business_id = COALESCE(b_by_id.id, b_by_user.id, u.business_id, u.id)
+      LEFT JOIN business_settings bs ON bs.business_id = COALESCE(b_by_id.id, b_by_user.id)
+      WHERE u.id = ${parseInt(businessId)} AND (u.user_type = 'business' OR u.role = 'business')
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at,
+               b_by_id.name, b_by_user.name, b_by_id.owner, b_by_user.owner,
+               b_by_id.type, b_by_user.type, b_by_id.status, b_by_user.status,
+               b_by_id.address, b_by_user.address, b_by_id.phone, b_by_user.phone,
+               b_by_id.logo, b_by_user.logo, b_by_id.description, b_by_user.description
     `;
 
     if (!result.length) {
@@ -315,11 +330,12 @@ router.get('/admin/:id/timeline', auth, requireAdmin, async (req: Request, res: 
     const regRows = await sql<any[]>`
       SELECT 
         u.id,
-        COALESCE(b2.name, u.name) AS name,
+        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
         u.created_at
       FROM users u
-      LEFT JOIN businesses b2 ON b2.id = u.id
-      WHERE u.id = ${businessId} AND u.user_type = 'business'
+      LEFT JOIN businesses b_by_id ON b_by_id.id = u.business_id
+      LEFT JOIN businesses b_by_user ON b_by_user.user_id = u.id
+      WHERE u.id = ${businessId} AND (u.user_type = 'business' OR u.role = 'business')
     `;
     const registrationEvent = regRows.length ? [{
       type: 'business_registered' as const,
