@@ -33,7 +33,8 @@
     "security:audit": "npm audit && npm run security:check",
     "predeploy": "npm run security:check",
     "admin:init-db": "node scripts/init-admin-db.mjs",
-    "admin:check-health": "node scripts/check-admin-db-health.mjs"
+    "admin:check-health": "node scripts/check-admin-db-health.mjs",
+    "admin:fix-passwords": "node scripts/fix-password-update.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

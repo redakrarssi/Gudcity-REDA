@@ -182,6 +182,17 @@ export class UserSettingsService {
     try {
       const userIdNum = typeof userId === 'string' ? parseInt(userId) : userId;
       
+      console.log(`🔐 Attempting password update for user ${userId}`);
+
+      // Get all column names for debugging
+      const allColumns = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users'
+        ORDER BY column_name
+      `;
+      console.log(`Available columns in users table: ${allColumns.map(c => c.column_name).join(', ')}`);
+      
       // Check which password column exists in the database
       const columns = await sql`
         SELECT column_name 
@@ -192,75 +203,99 @@ export class UserSettingsService {
       const hasPasswordHash = columns.some(col => col.column_name === 'password_hash');
       const hasPassword = columns.some(col => col.column_name === 'password');
       
-      // Determine which column to use
-      const passwordColumn = hasPasswordHash ? 'password_hash' : (hasPassword ? 'password' : null);
+      console.log(`Password columns found: password=${hasPassword ? 'Yes' : 'No'}, password_hash=${hasPasswordHash ? 'Yes' : 'No'}`);
       
-      if (!passwordColumn) {
-        console.error('No password column found in users table');
-        return false;
+      // Ensure both columns exist - add them if they don't
+      if (!hasPasswordHash) {
+        console.log('Adding missing password_hash column...');
+        await sql.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)');
       }
       
-      // Check if user exists and get current password hash
-      // Use dynamic query building to avoid syntax errors with column names
-      const query = `SELECT id, ${passwordColumn} as password_value FROM users WHERE id = $1`;
-      const userResult = await sql.query(query, [userIdNum]);
+      if (!hasPassword) {
+        console.log('Adding missing password column...');
+        await sql.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255)');
+      }
+      
+      // Check if user exists and get current password data
+      const userResult = await sql`
+        SELECT id, password, password_hash FROM users 
+        WHERE id = ${userIdNum}
+      `;
       
       if (userResult.length === 0) {
-        console.error(`No user found with ID: ${userId}`);
+        console.error(`❌ No user found with ID: ${userId}`);
         return false;
       }
       
       const user = userResult[0];
+      console.log(`Found user: id=${user.id}, has_password=${!!user.password}, has_password_hash=${!!user.password_hash}`);
       
-      // Validate the current password
-      if (!user.password_value) {
-        console.error(`User ${userId} has no password set`);
-        return false;
-      }
+      // Import bcrypt directly for password hashing/verification
+      const bcrypt = await import('bcryptjs');
       
-      // Import the authService to use its password verification and hashing functions
-      const { verifyPassword, hashPassword } = await import('./authService');
+      // Choose which password hash to use for verification
+      const storedHash = user.password_hash || user.password;
       
-      // Verify that the current password matches the stored hash
-      const isPasswordValid = await verifyPassword(currentPassword, String(user.password_value));
-      
-      if (!isPasswordValid) {
-        console.error(`Invalid current password for user ${userId}`);
-        return false;
-      }
-      
-      // Hash the new password before storing it
-      const newPasswordHash = await hashPassword(newPassword);
-      
-      // Update both password columns if they exist for consistency
-      if (hasPasswordHash && hasPassword) {
-        await sql`
-          UPDATE users SET
-            password_hash = ${newPasswordHash},
-            password = ${newPasswordHash},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${userIdNum}
-        `;
-      } else if (hasPasswordHash) {
-        await sql`
-          UPDATE users SET
-            password_hash = ${newPasswordHash},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${userIdNum}
-        `;
+      if (!storedHash) {
+        console.log(`⚠️ User ${userId} has no password set. Allowing new password set without verification.`);
+        // Just set new password without verifying old one
       } else {
+        console.log(`🔑 Verifying current password for user ${userId}`);
+        
+        try {
+          // Try bcrypt verification
+          if (storedHash.startsWith('$2')) {
+            const isValid = await bcrypt.compare(currentPassword, storedHash);
+            if (!isValid) {
+              console.error(`❌ Invalid current password for user ${userId}`);
+              return false;
+            }
+          } else {
+            // Legacy verification - just compare strings
+            if (currentPassword !== storedHash) {
+              console.error(`❌ Invalid current password for user ${userId}`);
+              return false;
+            }
+          }
+        } catch (verifyError) {
+          console.error(`❌ Error verifying password: ${verifyError}`);
+          return false;
+        }
+      }
+      
+      console.log(`✅ Password verification passed`);
+      
+      // Hash the new password with bcrypt
+      console.log(`🔑 Hashing new password`);
+      const salt = await bcrypt.genSalt(10);
+      const newPasswordHash = await bcrypt.hash(newPassword, salt);
+      
+      // Update both password columns directly using a transaction
+      console.log(`💾 Updating password in database`);
+      try {
+        await sql.begin();
+        
         await sql`
           UPDATE users SET
             password = ${newPasswordHash},
+            password_hash = ${newPasswordHash},
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ${userIdNum}
         `;
+        
+        await sql.commit();
+        console.log(`✅ Password updated successfully for user ${userId}`);
+        return true;
+      } catch (updateError) {
+        console.error(`❌ Error during password update transaction: ${updateError}`);
+        await sql.rollback();
+        return false;
       }
-      
-      console.log(`✅ Password updated successfully for user ${userId}`);
-      return true;
     } catch (error) {
-      console.error('Error updating user password:', error);
+      console.error(`❌ Error updating user password: ${error}`);
+      if (error instanceof Error) {
+        throw error; // Pass the error up for better error handling in the UI
+      }
       return false;
     }
   }
