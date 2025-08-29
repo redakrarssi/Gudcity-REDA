@@ -1,8 +1,9 @@
 // Fixed Admin Business Routes implementation
-const express = require('express');
+import express from 'express';
+import { auth, requireAdmin } from '../middleware/authFixed.js';
+import sql from '../utils/dbFix.js';
+
 const router = express.Router();
-const { auth, requireAdmin } = require('../middleware/authFixed');
-const sql = require('../utils/dbFix');
 
 /**
  * Get comprehensive business data for admin panel
@@ -331,4 +332,4 @@ router.get('/businesses/:id/analytics', auth, requireAdmin, async (req, res) => 
   }
 });
 
-module.exports = router;
+export default router;

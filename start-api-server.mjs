@@ -5,9 +5,14 @@
  * This script starts an Express server that runs on port 3000 for the admin businesses API
  */
 
-const path = require('path');
-const fs = require('fs');
-const dotenv = require('dotenv');
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -22,9 +27,9 @@ if (!process.env.VITE_JWT_SECRET) {
 }
 
 // Import and start the server
-const { server } = require('./src/server-fixed.cjs');
+import { server } from './src/server-fixed.mjs';
 
 console.log('✅ Server setup complete');
 
 // Export the server for testing
-module.exports = server;
+export default server;

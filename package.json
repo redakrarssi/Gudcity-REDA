@@ -19,9 +19,9 @@
     "lighthouse": "lighthouse http://localhost:5173 --view",
     "server": "node --experimental-specifier-resolution=node dist/server.js",
     "dev:server": "nodemon --exec ts-node-esm src/server.ts",
-    "api:server": "node start-api-server.cjs",
+    "api:server": "node start-api-server.mjs",
     "api:fix": "node src/server-fix.mjs",
-    "api:debug": "node --inspect start-api-server.cjs",
+    "api:debug": "node --inspect start-api-server.mjs",
     "type-check": "tsc --noEmit",
     "type-safety": "node scripts/run-type-safety-completion.js",
     "type-safety:dry": "node scripts/run-type-safety-completion.js --dry-run",
@@ -38,7 +38,7 @@
     "admin:init-db": "node scripts/init-admin-db.mjs",
     "admin:check-health": "node scripts/check-admin-db-health.mjs",
     "admin:fix-passwords": "node scripts/fix-password-update.mjs",
-    "admin:api-server": "node start-api-server.cjs"
+    "admin:api-server": "node start-api-server.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
