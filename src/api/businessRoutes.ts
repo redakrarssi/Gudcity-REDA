@@ -163,16 +163,15 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
  */
 router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    // Base on users table to include ALL registered business accounts (even if no row in businesses table)
     const rows = await sql<any[]>`
       SELECT 
         u.id,
-        COALESCE(b_by_id.name, b_by_user.name, u.name) AS name,
+        COALESCE(b_by_id.name, b_by_user.name, u.business_name, u.name) AS name,
         u.email,
         COALESCE(b_by_id.type, b_by_user.type, NULL) AS type,
         COALESCE(b_by_id.status, b_by_user.status, u.status) AS status,
-        COALESCE(b_by_id.address, b_by_user.address, u.address) AS address,
-        COALESCE(b_by_id.phone, b_by_user.phone, u.phone) AS phone,
+        COALESCE(b_by_id.address, b_by_user.address, NULL) AS address,
+        COALESCE(b_by_id.phone, b_by_user.phone, u.business_phone, u.phone) AS phone,
         COALESCE(b_by_id.logo, b_by_user.logo, NULL) AS logo,
         u.created_at as registered_at,
         COUNT(DISTINCT bt.id) as total_transactions,
@@ -196,7 +195,8 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
       GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at,
                b_by_id.name, b_by_user.name, b_by_id.type, b_by_user.type,
                b_by_id.status, b_by_user.status, b_by_id.address, b_by_user.address,
-               b_by_id.phone, b_by_user.phone, b_by_id.logo, b_by_user.logo
+               b_by_id.phone, b_by_user.phone, b_by_id.logo, b_by_user.logo,
+               u.business_name, u.business_phone
       ORDER BY u.created_at DESC
     `;
 

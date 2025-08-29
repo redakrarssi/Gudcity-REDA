@@ -128,9 +128,9 @@ const AdminBusinesses = () => {
   useEffect(() => {
     let filtered = businesses;
     
-    // Filter by status if necessary
+    // Filter by status if necessary (include inactive/suspended only when selected)
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(business => business.status === statusFilter);
+      filtered = filtered.filter(business => (business as any).status === statusFilter);
     }
     
     // Filter by search term if necessary
