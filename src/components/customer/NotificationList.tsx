@@ -36,6 +36,7 @@ enum CustomerNotificationType {
   POINTS_ADDED = 'POINTS_ADDED',
   POINTS_DEDUCTED = 'POINTS_DEDUCTED',
   PROMO_CODE = 'PROMO_CODE',
+  PROGRAM_DELETED = 'PROGRAM_DELETED',
   QR_SCANNED = 'QR_SCANNED'
 }
 
@@ -565,7 +566,7 @@ const NotificationList: React.FC<NotificationListProps> = ({
           notifications.map(notification => (
             <div 
               key={notification.id}
-              className={`p-4 ${!notification.isRead ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+              className={`p-4 ${getNotificationBackgroundClass(notification.type, notification.isRead)}`}
               onClick={() => {
                 handleMarkAsRead(notification.id);
                 if (onNotificationClick) {
@@ -613,6 +614,8 @@ function getNotificationIcon(type: string) {
       return <Tag className="h-5 w-5 text-orange-600" />;
     case 'PROMO_CODE':
       return <Gift className="h-5 w-5 text-purple-600" />;
+    case 'PROGRAM_DELETED':
+      return <AlertTriangle className="h-5 w-5 text-red-600" />;
     case 'CARD_CREATED':
       return <Gift className="h-5 w-5 text-green-600" />;
     case 'QR_SCANNED':
@@ -622,6 +625,17 @@ function getNotificationIcon(type: string) {
     default:
       return <Bell className="h-5 w-5 text-gray-600" />;
   }
+}
+
+// Helper function to get notification background styling based on type and read status
+function getNotificationBackgroundClass(type: string, isRead: boolean): string {
+  if (type === 'PROGRAM_DELETED') {
+    // Red background for program deletion notifications
+    return isRead ? 'bg-red-50 dark:bg-red-900/20' : 'bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500';
+  }
+  
+  // Default styling for other notifications
+  return isRead ? '' : 'bg-blue-50 dark:bg-blue-900/10';
 }
 
 export default NotificationList;

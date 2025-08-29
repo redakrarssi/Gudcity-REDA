@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ProgramBuilder } from '../../components/business/ProgramBuilder';
+import { ProgramDeleteModal } from '../../components/business/ProgramDeleteModal';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { Plus, Award, Calendar, Tag, Clock, ChevronRight, X } from 'lucide-react';
 import type { LoyaltyProgram } from '../../types/loyalty';
@@ -16,6 +17,9 @@ const Programs = () => {
   const [showProgramBuilder, setShowProgramBuilder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [programToDelete, setProgramToDelete] = useState<LoyaltyProgram | null>(null);
+  const [enrolledCustomersCount, setEnrolledCustomersCount] = useState<number>(0);
   
   // Add this useEffect to ensure browser object is defined for this page
   useEffect(() => {
@@ -78,13 +82,34 @@ const Programs = () => {
     loadPrograms();
   }, [user, t]);
 
-  const handleProgramDelete = async (programId: string) => {
+  const handleProgramDeleteClick = async (program: LoyaltyProgram) => {
+    try {
+      // Get enrolled customers count before showing the modal
+      const enrolledCustomers = await LoyaltyProgramService.getEnrolledCustomers(program.id);
+      setEnrolledCustomersCount(enrolledCustomers.length);
+      
+      setProgramToDelete(program);
+      setShowDeleteModal(true);
+    } catch (err) {
+      console.error('Error getting enrolled customers count:', err);
+      // Still show the modal even if we can't get the count
+      setEnrolledCustomersCount(0);
+      setProgramToDelete(program);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!programToDelete) return;
+    
     try {
       setError(null);
-      const success = await LoyaltyProgramService.deleteProgram(programId);
+      const success = await LoyaltyProgramService.deleteProgram(programToDelete.id);
       
       if (success) {
-        setPrograms(programs.filter((program) => program.id !== programId));
+        setPrograms(programs.filter((program) => program.id !== programToDelete.id));
+        setShowDeleteModal(false);
+        setProgramToDelete(null);
       } else {
         setError(t('Failed to delete program. Please try again.'));
       }
@@ -92,6 +117,12 @@ const Programs = () => {
       console.error('Error deleting program:', err);
       setError(t('An error occurred while deleting the program.'));
     }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setProgramToDelete(null);
+    setEnrolledCustomersCount(0);
   };
 
   const handleProgramEdit = (program: LoyaltyProgram) => {
@@ -312,7 +343,7 @@ const Programs = () => {
 
                         <div className="mt-6 flex justify-end space-x-3">
                           <button
-                            onClick={() => handleProgramDelete(program.id)}
+                            onClick={() => handleProgramDeleteClick(program)}
                             className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
                           >
                             {t('Delete')}
@@ -355,6 +386,15 @@ const Programs = () => {
             )}
           </>
         )}
+
+        {/* Program Delete Confirmation Modal */}
+        <ProgramDeleteModal
+          isOpen={showDeleteModal}
+          onClose={handleCancelDelete}
+          onConfirm={handleConfirmDelete}
+          programName={programToDelete?.name || ''}
+          enrolledCustomersCount={enrolledCustomersCount}
+        />
       </div>
     </BusinessLayout>
   );

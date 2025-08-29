@@ -95,6 +95,12 @@ const GlobalNotificationCenter: React.FC = () => {
             <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
         );
+      case 'PROGRAM_DELETED':
+        return (
+          <div className="bg-red-100 dark:bg-red-900 p-1.5 rounded-full">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+          </div>
+        );
       case 'ERROR':
         return (
           <div className="bg-red-100 dark:bg-red-900 p-1.5 rounded-full">

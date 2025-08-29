@@ -9,6 +9,7 @@ export type CustomerNotificationType =
   | 'REWARD_AVAILABLE'  // When customer has enough points for a reward
   | 'CARD_EXPIRING'  // When loyalty card is about to expire
   | 'MILESTONE_REACHED'  // When customer reaches a milestone
+  | 'PROGRAM_DELETED'  // When a program the customer is enrolled in gets deleted
   | 'QR_SCANNED';  // When customer QR code is scanned
 
 export type ApprovalRequestType = 

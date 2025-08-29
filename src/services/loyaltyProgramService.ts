@@ -326,12 +326,48 @@ export class LoyaltyProgramService {
   }
 
   /**
-   * Delete a loyalty program
+   * Get all customers enrolled in a specific program
+   */
+  static async getEnrolledCustomers(programId: string): Promise<{customerId: string, customerName: string}[]> {
+    try {
+      const result = await sql`
+        SELECT DISTINCT 
+          cp.customer_id,
+          c.name as customer_name
+        FROM customer_programs cp
+        LEFT JOIN customers c ON cp.customer_id = c.id
+        WHERE cp.program_id = ${parseInt(programId)}
+      `;
+      
+      return result.map((row: any) => ({
+        customerId: row.customer_id.toString(),
+        customerName: row.customer_name || 'Customer'
+      }));
+    } catch (error) {
+      console.error(`Error getting enrolled customers for program ${programId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete a loyalty program and notify enrolled customers
    */
   static async deleteProgram(programId: string): Promise<boolean> {
     try {
+      // First get program info and enrolled customers before deletion
+      const programInfo = await this.getProgramById(programId);
+      if (!programInfo) {
+        console.warn(`Program ${programId} not found for deletion`);
+        return false;
+      }
+
+      const enrolledCustomers = await this.getEnrolledCustomers(programId);
+      
       // Delete associated reward tiers first (due to foreign key constraints)
       await sql`DELETE FROM reward_tiers WHERE program_id = ${programId}`;
+      
+      // Delete customer enrollments
+      await sql`DELETE FROM customer_programs WHERE program_id = ${programId}`;
       
       // Then delete the program
       const result = await sql`
@@ -340,7 +376,63 @@ export class LoyaltyProgramService {
         RETURNING id
       `;
       
-      return result.length > 0;
+      const deletionSuccess = result.length > 0;
+      
+      // If deletion was successful, notify all enrolled customers
+      if (deletionSuccess && enrolledCustomers.length > 0) {
+        console.log(`Program deleted successfully. Notifying ${enrolledCustomers.length} enrolled customers`);
+        
+        // Get business name for the notification
+        let businessName = 'the business';
+        try {
+          const businessResult = await sql`
+            SELECT name FROM users WHERE id = ${parseInt(programInfo.businessId)}
+          `;
+          if (businessResult.length > 0 && businessResult[0].name) {
+            businessName = businessResult[0].name;
+          }
+        } catch (error) {
+          console.error('Error fetching business name for notification:', error);
+          // Continue with default business name
+        }
+        
+        // Create notifications for all enrolled customers
+        const notificationPromises = enrolledCustomers.map(async (customer) => {
+          try {
+            return await CustomerNotificationService.createNotification({
+              customerId: customer.customerId,
+              businessId: programInfo.businessId,
+              type: 'PROGRAM_DELETED',
+              title: 'Program Discontinued',
+              message: `The loyalty program "${programInfo.name}" has been discontinued by ${businessName}. Your points and rewards from this program are no longer available.`,
+              data: {
+                programId: programId,
+                programName: programInfo.name,
+                businessName: businessName,
+                deletedAt: new Date().toISOString(),
+                customerName: customer.customerName
+              },
+              referenceId: programId,
+              requiresAction: false,
+              actionTaken: false,
+              isRead: false,
+              priority: 'HIGH',
+              style: 'error'
+            });
+          } catch (error) {
+            console.error(`Error creating deletion notification for customer ${customer.customerId}:`, error);
+            return null;
+          }
+        });
+        
+        // Wait for all notifications to be created
+        const notifications = await Promise.all(notificationPromises);
+        const successfulNotifications = notifications.filter(n => n !== null);
+        
+        console.log(`Successfully created ${successfulNotifications.length} deletion notifications`);
+      }
+      
+      return deletionSuccess;
     } catch (error) {
       console.error(`Error deleting program ${programId}:`, error);
       return false;

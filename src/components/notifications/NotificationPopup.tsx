@@ -30,6 +30,8 @@ const NotificationPopup: React.FC = () => {
       return <Check className="h-6 w-6 text-green-500" />;
     } else if (type.includes('POINTS_DEDUCTED')) {
       return <AlertCircle className="h-6 w-6 text-orange-500" />;
+    } else if (type === 'PROGRAM_DELETED') {
+      return <AlertCircle className="h-6 w-6 text-red-500" />;
     } else {
       return <Bell className="h-6 w-6 text-blue-500" />;
     }

@@ -17,6 +17,7 @@ export type CustomerNotificationType =
   | 'REWARD_AVAILABLE'
   | 'CARD_CREATED'
   | 'PROMO_CODE'
+  | 'PROGRAM_DELETED'
   | 'GENERAL';
 
 /**
