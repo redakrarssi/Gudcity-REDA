@@ -163,34 +163,32 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
  */
 router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    // Mirror aggregated data similar to businessService.getAllBusinesses without modifying services
+    // Base on users table to include ALL registered business accounts (even if no row in businesses table)
     const rows = await sql<any[]>`
       SELECT 
-        b.id,
-        b.name,
-        b.email,
-        b.type,
-        b.status,
-        b.address,
-        b.phone,
-        b.logo,
-        b.created_at as registered_at,
+        u.id,
+        COALESCE(b2.name, u.name) AS name,
+        u.email,
+        COALESCE(b2.type, NULL) AS type,
+        COALESCE(b2.status, u.status) AS status,
+        COALESCE(b2.address, u.address) AS address,
+        COALESCE(b2.phone, u.phone) AS phone,
+        COALESCE(b2.logo, NULL) AS logo,
+        u.created_at as registered_at,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
         COUNT(DISTINCT bt.customer_id) as total_customers,
         MAX(bdl.login_time) as last_login_time,
-        bs.currency as currency
+        MAX(bs.currency) as currency
       FROM 
-        businesses b
-      LEFT JOIN 
-        business_transactions bt ON b.id = bt.business_id
-      LEFT JOIN 
-        business_daily_logins bdl ON b.id = bdl.business_id
-      LEFT JOIN
-        business_settings bs ON b.id = bs.business_id
-      GROUP BY 
-        b.id, bs.currency
-      ORDER BY b.created_at DESC
+        users u
+      LEFT JOIN businesses b2 ON b2.id = u.id
+      LEFT JOIN business_transactions bt ON u.id = bt.business_id
+      LEFT JOIN business_daily_logins bdl ON u.id = bdl.business_id
+      LEFT JOIN business_settings bs ON u.id = bs.business_id
+      WHERE u.user_type = 'business'
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at
+      ORDER BY u.created_at DESC
     `;
 
     const data = rows.map(r => ({
@@ -224,20 +222,31 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
   try {
     const businessId = req.params.id;
 
-    // Base profile info from businesses table
+    // Base profile info from users (include all businesses), merging optional businesses/settings data
     const result = await sql<any[]>`
       SELECT 
-        b.*,
+        u.id,
+        COALESCE(b2.name, u.name) AS name,
+        u.email,
+        COALESCE(b2.owner, NULL) AS owner,
+        COALESCE(b2.phone, u.phone) AS phone,
+        COALESCE(b2.type, NULL) AS type,
+        COALESCE(b2.status, u.status) AS status,
+        COALESCE(b2.address, u.address) AS address,
+        COALESCE(b2.logo, NULL) AS logo,
+        COALESCE(b2.description, NULL) AS description,
+        u.created_at as registered_at,
         MAX(bdl.login_time) as last_login_time,
         COUNT(DISTINCT bt.customer_id) as total_customers,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
-        bs.currency as currency
-      FROM businesses b
-      LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
-      LEFT JOIN business_transactions bt ON b.id = bt.business_id
-      LEFT JOIN business_settings bs ON b.id = bs.business_id
-      WHERE b.id = ${parseInt(businessId)}
-      GROUP BY b.id, bs.currency
+        MAX(bs.currency) as currency
+      FROM users u
+      LEFT JOIN businesses b2 ON b2.id = u.id
+      LEFT JOIN business_daily_logins bdl ON u.id = bdl.business_id
+      LEFT JOIN business_transactions bt ON u.id = bt.business_id
+      LEFT JOIN business_settings bs ON u.id = bs.business_id
+      WHERE u.id = ${parseInt(businessId)} AND u.user_type = 'business'
+      GROUP BY u.id, u.name, u.email, u.status, u.address, u.phone, u.created_at
     `;
 
     if (!result.length) {
@@ -302,15 +311,21 @@ router.get('/admin/:id/timeline', auth, requireAdmin, async (req: Request, res: 
       return res.status(400).json({ error: 'Invalid business id' });
     }
 
-    // Business registration event
-    const businessRows = await sql<any[]>`
-      SELECT id, name, created_at FROM businesses WHERE id = ${businessId}
+    // Business registration event (prefer businesses, fallback to users)
+    const regRows = await sql<any[]>`
+      SELECT 
+        u.id,
+        COALESCE(b2.name, u.name) AS name,
+        u.created_at
+      FROM users u
+      LEFT JOIN businesses b2 ON b2.id = u.id
+      WHERE u.id = ${businessId} AND u.user_type = 'business'
     `;
-    const registrationEvent = businessRows.length ? [{
+    const registrationEvent = regRows.length ? [{
       type: 'business_registered' as const,
-      title: `Business registered: ${businessRows[0].name}`,
-      referenceId: businessRows[0].id,
-      timestamp: businessRows[0].created_at
+      title: `Business registered: ${regRows[0].name}`,
+      referenceId: regRows[0].id,
+      timestamp: regRows[0].created_at
     }] : [];
 
     // Programs created
