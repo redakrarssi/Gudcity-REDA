@@ -131,6 +131,7 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<AuthResult>;
   register: (data: RegisterData) => Promise<RegisterResult>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   clearError: () => void;
 }
@@ -612,6 +613,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
   /**
+   * Refresh user data from database
+   */
+  const refreshUser = async () => {
+    if (!user?.id) {
+      console.warn('Cannot refresh user: no user ID available');
+      return;
+    }
+
+    try {
+      console.log('Refreshing user data for ID:', user.id);
+      const dbUser = await getUserById(user.id as number);
+      if (dbUser && validateUser(dbUser)) {
+        const updatedUser = convertDbUserToUser(dbUser);
+        setUser(updatedUser);
+        
+        // Update localStorage cache
+        localStorage.setItem('authUserData', JSON.stringify(updatedUser));
+        console.log('User data refreshed successfully');
+      } else {
+        console.warn('Failed to refresh user data: user not found or invalid');
+      }
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    }
+  };
+
+  /**
    * Clear authentication error
    */
   const clearError = () => {
@@ -628,6 +656,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         login: login || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
         register: register || (async () => ({ success: false, error: { type: AuthErrorType.SERVER_ERROR, message: 'Auth not initialized' } })),
         logout: logout || (() => {}),
+        refreshUser: refreshUser || (async () => {}),
         hasPermission: hasPermission || (() => false),
         clearError: clearError || (() => {})
       }}

@@ -237,8 +237,7 @@ const CustomerQrCard = () => {
               {user?.id && (
                 <QRCard 
                   userId={user.id.toString()} 
-                  userName={user.name || user.email?.split('@')[0] || 'Customer'} 
-                  cardNumber={cardNumber || undefined} 
+                  displayName={user.name || user.email?.split('@')[0] || 'Customer'} 
                   onCardReady={handleCardReady}
                 />
               )}

@@ -428,7 +428,7 @@ const CustomerDashboard = () => {
                 </div>
               </div>
               <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20">
-                <QRCard userId={userData.id} userName={userData.name} />
+                <QRCard userId={userData.id} displayName={userData.name} />
                 <div className="mt-2 text-center text-xs text-white/80">Tap to enlarge</div>
               </div>
             </div>

@@ -43,7 +43,7 @@ const CURRENCIES = [
 
 const CustomerSettings = () => {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('personal');
   const [animateIn, setAnimateIn] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -222,6 +222,17 @@ const CustomerSettings = () => {
         // Update language if changed
         if (updatedSettings.regionalSettings.language !== userData?.regionalSettings.language) {
           i18n.changeLanguage(updatedSettings.regionalSettings.language);
+        }
+        
+        // Refresh user context to update name in QR card and other components
+        if (formData.name !== userData?.name) {
+          try {
+            await refreshUser();
+            console.log('User context refreshed after name change');
+          } catch (refreshError) {
+            console.error('Error refreshing user context:', refreshError);
+            // Don't fail the whole operation if refresh fails
+          }
         }
         
         setSaveSuccess(true);

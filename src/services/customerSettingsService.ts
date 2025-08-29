@@ -221,6 +221,24 @@ export class CustomerSettingsService {
             WHERE id = ${customerIdNum}
           `;
           console.log('Updated basic customer fields');
+          
+          // SECURITY FIX: Also update the users table to keep name and email in sync
+          // This ensures the QR card displays the correct customer name from auth context
+          if (settings.name || settings.email) {
+            try {
+              await sql`
+                UPDATE users SET
+                  name = COALESCE(${settings.name}, name),
+                  email = COALESCE(${settings.email}, email),
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${settings.userId || customerIdNum}
+              `;
+              console.log('Updated users table to sync name and email');
+            } catch (userUpdateError) {
+              console.error('Error updating users table:', userUpdateError);
+              // Don't throw here - customer update succeeded, user sync is secondary
+            }
+          }
         } catch (updateError) {
           console.error('Error updating basic fields:', updateError);
           throw new Error(`Failed to update basic fields: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`);

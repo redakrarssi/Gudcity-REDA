@@ -15,14 +15,15 @@ import CustomerCards from './pages/customer/Cards';
 import CustomerPromotions from './pages/customer/Promotions';
 import CustomerQrCard from './pages/customer/QrCard';
 import CustomerSettings from './pages/customer/Settings';
-import CustomerNearby from './pages/customer/Nearby';
+import NearbyComingSoon from './pages/customer/NearbyComingSoon';
+
 import BusinessDashboard from './pages/business/Dashboard';
 import BusinessPrograms from './pages/business/Programs';
 import BusinessAnalytics from './pages/business/Analytics';
 import BusinessCustomers from './pages/business/Customers';
 import BusinessPromotions from './pages/business/Promotions';
 import BusinessQrScanner from './pages/business/QrScanner';
-import BusinessTestCodes from './pages/business/TestCodes';
+
 import BusinessSettings from './pages/business/Settings';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
@@ -282,10 +283,11 @@ function App() {
                 <Route path="/nearby" element={
                   <ErrorBoundary>
                     <ProtectedRoute blockRestricted>
-                      <CustomerNearby />
+                      <NearbyComingSoon />
                     </ProtectedRoute>
                   </ErrorBoundary>
                 } />
+
                 
                 {/* Business Routes - Wrapped with NotificationProvider */}
                 <Route path="/business/*" element={
@@ -333,13 +335,7 @@ function App() {
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
-                      <Route path="test-codes" element={
-                        <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
-                            <BusinessTestCodes />
-                          </ProtectedRoute>
-                        </ErrorBoundary>
-                      } />
+
                       <Route path="settings" element={
                         <ErrorBoundary>
                           <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>

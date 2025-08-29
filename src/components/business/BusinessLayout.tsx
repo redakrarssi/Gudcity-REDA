@@ -71,11 +71,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       ), 
       path: '/business/qr-scanner' 
     },
-    { 
-      name: t('Test QR Codes'), 
-      icon: <QrCode className="w-5 h-5" />, 
-      path: '/business/test-codes' 
-    },
+
     { 
       name: t('Settings'), 
       icon: <Settings className="w-5 h-5" />, 
