@@ -115,6 +115,37 @@ export function formatRegistrationDuration(date: Date | string): string {
 }
 
 /**
+ * Calculate the number of months since registration
+ * Returns a number representing months
+ */
+export function calculateMonthsRegistered(date: Date | string): number {
+  if (!date) return 0;
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const now = new Date();
+  
+  try {
+    // Calculate the difference in months
+    const yearDiff = now.getFullYear() - dateObj.getFullYear();
+    const monthDiff = now.getMonth() - dateObj.getMonth();
+    const dayDiff = now.getDate() - dateObj.getDate();
+    
+    // Calculate total months
+    let months = yearDiff * 12 + monthDiff;
+    
+    // Adjust for day of month
+    if (dayDiff < 0) {
+      months -= 1;
+    }
+    
+    return Math.max(0, months);
+  } catch (error) {
+    console.error('Error calculating months registered:', error);
+    return 0;
+  }
+}
+
+/**
  * Format a date as relative to now (e.g. "3 days ago")
  */
 export function formatRelativeTime(date: Date | string): string {

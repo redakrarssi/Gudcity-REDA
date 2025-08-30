@@ -15,7 +15,7 @@ import {
   ExternalLink,
   BarChart2
 } from 'lucide-react';
-import { formatDate, formatDateTime, formatRegistrationDuration } from '../../utils/dateUtils';
+import { formatDate, formatDateTime, formatRegistrationDuration, calculateMonthsRegistered } from '../../utils/dateUtils';
 import BusinessTimeline from './BusinessTimeline';
 
 interface Business {
@@ -138,6 +138,9 @@ const BusinessDetails: React.FC<BusinessDetailsProps> = ({
                   <div className="text-xs text-gray-400">
                     {formatRegistrationDuration(business.registeredAt)}
                   </div>
+                  <div className="text-xs text-blue-600 font-medium">
+                    {calculateMonthsRegistered(business.registeredAt)} months registered
+                  </div>
                 </div>
               </div>
             </div>
@@ -176,8 +179,15 @@ const BusinessDetails: React.FC<BusinessDetailsProps> = ({
                 {business.programs.slice(0, 5).map((program: any) => (
                   <div key={program.id} className="bg-gray-50 p-2 rounded text-sm">
                     <div className="font-medium text-gray-700">{program.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {formatDate(program.created_at)}
+                    <div className="text-xs text-gray-500 flex justify-between">
+                      <span>{formatDate(program.created_at)}</span>
+                      <span className={`px-1 py-0.5 rounded text-xs ${
+                        program.status === 'active' ? 'bg-green-100 text-green-800' : 
+                        program.status === 'inactive' ? 'bg-gray-100 text-gray-800' : 
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {program.status}
+                      </span>
                     </div>
                   </div>
                 ))}
