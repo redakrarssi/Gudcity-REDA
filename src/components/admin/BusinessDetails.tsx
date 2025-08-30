@@ -170,7 +170,7 @@ const BusinessDetails: React.FC<BusinessDetailsProps> = ({
                 {business.programCount}
               </span>
             </h4>
-
+            
             {business.programs && business.programs.length > 0 ? (
               <div className="space-y-3 max-h-60 overflow-y-auto">
                 {business.programs.map((program: any) => (
@@ -200,8 +200,8 @@ const BusinessDetails: React.FC<BusinessDetailsProps> = ({
             ) : (
               <div className="text-center py-6 bg-gray-50 rounded-lg">
                 <Briefcase className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <div className="text-sm text-gray-500">
-                  {t('No loyalty programs found')}
+              <div className="text-sm text-gray-500">
+                {t('No loyalty programs found')}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
                   {t('This business has not created any loyalty programs yet')}

@@ -155,6 +155,8 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
       }
     }));
 
+    res.setHeader('Access-Control-Allow-Origin', _req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.json({ businesses: data });
   } catch (error) {
     console.error('Error fetching admin businesses comprehensive data:', error);

@@ -1,5 +1,24 @@
 // Environment variables with typed structure
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Robust API base URL resolver:
+// - Prefer explicit VITE_API_URL when provided
+// - In browsers, default to same-origin '/api' to avoid CORS and localhost issues in production
+// - Fallback to localhost only when no window context is available (e.g. tests)
+export const API_BASE_URL = (() => {
+  const explicit = (import.meta.env.VITE_API_URL || '').trim();
+  if (explicit) return explicit;
+
+  // Support alternate backend URL keys (deployment flexibility)
+  const alt = (import.meta.env.VITE_PUBLIC_API_URL || import.meta.env.VITE_BACKEND_URL || '').trim();
+  if (alt) return alt;
+
+  if (typeof window !== 'undefined' && window.location) {
+    // Use same-origin API path to prevent cross-origin CORS errors in production
+    const origin = window.location.origin.replace(/\/$/, '');
+    return `${origin}/api`;
+  }
+  // Node/test fallback
+  return 'http://localhost:3000';
+})();
 
 // Other environment configurations
 export const APP_ENV = import.meta.env.VITE_APP_ENV || 'development';

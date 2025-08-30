@@ -567,8 +567,9 @@ export class AnalyticsDbService {
         )
         SELECT 
           fd.interactions_by_feature,
-          (SELECT array_agg(COALESCE(f->>'name', 'Unknown')) 
-           FROM jsonb_array_elements(COALESCE(fd.features_ranked, '[]'::jsonb)) WITH ORDINALITY AS f(feature_data, ordinality)
+          (SELECT array_agg(COALESCE((f->>'name')::text, 'Unknown')) 
+           FROM jsonb_array_elements(COALESCE(fd.features_ranked, '[]'::jsonb)) WITH ORDINALITY AS f
+           (feature, ordinality)
            WHERE ordinality <= 10) AS top_features,
           COALESCE(rd.retention_by_day, '[]'::jsonb) as retention_by_day
         FROM feature_data fd, retention_data rd
