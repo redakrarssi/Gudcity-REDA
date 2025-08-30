@@ -12,7 +12,10 @@ import {
   Briefcase,
   Users,
   DollarSign,
-  Building
+  Building,
+  Database,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import api from '../../api/api';
 import { formatDate, formatDateTime, formatRegistrationDuration } from '../../utils/dateUtils';
@@ -66,7 +69,7 @@ interface BusinessTimeline {
 
 const AdminBusinesses = () => {
   const { t } = useTranslation();
-  
+
   // State variables
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +81,7 @@ const AdminBusinesses = () => {
   const [expandedBusinessIds, setExpandedBusinessIds] = useState<Set<string | number>>(new Set());
   const [sortField, setSortField] = useState<keyof Business>('registeredAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   
   // Load businesses on component mount
   useEffect(() => {
@@ -89,16 +93,21 @@ const AdminBusinesses = () => {
     try {
       setLoading(true);
       setError(null);
-      
+      setDbConnected(null); // Reset connection status
+
       const response = await api.get('/api/admin/businesses');
       if (response.status === 200 && response.data?.businesses) {
         setBusinesses(response.data.businesses);
+        setDbConnected(true); // Database connection successful
+        console.log('✅ Database connected successfully. Loaded', response.data.businesses.length, 'businesses');
       } else {
         setError('Failed to load businesses. Please try again.');
+        setDbConnected(false);
       }
     } catch (err) {
-      console.error('Error fetching businesses:', err);
+      console.error('❌ Error fetching businesses:', err);
       setError('An error occurred while fetching businesses.');
+      setDbConnected(false);
     } finally {
       setLoading(false);
     }
@@ -274,6 +283,41 @@ const AdminBusinesses = () => {
             </div>
           </div>
         )}
+
+        {/* Database Connection Status */}
+        {dbConnected !== null && (
+          <div className={`mb-6 ${dbConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} border-l-4 p-4`}>
+            <div className="flex">
+              <div className="flex-shrink-0">
+                {dbConnected ? (
+                  <Wifi className="h-5 w-5 text-green-400" />
+                ) : (
+                  <WifiOff className="h-5 w-5 text-red-400" />
+                )}
+              </div>
+              <div className="ml-3">
+                <p className={`text-sm ${dbConnected ? 'text-green-700' : 'text-red-700'}`}>
+                  {dbConnected ? (
+                    <>
+                      <Database className="inline h-4 w-4 mr-1" />
+                      Database connected successfully
+                    </>
+                  ) : (
+                    <>
+                      <Database className="inline h-4 w-4 mr-1" />
+                      Database connection failed
+                    </>
+                  )}
+                </p>
+                {dbConnected && (
+                  <p className="text-xs text-green-600 mt-1">
+                    Business data and programs loaded from database
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Loading state */}
         {loading ? (
@@ -365,6 +409,18 @@ const AdminBusinesses = () => {
                               <Briefcase className="h-4 w-4 text-blue-500 mr-1" />
                               <span>{business.programCount}</span>
                             </div>
+                            {business.programs && business.programs.length > 0 && (
+                              <div className="mt-1 text-xs text-gray-400">
+                                {business.programs.slice(0, 2).map((program: any) => (
+                                  <div key={program.id} className="truncate max-w-32">
+                                    • {program.name}
+                                  </div>
+                                ))}
+                                {business.programs.length > 2 && (
+                                  <div className="text-gray-300">+{business.programs.length - 2} more</div>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             <div className="flex items-center">

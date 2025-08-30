@@ -170,26 +170,42 @@ const BusinessDetails: React.FC<BusinessDetailsProps> = ({
                 {business.programCount}
               </span>
             </h4>
-            
+
             {business.programs && business.programs.length > 0 ? (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {business.programs.slice(0, 5).map((program: any) => (
-                  <div key={program.id} className="bg-gray-50 p-2 rounded text-sm">
-                    <div className="font-medium text-gray-700">{program.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {formatDate(program.created_at)}
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {business.programs.map((program: any) => (
+                  <div key={program.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 text-sm">{program.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Created: {formatDate(program.created_at)}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          program.status === 'ACTIVE'
+                            ? 'bg-green-100 text-green-800'
+                            : program.status === 'INACTIVE'
+                            ? 'bg-gray-100 text-gray-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {program.status || 'ACTIVE'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
-                {business.programs.length > 5 && (
-                  <div className="text-xs text-center text-blue-600">
-                    {t('And {count} more programs', { count: business.programs.length - 5 })}
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="text-sm text-gray-500">
-                {t('No loyalty programs found')}
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <Briefcase className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <div className="text-sm text-gray-500">
+                  {t('No loyalty programs found')}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {t('This business has not created any loyalty programs yet')}
+                </div>
               </div>
             )}
           </div>
