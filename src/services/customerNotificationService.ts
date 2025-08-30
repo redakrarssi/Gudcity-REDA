@@ -23,7 +23,7 @@ export class CustomerNotificationService {
         SET action_taken = TRUE, updated_at = NOW()
         WHERE customer_id = ${businessId}
         AND type = 'CUSTOMER_REDEMPTION'
-        AND data->>'trackingCode' = ${trackingCode}
+        AND (data::jsonb)->>'trackingCode' = ${trackingCode}
       `;
     } catch (error) {
       console.error('Error marking notification as action taken:', error);
@@ -187,10 +187,10 @@ export class CustomerNotificationService {
         SELECT 
           cn.*,
           b.name as business_name,
-          COALESCE(lp.name, cn.data->>'programName') as program_name
+          COALESCE(lp.name, (cn.data::jsonb)->>'programName') as program_name
         FROM customer_notifications cn
         JOIN users b ON cn.business_id = b.id
-        LEFT JOIN loyalty_programs lp ON (cn.data->>'programId')::int = lp.id
+        LEFT JOIN loyalty_programs lp ON ((cn.data::jsonb)->>'programId')::int = lp.id
         WHERE cn.customer_id = ${normalizeCustomerId(customerId)} AND cn.is_read = FALSE
         ORDER BY cn.created_at DESC
       `;
@@ -767,7 +767,7 @@ export class CustomerNotificationService {
         FROM customer_notifications cn
         LEFT JOIN users u ON cn.customer_id = u.id
         LEFT JOIN loyalty_programs lp ON 
-          (cn.data->>'programId')::text = lp.id::text OR 
+          ((cn.data::jsonb)->>'programId')::text = lp.id::text OR 
           CASE WHEN cn.reference_id IS NOT NULL THEN cn.reference_id::text = lp.id::text ELSE FALSE END
         WHERE cn.business_id = ${parseInt(businessId)}
         AND (
@@ -833,7 +833,7 @@ export class CustomerNotificationService {
         WHERE cn.customer_id = ${customerIdInt}
         AND cn.business_id = ${businessIdInt}
         AND cn.type = 'POINTS_ADDED'
-        AND cn.data->>'programId' = ${programId}
+        AND ((cn.data::jsonb)->>'programId') = ${programId}
         AND cn.created_at > ${windowTime}
         ORDER BY cn.created_at DESC
       `;
