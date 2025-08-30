@@ -2,8 +2,19 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const sql = require('../utils/db').default;
-const env = require('../utils/env').default;
+const sql = require('../utils/dbFix.cjs');
+const dotenv = require('dotenv');
+
+// Load environment variables
+dotenv.config();
+
+// Environment variables
+const env = {
+  JWT_SECRET: process.env.VITE_JWT_SECRET,
+  JWT_REFRESH_SECRET: process.env.VITE_JWT_REFRESH_SECRET || process.env.VITE_JWT_SECRET,
+  JWT_EXPIRY: process.env.VITE_JWT_EXPIRY || '1h',
+  JWT_REFRESH_EXPIRY: process.env.VITE_JWT_REFRESH_EXPIRY || '7d'
+};
 
 // In-memory rate limiting store
 const loginAttempts = {};

@@ -15,7 +15,7 @@ import {
   Building
 } from 'lucide-react';
 import api from '../../api/api';
-import { formatDate, formatDateTime, formatRegistrationDuration } from '../../utils/dateUtils';
+import { formatDate, formatDateTime, formatRegistrationDuration, calculateMonthsRegistered } from '../../utils/dateUtils';
 import BusinessHeader from '../../components/admin/BusinessHeader';
 import BusinessDetails from '../../components/admin/BusinessDetails';
 
@@ -351,6 +351,9 @@ const AdminBusinesses = () => {
                             <div className="text-xs text-gray-500">
                               {formatRegistrationDuration(business.registeredAt)}
                             </div>
+                            <div className="text-xs text-blue-600 font-medium">
+                              {calculateMonthsRegistered(business.registeredAt)} months
+                            </div>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(business.status)}`}>
@@ -365,6 +368,18 @@ const AdminBusinesses = () => {
                               <Briefcase className="h-4 w-4 text-blue-500 mr-1" />
                               <span>{business.programCount}</span>
                             </div>
+                            {business.programs && business.programs.length > 0 && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                {business.programs.slice(0, 2).map((program: any, index: number) => (
+                                  <div key={program.id || index} className="truncate">
+                                    {program.name}
+                                  </div>
+                                ))}
+                                {business.programs.length > 2 && (
+                                  <div className="text-blue-500">+{business.programs.length - 2} more</div>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                             <div className="flex items-center">

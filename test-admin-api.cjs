@@ -10,7 +10,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 // Constants
-const API_URL = process.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = process.env.VITE_API_URL || 'http://localhost:3000';
 const JWT_SECRET = process.env.VITE_JWT_SECRET;
 
 // Create a test JWT token
@@ -69,7 +69,7 @@ async function testBusinessesEndpoint() {
   try {
     console.log('🔄 Testing admin businesses endpoint...');
     const token = createTestToken();
-    const response = await axios.get(`${API_URL}/admin/businesses`, {
+    const response = await axios.get(`${API_URL}/api/admin/businesses`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -105,9 +105,9 @@ async function runTests() {
   
   if (!overallResult) {
     console.log('\n📋 Troubleshooting Steps:');
-    console.log('1. Ensure API server is running: `node start-api-server.cjs`');
+    console.log('1. Ensure API server is running: `node start-api-server.js`');
     console.log('2. Check your .env file has required variables set');
-    console.log('3. Run the environment setup script: `node src/server-fix.mjs`');
+    console.log('3. Run the environment setup script: `node src/server-fix.js`');
     console.log('4. Verify database connection is working');
     console.log('5. Restart the API server and try again');
   } else {

@@ -1,6 +1,6 @@
 // Fixed authentication middleware
-const { verifyToken } = require('../services/authServiceFixed');
-const sql = require('../utils/dbFix');
+const { verifyToken } = require('../services/authServiceFixed.cjs');
+const sql = require('../utils/dbFix.cjs');
 
 /**
  * Authentication middleware
