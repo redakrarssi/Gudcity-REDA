@@ -87,6 +87,7 @@ const AdminBusinesses = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showBusinessForm, setShowBusinessForm] = useState(false);
   const [analytics, setAnalytics] = useState<BusinessAnalytics | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | null>(null);
 
   const handleBusinessAdded = () => {
     // Increment to trigger refresh in BusinessTables
@@ -96,6 +97,11 @@ const AdminBusinesses = () => {
 
   const handleAnalyticsUpdate = (newAnalytics: BusinessAnalytics) => {
     setAnalytics(newAnalytics);
+    setConnectionStatus('connected');
+  };
+
+  const handleConnectionError = () => {
+    setConnectionStatus('error');
   };
 
 
@@ -212,10 +218,26 @@ const AdminBusinesses = () => {
         </div>
 
         {/* Enhanced Business Tables - similar to UserTables but for businesses */}
+        {/* Connection Status Banner */}
+        {connectionStatus === 'error' && (
+          <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-md">
+            <div className="flex items-center">
+              <WifiOff className="h-5 w-5 text-red-500 mr-2" />
+              <div>
+                <p className="text-sm text-red-700 font-medium">API Connection Issue</p>
+                <p className="text-xs text-red-600 mt-1">
+                  Unable to connect to business data API. Check debug panel below for details.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <BusinessTables 
           key={refreshTrigger} 
           onRefresh={() => setRefreshTrigger(prev => prev + 1)} 
           onAnalyticsUpdate={handleAnalyticsUpdate}
+          onConnectionError={handleConnectionError}
         />
       </div>
     </AdminLayout>

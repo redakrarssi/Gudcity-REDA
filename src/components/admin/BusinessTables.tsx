@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import api from '../../api/api';
 import { formatDate, formatRegistrationDuration } from '../../utils/dateUtils';
+import { apiCacheDebugger } from '../../utils/apiCacheDebug';
 
 // Business interface following reda.md rules
 interface Business {
@@ -67,6 +68,7 @@ interface Program {
 interface BusinessTableProps {
   onRefresh: () => void;
   onAnalyticsUpdate?: (analytics: BusinessAnalytics) => void;
+  onConnectionError?: () => void;
 }
 
 interface BusinessAnalytics {
@@ -76,7 +78,7 @@ interface BusinessAnalytics {
   newThisMonth: number;
 }
 
-export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnalyticsUpdate }) => {
+export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnalyticsUpdate, onConnectionError }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -87,6 +89,7 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   const [typeFilter, setTypeFilter] = useState<'all'|'retail'|'restaurant'|'service'|'other'>('all');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [expandedBusinessIds, setExpandedBusinessIds] = useState<Set<string | number>>(new Set());
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   useEffect(() => {
     console.log('Loading businesses...');
@@ -98,10 +101,77 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
     setError(null);
     console.log('Fetching businesses from database...');
     try {
-      const response = await api.get('/api/admin/businesses');
+      // Fix: Use the correct endpoint path (remove extra /api)
+      const response = await api.get('/admin/businesses');
+      
+      // Log API request for debugging
+      apiCacheDebugger.logRequest('/admin/businesses', response.status);
+      
+      console.log('API Response Status:', response.status);
+      console.log('API Response Data:', response.data);
+      
+      // Handle 304 Not Modified by checking if we have cached data
+      if (response.status === 304) {
+        console.log('304 Not Modified - attempting to use cached data');
+        // For 304, try to get data from localStorage cache as fallback
+        const cachedData = localStorage.getItem('admin_businesses_cache');
+        if (cachedData) {
+          try {
+            const parsedData = JSON.parse(cachedData);
+            if (parsedData?.businesses && Array.isArray(parsedData.businesses)) {
+              setBusinesses(parsedData.businesses);
+              console.log('✅ Using cached business data:', parsedData.businesses.length, 'businesses');
+              
+              // Send analytics for cached data
+              if (onAnalyticsUpdate) {
+                const businessData = parsedData.businesses;
+                const totalPrograms = businessData.reduce((sum: number, business: Business) => sum + (business.programCount || 0), 0);
+                const activeBusinesses = businessData.filter((b: Business) => b.status === 'active').length;
+                
+                const currentMonth = new Date().getMonth();
+                const currentYear = new Date().getFullYear();
+                const newThisMonth = businessData.filter((b: Business) => {
+                  const registrationDate = new Date(b.registeredAt);
+                  return registrationDate.getMonth() === currentMonth && registrationDate.getFullYear() === currentYear;
+                }).length;
+                
+                onAnalyticsUpdate({
+                  totalBusinesses: businessData.length,
+                  activeBusinesses,
+                  totalPrograms,
+                  newThisMonth
+                });
+              }
+              return;
+            }
+          } catch (cacheError) {
+            console.error('Error parsing cached data:', cacheError);
+          }
+        }
+        // If no valid cache, force refresh
+        console.log('No valid cache found, forcing refresh...');
+        const refreshResponse = await api.get('/admin/businesses', {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        });
+        if (refreshResponse.data?.businesses) {
+          const businessData = refreshResponse.data.businesses;
+          setBusinesses(businessData);
+          // Cache the fresh data
+          localStorage.setItem('admin_businesses_cache', JSON.stringify(refreshResponse.data));
+          console.log('✅ Loaded fresh data:', businessData.length, 'businesses');
+        }
+        apiCacheDebugger.logRequest('/admin/businesses', 304, 'GET', true);
+        return;
+      }
+      
+      // Handle successful response (200, etc.)
       if (response.data?.businesses) {
         const businessData = response.data.businesses;
         setBusinesses(businessData);
+        
+        // Cache the data for future 304 responses
+        localStorage.setItem('admin_businesses_cache', JSON.stringify(response.data));
         console.log('✅ Loaded', businessData.length, 'businesses with programs');
         
         // Calculate and send analytics to parent component
@@ -124,12 +194,27 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
             newThisMonth
           });
         }
+      } else if (response.status === 200) {
+        // Empty response but successful
+        console.log('Empty business data received from API');
+        setBusinesses([]);
+        if (onAnalyticsUpdate) {
+          onAnalyticsUpdate({
+            totalBusinesses: 0,
+            activeBusinesses: 0,
+            totalPrograms: 0,
+            newThisMonth: 0
+          });
+        }
       } else {
-        setError('No business data received from API');
+        setError(`API Error: ${response.status} - ${response.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error loading businesses:', err);
-      setError('Failed to load businesses. Please check console for details.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load businesses. Please check console for details.';
+      setError(errorMessage);
+      apiCacheDebugger.logError(errorMessage, 'admin_businesses_cache');
+      onConnectionError?.();
     } finally {
       setLoading(false);
     }
@@ -140,6 +225,21 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   };
 
   const clearSelection = () => setSelectedIds([]);
+
+  // Force refresh function that clears cache
+  const forceRefresh = async () => {
+    try {
+      // Clear any cached data
+      localStorage.removeItem('admin_businesses_cache');
+      console.log('Cache cleared, forcing fresh data request...');
+      
+      // Reload with cache-busting headers
+      await loadBusinesses();
+    } catch (error) {
+      console.error('Error during force refresh:', error);
+      setError('Failed to refresh data. Please try again.');
+    }
+  };
 
   const toggleExpanded = (businessId: string | number) => {
     setExpandedBusinessIds(prev => {
@@ -384,11 +484,11 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
             {error}
           </div>
           <button 
-            onClick={loadBusinesses}
+            onClick={forceRefresh}
             className="mt-2 text-blue-600 underline flex items-center"
           >
             <RefreshCw className="w-4 h-4 mr-1" />
-            Try Again
+            Try Again (Clear Cache)
           </button>
         </div>
       );
@@ -404,6 +504,63 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
 
     return (
       <div className="overflow-x-auto">
+        {/* Debug Info Panel */}
+        <div className="mb-4 p-3 bg-gray-50 border rounded-md">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">
+              API Status: {businesses.length > 0 ? `✅ ${businesses.length} businesses loaded` : '⚠️ No data loaded'}
+            </span>
+            <button
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              {showDebugInfo ? 'Hide Debug' : 'Show Debug'}
+            </button>
+          </div>
+          {showDebugInfo && (
+            <div className="mt-2 text-xs text-gray-600 space-y-1">
+              <div>Cache Status: {localStorage.getItem('admin_businesses_cache') ? '📦 Data cached' : '❌ No cache'}</div>
+              <div>Last API Call: {error ? `❌ ${error}` : loading ? '🔄 Loading...' : '✅ Success'}</div>
+              <div>Total Businesses: {businesses.length}</div>
+              <div>Active Filter: {statusFilter} | Type Filter: {typeFilter}</div>
+              <div>Request History: {apiCacheDebugger.getRequestHistory().length} logged requests</div>
+              <div>API Base URL: {window.location.origin}/api</div>
+              <div className="text-xs text-gray-500">
+                Recent Requests: {apiCacheDebugger.getRequestHistory().slice(-3).map(req => 
+                  `${req.status} ${req.cached ? '(cached)' : '(fresh)'}`
+                ).join(', ') || 'None'}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={forceRefresh}
+                  className="px-2 py-1 bg-blue-500 text-white text-xs rounded"
+                >
+                  Force Refresh
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('admin_businesses_cache');
+                    console.log('Cache cleared');
+                  }}
+                  className="px-2 py-1 bg-yellow-500 text-white text-xs rounded"
+                >
+                  Clear Cache
+                </button>
+                <button
+                  onClick={() => {
+                    const debugInfo = apiCacheDebugger.exportDebugInfo();
+                    console.log('Debug Info:', debugInfo);
+                    navigator.clipboard?.writeText(debugInfo);
+                  }}
+                  className="px-2 py-1 bg-green-500 text-white text-xs rounded"
+                >
+                  Export Debug Info
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
         <div className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div className="flex gap-2">
             <input
