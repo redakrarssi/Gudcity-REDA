@@ -232,6 +232,16 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
       // Clear any cached data
       localStorage.removeItem('admin_businesses_cache');
       console.log('Cache cleared, forcing fresh data request...');
+      
+      // Debug auth tokens
+      console.log('Auth tokens:', {
+        token: localStorage.getItem('token'),
+        auth_token: localStorage.getItem('auth_token'),
+        authToken: localStorage.getItem('authToken'),
+        authUserId: localStorage.getItem('authUserId'),
+        authUserData: localStorage.getItem('authUserData')
+      });
+      
       // Ask service worker (if present) to purge API cache
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_API_CACHE' });
@@ -470,6 +480,17 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   );
 
   // Main table render function
+  // Helper to set a test token for debugging
+  const setTestToken = () => {
+    const testToken = prompt('Enter a test token:');
+    if (testToken) {
+      localStorage.setItem('token', testToken);
+      localStorage.setItem('auth_token', testToken);
+      console.log('Test token set. Refreshing...');
+      forceRefresh();
+    }
+  };
+
   const renderBusinessTable = () => {
     if (loading) {
       return (
@@ -487,13 +508,22 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
             <AlertOctagon className="w-5 h-5 mr-2" />
             {error}
           </div>
-          <button 
-            onClick={forceRefresh}
-            className="mt-2 text-blue-600 underline flex items-center"
-          >
-            <RefreshCw className="w-4 h-4 mr-1" />
-            Try Again (Clear Cache)
-          </button>
+          <div className="flex flex-col gap-2 mt-2">
+            <button 
+              onClick={forceRefresh}
+              className="text-blue-600 underline flex items-center"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Try Again (Clear Cache)
+            </button>
+            <button 
+              onClick={setTestToken}
+              className="text-green-600 underline flex items-center"
+            >
+              <Shield className="w-4 h-4 mr-1" />
+              Set Test Token
+            </button>
+          </div>
         </div>
       );
     }

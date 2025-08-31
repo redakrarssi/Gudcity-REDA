@@ -26,7 +26,12 @@ class ApiClient {
   // Read token for backward compatibility; cookies will also be sent via credentials: 'include'
   private getAuthToken(): string | null {
     try {
-      return localStorage.getItem('token');
+      // Try multiple token storage locations for compatibility
+      return localStorage.getItem('token') || 
+             localStorage.getItem('auth_token') || 
+             localStorage.getItem('authToken') || 
+             sessionStorage.getItem('token') || 
+             sessionStorage.getItem('auth_token');
     } catch {
       return null;
     }
