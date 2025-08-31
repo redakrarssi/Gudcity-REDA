@@ -18,6 +18,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
     this.defaultHeaders = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       // CSRF header will be set dynamically from cookie by caller if present
     };
   }
@@ -78,9 +79,27 @@ class ApiClient {
         method: 'GET',
         headers,
         credentials: 'include',
+        cache: 'no-store',
       });
-
-      const data = await response.json().catch(() => null);
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = null;
+      if (response.status === 304) {
+        // No body for 304; caller should use its own cache fallback
+        data = null;
+      } else if (contentType.includes('application/json')) {
+        data = await response.json().catch(() => null);
+      } else if (contentType.includes('text/html')) {
+        // Guard against HTML being returned from SW or rewrites
+        const text = await response.text().catch(() => '');
+        return {
+          status: response.status,
+          data: null,
+          error: 'Expected JSON but received HTML response',
+        };
+      } else {
+        // Fallback: try text
+        data = await response.text().catch(() => null);
+      }
       
       return {
         status: response.status,
@@ -109,6 +128,7 @@ class ApiClient {
         headers,
         credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
+        cache: 'no-store',
       });
 
       const data = await response.json().catch(() => null);
@@ -140,6 +160,7 @@ class ApiClient {
         headers,
         credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
+        cache: 'no-store',
       });
 
       const data = await response.json().catch(() => null);
@@ -170,6 +191,7 @@ class ApiClient {
         method: 'DELETE',
         headers,
         credentials: 'include',
+        cache: 'no-store',
       });
 
       const data = await response.json().catch(() => null);

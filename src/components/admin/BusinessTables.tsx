@@ -232,6 +232,10 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
       // Clear any cached data
       localStorage.removeItem('admin_businesses_cache');
       console.log('Cache cleared, forcing fresh data request...');
+      // Ask service worker (if present) to purge API cache
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_API_CACHE' });
+      }
       
       // Reload with cache-busting headers
       await loadBusinesses();
