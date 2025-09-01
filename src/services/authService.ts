@@ -394,8 +394,12 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
       throw new Error('JWT secret is not configured');
     }
     
-    // Verify the token
-    const payload = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+    // Verify the token with issuer/audience enforcement and small clock tolerance
+    const payload = jwt.verify(token, env.JWT_SECRET, {
+      issuer: 'gudcity-loyalty-platform',
+      audience: 'gudcity-users',
+      clockTolerance: 5
+    }) as TokenPayload;
     return payload;
   } catch (error) {
     console.error('Invalid token:', error);

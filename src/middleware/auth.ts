@@ -25,37 +25,27 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
     // Debug logging for auth issues
     console.log('AUTH MIDDLEWARE: Checking authentication');
     
-    // Get token from Authorization header
+    // Get token from Authorization header or cookies (transition support)
     const authHeader = req.headers.authorization;
     
-    if (!authHeader) {
-      console.error('AUTH ERROR: No Authorization header present');
+    let token: string | null = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+    // Fallback to cookie-based token if available
+    if (!token && (req as any).cookies && (req as any).cookies.access_token) {
+      token = (req as any).cookies.access_token;
+    }
+    if (!token) {
+      console.error('AUTH ERROR: No token present');
       return res.status(401).json({ 
         error: 'Authentication required', 
-        code: 'AUTH_HEADER_MISSING',
-        message: 'No Authorization header was provided with the request'
+        code: 'AUTH_TOKEN_MISSING',
+        message: 'No authentication token was provided with the request'
       });
     }
     
-    if (!authHeader.startsWith('Bearer ')) {
-      console.error('AUTH ERROR: Authorization header format invalid');
-      return res.status(401).json({ 
-        error: 'Invalid authentication format', 
-        code: 'AUTH_FORMAT_INVALID',
-        message: 'Authorization header must use Bearer scheme'
-      });
-    }
-    
-    const token = authHeader.split(' ')[1];
-    
-    if (!token) {
-      console.error('AUTH ERROR: Token is empty');
-      return res.status(401).json({ 
-        error: 'Authentication token missing', 
-        code: 'AUTH_TOKEN_EMPTY',
-        message: 'Bearer token is empty or malformed'
-      });
-    }
+    // If a header exists but is malformed, still attempt cookie token before failing handled above
     
     // Verify token
     const payload = await verifyToken(token);
