@@ -57,6 +57,46 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
           )) as promotions
         FROM promo_codes pc
         GROUP BY pc.business_id
+      ),
+      daily_session_totals AS (
+        SELECT
+          business_id,
+          DATE(login_time) AS day,
+          COALESCE(SUM(session_duration), 0) AS seconds
+        FROM business_daily_logins
+        GROUP BY business_id, DATE(login_time)
+      ),
+      recent_daily AS (
+        SELECT business_id, day, seconds
+        FROM daily_session_totals
+        WHERE day >= (CURRENT_DATE - INTERVAL '14 days')
+      ),
+      recent_daily_json AS (
+        SELECT business_id,
+               json_agg(
+                 json_build_object('date', day, 'seconds', seconds)
+                 ORDER BY day DESC
+               ) AS daily_timespent
+        FROM recent_daily
+        GROUP BY business_id
+      ),
+      older_monthly AS (
+        SELECT
+          business_id,
+          DATE_TRUNC('month', day) AS month_start,
+          COALESCE(SUM(seconds), 0) AS seconds
+        FROM daily_session_totals
+        WHERE day < (CURRENT_DATE - INTERVAL '14 days')
+        GROUP BY business_id, DATE_TRUNC('month', day)
+      ),
+      older_monthly_json AS (
+        SELECT business_id,
+               json_agg(
+                 json_build_object('month', TO_CHAR(month_start, 'YYYY-MM'), 'seconds', seconds)
+                 ORDER BY month_start DESC
+               ) AS monthly_timespent
+        FROM older_monthly
+        GROUP BY business_id
       )
       SELECT 
         u.id AS user_id,
@@ -88,6 +128,8 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
         -- Programs and promotions
         bprogs.programs AS programs_data,
         bpromo.promotions AS promotions_data,
+        COALESCE(rd.daily_timespent, '[]'::json) AS daily_timespent,
+        COALESCE(om.monthly_timespent, '[]'::json) AS monthly_timespent,
         
         -- Recent activity
         (SELECT json_agg(json_build_object(
@@ -110,12 +152,14 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
       LEFT JOIN business_programs bprogs ON bprogs.business_id = b.id
       LEFT JOIN business_customers bcust ON bcust.business_id = b.id
       LEFT JOIN business_promotions bpromo ON bpromo.business_id = b.id
+      LEFT JOIN recent_daily_json rd ON rd.business_id = b.id
+      LEFT JOIN older_monthly_json om ON om.business_id = b.id
       WHERE u.user_type = 'business'
       GROUP BY 
         u.id, u.name, u.email, u.created_at, u.business_name, u.business_phone, u.avatar_url, u.status,
         b.id, b.name, b.owner, b.type, b.status, b.address, b.logo, bp.address, bs.address, 
         bp.phone, bs.phone, bp.currency, bprogs.program_count, bcust.customer_count, 
-        bpromo.promotion_count, bprogs.programs, bpromo.promotions
+        bpromo.promotion_count, bprogs.programs, bpromo.promotions, rd.daily_timespent, om.monthly_timespent
       ORDER BY COALESCE(u.created_at, NOW()) DESC
     `;
 
@@ -146,6 +190,16 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
       programs: r.programs_data || [],
       promotions: r.promotions_data || [],
       recentLogins: r.recent_logins || [],
+      timeSpent: {
+        daily: (r.daily_timespent || []).map((d: any) => ({
+          date: String(d.date),
+          seconds: Number(d.seconds || 0)
+        })),
+        monthly: (r.monthly_timespent || []).map((m: any) => ({
+          month: String(m.month),
+          seconds: Number(m.seconds || 0)
+        })),
+      },
       
       // Calculate time registered in a client-friendly format
       // (This will be formatted on the client for more accurate display)

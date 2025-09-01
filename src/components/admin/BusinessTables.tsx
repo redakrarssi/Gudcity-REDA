@@ -25,6 +25,26 @@ import api from '../../api/api';
 import { formatDate, formatRegistrationDuration } from '../../utils/dateUtils';
 import { apiCacheDebugger } from '../../utils/apiCacheDebug';
 
+// Local helpers for formatting durations and months
+function formatSeconds(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function formatMonth(yyyyDashMm: string): string {
+  if (!yyyyDashMm) return 'N/A';
+  const date = new Date(`${yyyyDashMm}-01T00:00:00Z`);
+  try {
+    return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(date);
+  } catch {
+    return yyyyDashMm;
+  }
+}
+
 // Business interface following reda.md rules
 interface Business {
   id: number | string;
@@ -52,6 +72,10 @@ interface Business {
     timestamp: string;
     days: number;
     months: number;
+  };
+  timeSpent?: {
+    daily: { date: string; seconds: number }[];
+    monthly: { month: string; seconds: number }[];
   };
 }
 
@@ -94,7 +118,7 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   useEffect(() => {
     console.log('Loading businesses...');
     loadBusinesses();
-  }, [onRefresh, activeTab]);
+  }, [activeTab]);
 
   const loadBusinesses = async () => {
     setLoading(true);
@@ -428,6 +452,51 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
               <p>No loyalty programs found</p>
             </div>
           )}
+        </div>
+
+        {/* Time Spent */}
+        <div className="space-y-4">
+          <h4 className="text-lg font-medium text-gray-900 flex items-center">
+            <Clock className="h-5 w-5 mr-2 text-gray-500" />
+            Time Spent
+          </h4>
+          <div className="bg-white p-3 rounded-lg border border-gray-200">
+            {business.timeSpent && (business.timeSpent.daily?.length > 0 || business.timeSpent.monthly?.length > 0) ? (
+              <div className="space-y-3 text-sm">
+                {business.timeSpent.daily && business.timeSpent.daily.length > 0 && (
+                  <div>
+                    <div className="text-gray-700 font-medium mb-1">Last 15 days (per day)</div>
+                    <ul className="max-h-40 overflow-y-auto space-y-1">
+                      {business.timeSpent.daily.map((d) => (
+                        <li key={d.date} className="flex justify-between text-gray-600">
+                          <span>{formatDate(d.date)}</span>
+                          <span>{formatSeconds(d.seconds)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {business.timeSpent.monthly && business.timeSpent.monthly.length > 0 && (
+                  <div>
+                    <div className="text-gray-700 font-medium mt-2 mb-1">Older (per month)</div>
+                    <ul className="space-y-1">
+                      {business.timeSpent.monthly.map((m) => (
+                        <li key={m.month} className="flex justify-between text-gray-600">
+                          <span>{formatMonth(m.month)}</span>
+                          <span>{formatSeconds(m.seconds)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <Clock className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                <p>No session data</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Business Metrics */}
