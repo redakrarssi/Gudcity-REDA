@@ -6,7 +6,7 @@ import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, Che
 import sql from '../utils/db';
 import { useAuth } from '../contexts/AuthContext';
 import { QrCardGenerator } from '../utils/qrCardGenerator';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { QrCodeStorageService } from '../services/qrCodeStorageService';
 
 export interface QRCardProps {

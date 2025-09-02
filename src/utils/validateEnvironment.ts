@@ -4,6 +4,7 @@
  */
 
 import env from './env';
+import { log, logUtils } from './logger';
 
 /**
  * Critical security validation results
@@ -147,48 +148,106 @@ export function validateSecurityEnvironment(): SecurityValidationResult {
 }
 
 /**
- * Log security validation results
+ * Log security validation results with environment-aware verbosity
  */
 export function logSecurityValidation(): void {
   const result = validateSecurityEnvironment();
+  const isProduction = env.isProduction();
   
-  console.log('🔒 Security Environment Validation');
-  console.log('=====================================');
-  
+  // Always log critical security issues prominently
   if (result.criticalIssues.length > 0) {
-    console.error('🚨 CRITICAL SECURITY ISSUES:');
-    result.criticalIssues.forEach(issue => {
-      console.error(`   ❌ ${issue}`);
+    log.security('CRITICAL SECURITY ISSUES DETECTED', {
+      criticalIssuesCount: result.criticalIssues.length,
+      issues: result.criticalIssues,
+      environment: env.APP_ENV
     });
-  }
-  
-  if (result.errors.length > 0) {
-    console.error('❌ Security Errors:');
-    result.errors.forEach(error => {
-      console.error(`   • ${error}`);
-    });
-  }
-  
-  if (result.warnings.length > 0) {
-    console.warn('⚠️ Security Warnings:');
-    result.warnings.forEach(warning => {
-      console.warn(`   • ${warning}`);
-    });
-  }
-  
-  if (result.isValid) {
-    console.log('✅ Security environment validation passed');
-  } else {
-    console.error('❌ Security environment validation failed');
     
-    if (result.criticalIssues.length > 0) {
-      console.error('');
-      console.error('🚨 IMMEDIATE ACTION REQUIRED:');
-      console.error('Fix all critical security issues before deployment');
+    // Individual critical issues for immediate attention
+    result.criticalIssues.forEach(issue => {
+      log.error(`Critical security issue: ${issue}`, null, { securityLevel: 'critical' });
+    });
+    
+    if (isProduction) {
+      log.error('IMMEDIATE ACTION REQUIRED: Fix critical security issues before deployment');
     }
   }
   
-  console.log('=====================================');
+  // Log errors with appropriate verbosity
+  if (result.errors.length > 0) {
+    if (isProduction) {
+      // Minimal production logging - just count and summary
+      log.error('Security configuration errors detected', null, {
+        errorCount: result.errors.length,
+        environment: env.APP_ENV
+      });
+    } else {
+      // Detailed development logging
+      log.error('Security configuration errors detected', null, {
+        errorCount: result.errors.length,
+        errors: result.errors,
+        environment: env.APP_ENV
+      });
+      
+      // Individual errors in development
+      logUtils.devOnly('warn', 'Security errors detail', { errors: result.errors });
+    }
+  }
+  
+  // Handle warnings based on environment
+  if (result.warnings.length > 0) {
+    if (isProduction) {
+      // Minimal production warning - just count
+      logUtils.prodOnly('warn', 'Security warnings detected', {
+        warningCount: result.warnings.length
+      });
+    } else {
+      // Detailed development warnings
+      log.warn('Security configuration warnings', {
+        warningCount: result.warnings.length,
+        warnings: result.warnings,
+        environment: env.APP_ENV
+      });
+    }
+  }
+  
+  // Summary logging
+  if (result.isValid) {
+    if (isProduction) {
+      log.security('Security environment validation passed', {
+        status: 'secure',
+        environment: env.APP_ENV
+      });
+    } else {
+      log.security('Security environment validation passed', {
+        status: 'secure',
+        criticalIssues: 0,
+        errors: result.errors.length,
+        warnings: result.warnings.length,
+        environment: env.APP_ENV
+      });
+    }
+  } else {
+    log.security('Security environment validation failed', {
+      status: 'failed',
+      criticalIssuesCount: result.criticalIssues.length,
+      errorCount: result.errors.length,
+      warningCount: result.warnings.length,
+      environment: env.APP_ENV
+    });
+  }
+  
+  // Development-only detailed validation summary
+  logUtils.devOnly('info', 'Security validation summary', {
+    isValid: result.isValid,
+    criticalIssues: result.criticalIssues.length,
+    errors: result.errors.length,
+    warnings: result.warnings.length,
+    details: {
+      criticalIssues: result.criticalIssues,
+      errors: result.errors,
+      warnings: result.warnings
+    }
+  });
 }
 
 /**
@@ -202,7 +261,7 @@ export function canStartSafely(): boolean {
 }
 
 /**
- * Get security status summary
+ * Get security status summary with structured logging
  */
 export function getSecurityStatus(): {
   status: 'SECURE' | 'WARNING' | 'CRITICAL';
@@ -212,32 +271,125 @@ export function getSecurityStatus(): {
   const result = validateSecurityEnvironment();
   
   if (result.criticalIssues.length > 0) {
-    return {
-      status: 'CRITICAL',
+    const status = {
+      status: 'CRITICAL' as const,
       message: `${result.criticalIssues.length} critical security issues detected`,
       score: 0
     };
+    
+    // Log critical status with structured data
+    log.security('Security status check: CRITICAL', {
+      status: 'CRITICAL',
+      criticalIssuesCount: result.criticalIssues.length,
+      score: 0,
+      environment: env.APP_ENV
+    });
+    
+    return status;
   }
   
   if (result.errors.length > 0) {
-    return {
-      status: 'WARNING',
+    const status = {
+      status: 'WARNING' as const,
       message: `${result.errors.length} security errors detected`,
       score: 50
     };
+    
+    logUtils.prodOnly('warn', 'Security status check: WARNING (errors)', {
+      status: 'WARNING',
+      errorCount: result.errors.length,
+      score: 50
+    });
+    
+    return status;
   }
   
   if (result.warnings.length > 0) {
-    return {
-      status: 'WARNING',
+    const status = {
+      status: 'WARNING' as const,
       message: `${result.warnings.length} security warnings detected`,
       score: 75
     };
+    
+    logUtils.devOnly('warn', 'Security status check: WARNING (warnings)', {
+      status: 'WARNING',
+      warningCount: result.warnings.length,
+      score: 75
+    });
+    
+    return status;
   }
   
-  return {
-    status: 'SECURE',
+  const status = {
+    status: 'SECURE' as const,
     message: 'All security validations passed',
     score: 100
   };
+  
+  logUtils.devOnly('info', 'Security status check: SECURE', {
+    status: 'SECURE',
+    score: 100,
+    environment: env.APP_ENV
+  });
+  
+  return status;
+}
+
+/**
+ * Lightweight security validation for production monitoring
+ * Only checks critical issues without detailed logging
+ */
+export function validateCriticalSecurity(): {
+  hasCriticalIssues: boolean;
+  criticalCount: number;
+  canStart: boolean;
+} {
+  const result = validateSecurityEnvironment();
+  const hasCriticalIssues = result.criticalIssues.length > 0;
+  
+  return {
+    hasCriticalIssues,
+    criticalCount: result.criticalIssues.length,
+    canStart: !hasCriticalIssues
+  };
+}
+
+/**
+ * Log only critical security issues (production-optimized)
+ */
+export function logCriticalSecurityIssues(): void {
+  const result = validateSecurityEnvironment();
+  
+  if (result.criticalIssues.length > 0) {
+    // Always log critical issues regardless of environment
+    log.security('Critical security validation failure', {
+      criticalIssuesCount: result.criticalIssues.length,
+      environment: env.APP_ENV,
+      canStart: false
+    });
+    
+    // Individual critical issues with minimal data
+    result.criticalIssues.forEach((issue, index) => {
+      log.error(`Critical security issue #${index + 1}: ${issue}`, null, {
+        securityLevel: 'critical',
+        issueIndex: index + 1,
+        totalIssues: result.criticalIssues.length
+      });
+    });
+  } else {
+    // Minimal success logging in production
+    if (env.isProduction()) {
+      logUtils.prodOnly('info', 'Critical security validation passed', {
+        status: 'secure',
+        environment: env.APP_ENV
+      });
+    } else {
+      log.security('Critical security validation passed', {
+        status: 'secure',
+        environment: env.APP_ENV,
+        totalWarnings: result.warnings.length,
+        totalErrors: result.errors.length
+      });
+    }
+  }
 }

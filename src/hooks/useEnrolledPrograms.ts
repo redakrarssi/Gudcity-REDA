@@ -2,7 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { CustomerProgram, LoyaltyProgram, Business, RewardTier } from '../types/loyalty';
 import { useDataLoader } from './useDataLoader';
 import db from '../utils/databaseConnector';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import sql from '../utils/db';
 
 // Combined data structure for enrolled programs

@@ -10,12 +10,249 @@ import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
 import { formatPoints, validateCardData } from '../utils/validators';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { createCardSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
 import type { LoyaltyCard } from '../types/loyalty';
 
 // Define the card benefit type
 export type CardBenefit = string;
+
+/**
+ * Secure localStorage utility functions for loyalty card service
+ * Provides validation, sanitization, and error handling for localStorage operations
+ */
+class SecureLocalStorage {
+  private static readonly MAX_KEY_LENGTH = 256;
+  private static readonly MAX_VALUE_SIZE = 10000; // 10KB limit
+  private static readonly ALLOWED_KEY_PREFIX_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+  /**
+   * Validate and sanitize a localStorage key
+   * @param key - Raw key to validate
+   * @returns Sanitized key or null if invalid
+   */
+  private static validateKey(key: string): string | null {
+    if (!key || typeof key !== 'string') {
+      console.warn('LOCALSTORAGE SECURITY: Invalid key type');
+      return null;
+    }
+
+    // SECURITY: Check key length to prevent memory exhaustion
+    if (key.length > this.MAX_KEY_LENGTH) {
+      console.warn('LOCALSTORAGE SECURITY: Key exceeds maximum length');
+      return null;
+    }
+
+    // SECURITY: Sanitize key by removing dangerous characters
+    const sanitized = key
+      .replace(/[^\w\-_]/g, '_') // Replace non-alphanumeric chars with underscore
+      .substring(0, this.MAX_KEY_LENGTH); // Ensure length limit
+
+    return sanitized;
+  }
+
+  /**
+   * Validate and sanitize data before storage
+   * @param data - Data to validate
+   * @returns Sanitized data or null if invalid
+   */
+  private static validateData(data: any): string | null {
+    if (data === null || data === undefined) {
+      return null;
+    }
+
+    let serialized: string;
+    try {
+      // SECURITY: Sanitize objects by ensuring they're plain objects
+      if (typeof data === 'object') {
+        // Create a clean object with only safe properties
+        const cleanData = this.sanitizeObject(data);
+        serialized = JSON.stringify(cleanData);
+      } else {
+        // For primitives, convert to string safely
+        serialized = String(data);
+      }
+    } catch (error) {
+      console.warn('LOCALSTORAGE SECURITY: Data serialization failed:', error);
+      return null;
+    }
+
+    // SECURITY: Check data size to prevent memory exhaustion
+    if (serialized.length > this.MAX_VALUE_SIZE) {
+      console.warn('LOCALSTORAGE SECURITY: Data exceeds maximum size');
+      return null;
+    }
+
+    return serialized;
+  }
+
+  /**
+   * Sanitize object data by filtering dangerous properties and values
+   * @param obj - Object to sanitize
+   * @returns Sanitized object
+   */
+  private static sanitizeObject(obj: any): any {
+    if (!obj || typeof obj !== 'object') {
+      return obj;
+    }
+
+    const sanitized: any = {};
+    const allowedKeys = [
+      'customerId', 'businessId', 'cardId', 'programId', 'points', 
+      'timestamp', 'type', 'rewardName', 'redemptionId'
+    ];
+
+    for (const key of allowedKeys) {
+      if (key in obj) {
+        const value = obj[key];
+        
+        // SECURITY: Validate and sanitize values
+        if (typeof value === 'string') {
+          // Remove potentially dangerous characters
+          sanitized[key] = value
+            .replace(/[<>]/g, '') // Remove HTML injection chars
+            .replace(/javascript:/gi, '') // Remove javascript: protocol
+            .replace(/[\x00-\x1f]/g, '') // Remove control characters
+            .substring(0, 1000); // Limit string length
+        } else if (typeof value === 'number' && isFinite(value)) {
+          sanitized[key] = value;
+        } else if (typeof value === 'boolean') {
+          sanitized[key] = value;
+        } else {
+          // Convert other types to safe strings
+          sanitized[key] = String(value).substring(0, 1000);
+        }
+      }
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Securely set item in localStorage with validation and error handling
+   * @param key - Storage key
+   * @param data - Data to store
+   * @returns Success status
+   */
+  static setItem(key: string, data: any): boolean {
+    try {
+      // SECURITY: Validate and sanitize key
+      const validKey = this.validateKey(key);
+      if (!validKey) {
+        console.warn('LOCALSTORAGE SECURITY: Invalid key rejected');
+        return false;
+      }
+
+      // SECURITY: Validate and sanitize data
+      const validData = this.validateData(data);
+      if (!validData) {
+        console.warn('LOCALSTORAGE SECURITY: Invalid data rejected');
+        return false;
+      }
+
+      // Check localStorage availability
+      if (!this.isLocalStorageAvailable()) {
+        console.warn('LOCALSTORAGE: localStorage not available');
+        return false;
+      }
+
+      localStorage.setItem(validKey, validData);
+      return true;
+    } catch (error) {
+      console.error('LOCALSTORAGE ERROR: Failed to set item:', error instanceof Error ? error.message : 'Unknown error');
+      return false;
+    }
+  }
+
+  /**
+   * Securely get item from localStorage with validation
+   * @param key - Storage key
+   * @returns Retrieved data or null if not found/invalid
+   */
+  static getItem(key: string): any {
+    try {
+      const validKey = this.validateKey(key);
+      if (!validKey) {
+        return null;
+      }
+
+      if (!this.isLocalStorageAvailable()) {
+        return null;
+      }
+
+      const data = localStorage.getItem(validKey);
+      if (!data) {
+        return null;
+      }
+
+      // Try to parse as JSON, fall back to string
+      try {
+        return JSON.parse(data);
+      } catch {
+        return data;
+      }
+    } catch (error) {
+      console.error('LOCALSTORAGE ERROR: Failed to get item:', error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  }
+
+  /**
+   * Securely remove item from localStorage
+   * @param key - Storage key
+   * @returns Success status
+   */
+  static removeItem(key: string): boolean {
+    try {
+      const validKey = this.validateKey(key);
+      if (!validKey) {
+        return false;
+      }
+
+      if (!this.isLocalStorageAvailable()) {
+        return false;
+      }
+
+      localStorage.removeItem(validKey);
+      return true;
+    } catch (error) {
+      console.error('LOCALSTORAGE ERROR: Failed to remove item:', error instanceof Error ? error.message : 'Unknown error');
+      return false;
+    }
+  }
+
+  /**
+   * Check if localStorage is available and functional
+   * @returns true if localStorage is available
+   */
+  private static isLocalStorageAvailable(): boolean {
+    try {
+      const test = '__localStorage_test__';
+      localStorage.setItem(test, 'test');
+      localStorage.removeItem(test);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Set item with automatic cleanup after specified time
+   * @param key - Storage key
+   * @param data - Data to store
+   * @param cleanupTimeMs - Time in milliseconds before automatic removal
+   * @returns Success status
+   */
+  static setItemWithCleanup(key: string, data: any, cleanupTimeMs: number = 5000): boolean {
+    const success = this.setItem(key, data);
+    if (success) {
+      setTimeout(() => {
+        this.removeItem(key);
+      }, cleanupTimeMs);
+    }
+    return success;
+  }
+}
 
 // Define the LoyaltyCard interface that matches our database schema
 export interface LoyaltyCard {
@@ -890,12 +1127,16 @@ export class LoyaltyCardService {
           }
         }
         
-        // Broadcast update to customer's cards
-        try {
-          const storageKey = `cards_update_${customerId}`;
-          localStorage.setItem(storageKey, Date.now().toString());
-          setTimeout(() => localStorage.removeItem(storageKey), 5000);
-        } catch (_) {}
+        // SECURITY: Broadcast update to customer's cards using secure localStorage
+        const success = SecureLocalStorage.setItemWithCleanup(
+          `cards_update_${customerId}`,
+          Date.now().toString(),
+          5000 // Cleanup after 5 seconds
+        );
+        
+        if (!success) {
+          console.warn('LOYALTY CARD: Failed to set customer cards update storage');
+        }
         // Invalidate react-query caches
         queryClient.invalidateQueries({ queryKey: queryKeys.customers.byId(customerId) });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.customerSummary(customerId) });
@@ -1264,9 +1505,9 @@ export class LoyaltyCardService {
           isRead: false
         });
 
-        // Use localStorage to trigger UI updates on the customer side
+        // SECURITY: Use secure localStorage to trigger UI updates on the customer side
         // This will work even if socket connections aren't functioning
-        localStorage.setItem(`sync_points_${Date.now()}`, JSON.stringify({
+        const syncData = {
           customerId: card.customer_id.toString(),
           businessId: card.business_id.toString(),
           cardId: cardId,
@@ -1274,7 +1515,13 @@ export class LoyaltyCardService {
           points: formattedPoints,
           timestamp: new Date().toISOString(),
           type: 'POINTS_ADDED'
-        }));
+        };
+        
+        const syncSuccess = SecureLocalStorage.setItem(`sync_points_${Date.now()}`, syncData);
+        
+        if (!syncSuccess) {
+          console.warn('LOYALTY CARD: Failed to set points sync data in secure storage');
+        }
 
         // Create sync event for React Query invalidation
         createCardSyncEvent(
@@ -1545,8 +1792,8 @@ export class LoyaltyCardService {
               }
             );
             
-            // Use localStorage to trigger UI updates
-            localStorage.setItem(`reward_redeemed_${Date.now()}`, JSON.stringify({
+            // SECURITY: Use secure localStorage to trigger UI updates
+            const redemptionData = {
               customerId: customerId,
               businessId: businessId,
               cardId: cardId,
@@ -1554,7 +1801,13 @@ export class LoyaltyCardService {
               rewardName: rewardName,
               points: requiredPoints,
               timestamp: new Date().toISOString()
-            }));
+            };
+            
+            const redemptionSuccess = SecureLocalStorage.setItem(`reward_redeemed_${Date.now()}`, redemptionData);
+            
+            if (!redemptionSuccess) {
+              console.warn('LOYALTY CARD: Failed to set reward redemption data in secure storage');
+            }
           } catch (eventError) {
             console.error('Error emitting redemption events:', eventError);
             // Continue even if event emission fails
