@@ -27,8 +27,6 @@ import { apiCacheDebugger } from '../../utils/apiCacheDebug';
 import { User, getUsersByType, ensureDemoUsers } from '../../services/userService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { CustomerService } from '../../services/customerService';
-import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
-import { CustomerService } from '../../services/customerService';
 
 // Local helpers for formatting durations and months
 function formatSeconds(totalSeconds: number): string {
