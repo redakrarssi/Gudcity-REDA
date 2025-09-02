@@ -1,9 +1,10 @@
 /**
  * Enhanced rate limiter with Redis support and improved security
- * This provides a production-ready rate limiting solution
+ * This provides a production-ready rate limiting solution with path sanitization
  */
 
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 
 // Redis store interface for production use
 interface RedisStore {
@@ -115,6 +116,71 @@ function isValidIP(ip: string): boolean {
   return ipv4Regex.test(ip) || ipv6Regex.test(ip) || ip === 'localhost' || ip === '127.0.0.1';
 }
 
+/**
+ * Sanitize URL path to prevent key manipulation attacks
+ * @param url - The original URL from the request
+ * @returns Sanitized path string
+ */
+function sanitizeUrlPath(url: string): string {
+  if (!url || typeof url !== 'string') {
+    return '/';
+  }
+
+  try {
+    // SECURITY: Remove query parameters and fragments to prevent manipulation
+    const urlObj = new URL(url, 'http://dummy.com');
+    let pathname = urlObj.pathname;
+
+    // SECURITY: Normalize path separators and remove dangerous characters
+    pathname = pathname
+      .replace(/\/+/g, '/') // Collapse multiple slashes
+      .replace(/[^\w\-\/\.]/g, '') // Remove non-alphanumeric chars except safe ones
+      .toLowerCase(); // Case normalization
+
+    // SECURITY: Limit path length to prevent excessively long keys
+    const MAX_PATH_LENGTH = 100;
+    if (pathname.length > MAX_PATH_LENGTH) {
+      pathname = pathname.substring(0, MAX_PATH_LENGTH);
+    }
+
+    // SECURITY: Ensure path starts with /
+    if (!pathname.startsWith('/')) {
+      pathname = '/' + pathname;
+    }
+
+    return pathname;
+  } catch (error) {
+    // Fallback for invalid URLs
+    console.warn('Invalid URL in rate limiting:', error);
+    return '/';
+  }
+}
+
+/**
+ * Create a secure hash of the sanitized path to prevent key manipulation
+ * @param sanitizedPath - The sanitized URL path
+ * @returns SHA-256 hash of the path (first 16 characters for brevity)
+ */
+function hashPath(sanitizedPath: string): string {
+  try {
+    return crypto
+      .createHash('sha256')
+      .update(sanitizedPath)
+      .digest('hex')
+      .substring(0, 16); // Use first 16 chars for brevity while maintaining uniqueness
+  } catch (error) {
+    // Fallback hash for environments without crypto
+    console.warn('Crypto unavailable, using fallback hash:', error);
+    let hash = 0;
+    for (let i = 0; i < sanitizedPath.length; i++) {
+      const char = sanitizedPath.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(16).substring(0, 16);
+  }
+}
+
 // Default options with enhanced security
 const defaultOptions: RateLimitOptions = {
   windowMs: 60 * 1000, // 1 minute
@@ -122,15 +188,18 @@ const defaultOptions: RateLimitOptions = {
   message: 'Too many requests, please try again later.',
   statusCode: 429, // Too Many Requests
   keyGenerator: (req) => {
-    // SECURITY: Enhanced key generation with IP validation
+    // SECURITY: Enhanced key generation with comprehensive path sanitization
     const ip = extractClientIP(req);
     const method = req.method;
-    const url = req.originalUrl || req.url;
+    const url = req.originalUrl || req.url || '/';
     
-    // Sanitize URL to prevent key manipulation
-    const sanitizedUrl = url.split('?')[0]; // Remove query parameters
+    // SECURITY: Sanitize URL path to prevent key manipulation attacks
+    const sanitizedPath = sanitizeUrlPath(url);
     
-    return `rate_limit:${ip}:${method}:${sanitizedUrl}`;
+    // SECURITY: Use hash of sanitized path to prevent key manipulation and reduce key length
+    const hashedPath = hashPath(sanitizedPath);
+    
+    return `rate_limit:${ip}:${method}:${hashedPath}`;
   },
   skip: (req) => {
     // Skip health checks and static assets
@@ -209,5 +278,5 @@ function rateLimit(options?: RateLimitOptions) {
 }
 
 // Export as both default and named export for compatibility
-export { rateLimit, MemoryStore, type RedisStore };
+export { rateLimit, MemoryStore, type RedisStore, sanitizeUrlPath, hashPath };
 export default rateLimit; 
