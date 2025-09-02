@@ -147,72 +147,14 @@ export class CustomerService {
       
       console.log(`🔍 Counting customers for business ${businessId} (${businessIdInt})`);
       
-      // Try multiple approaches and use the highest count
-      let maxCount = 0;
+      // Use the same logic as getBusinessCustomers to ensure consistency
+      const customers = await this.getBusinessCustomers(businessId);
+      const actualCount = customers.length;
       
-      // Method 1: Count via loyalty_cards
-      try {
-        const cardsResult = await sql`
-          SELECT COUNT(DISTINCT customer_id) as total
-          FROM loyalty_cards
-          WHERE business_id = ${businessIdInt}
-        `;
-        const cardsCount = parseInt(cardsResult[0]?.total as string) || 0;
-        console.log(`📊 Loyalty cards method: ${cardsCount} customers`);
-        maxCount = Math.max(maxCount, cardsCount);
-      } catch (e) {
-        console.warn('Loyalty cards count failed:', e);
-      }
+      console.log(`✅ Actual customer count for business ${businessId}: ${actualCount}`);
+      console.log(`📋 Customer details:`, customers.map(c => ({ id: c.id, name: c.name, email: c.email })));
       
-      // Method 2: Count via program_enrollments
-      try {
-        const enrollResult = await sql`
-          SELECT COUNT(DISTINCT pe.customer_id) as total
-          FROM program_enrollments pe
-          JOIN loyalty_programs lp ON lp.id = pe.program_id
-          WHERE lp.business_id = ${businessIdInt}
-            AND (pe.status IS NULL OR UPPER(pe.status) = 'ACTIVE')
-        `;
-        const enrollCount = parseInt(enrollResult[0]?.total as string) || 0;
-        console.log(`📊 Program enrollments method: ${enrollCount} customers`);
-        maxCount = Math.max(maxCount, enrollCount);
-      } catch (e) {
-        console.warn('Program enrollments count failed:', e);
-      }
-      
-      // Method 3: Count via customer_program_enrollments if exists
-      try {
-        const cpeResult = await sql`
-          SELECT COUNT(DISTINCT customer_id) as total
-          FROM customer_program_enrollments
-          WHERE business_id = ${businessIdInt}
-            AND (status IS NULL OR UPPER(status) = 'ACTIVE')
-        `;
-        const cpeCount = parseInt(cpeResult[0]?.total as string) || 0;
-        console.log(`📊 Customer program enrollments method: ${cpeCount} customers`);
-        maxCount = Math.max(maxCount, cpeCount);
-      } catch (e) {
-        console.warn('Customer program enrollments count failed (table may not exist):', e);
-      }
-      
-      // Method 4: Fallback to transactions
-      if (maxCount === 0) {
-        try {
-          const txnResult = await sql`
-            SELECT COUNT(DISTINCT customer_id) as total
-            FROM business_transactions
-            WHERE business_id = ${businessIdInt}
-          `;
-          const txnCount = parseInt(txnResult[0]?.total as string) || 0;
-          console.log(`📊 Business transactions method: ${txnCount} customers`);
-          maxCount = Math.max(maxCount, txnCount);
-        } catch (e) {
-          console.warn('Business transactions count failed:', e);
-        }
-      }
-      
-      console.log(`✅ Final customer count for business ${businessId}: ${maxCount}`);
-      return maxCount;
+      return actualCount;
     } catch (error) {
       console.error('Error counting business customers:', error);
       return 0;
