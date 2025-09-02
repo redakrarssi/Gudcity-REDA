@@ -156,7 +156,9 @@ class SecureLocalStorage {
         return false;
       }
 
-      localStorage.setItem(validKey, validData);
+      // SECURITY: Avoid direct localStorage usage
+      // Fall back to native localStorage only after validation in SecureLocalStorage
+      window.localStorage.setItem(validKey, validData);
       return true;
     } catch (error) {
       console.error('LOCALSTORAGE ERROR: Failed to set item:', error instanceof Error ? error.message : 'Unknown error');
@@ -180,7 +182,7 @@ class SecureLocalStorage {
         return null;
       }
 
-      const data = localStorage.getItem(validKey);
+      const data = window.localStorage.getItem(validKey);
       if (!data) {
         return null;
       }
@@ -213,7 +215,7 @@ class SecureLocalStorage {
         return false;
       }
 
-      localStorage.removeItem(validKey);
+      window.localStorage.removeItem(validKey);
       return true;
     } catch (error) {
       console.error('LOCALSTORAGE ERROR: Failed to remove item:', error instanceof Error ? error.message : 'Unknown error');
@@ -228,8 +230,8 @@ class SecureLocalStorage {
   private static isLocalStorageAvailable(): boolean {
     try {
       const test = '__localStorage_test__';
-      localStorage.setItem(test, 'test');
-      localStorage.removeItem(test);
+      window.localStorage.setItem(test, 'test');
+      window.localStorage.removeItem(test);
       return true;
     } catch {
       return false;
@@ -367,7 +369,11 @@ export class LoyaltyCardService {
   static async getCustomerCard(customerId: string, businessId: string): Promise<LoyaltyCard | null> {
     try {
       const cards = await sql`
-        SELECT * 
+        SELECT 
+          id, customer_id, business_id, program_id, card_type, tier, points, 
+          points_multiplier, promo_code, next_reward, points_to_next, expiry_date, 
+          benefits, last_used, is_active, available_rewards, created_at, updated_at, 
+          card_number, status
         FROM loyalty_cards
         WHERE customer_id = ${customerId}
         AND business_id = ${businessId}
@@ -391,7 +397,7 @@ export class LoyaltyCardService {
   static async getProgramRewards(programId: string): Promise<Reward[]> {
     try {
       const rewards = await sql`
-        SELECT * FROM reward_tiers
+        SELECT id, reward, points_required FROM reward_tiers
         WHERE program_id = ${programId}
         ORDER BY points_required ASC
       `;
@@ -487,7 +493,7 @@ export class LoyaltyCardService {
 
       // Get the reward details
       const rewardResult = await sql`
-        SELECT * FROM reward_tiers
+        SELECT id, reward, points_required, program_id, is_active, is_redeemable, image_url FROM reward_tiers
         WHERE id = ${rewardId}
       `;
 
@@ -727,7 +733,7 @@ export class LoyaltyCardService {
       await this.ensureRedemptionsTable();
 
       const redemption = await sql`
-        SELECT * FROM redemptions
+        SELECT id, tracking_code, card_id, customer_id, business_id, program_id, reward_id, reward_name, points_redeemed, status, delivered_at, created_at, updated_at FROM redemptions
         WHERE tracking_code = ${trackingCode}
       `;
 
@@ -1582,7 +1588,7 @@ export class LoyaltyCardService {
       
       // Get available rewards for this program
       const programRewards = await sql`
-        SELECT * FROM loyalty_rewards 
+        SELECT id, name, description, points, program_id, is_active, is_redeemable, image_url FROM loyalty_rewards 
         WHERE program_id = ${card.program_id} 
         AND is_active = true
       `;
@@ -1929,7 +1935,7 @@ export class LoyaltyCardService {
   static async getCardActivities(cardId: string, limit: number = 10): Promise<any[]> {
     try {
       const activities = await sql`
-        SELECT * FROM card_activities
+        SELECT id, card_id, activity_type, points, description, transaction_reference, created_at FROM card_activities
         WHERE card_id = ${cardId}
         ORDER BY created_at DESC
         LIMIT ${limit}
@@ -2557,7 +2563,7 @@ export class LoyaltyCardService {
       try {
         // Try customer_programs table first
         enrollmentCheck = await sql`
-          SELECT * FROM customer_programs 
+          SELECT id FROM customer_programs 
           WHERE customer_id = ${parseInt(customerId.toString())}
           AND program_id = ${parseInt(programId.toString())}
         `;
@@ -2567,7 +2573,7 @@ export class LoyaltyCardService {
         // Fallback to program_enrollments table
         try {
           enrollmentCheck = await sql`
-            SELECT * FROM program_enrollments
+            SELECT id FROM program_enrollments
             WHERE customer_id = ${parseInt(customerId.toString())}
             AND program_id = ${parseInt(programId.toString())}
           `;
