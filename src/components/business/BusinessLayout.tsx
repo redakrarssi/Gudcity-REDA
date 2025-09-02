@@ -19,7 +19,6 @@ import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { BusinessCurrencyProvider } from '../../contexts/BusinessCurrencyContext';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -94,7 +93,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   };
 
   return (
-    <BusinessCurrencyProvider>
+    <>
       <div className="flex h-screen bg-gray-50">
         {/* Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
@@ -226,6 +225,6 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       >
         <QrCode className="w-6 h-6" />
       </Link>
-    </BusinessCurrencyProvider>
+    </>
   );
 }; 

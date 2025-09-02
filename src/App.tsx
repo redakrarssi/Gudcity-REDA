@@ -45,6 +45,7 @@ import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 import { FallbackProvider } from './components/FallbackIndicator';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { BusinessCurrencyProvider } from './contexts/BusinessCurrencyContext';
 import { registerNotificationListeners } from './utils/notificationHandler';
 import { queryClient } from './utils/queryClient';
 import { toast } from 'react-hot-toast';
@@ -289,10 +290,11 @@ function App() {
                 } />
 
                 
-                {/* Business Routes - Wrapped with NotificationProvider */}
+                {/* Business Routes - Wrapped with NotificationProvider and BusinessCurrencyProvider */}
                 <Route path="/business/*" element={
                   <NotificationProvider>
-                    <Routes>
+                    <BusinessCurrencyProvider>
+                      <Routes>
                       <Route path="dashboard" element={
                         <ErrorBoundary>
                           <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
@@ -343,7 +345,8 @@ function App() {
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
-                    </Routes>
+                      </Routes>
+                    </BusinessCurrencyProvider>
                   </NotificationProvider>
                 } />
                 
