@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, UserPlus, Building2, Phone, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuth, RegisterData } from '../../contexts/AuthContext';
 import { UserType } from '../../services/userService';
+import LanguageSelector from '../../components/LanguageSelector';
 
 const Register = () => {
   const { t } = useTranslation();
@@ -45,44 +46,44 @@ const Register = () => {
     
     // Check required fields
     if (!formData.name || !formData.email || !formData.password || !confirmPassword) {
-      setError(t('Please fill in all required fields'));
+      setError(t('auth.Please fill in all required fields'));
       return false;
     }
     
     // Check email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setError(t('Please enter a valid email address'));
+      setError(t('auth.Please enter a valid email address'));
       return false;
     }
     
     // Check password strength - simplified to just check length > 6
     if (formData.password.length <= 6) {
-      setError(t('Password must be more than 6 characters'));
+      setError(t('auth.Password must be more than 6 characters'));
       return false;
     }
     
     // Check if passwords match
     if (formData.password !== confirmPassword) {
-      setError(t('Passwords do not match'));
+      setError(t('auth.Passwords do not match'));
       return false;
     }
     
     // Check business fields if business user type
     if (formData.userType === 'business') {
       if (!formData.businessName) {
-        setError(t('Business name is required'));
+        setError(t('auth.Business name is required'));
         return false;
       }
       if (!formData.businessPhone) {
-        setError(t('Business phone is required'));
+        setError(t('auth.Business phone is required'));
         return false;
       }
     }
     
     // Check terms acceptance
     if (!termsAccepted) {
-      setError(t('You must accept the terms and conditions'));
+      setError(t('auth.You must accept the terms and conditions'));
       return false;
     }
     
@@ -114,11 +115,11 @@ const Register = () => {
           navigate('/dashboard');
         }
       } else {
-        setError(t('Registration failed. Email address may already be in use. Please try a different email or contact support.'));
+        setError(t('auth.Registration failed. Email address may already be in use. Please try a different email or contact support.'));
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError(t('An error occurred during registration. Please try again later.'));
+      setError(t('auth.An error occurred during registration. Please try again later.'));
     } finally {
       setIsLoading(false);
     }
@@ -136,13 +137,18 @@ const Register = () => {
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Language selector - top right */}
+      <div className="absolute top-4 right-4 z-10">
+        <LanguageSelector variant="default" showIcon={false} />
+      </div>
+      
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            {t('Create your account')}
+            {t('auth.Create your account')}
           </h2>
           <p className="text-gray-600 mb-6">
-            {t('Join Vcarda and connect with your community')}
+            {t('auth.Join Vcarda and connect with your community')}
           </p>
         </div>
         
@@ -155,7 +161,7 @@ const Register = () => {
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
                 <p className="text-xs text-red-600 mt-1">
-                  {t('Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.')}
+                  {t('auth.Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.')}
                 </p>
               </div>
             </div>
@@ -174,7 +180,7 @@ const Register = () => {
             onClick={() => handleUserTypeChange('customer')}
           >
             <User className="h-5 w-5 mx-auto mb-1" />
-            {t('Customer')}
+            {t('auth.Customer')}
           </button>
           <button
             type="button"
@@ -186,7 +192,7 @@ const Register = () => {
             onClick={() => handleUserTypeChange('business')}
           >
             <Building2 className="h-5 w-5 mx-auto mb-1" />
-            {t('Business')}
+            {t('auth.Business')}
           </button>
         </div>
         
@@ -194,7 +200,7 @@ const Register = () => {
           {/* Personal Information */}
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Full Name')}
+              {t('auth.Full Name')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -208,14 +214,14 @@ const Register = () => {
                 value={formData.name}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Enter your full name')}
+                placeholder={t('auth.Enter your full name')}
               />
             </div>
           </div>
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Email Address')}
+              {t('auth.Email Address')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -229,7 +235,7 @@ const Register = () => {
                 value={formData.email}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Enter your email')}
+                placeholder={t('auth.Enter your email')}
               />
             </div>
           </div>
@@ -237,7 +243,7 @@ const Register = () => {
           {/* Password fields with strong requirements */}
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Password')}
+              {t('auth.Password')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -251,7 +257,7 @@ const Register = () => {
                 value={formData.password}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Create a password')}
+                placeholder={t('auth.Create a password')}
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                 <button
@@ -268,13 +274,13 @@ const Register = () => {
               </div>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              {t('Password must be more than 6 characters')}
+              {t('auth.Password must be more than 6 characters')}
             </p>
           </div>
 
           <div>
             <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Confirm Password')}
+              {t('auth.Confirm Password')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -287,7 +293,7 @@ const Register = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={t('Confirm your password')}
+                placeholder={t('auth.Confirm your password')}
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                 <button
@@ -310,7 +316,7 @@ const Register = () => {
             <>
               <div>
                 <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Business Name')}
+                  {t('auth.Business Name')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -324,14 +330,14 @@ const Register = () => {
                     value={formData.businessName}
                     onChange={handleChange}
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={t('Enter your business name')}
+                    placeholder={t('auth.Enter your business name')}
                   />
                 </div>
               </div>
               
               <div>
                 <label htmlFor="businessPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Business Phone')}
+                  {t('auth.Business Phone')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -345,7 +351,7 @@ const Register = () => {
                     value={formData.businessPhone}
                     onChange={handleChange}
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={t('Enter your business phone')}
+                    placeholder={t('auth.Enter your business phone')}
                   />
                 </div>
               </div>
@@ -365,16 +371,16 @@ const Register = () => {
             </div>
             <div className="ml-3 text-sm">
               <label htmlFor="terms" className="font-medium text-gray-700">
-                {t('I accept the')}
+                {t('auth.I accept the')}
                 {' '}
                 <Link to="/terms-of-service" className="text-blue-600 hover:text-blue-500">
-                  {t('Terms of Service')}
+                  {t('auth.Terms of Service')}
                 </Link>
                 {' '}
-                {t('and')}
+                {t('auth.and')}
                 {' '}
                 <Link to="/privacy-policy" className="text-blue-600 hover:text-blue-500">
-                  {t('Privacy Policy')}
+                  {t('auth.Privacy Policy')}
                 </Link>
               </label>
             </div>
@@ -393,12 +399,12 @@ const Register = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  {t('Creating account...')}
+                  {t('auth.Creating account...')}
                 </>
               ) : (
                 <>
                   <UserPlus className="h-4 w-4 mr-2" />
-                  {t('Create account')}
+                  {t('auth.Create account')}
                 </>
               )}
             </button>
@@ -408,9 +414,9 @@ const Register = () => {
         {/* Sign in link */}
         <div className="text-center mt-4">
           <p className="text-sm text-gray-600">
-            {t('Already have an account?')}{' '}
+            {t('auth.Already have an account?')}{' '}
             <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              {t('Sign in')}
+              {t('auth.Sign in')}
             </Link>
           </p>
         </div>

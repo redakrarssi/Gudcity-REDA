@@ -105,6 +105,63 @@ const resources = {
         help: 'Help & Support'
       },
       
+      // Authentication Pages
+      auth: {
+        // Login Page
+        'Sign in to your account': 'Sign in to your account',
+        'Access the Vcarda platform': 'Access the Vcarda platform',
+        'Demo Credentials': 'Demo Credentials',
+        'Admin': 'Admin',
+        'Customer': 'Customer',
+        'Business': 'Business',
+        'Email address': 'Email address',
+        'Password': 'Password',
+        'Remember me': 'Remember me',
+        'Forgot your password?': 'Forgot your password?',
+        'Sign in': 'Sign in',
+        'Signing in...': 'Signing in...',
+        "Don't have an account?": "Don't have an account?",
+        'Create an account': 'Create an account',
+        'Back to Homepage': 'Back to Homepage',
+        
+        // Register Page
+        'Create your account': 'Create your account',
+        'Join Vcarda and connect with your community': 'Join Vcarda and connect with your community',
+        'Full Name': 'Full Name',
+        'Enter your full name': 'Enter your full name',
+        'Email Address': 'Email Address',
+        'Enter your email': 'Enter your email',
+        'Create a password': 'Create a password',
+        'Confirm Password': 'Confirm Password',
+        'Confirm your password': 'Confirm your password',
+        'Business Name': 'Business Name',
+        'Enter your business name': 'Enter your business name',
+        'Business Phone': 'Business Phone',
+        'Enter your business phone': 'Enter your business phone',
+        'I accept the': 'I accept the',
+        'Terms of Service': 'Terms of Service',
+        'and': 'and',
+        'Privacy Policy': 'Privacy Policy',
+        'Creating account...': 'Creating account...',
+        'Already have an account?': 'Already have an account?',
+        
+        // Validation Messages
+        'Please enter both email and password': 'Please enter both email and password',
+        'Invalid email or password. Please check your credentials and try again.': 'Invalid email or password. Please check your credentials and try again.',
+        'An error occurred during login. Please try again later.': 'An error occurred during login. Please try again later.',
+        'If you continue to experience issues, try using one of the demo accounts above.': 'If you continue to experience issues, try using one of the demo accounts above.',
+        'Please fill in all required fields': 'Please fill in all required fields',
+        'Please enter a valid email address': 'Please enter a valid email address',
+        'Password must be more than 6 characters': 'Password must be more than 6 characters',
+        'Passwords do not match': 'Passwords do not match',
+        'Business name is required': 'Business name is required',
+        'Business phone is required': 'Business phone is required',
+        'You must accept the terms and conditions': 'You must accept the terms and conditions',
+        'Registration failed. Email address may already be in use. Please try a different email or contact support.': 'Registration failed. Email address may already be in use. Please try a different email or contact support.',
+        'An error occurred during registration. Please try again later.': 'An error occurred during registration. Please try again later.',
+        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': 'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.'
+      },
+      
       // Additional common translations
       'Language changes will be applied immediately': 'Language changes will be applied immediately',
       'Regional Settings': 'Regional Settings',
@@ -252,6 +309,63 @@ const resources = {
         notifications: 'الإشعارات',
         privacy: 'الخصوصية',
         help: 'المساعدة والدعم'
+      },
+      
+      // Authentication Pages
+      auth: {
+        // Login Page
+        'Sign in to your account': 'تسجيل الدخول إلى حسابك',
+        'Access the Vcarda platform': 'الوصول إلى منصة Vcarda',
+        'Demo Credentials': 'بيانات تجريبية',
+        'Admin': 'مدير',
+        'Customer': 'عميل',
+        'Business': 'شركة',
+        'Email address': 'عنوان البريد الإلكتروني',
+        'Password': 'كلمة المرور',
+        'Remember me': 'تذكرني',
+        'Forgot your password?': 'نسيت كلمة المرور؟',
+        'Sign in': 'تسجيل الدخول',
+        'Signing in...': 'جارٍ تسجيل الدخول...',
+        "Don't have an account?": 'ليس لديك حساب؟',
+        'Create an account': 'إنشاء حساب',
+        'Back to Homepage': 'العودة للصفحة الرئيسية',
+        
+        // Register Page  
+        'Create your account': 'إنشاء حسابك',
+        'Join Vcarda and connect with your community': 'انضم إلى Vcarda وتواصل مع مجتمعك',
+        'Full Name': 'الاسم الكامل',
+        'Enter your full name': 'أدخل اسمك الكامل',
+        'Email Address': 'عنوان البريد الإلكتروني',
+        'Enter your email': 'أدخل بريدك الإلكتروني',
+        'Create a password': 'إنشاء كلمة مرور',
+        'Confirm Password': 'تأكيد كلمة المرور',
+        'Confirm your password': 'أكد كلمة المرور',
+        'Business Name': 'اسم الشركة',
+        'Enter your business name': 'أدخل اسم شركتك',
+        'Business Phone': 'هاتف الشركة',
+        'Enter your business phone': 'أدخل هاتف شركتك',
+        'I accept the': 'أوافق على',
+        'Terms of Service': 'شروط الخدمة',
+        'and': 'و',
+        'Privacy Policy': 'سياسة الخصوصية',
+        'Creating account...': 'جارٍ إنشاء الحساب...',
+        'Already have an account?': 'لديك حساب بالفعل؟',
+        
+        // Validation Messages
+        'Please enter both email and password': 'يرجى إدخال البريد الإلكتروني وكلمة المرور',
+        'Invalid email or password. Please check your credentials and try again.': 'بريد إلكتروني أو كلمة مرور غير صحيحة. يرجى التحقق من بياناتك والمحاولة مرة أخرى.',
+        'An error occurred during login. Please try again later.': 'حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة لاحقاً.',
+        'If you continue to experience issues, try using one of the demo accounts above.': 'إذا استمرت المشاكل، جرب استخدام أحد الحسابات التجريبية أعلاه.',
+        'Please fill in all required fields': 'يرجى ملء جميع الحقول المطلوبة',
+        'Please enter a valid email address': 'يرجى إدخال عنوان بريد إلكتروني صحيح',
+        'Password must be more than 6 characters': 'يجب أن تكون كلمة المرور أكثر من 6 أحرف',
+        'Passwords do not match': 'كلمات المرور غير متطابقة',
+        'Business name is required': 'اسم الشركة مطلوب',
+        'Business phone is required': 'هاتف الشركة مطلوب',
+        'You must accept the terms and conditions': 'يجب قبول الشروط والأحكام',
+        'Registration failed. Email address may already be in use. Please try a different email or contact support.': 'فشل التسجيل. قد يكون البريد الإلكتروني مُستخدم بالفعل. جرب بريداً آخر أو تواصل مع الدعم.',
+        'An error occurred during registration. Please try again later.': 'حدث خطأ أثناء التسجيل. يرجى المحاولة لاحقاً.',
+        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': 'تأكد من استخدام بريد إلكتروني فريد غير مُسجل مسبقاً. إذا استمرت المشاكل، يمكنك تسجيل الدخول بالحسابات التجريبية.'
       },
       
       // Additional common translations
@@ -403,6 +517,63 @@ const resources = {
         help: 'Ayuda y Soporte'
       },
       
+      // Authentication Pages
+      auth: {
+        // Login Page
+        'Sign in to your account': 'Iniciar sesión en tu cuenta',
+        'Access the Vcarda platform': 'Acceder a la plataforma Vcarda',
+        'Demo Credentials': 'Credenciales de Demostración',
+        'Admin': 'Administrador',
+        'Customer': 'Cliente',
+        'Business': 'Negocio',
+        'Email address': 'Dirección de correo electrónico',
+        'Password': 'Contraseña',
+        'Remember me': 'Recordarme',
+        'Forgot your password?': '¿Olvidaste tu contraseña?',
+        'Sign in': 'Iniciar sesión',
+        'Signing in...': 'Iniciando sesión...',
+        "Don't have an account?": '¿No tienes una cuenta?',
+        'Create an account': 'Crear una cuenta',
+        'Back to Homepage': 'Volver al inicio',
+        
+        // Register Page
+        'Create your account': 'Crear tu cuenta',
+        'Join Vcarda and connect with your community': 'Únete a Vcarda y conéctate con tu comunidad',
+        'Full Name': 'Nombre Completo',
+        'Enter your full name': 'Ingresa tu nombre completo',
+        'Email Address': 'Dirección de Correo Electrónico',
+        'Enter your email': 'Ingresa tu correo electrónico',
+        'Create a password': 'Crear una contraseña',
+        'Confirm Password': 'Confirmar Contraseña',
+        'Confirm your password': 'Confirma tu contraseña',
+        'Business Name': 'Nombre del Negocio',
+        'Enter your business name': 'Ingresa el nombre de tu negocio',
+        'Business Phone': 'Teléfono del Negocio',
+        'Enter your business phone': 'Ingresa el teléfono de tu negocio',
+        'I accept the': 'Acepto los',
+        'Terms of Service': 'Términos de Servicio',
+        'and': 'y',
+        'Privacy Policy': 'Política de Privacidad',
+        'Creating account...': 'Creando cuenta...',
+        'Already have an account?': '¿Ya tienes una cuenta?',
+        
+        // Validation Messages
+        'Please enter both email and password': 'Por favor ingresa el correo y la contraseña',
+        'Invalid email or password. Please check your credentials and try again.': 'Correo o contraseña incorrectos. Verifica tus datos e intenta nuevamente.',
+        'An error occurred during login. Please try again later.': 'Ocurrió un error durante el inicio de sesión. Inténtalo más tarde.',
+        'If you continue to experience issues, try using one of the demo accounts above.': 'Si continúas experimentando problemas, prueba con una de las cuentas de demostración.',
+        'Please fill in all required fields': 'Por favor completa todos los campos requeridos',
+        'Please enter a valid email address': 'Por favor ingresa una dirección de correo válida',
+        'Password must be more than 6 characters': 'La contraseña debe tener más de 6 caracteres',
+        'Passwords do not match': 'Las contraseñas no coinciden',
+        'Business name is required': 'El nombre del negocio es requerido',
+        'Business phone is required': 'El teléfono del negocio es requerido',
+        'You must accept the terms and conditions': 'Debes aceptar los términos y condiciones',
+        'Registration failed. Email address may already be in use. Please try a different email or contact support.': 'Registro fallido. El correo puede estar en uso. Prueba con otro correo o contacta soporte.',
+        'An error occurred during registration. Please try again later.': 'Ocurrió un error durante el registro. Inténtalo más tarde.',
+        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': 'Asegúrate de usar un correo único que no esté registrado. Si persisten los problemas, puedes usar las cuentas de demostración.'
+      },
+      
       // Additional common translations
       'Language changes will be applied immediately': 'Los cambios de idioma se aplicarán inmediatamente',
       'Regional Settings': 'Configuración Regional',
@@ -550,6 +721,63 @@ const resources = {
         notifications: 'Notifications',
         privacy: 'Confidentialité',
         help: 'Aide et Support'
+      },
+      
+      // Authentication Pages
+      auth: {
+        // Login Page
+        'Sign in to your account': 'Connectez-vous à votre compte',
+        'Access the Vcarda platform': 'Accéder à la plateforme Vcarda',
+        'Demo Credentials': 'Identifiants de Démonstration',
+        'Admin': 'Administrateur',
+        'Customer': 'Client',
+        'Business': 'Entreprise',
+        'Email address': 'Adresse e-mail',
+        'Password': 'Mot de passe',
+        'Remember me': 'Se souvenir de moi',
+        'Forgot your password?': 'Mot de passe oublié?',
+        'Sign in': 'Se connecter',
+        'Signing in...': 'Connexion en cours...',
+        "Don't have an account?": "Vous n'avez pas de compte?",
+        'Create an account': 'Créer un compte',
+        'Back to Homepage': "Retour à l'accueil",
+        
+        // Register Page
+        'Create your account': 'Créer votre compte',
+        'Join Vcarda and connect with your community': 'Rejoignez Vcarda et connectez-vous à votre communauté',
+        'Full Name': 'Nom Complet',
+        'Enter your full name': 'Entrez votre nom complet',
+        'Email Address': 'Adresse E-mail',
+        'Enter your email': 'Entrez votre e-mail',
+        'Create a password': 'Créer un mot de passe',
+        'Confirm Password': 'Confirmer le Mot de Passe',
+        'Confirm your password': 'Confirmez votre mot de passe',
+        'Business Name': "Nom de l'Entreprise",
+        'Enter your business name': "Entrez le nom de votre entreprise",
+        'Business Phone': "Téléphone de l'Entreprise",
+        'Enter your business phone': "Entrez le téléphone de votre entreprise",
+        'I accept the': "J'accepte les",
+        'Terms of Service': 'Conditions de Service',
+        'and': 'et',
+        'Privacy Policy': 'Politique de Confidentialité',
+        'Creating account...': 'Création du compte...',
+        'Already have an account?': 'Vous avez déjà un compte?',
+        
+        // Validation Messages
+        'Please enter both email and password': 'Veuillez saisir le e-mail et le mot de passe',
+        'Invalid email or password. Please check your credentials and try again.': 'E-mail ou mot de passe incorrect. Vérifiez vos données et réessayez.',
+        'An error occurred during login. Please try again later.': 'Une erreur est survenue lors de la connexion. Réessayez plus tard.',
+        'If you continue to experience issues, try using one of the demo accounts above.': 'Si vous continuez à rencontrer des problèmes, essayez un des comptes de démonstration.',
+        'Please fill in all required fields': 'Veuillez remplir tous les champs requis',
+        'Please enter a valid email address': 'Veuillez entrer une adresse e-mail valide',
+        'Password must be more than 6 characters': 'Le mot de passe doit contenir plus de 6 caractères',
+        'Passwords do not match': 'Les mots de passe ne correspondent pas',
+        'Business name is required': "Le nom de l'entreprise est requis",
+        'Business phone is required': "Le téléphone de l'entreprise est requis",
+        'You must accept the terms and conditions': 'Vous devez accepter les termes et conditions',
+        'Registration failed. Email address may already be in use. Please try a different email or contact support.': "L'inscription a échoué. L'e-mail est peut-être déjà utilisé. Essayez un autre e-mail ou contactez le support.",
+        'An error occurred during registration. Please try again later.': "Une erreur est survenue lors de l'inscription. Réessayez plus tard.",
+        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': "Assurez-vous d'utiliser un e-mail unique non enregistré. Si les problèmes persistent, vous pouvez utiliser les comptes de démonstration."
       },
       
       // Additional common translations
