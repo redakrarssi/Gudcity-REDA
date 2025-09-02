@@ -369,12 +369,7 @@ export class LoyaltyCardService {
   static async getCustomerCard(customerId: string, businessId: string): Promise<LoyaltyCard | null> {
     try {
       const cards = await sql`
-        SELECT 
-          id, customer_id, business_id, program_id, card_type, tier, points, 
-          points_multiplier, promo_code, next_reward, points_to_next, expiry_date, 
-          benefits, last_used, is_active, available_rewards, created_at, updated_at, 
-          card_number, status
-        FROM loyalty_cards
+        SELECT * FROM loyalty_cards
         WHERE customer_id = ${customerId}
         AND business_id = ${businessId}
         AND is_active = true
@@ -397,7 +392,7 @@ export class LoyaltyCardService {
   static async getProgramRewards(programId: string): Promise<Reward[]> {
     try {
       const rewards = await sql`
-        SELECT id, reward, points_required FROM reward_tiers
+        SELECT * FROM reward_tiers
         WHERE program_id = ${programId}
         ORDER BY points_required ASC
       `;
@@ -468,12 +463,7 @@ export class LoyaltyCardService {
 
       // Get the card details with customer info
       const cardResult = await sql`
-        SELECT 
-          lc.*, 
-          lp.name as program_name, 
-          u.name as business_name,
-          c.name as customer_name,
-          c.email as customer_email
+        SELECT lc.*, u.name as business_name, lp.name as program_name, c.name as customer_name, c.email as customer_email
         FROM loyalty_cards lc
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN users u ON lp.business_id = u.id
@@ -493,7 +483,7 @@ export class LoyaltyCardService {
 
       // Get the reward details
       const rewardResult = await sql`
-        SELECT id, reward, points_required, program_id, is_active, is_redeemable, image_url FROM reward_tiers
+        SELECT * FROM reward_tiers
         WHERE id = ${rewardId}
       `;
 
@@ -733,7 +723,7 @@ export class LoyaltyCardService {
       await this.ensureRedemptionsTable();
 
       const redemption = await sql`
-        SELECT id, tracking_code, card_id, customer_id, business_id, program_id, reward_id, reward_name, points_redeemed, status, delivered_at, created_at, updated_at FROM redemptions
+        SELECT * FROM redemptions
         WHERE tracking_code = ${trackingCode}
       `;
 
@@ -1588,7 +1578,7 @@ export class LoyaltyCardService {
       
       // Get available rewards for this program
       const programRewards = await sql`
-        SELECT id, name, description, points, program_id, is_active, is_redeemable, image_url FROM loyalty_rewards 
+        SELECT * FROM loyalty_rewards 
         WHERE program_id = ${card.program_id} 
         AND is_active = true
       `;
@@ -1935,7 +1925,7 @@ export class LoyaltyCardService {
   static async getCardActivities(cardId: string, limit: number = 10): Promise<any[]> {
     try {
       const activities = await sql`
-        SELECT id, card_id, activity_type, points, description, transaction_reference, created_at FROM card_activities
+        SELECT * FROM card_activities
         WHERE card_id = ${cardId}
         ORDER BY created_at DESC
         LIMIT ${limit}
