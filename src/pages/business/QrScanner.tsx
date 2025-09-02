@@ -525,7 +525,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       <div className="space-y-6 pb-10">
         {/* Header with animated gradient */}
         <div className="bg-gradient-to-r from-blue-600 via-purple-500 to-indigo-700 rounded-xl p-6 shadow-lg mb-8 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 bottom-0 bg-[url('/assets/images/pattern-dots.svg')] opacity-20"></div>
+          {/* Pattern background removed to fix build warnings */}
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>

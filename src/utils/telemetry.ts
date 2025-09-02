@@ -3,7 +3,7 @@
  * especially focused on database connection health and query performance.
  */
 
-import { logger } from './logger';
+import { log as logger } from './logger';
 
 // Define metric types
 export type MetricName = 

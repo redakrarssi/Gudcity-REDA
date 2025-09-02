@@ -48,8 +48,6 @@ export default defineConfig({
     //     level: 9
     //   }
     // }),
-    // Split chunks intelligently
-    splitVendorChunkPlugin(),
     // Add bundle analyzer (only in build mode)
     process.env.ANALYZE === 'true' ? visualizer({
       open: true,
@@ -119,9 +117,20 @@ export default defineConfig({
     // More granular chunk strategy
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Explicitly define lodash chunk to ensure it loads before charts
-          'vendor-lodash': ['lodash'],
+        manualChunks: (id: string) => {
+          // Vendor chunk for third-party libraries
+          if (id.includes('node_modules')) {
+            if (id.includes('lodash')) {
+              return 'vendor-lodash';
+            }
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('recharts') || id.includes('chart')) {
+              return 'vendor-charts';
+            }
+            return 'vendor';
+          }
         },
       }
     },

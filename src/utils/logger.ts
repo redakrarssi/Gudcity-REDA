@@ -1,13 +1,18 @@
 /**
  * Professional Logging Utility
  * 
- * This module provides a centralized logging solution using Winston
- * with appropriate configurations for development and production environments.
+ * This module provides a centralized logging solution that works
+ * in both browser and Node.js environments with appropriate configurations.
  */
 
-import winston from 'winston';
+// Environment detection
+const isBrowser = typeof window !== 'undefined';
+const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
+const isDevelopment = (isNode ? process.env.NODE_ENV : import.meta.env?.MODE) === 'development';
+const isProduction = (isNode ? process.env.NODE_ENV : import.meta.env?.MODE) === 'production';
+const isTest = (isNode ? process.env.NODE_ENV : import.meta.env?.MODE) === 'test';
 
-// Define log levels with colors for console output
+// Browser-compatible logging levels
 const logLevels = {
   error: 0,
   warn: 1,
@@ -15,135 +20,203 @@ const logLevels = {
   debug: 3
 };
 
-const logColors = {
-  error: 'red',
-  warn: 'yellow',
-  info: 'green',
-  debug: 'cyan'
+// Console colors for browser (using CSS styles)
+const consoleStyles = {
+  error: 'color: #ff0000; font-weight: bold;',
+  warn: 'color: #ffa500; font-weight: bold;',
+  info: 'color: #008000; font-weight: bold;',
+  debug: 'color: #00ffff; font-weight: bold;'
 };
 
-// Add colors to winston
-winston.addColors(logColors);
-
-// Determine environment
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
-const isTest = process.env.NODE_ENV === 'test';
-
-// Custom format for better readability
-const customFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.errors({ stack: true }),
-  winston.format.printf(({ level, message, timestamp, stack, ...meta }) => {
-    // Format the message with timestamp and level
-    let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
-    
-    // Add stack trace for errors
-    if (stack) {
-      logMessage += `\n${stack}`;
-    }
-    
-    // Add metadata if present
-    if (Object.keys(meta).length > 0) {
-      logMessage += `\n${JSON.stringify(meta, null, 2)}`;
-    }
-    
-    return logMessage;
-  })
-);
-
-// Custom format for console output in development
-const consoleFormat = winston.format.combine(
-  winston.format.colorize({ all: true }),
-  winston.format.timestamp({ format: 'HH:mm:ss' }),
-  winston.format.errors({ stack: true }),
-  winston.format.printf(({ level, message, timestamp, stack, ...meta }) => {
-    let logMessage = `${timestamp} ${level}: ${message}`;
-    
-    if (stack && isDevelopment) {
-      logMessage += `\n${stack}`;
-    }
-    
-    if (Object.keys(meta).length > 0 && isDevelopment) {
-      logMessage += ` ${JSON.stringify(meta)}`;
-    }
-    
-    return logMessage;
-  })
-);
-
-// Create transports array based on environment
-const transports: winston.transport[] = [];
-
-// Console transport (always present)
-if (isTest) {
-  // Minimal logging for tests
-  transports.push(
-    new winston.transports.Console({
-      level: 'error',
-      format: winston.format.simple(),
-      silent: true // Silent during tests unless explicitly needed
-    })
-  );
-} else if (isDevelopment) {
-  // Development: colorized console output with debug level
-  transports.push(
-    new winston.transports.Console({
-      level: 'debug',
-      format: consoleFormat
-    })
-  );
-} else {
-  // Production: structured console output, info level and above
-  transports.push(
-    new winston.transports.Console({
-      level: 'info',
-      format: customFormat
-    })
-  );
+// Timestamp formatter
+function formatTimestamp(): string {
+  const now = new Date();
+  return now.toISOString().replace('T', ' ').substring(0, 19);
 }
 
-// File transports for production
-if (isProduction) {
-  // Error log file
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      format: customFormat,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    })
-  );
-  
-  // Combined log file
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      level: 'info',
-      format: customFormat,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    })
-  );
+// Browser-compatible logger implementation
+class BrowserLogger {
+  private level: number;
+
+  constructor() {
+    this.level = isDevelopment ? logLevels.debug : (isProduction ? logLevels.info : logLevels.error);
+  }
+
+  private shouldLog(level: number): boolean {
+    return level <= this.level;
+  }
+
+  private formatMessage(level: string, message: string, meta?: any): string {
+    const timestamp = formatTimestamp();
+    let formattedMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
+    
+    if (meta && Object.keys(meta).length > 0) {
+      formattedMessage += ` ${JSON.stringify(meta, null, 2)}`;
+    }
+    
+    return formattedMessage;
+  }
+
+  debug(message: string, meta?: any): void {
+    if (this.shouldLog(logLevels.debug)) {
+      if (isDevelopment) {
+        console.debug(`%c${this.formatMessage('debug', message, meta)}`, consoleStyles.debug);
+      }
+    }
+  }
+
+  info(message: string, meta?: any): void {
+    if (this.shouldLog(logLevels.info)) {
+      console.info(`%c${this.formatMessage('info', message, meta)}`, consoleStyles.info);
+    }
+  }
+
+  warn(message: string, meta?: any): void {
+    if (this.shouldLog(logLevels.warn)) {
+      console.warn(`%c${this.formatMessage('warn', message, meta)}`, consoleStyles.warn);
+    }
+  }
+
+  error(message: string, meta?: any): void {
+    if (this.shouldLog(logLevels.error)) {
+      console.error(`%c${this.formatMessage('error', message, meta)}`, consoleStyles.error);
+    }
+  }
 }
 
-// Create the logger instance
-const logger = winston.createLogger({
-  levels: logLevels,
-  level: isDevelopment ? 'debug' : (isProduction ? 'info' : 'error'),
-  transports,
-  exitOnError: false,
-  
-  // Handle uncaught exceptions and rejections
-  exceptionHandlers: isProduction ? [
-    new winston.transports.File({ filename: 'logs/exceptions.log' })
-  ] : [],
-  
-  rejectionHandlers: isProduction ? [
-    new winston.transports.File({ filename: 'logs/rejections.log' })
-  ] : []
-});
+// Node.js Winston logger (only imported when in Node.js environment)
+let winstonLogger: any = null;
+
+if (isNode && !isBrowser) {
+  try {
+    // Dynamic import to avoid browser bundling issues
+    import('winston').then(winston => {
+      const { createLogger, transports, format } = winston;
+      
+      // Custom format for better readability
+      const customFormat = format.combine(
+        format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        format.errors({ stack: true }),
+        format.printf(({ level, message, timestamp, stack, ...meta }) => {
+          let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
+          
+          if (stack) {
+            logMessage += `\n${stack}`;
+          }
+          
+          if (Object.keys(meta).length > 0) {
+            logMessage += `\n${JSON.stringify(meta, null, 2)}`;
+          }
+          
+          return logMessage;
+        })
+      );
+
+      // Create transports array based on environment
+      const winstonTransports: any[] = [];
+
+      if (isTest) {
+        winstonTransports.push(
+          new winston.transports.Console({
+            level: 'error',
+            format: format.simple(),
+            silent: true
+          })
+        );
+              } else if (isDevelopment) {
+          winstonTransports.push(
+            new winston.transports.Console({
+            level: 'debug',
+            format: format.combine(
+              format.colorize({ all: true }),
+              format.timestamp({ format: 'HH:mm:ss' }),
+              format.errors({ stack: true }),
+              format.printf(({ level, message, timestamp, stack, ...meta }) => {
+                let logMessage = `${timestamp} ${level}: ${message}`;
+                
+                if (stack) {
+                  logMessage += `\n${stack}`;
+                }
+                
+                if (Object.keys(meta).length > 0) {
+                  logMessage += ` ${JSON.stringify(meta)}`;
+                }
+                
+                return logMessage;
+              })
+            )
+          })
+        );
+              } else {
+          winstonTransports.push(
+            new winston.transports.Console({
+              level: 'info',
+              format: customFormat
+            })
+          );
+        }
+
+      // File transports for production
+      if (isProduction) {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Ensure logs directory exists
+        const logsDir = path.join(process.cwd(), 'logs');
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true });
+        }
+        
+        // Error log file
+        winstonTransports.push(
+          new winston.transports.File({
+            filename: 'logs/error.log',
+            level: 'error',
+            format: customFormat,
+            maxsize: 5242880, // 5MB
+            maxFiles: 5
+          })
+        );
+        
+        // Combined log file
+        winstonTransports.push(
+          new winston.transports.File({
+            filename: 'logs/combined.log',
+            level: 'info',
+            format: customFormat,
+            maxsize: 5242880, // 5MB
+            maxFiles: 5
+          })
+        );
+      }
+
+      winstonLogger = createLogger({
+        levels: logLevels,
+        level: isDevelopment ? 'debug' : (isProduction ? 'info' : 'error'),
+        transports: winstonTransports,
+        exitOnError: false,
+        
+        // Handle uncaught exceptions and rejections
+        exceptionHandlers: isProduction ? [
+          new winston.transports.File({ filename: 'logs/exceptions.log' })
+        ] : [],
+        
+        rejectionHandlers: isProduction ? [
+          new winston.transports.File({ filename: 'logs/rejections.log' })
+        ] : []
+      });
+    }).catch(() => {
+      // Fallback to browser logger if Winston fails to load
+      winstonLogger = new BrowserLogger();
+    });
+  } catch {
+    // Fallback to browser logger
+    winstonLogger = new BrowserLogger();
+  }
+}
+
+// Create the appropriate logger instance
+const logger = isNode && winstonLogger ? winstonLogger : new BrowserLogger();
 
 // Create logging functions with additional context support
 export const log = {
@@ -285,7 +358,7 @@ export const consoleReplacement = {
   }
 };
 
-// Export the raw winston logger for advanced use cases
+// Export the raw logger for advanced use cases
 export { logger as rawLogger };
 
 // Export environment checks
@@ -293,7 +366,9 @@ export const env = {
   isDevelopment,
   isProduction,
   isTest,
-  logLevel: logger.level
+  isBrowser,
+  isNode,
+  logLevel: logger.level || 'info'
 };
 
 // Default export for convenience
