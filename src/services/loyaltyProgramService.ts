@@ -19,7 +19,11 @@ export class LoyaltyProgramService {
   static async getBusinessPrograms(businessId: string): Promise<LoyaltyProgram[]> {
     try {
       const result = await sql`
-        SELECT * FROM loyalty_programs
+        SELECT id, business_id, name, description, type,
+               point_value AS points_per_dollar,
+               expiration_days AS points_expiry_days,
+               status, created_at, updated_at
+        FROM loyalty_programs
         WHERE business_id = ${parseInt(businessId)}
         ORDER BY created_at DESC
       `;
@@ -56,7 +60,11 @@ export class LoyaltyProgramService {
   static async getProgramById(programId: string): Promise<LoyaltyProgram | null> {
     try {
       const programs = await sql`
-        SELECT * FROM loyalty_programs
+        SELECT id, business_id, name, description, type,
+               point_value AS points_per_dollar,
+               expiration_days AS points_expiry_days,
+               status, created_at, updated_at
+        FROM loyalty_programs
         WHERE id = ${programId}
       `;
       
@@ -92,7 +100,8 @@ export class LoyaltyProgramService {
   static async getProgramRewardTiers(programId: string): Promise<RewardTier[]> {
     try {
       const tiers = await sql`
-        SELECT * FROM reward_tiers
+        SELECT id, program_id, points_required, reward
+        FROM reward_tiers
         WHERE program_id = ${programId}
         ORDER BY points_required ASC
       `;
@@ -471,7 +480,8 @@ export class LoyaltyProgramService {
 
       // Check if already enrolled
       const enrollment = await sql`
-        SELECT * FROM program_enrollments
+        SELECT id, customer_id, program_id, status, current_points, last_activity, enrolled_at
+        FROM program_enrollments
         WHERE customer_id = ${customerId}
         AND program_id = ${programId}
       `;
@@ -878,7 +888,8 @@ export class LoyaltyProgramService {
       
       // Check if already enrolled
       const enrollment = await sql`
-        SELECT * FROM program_enrollments
+        SELECT id, customer_id, program_id, status, current_points, last_activity, enrolled_at
+        FROM program_enrollments
         WHERE customer_id = ${customerIdInt}
         AND program_id = ${programIdInt}
       `;
@@ -1165,7 +1176,10 @@ export class LoyaltyProgramService {
   static async getDefaultBusinessProgram(businessId: string): Promise<LoyaltyProgram | null> {
     try {
       const result = await sql`
-        SELECT * FROM loyalty_programs
+        SELECT id, business_id, name, description, type,
+               point_value, expiration_days, status,
+               created_at, updated_at
+        FROM loyalty_programs
         WHERE business_id = ${businessId}
         AND status = 'ACTIVE'
         ORDER BY created_at ASC
