@@ -24,67 +24,81 @@ declare global {
   }
 }
 
-// Create a minimal implementation of the lodash utility functions
-// needed by chart libraries before the real lodash is loaded
-// This prevents the "Cannot access '_' before initialization" error
-window._ = window._ || {
-  noop: function() {},
-  identity: function<T>(value: T): T { return value; },
-  isObject: function(obj: any): boolean { return obj !== null && typeof obj === 'object'; },
-  isFunction: function(f: any): boolean { return typeof f === 'function'; },
-  isArray: Array.isArray,
-  forEach: function<T>(collection: T[] | Record<string, T>, iteratee: (value: T, key: string | number, collection: T[] | Record<string, T>) => void): T[] | Record<string, T> {
-    if (Array.isArray(collection)) {
-      for (let i = 0; i < collection.length; i++) iteratee(collection[i], i, collection);
-    } else if (collection && typeof collection === 'object') {
-      for (let key in collection) {
-        if (Object.prototype.hasOwnProperty.call(collection, key)) {
-          iteratee(collection[key], key, collection as Record<string, T>);
+// Safely initialize lodash only when window is available
+if (typeof window !== 'undefined') {
+  // Create a minimal implementation of the lodash utility functions
+  // needed by chart libraries before the real lodash is loaded
+  // This prevents the "Cannot access '_' before initialization" error
+  window._ = window._ || {
+    noop: function() {},
+    identity: function<T>(value: T): T { return value; },
+    isObject: function(obj: any): boolean { return obj !== null && typeof obj === 'object'; },
+    isFunction: function(f: any): boolean { return typeof f === 'function'; },
+    isArray: Array.isArray,
+    forEach: function<T>(collection: T[] | Record<string, T>, iteratee: (value: T, key: string | number, collection: T[] | Record<string, T>) => void): T[] | Record<string, T> {
+      if (Array.isArray(collection)) {
+        for (let i = 0; i < collection.length; i++) iteratee(collection[i], i, collection);
+      } else if (collection && typeof collection === 'object') {
+        for (let key in collection) {
+          if (Object.prototype.hasOwnProperty.call(collection, key)) {
+            iteratee(collection[key], key, collection as Record<string, T>);
+          }
         }
       }
-    }
-    return collection;
-  },
-  map: function<T, R>(collection: T[] | Record<string, T>, iteratee: (value: T, key: string | number, collection: T[] | Record<string, T>) => R): R[] {
-    const result: R[] = [];
-    if (Array.isArray(collection)) {
-      for (let i = 0; i < collection.length; i++) result.push(iteratee(collection[i], i, collection));
-    } else if (collection && typeof collection === 'object') {
-      for (let key in collection) {
-        if (Object.prototype.hasOwnProperty.call(collection, key)) {
-          result.push(iteratee(collection[key], key, collection as Record<string, T>));
+      return collection;
+    },
+    map: function<T, R>(collection: T[] | Record<string, T>, iteratee: (value: T, key: string | number, collection: T[] | Record<string, T>) => R): R[] {
+      const result: R[] = [];
+      if (Array.isArray(collection)) {
+        for (let i = 0; i < collection.length; i++) result.push(iteratee(collection[i], i, collection));
+      } else if (collection && typeof collection === 'object') {
+        for (let key in collection) {
+          if (Object.prototype.hasOwnProperty.call(collection, key)) {
+            result.push(iteratee(collection[key], key, collection as Record<string, T>));
+          }
         }
       }
+      return result;
+    },
+    get: function(obj: any, path: string | string[], defaultValue?: any): any {
+      if (!obj) return defaultValue;
+      const pathArray = Array.isArray(path) ? path : path.split('.');
+      let result = obj;
+      for (const key of pathArray) {
+        if (result === null || result === undefined) return defaultValue;
+        result = result[key];
+      }
+      return result === undefined ? defaultValue : result;
+    },
+    find: function<T>(collection: T[] | Record<string, T>, predicate: (value: T, key: string | number, collection: T[] | Record<string, T>) => boolean): T | undefined {
+      if (Array.isArray(collection)) {
+        return collection.find(predicate as (value: T, index: number, obj: T[]) => boolean);
+      }
+      const key = Object.keys(collection || {}).find(k => predicate(collection[k], k, collection as Record<string, T>));
+      return key !== undefined ? collection[key] : undefined;
+    },
+    pick: function(object: Record<string, any>, ...paths: (string | string[])[]): Record<string, any> {
+      const result: Record<string, any> = {};
+      if (!object) return result;
+      const props = paths.flat();
+      props.forEach(key => {
+        if (key in object) result[key] = object[key];
+      });
+      return result;
     }
-    return result;
-  },
-  get: function(obj: any, path: string | string[], defaultValue?: any): any {
-    if (!obj) return defaultValue;
-    const pathArray = Array.isArray(path) ? path : path.split('.');
-    let result = obj;
-    for (const key of pathArray) {
-      if (result === null || result === undefined) return defaultValue;
-      result = result[key];
-    }
-    return result === undefined ? defaultValue : result;
-  },
-  find: function<T>(collection: T[] | Record<string, T>, predicate: (value: T, key: string | number, collection: T[] | Record<string, T>) => boolean): T | undefined {
-    if (Array.isArray(collection)) {
-      return collection.find(predicate as (value: T, index: number, obj: T[]) => boolean);
-    }
-    const key = Object.keys(collection || {}).find(k => predicate(collection[k], k, collection as Record<string, T>));
-    return key !== undefined ? collection[key] : undefined;
-  },
-  pick: function(object: Record<string, any>, ...paths: (string | string[])[]): Record<string, any> {
-    const result: Record<string, any> = {};
-    if (!object) return result;
-    const props = paths.flat();
-    props.forEach(key => {
-      if (key in object) result[key] = object[key];
-    });
-    return result;
-  }
-};
+  };
+}
 
-// Export for TypeScript
-export default window._; 
+// Export for TypeScript - safely return the lodash instance or a fallback
+export default typeof window !== 'undefined' ? window._ : {
+  noop: () => {},
+  identity: <T>(value: T): T => value,
+  isObject: (obj: any): boolean => obj !== null && typeof obj === 'object',
+  isFunction: (f: any): boolean => typeof f === 'function',
+  isArray: Array.isArray,
+  forEach: () => [],
+  map: () => [],
+  get: () => undefined,
+  find: () => undefined,
+  pick: () => ({})
+}; 

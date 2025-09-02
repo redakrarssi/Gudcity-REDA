@@ -57,7 +57,11 @@ import { ensureAuthToken } from './services/authTokenService';
 
 // Make queryClient available globally for cross-tab synchronization
 if (typeof window !== 'undefined') {
-  window.queryClient = queryClient;
+  try {
+    window.queryClient = queryClient;
+  } catch (error) {
+    console.warn('Failed to assign queryClient to window:', error);
+  }
 }
 
 // Custom route component to redirect based on user type
@@ -142,8 +146,12 @@ function App() {
           
           // Invalidate queries if queryClient is available
           if (window.queryClient?.invalidateQueries) {
-            window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
-            window.queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+            try {
+              window.queryClient.invalidateQueries({ queryKey: ['loyaltyCards'] });
+              window.queryClient.invalidateQueries({ queryKey: ['customerCards'] });
+            } catch (error) {
+              console.warn('Failed to invalidate queries:', error);
+            }
           }
         }
       };

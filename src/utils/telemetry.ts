@@ -8,12 +8,19 @@ let logger: any;
 
 // Check if we're in a browser environment
 if (typeof window !== 'undefined') {
-  // Browser environment - use console as fallback
+  // Browser environment - use console as fallback with null checks
+  const safeConsole = {
+    log: typeof console !== 'undefined' && console.log ? console.log.bind(console) : () => {},
+    warn: typeof console !== 'undefined' && console.warn ? console.warn.bind(console) : () => {},
+    error: typeof console !== 'undefined' && console.error ? console.error.bind(console) : () => {},
+    debug: typeof console !== 'undefined' && console.debug ? console.debug.bind(console) : () => {}
+  };
+  
   logger = {
-    info: console.log.bind(console),
-    warn: console.warn.bind(console),
-    error: console.error.bind(console),
-    debug: console.log.bind(console)
+    info: safeConsole.log,
+    warn: safeConsole.warn,
+    error: safeConsole.error,
+    debug: safeConsole.debug
   };
 } else {
   // Node.js environment - use Winston logger
@@ -22,11 +29,18 @@ if (typeof window !== 'undefined') {
     logger = rawLogger;
   } catch (error) {
     // Fallback to console if logger import fails
+    const safeConsole = {
+      log: typeof console !== 'undefined' && console.log ? console.log.bind(console) : () => {},
+      warn: typeof console !== 'undefined' && console.warn ? console.warn.bind(console) : () => {},
+      error: typeof console !== 'undefined' && console.error ? console.error.bind(console) : () => {},
+      debug: typeof console !== 'undefined' && console.debug ? console.debug.bind(console) : () => {}
+    };
+    
     logger = {
-      info: console.log.bind(console),
-      warn: console.warn.bind(console), 
-      error: console.error.bind(console),
-      debug: console.log.bind(console)
+      info: safeConsole.log,
+      warn: safeConsole.warn,
+      error: safeConsole.error,
+      debug: safeConsole.debug
     };
   }
 }
