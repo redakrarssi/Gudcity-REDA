@@ -157,6 +157,10 @@ export class CustomerService {
           FROM customer_program_enrollments cpe
           WHERE cpe.business_id = ${businessIdInt}
             AND (cpe.status IS NULL OR UPPER(cpe.status) = 'ACTIVE')
+          UNION
+          SELECT DISTINCT (lc.customer_id::text) AS cid
+          FROM loyalty_cards lc
+          WHERE lc.business_id = ${businessIdInt}
         )
         SELECT COUNT(*) AS total FROM enrolled
       `;
