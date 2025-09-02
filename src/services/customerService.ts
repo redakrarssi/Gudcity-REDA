@@ -138,6 +138,25 @@ export class CustomerService {
   }
 
   /**
+   * Count distinct customers for a business based on transactions/enrollments
+   */
+  static async countBusinessCustomers(businessId: string): Promise<number> {
+    try {
+      const businessIdInt = parseInt(businessId, 10);
+      if (isNaN(businessIdInt)) return 0;
+      const result = await sql`
+        SELECT COUNT(DISTINCT customer_id) as total
+        FROM business_transactions
+        WHERE business_id = ${businessIdInt}
+      `;
+      return parseInt(result[0]?.total as string) || 0;
+    } catch (error) {
+      console.error('Error counting business customers:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Get customer programs for a specific business
    */
   static async getCustomerPrograms(customerId: string, businessId: string): Promise<CustomerProgram[]> {

@@ -25,6 +25,8 @@ import api from '../../api/api';
 import { formatDate, formatRegistrationDuration } from '../../utils/dateUtils';
 import { apiCacheDebugger } from '../../utils/apiCacheDebug';
 import { User, getUsersByType, ensureDemoUsers } from '../../services/userService';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { CustomerService } from '../../services/customerService';
 
 // Local helpers for formatting durations and months
 function formatSeconds(totalSeconds: number): string {
@@ -257,7 +259,7 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
     console.log('Fallback: loading businesses via getUsersByType("business")');
     await ensureDemoUsers();
     const users = await getUsersByType('business');
-    const mapped = mapUsersToBusinesses(users);
+    const mapped = await mapUsersToBusinesses(users);
     setBusinesses(mapped);
     // Send analytics
     if (onAnalyticsUpdate) {
@@ -279,10 +281,26 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   };
 
   // Map business users to Business table shape
-  const mapUsersToBusinesses = (users: User[]): Business[] => {
-    return users.map((u) => {
+  const mapUsersToBusinesses = async (users: User[]): Promise<Business[]> => {
+    const results: Business[] = [];
+    for (const u of users) {
       const createdAt = (u as any).created_at ? new Date((u as any).created_at) : new Date();
-      return {
+      // Try to infer businessId (some installs keep business id same as user id)
+      const businessId = String((u as any).business_id || u.id);
+      // Fetch programs to compute counts and list
+      let programs: any[] = [];
+      try {
+        programs = await LoyaltyProgramService.getBusinessPrograms(businessId);
+      } catch (e) {
+        console.warn('Failed to load programs for business', businessId, e);
+      }
+      let customersCount = 0;
+      try {
+        customersCount = await CustomerService.countBusinessCustomers(businessId);
+      } catch (e) {
+        console.warn('Failed to count customers for business', businessId, e);
+      }
+      const business: Business = {
         id: u.id!,
         userId: u.id!,
         name: (u as any).business_name || u.name,
@@ -296,12 +314,12 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
         currency: 'USD',
         registeredAt: createdAt.toISOString(),
         lastLogin: (u as any).last_login || undefined,
-        programCount: 0,
-        customerCount: 0,
+        programCount: Array.isArray(programs) ? programs.length : 0,
+        customerCount: customersCount,
         promotionCount: 0,
         transactionCount: 0,
         revenue: 0,
-        programs: [],
+        programs: programs as any[],
         promotions: [],
         recentLogins: [],
         registrationDuration: {
@@ -311,7 +329,9 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
         },
         timeSpent: { daily: [], monthly: [] },
       } as Business;
-    });
+      results.push(business);
+    }
+    return results;
   };
 
   const toggleSelected = (id: number, checked: boolean) => {
