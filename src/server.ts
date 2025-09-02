@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { API_RATE_LIMIT } from './env';
-// Import the professional logging system
-import { log, logUtils } from './utils/logger';
 
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
@@ -26,11 +24,11 @@ if (isBrowser) {
 
   // Export mock functions that do nothing in browser environment
   export const emitNotification = (userId: string, notification: any): void => {
-    // Mock function - no logging needed in browser environment
+    console.log('Mock emitNotification called, no-op in browser environment', { userId, notification });
   };
   
   export const emitApprovalRequest = (userId: string, approvalRequest: any): void => {
-    // Mock function - no logging needed in browser environment
+    console.log('Mock emitApprovalRequest called, no-op in browser environment', { userId, approvalRequest });
   };
   
   // Export mock app
@@ -40,16 +38,16 @@ if (isBrowser) {
   // Apply server-side fixes (if they exist)
   try {
     require('./server-award-points-fix.js');
-    log.server('Applied server-award-points-fix');
+    console.log('✅ Applied server-award-points-fix');
   } catch (e) {
-    log.debug('server-award-points-fix.js not found - skipping');
+    console.log('ℹ️ server-award-points-fix.js not found - skipping');
   }
   
   try {
     require('./apply-diagnostics.js');
-    log.server('Applied diagnostics');
+    console.log('✅ Applied diagnostics');
   } catch (e) {
-    log.debug('apply-diagnostics.js not found - skipping');
+    console.log('ℹ️ apply-diagnostics.js not found - skipping');
   }
   
   // SECURITY: Import and run environment validation
@@ -63,15 +61,15 @@ if (isBrowser) {
     
     // Check if we can start safely
     if (validationModule.canStartSafely && !validationModule.canStartSafely()) {
-      log.security('CRITICAL SECURITY ISSUES DETECTED');
-      log.error('Application cannot start safely. Please fix all security issues.');
+      console.error('🚨 CRITICAL SECURITY ISSUES DETECTED');
+      console.error('Application cannot start safely. Please fix all security issues.');
       process.exit(1);
     }
     
-    log.security('Security validation passed - starting server');
+    console.log('✅ Security validation passed - starting server');
   } catch (e) {
-    log.error('Error during security validation', e);
-    log.warn('Proceeding with server startup, but security is not guaranteed');
+    console.error('❌ Error during security validation:', e);
+    console.error('Proceeding with server startup, but security is not guaranteed');
   }
   
   import express from 'express';
@@ -156,7 +154,7 @@ if (isBrowser) {
     // Method not allowed handler should come after CORS but before routes
     app.use(methodNotAllowedHandler);
   } catch (error) {
-    log.warn('Error applying middleware', error);
+    console.warn('Error applying middleware:', error);
   }
 
   // Apply general rate limiting middleware using our custom polyfill
@@ -169,12 +167,12 @@ if (isBrowser) {
       legacyHeaders: false,
     }) as any);
   } catch (error) {
-    log.warn('Error applying rate limit middleware', error);
+    console.warn('Error applying rate limit middleware:', error);
   }
 
   // API routes
   try {
-    log.server('Registering API routes...');
+    console.log('🔄 Registering API routes...');
     
     // Register test routes first
     app.use('/api/test', testRoutes);
@@ -206,7 +204,7 @@ if (isBrowser) {
       });
       app.use('/api/auth', authLimiter as any);
     } catch (e) {
-      log.warn('Error applying auth rate limiter', e);
+      console.warn('Error applying auth rate limiter:', e);
     }
     
     // Log all registered routes
@@ -220,7 +218,7 @@ if (isBrowser) {
       });
     });
   } catch (error) {
-    log.warn('Error setting up API routes', error);
+    console.warn('Error setting up API routes:', error);
   }
 
   // Health check endpoint
@@ -246,7 +244,7 @@ if (isBrowser) {
 
   // Socket.IO event handlers
   io.on('connection', (socket: Socket) => {
-    log.info('New WebSocket client connected', { socketId: socket.id });
+    console.log('New client connected:', socket.id);
     
     // Authenticate socket
     const token = socket.handshake?.auth?.token;
@@ -256,14 +254,14 @@ if (isBrowser) {
         // For now, we'll just use a mock user ID
         const userId = '123'; // Mock user ID
         socket.join(`user:${userId}`);
-        log.info('User authenticated and joined WebSocket room', { userId, socketId: socket.id });
+        console.log(`User ${userId} authenticated and joined room`);
       } catch (error) {
-        log.error('Socket authentication failed', error, { socketId: socket.id });
+        console.error('Socket authentication failed:', error);
       }
     }
     
     socket.on('disconnect', () => {
-      log.info('WebSocket client disconnected', { socketId: socket.id });
+      console.log('Client disconnected:', socket.id);
     });
   });
 
@@ -272,12 +270,11 @@ if (isBrowser) {
     try {
       if (io && typeof io.to === 'function') {
         io.to(`user:${userId}`).emit(`notification:${userId}`, notification);
-        logUtils.devOnly('debug', 'Emitted WebSocket notification', { userId, notificationType: notification?.type });
       } else {
-        log.warn('Socket.io instance not properly initialized for notification emit');
+        console.warn('Socket.io instance not properly initialized');
       }
     } catch (error) {
-      log.error('Error emitting WebSocket notification', error, { userId });
+      console.error('Error emitting notification:', error);
     }
   };
 
@@ -286,23 +283,18 @@ if (isBrowser) {
     try {
       if (io && typeof io.to === 'function') {
         io.to(`user:${userId}`).emit(`approval:${userId}`, approvalRequest);
-        logUtils.devOnly('debug', 'Emitted WebSocket approval request', { userId, requestType: approvalRequest?.type });
       } else {
-        log.warn('Socket.io instance not properly initialized for approval request emit');
+        console.warn('Socket.io instance not properly initialized');
       }
     } catch (error) {
-      log.error('Error emitting WebSocket approval request', error, { userId });
+      console.error('Error emitting approval request:', error);
     }
   };
 
   // Start server only in Node.js environment
   if (process.env.NODE_ENV !== 'test') {
     httpServer.listen(port, () => {
-      log.server(`Server running on port ${port}`, { 
-        port, 
-        environment: process.env.NODE_ENV || 'development',
-        timestamp: new Date().toISOString()
-      });
+      console.log(`Server running on port ${port}`);
     });
   }
 
