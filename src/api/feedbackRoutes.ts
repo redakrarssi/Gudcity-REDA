@@ -11,7 +11,7 @@ const router = Router();
  */
 router.post('/feedback', validateBody(schemas.feedback) as any, async (req: Request, res: Response) => {
   try {
-    const { rating, comment, category, userId, page, timestamp } = (req as any).validatedBody || req.body;
+    const { rating, comment, category, userId, page, timestamp } = (req as any).validatedBody;
     
     // Insert feedback into database
     await sql`
@@ -44,7 +44,7 @@ router.post('/feedback', validateBody(schemas.feedback) as any, async (req: Requ
  */
 router.post('/errors/report', validateBody(schemas.errorReport) as any, async (req: Request, res: Response) => {
   try {
-    const { error, context, userId, page, timestamp } = (req as any).validatedBody || req.body;
+    const { error, context, userId, page, timestamp } = (req as any).validatedBody;
     
     // Insert error report into database
     await sql`
@@ -87,7 +87,7 @@ router.post('/analytics/scan', validateBody(schemas.scanLog) as any, async (req:
       program_id,
       device_info,
       error
-    } = (req as any).validatedBody || req.body;
+    } = (req as any).validatedBody;
     
     // Insert scan data into database
     await sql`
@@ -139,28 +139,26 @@ router.get('/feedback/business/:businessId', auth, async (req: Request, res: Res
     }
     
     // Calculate date range based on period
-    let dateFilter;
     const now = new Date();
-    
+    let startDate;
+
     if (period === 'week') {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(now.getDate() - 7);
-      dateFilter = `timestamp >= '${weekAgo.toISOString()}'`;
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 7);
     } else if (period === 'month') {
-      const monthAgo = new Date(now);
-      monthAgo.setMonth(now.getMonth() - 1);
-      dateFilter = `timestamp >= '${monthAgo.toISOString()}'`;
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 1);
     } else {
-      const yearAgo = new Date(now);
-      yearAgo.setFullYear(now.getFullYear() - 1);
-      dateFilter = `timestamp >= '${yearAgo.toISOString()}'`;
+      startDate = new Date(now);
+      startDate.setFullYear(now.getFullYear() - 1);
     }
-    
-    // Get all feedback for this business in the specified period
+
+    // Get all feedback for this business in the specified period using parameterized query
     const feedbackItems = await sql`
-      SELECT * FROM feedback
+      SELECT id, user_id, rating, comment, category, page, timestamp, response, response_timestamp, response_by
+      FROM feedback
       WHERE business_id = ${businessId}
-      AND ${sql.raw(dateFilter)}
+      AND timestamp >= ${startDate.toISOString()}
       ORDER BY timestamp DESC
     `;
     
@@ -203,7 +201,8 @@ router.get('/feedback/customer/:customerId', auth, async (req: Request, res: Res
     
     // Get feedback history for this customer
     const feedbackHistory = await sql`
-      SELECT * FROM feedback
+      SELECT id, business_id, rating, comment, category, page, timestamp, response, response_timestamp, response_by
+      FROM feedback
       WHERE customer_id = ${customerId}
       ORDER BY timestamp DESC
     `;
@@ -218,18 +217,15 @@ router.get('/feedback/customer/:customerId', auth, async (req: Request, res: Res
 /**
  * Respond to feedback
  */
-router.post('/feedback/:feedbackId/respond', auth, async (req: Request, res: Response) => {
+router.post('/feedback/:feedbackId/respond', auth, validateBody(schemas.feedbackResponse) as any, async (req: Request, res: Response) => {
   try {
     const feedbackId = parseInt(req.params.feedbackId);
-    const { response } = req.body;
-    
-    if (!response) {
-      return res.status(400).json({ error: 'Response text is required' });
-    }
+    const { response } = (req as any).validatedBody;
     
     // Verify the feedback exists
     const feedbackCheck = await sql`
-      SELECT id, business_id FROM feedback
+      SELECT id, business_id
+      FROM feedback
       WHERE id = ${feedbackId}
     `;
     

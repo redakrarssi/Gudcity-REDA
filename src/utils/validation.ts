@@ -44,6 +44,9 @@ export const schemas = {
     page: z.string().max(200).optional(),
     timestamp: z.string().datetime().optional(),
   }),
+  feedbackResponse: z.object({
+    response: z.string().min(1).max(2000),
+  }),
   errorReport: z.object({
     userId: z.union([z.string().min(1), z.number()]).optional(),
     error: z.string().max(4000),
