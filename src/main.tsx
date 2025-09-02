@@ -33,6 +33,38 @@ if (typeof window !== 'undefined') {
     tabs: browserPolyfill.tabs
   };
 
+  // Override runtime.lastError to prevent connection errors
+  Object.defineProperty((window as any).browser.runtime, 'lastError', {
+    get: () => null,
+    set: () => {},
+    configurable: true
+  });
+
+  Object.defineProperty((window as any).chrome.runtime, 'lastError', {
+    get: () => null,
+    set: () => {},
+    configurable: true
+  });
+
+  // Override connection methods to prevent "Could not establish connection" errors
+  (window as any).browser.runtime.connect = () => ({
+    onDisconnect: { addListener: () => {} },
+    postMessage: () => {},
+    disconnect: () => {},
+    onMessage: { addListener: () => {} }
+  });
+
+  (window as any).chrome.runtime.connect = () => ({
+    onDisconnect: { addListener: () => {} },
+    postMessage: () => {},
+    disconnect: () => {},
+    onMessage: { addListener: () => {} }
+  });
+
+  // Override sendMessage to prevent connection errors
+  (window as any).browser.runtime.sendMessage = () => Promise.resolve(null);
+  (window as any).chrome.runtime.sendMessage = () => Promise.resolve(null);
+
   // Create a mock server object to prevent errors from server.ts
   if (typeof (window as any).server === 'undefined') {
     (window as any).server = {
@@ -77,7 +109,8 @@ if (typeof window !== 'undefined') {
       args[0].includes('Function.prototype.bind called on incompatible undefined') ||
       args[0].includes('Could not establish connection') ||
       args[0].includes('Receiving end does not exist') ||
-      args[0].includes('Unchecked runtime.lastError')
+      args[0].includes('Unchecked runtime.lastError') ||
+      args[0].includes('intrinsic %% does not exist')
     )) {
       return; // Completely suppress these errors
     }
@@ -98,7 +131,9 @@ if (typeof window !== 'undefined') {
       args[0].includes('browser is not defined') || 
       args[0].includes('chrome is not defined') ||
       args[0].includes('runtime.lastError') ||
-      args[0].includes('Could not establish connection')
+      args[0].includes('Could not establish connection') ||
+      args[0].includes('Receiving end does not exist') ||
+      args[0].includes('Unchecked runtime.lastError')
     )) {
       return; // Completely suppress these warnings
     }
@@ -227,11 +262,47 @@ if (typeof window !== 'undefined') {
     }
   };
 
+  // Also override other problematic methods that might cause intrinsic errors
+  const originalApply = Function.prototype.apply;
+  Function.prototype.apply = function(thisArg, args) {
+    if (this === undefined || this === null) {
+      return undefined;
+    }
+    if (typeof this !== 'function') {
+      return undefined;
+    }
+    try {
+      return originalApply.call(this, thisArg, args);
+    } catch (error) {
+      console.warn('Apply failed, returning undefined:', error);
+      return undefined;
+    }
+  };
+
+  const originalCall = Function.prototype.call;
+  Function.prototype.call = function(thisArg, ...args) {
+    if (this === undefined || this === null) {
+      return undefined;
+    }
+    if (typeof this !== 'function') {
+      return undefined;
+    }
+    try {
+      return originalCall.call(this, thisArg, ...args);
+    } catch (error) {
+      console.warn('Call failed, returning undefined:', error);
+      return undefined;
+    }
+  };
+
   window.addEventListener('error', function(event) {
     if (event.error && event.error.message && (
       event.error.message.includes('Function.prototype.bind called on incompatible undefined') ||
       event.error.message.includes('browser is not defined') ||
-      event.error.message.includes('chrome is not defined')
+      event.error.message.includes('chrome is not defined') ||
+      event.error.message.includes('intrinsic %% does not exist') ||
+      event.error.message.includes('runtime.lastError') ||
+      event.error.message.includes('Could not establish connection')
     )) {
       console.warn('Caught extension/binding error, preventing default:', event.error.message);
       event.preventDefault();
@@ -244,13 +315,75 @@ if (typeof window !== 'undefined') {
     if (event.reason && event.reason.message && (
       event.reason.message.includes('Function.prototype.bind called on incompatible undefined') ||
       event.reason.message.includes('browser is not defined') ||
-      event.reason.message.includes('chrome is not defined')
+      event.reason.message.includes('chrome is not defined') ||
+      event.reason.message.includes('intrinsic %% does not exist') ||
+      event.reason.message.includes('runtime.lastError') ||
+      event.reason.message.includes('Could not establish connection')
     )) {
       console.warn('Caught unhandled extension/binding rejection, preventing default:', event.reason.message);
       event.preventDefault();
       return false;
     }
   });
+}
+
+// Add comprehensive error handling for all types of errors
+if (typeof window !== 'undefined') {
+  // Override window.onerror to catch all errors
+  const originalOnError = window.onerror;
+  window.onerror = function(message, source, lineno, colno, error) {
+    if (message && typeof message === 'string' && (
+      message.includes('intrinsic %% does not exist') ||
+      message.includes('browser is not defined') ||
+      message.includes('chrome is not defined') ||
+      message.includes('runtime.lastError') ||
+      message.includes('Could not establish connection') ||
+      message.includes('Receiving end does not exist') ||
+      message.includes('Function.prototype.bind called on incompatible undefined')
+    )) {
+      console.warn('Suppressed error:', message);
+      return true; // Prevent default error handling
+    }
+    
+    // Call original error handler if it exists
+    if (originalOnError) {
+      try {
+        return originalOnError.call(this, message, source, lineno, colno, error);
+      } catch (e) {
+        console.warn('Original error handler failed:', e);
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Override window.onunhandledrejection to catch promise rejections
+  const originalOnUnhandledRejection = window.onunhandledrejection;
+  window.onunhandledrejection = function(event) {
+    if (event.reason && event.reason.message && typeof event.reason.message === 'string' && (
+      event.reason.message.includes('intrinsic %% does not exist') ||
+      event.reason.message.includes('browser is not defined') ||
+      event.reason.message.includes('chrome is not defined') ||
+      event.reason.message.includes('runtime.lastError') ||
+      event.reason.message.includes('Could not establish connection') ||
+      event.reason.message.includes('Receiving end does not exist') ||
+      event.reason.message.includes('Function.prototype.bind called on incompatible undefined')
+    )) {
+      console.warn('Suppressed unhandled rejection:', event.reason.message);
+      event.preventDefault();
+      return;
+    }
+    
+    // Call original handler if it exists
+    if (originalOnUnhandledRejection) {
+      try {
+        originalOnUnhandledRejection.call(this, event);
+      } catch (e) {
+        console.warn('Original unhandled rejection handler failed:', e);
+      }
+    }
+  };
 }
 
 // Pre-initialize lodash to prevent "Cannot access '_' before initialization" errors

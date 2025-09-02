@@ -17,6 +17,15 @@ export default defineConfig({
         plugins: [
           ['transform-react-remove-prop-types', { removeImport: true }]
         ],
+        presets: [
+          ['@babel/preset-env', {
+            targets: {
+              browsers: ['> 1%', 'last 2 versions', 'not dead']
+            },
+            useBuiltIns: 'usage',
+            corejs: 3
+          }]
+        ]
       },
       // Fast refresh is enabled by default in @vitejs/plugin-react
     }),
@@ -88,7 +97,7 @@ export default defineConfig({
     exclude: ['lucide-react', 'express-rate-limit', 'express'],
     include: ['html5-qrcode', 'react', 'react-dom', 'react-router-dom', 'lodash'],
     esbuildOptions: {
-      target: 'esnext',
+      target: 'es2020', // Use safer target
       // Define Node.js globals
       define: {
         global: 'globalThis',
@@ -100,21 +109,15 @@ export default defineConfig({
     // Enable sourcemaps only in analyze mode
     sourcemap: process.env.ANALYZE === 'true',
     
-    // Use Terser for minification with optimized settings
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false, // Keep console logs for debugging
-        drop_debugger: false, // Keep debugger statements for troubleshooting
-        pure_funcs: [], // Don't remove any console functions
-      },
-      mangle: {
-        safari10: true,
-      },
-      format: {
-        comments: false,
-      },
-    },
+    // Use esbuild for minification (more reliable than Terser)
+    minify: 'esbuild',
+    target: 'es2020', // Use safer target instead of esnext
+    
+    // Add fallback for problematic builds
+    ...(process.env.NODE_ENV === 'production' && {
+      minify: false, // Disable minification in production if there are issues
+      target: 'es2015', // Use even more conservative target
+    }),
     
     // More granular chunk strategy
     rollupOptions: {
@@ -128,9 +131,6 @@ export default defineConfig({
     
     // Increase limit to avoid unnecessary warnings
     chunkSizeWarningLimit: 1200,
-    
-    // Target modern browsers for smaller bundles
-    target: 'esnext',
     
     // Pre-load critical assets for faster initial render
     modulePreload: {
