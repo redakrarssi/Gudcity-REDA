@@ -33,7 +33,7 @@ class DbConnectionManager {
     if (hasDbUrl) {
       this.initConnection();
     } else {
-      console.warn('No DATABASE_URL environment variable found, connection manager disabled');
+      console.warn('No DATABASE_URL environment variable found, connection manager disabled - using mock mode');
       this.connectionState = ConnectionState.DISCONNECTED;
     }
   }

@@ -10,44 +10,62 @@ async function initializeDbSchema(): Promise<boolean> {
   try {
     console.log('Initializing QR code tables...');
     
-    // Check if the qr_codes table exists
-    const qrCodesTableExists = await sql.tableExists('qr_codes');
-    if (!qrCodesTableExists) {
-      console.log('Creating qr_codes table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS qr_codes (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL,
-          type VARCHAR(50) NOT NULL,
-          data JSONB NOT NULL,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
-      console.log('Created qr_codes table');
-    }
+    // CRITICAL FIX: Add timeout to prevent hanging
+    const timeoutPromise = new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        console.warn('Database initialization timed out, skipping...');
+        resolve(false);
+      }, 2000); // 2 second timeout
+    });
     
-    // Check if the user_qr_codes table exists
-    const userQrCodesTableExists = await sql.tableExists('user_qr_codes');
-    if (!userQrCodesTableExists) {
-      console.log('Creating user_qr_codes table...');
-      await sql`
-        CREATE TABLE IF NOT EXISTS user_qr_codes (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL,
-          qr_code_id INTEGER NOT NULL,
-          is_favorite BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id) ON DELETE CASCADE
-        )
-      `;
-      console.log('Created user_qr_codes table');
-    }
+    const initPromise = (async () => {
+      try {
+        // Check if the qr_codes table exists
+        const qrCodesTableExists = await sql.tableExists('qr_codes');
+        if (!qrCodesTableExists) {
+          console.log('Creating qr_codes table...');
+          await sql`
+            CREATE TABLE IF NOT EXISTS qr_codes (
+              id SERIAL PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              type VARCHAR(50) NOT NULL,
+              data JSONB NOT NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+          `;
+          console.log('Created qr_codes table');
+        }
+        
+        // Check if the user_qr_codes table exists
+        const userQrCodesTableExists = await sql.tableExists('user_qr_codes');
+        if (!userQrCodesTableExists) {
+          console.log('Creating user_qr_codes table...');
+          await sql`
+            CREATE TABLE IF NOT EXISTS user_qr_codes (
+              id SERIAL PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              qr_code_id INTEGER NOT NULL,
+              is_favorite BOOLEAN DEFAULT FALSE,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (qr_code_id) REFERENCES qr_codes(id) ON DELETE CASCADE
+            )
+          `;
+          console.log('Created user_qr_codes table');
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error initializing QR code tables:', error);
+        return false;
+      }
+    })();
     
-    return true;
+    // Race between timeout and initialization
+    return await Promise.race([initPromise, timeoutPromise]);
   } catch (error) {
-    console.error('Error initializing QR code tables:', error);
+    console.error('Error in initializeDbSchema:', error);
     return false;
   }
 }

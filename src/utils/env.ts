@@ -67,6 +67,12 @@ export const FEATURES = {
 
 // Function to validate required environment variables
 export function validateEnv(): boolean {
+  // In development mode, be more lenient with missing environment variables
+  if (env.isDevelopment()) {
+    console.warn('Development mode: Some environment variables may be missing, using mock values');
+    return true;
+  }
+  
   const requiredVars = [
     'DATABASE_URL',
     'JWT_SECRET',

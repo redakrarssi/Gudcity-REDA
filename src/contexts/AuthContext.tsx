@@ -327,6 +327,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.location.href = '/login';
     }, 100);
   }
+  
+  // CRITICAL FIX: Add timeout to prevent infinite loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Auth initialization timed out, forcing completion');
+        setIsLoading(false);
+        setInitialized(true);
+      }
+    }, 3000); // 3 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
 
   /**
    * Login function
