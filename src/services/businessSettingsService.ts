@@ -92,7 +92,12 @@ export class BusinessSettingsService {
       // First get business profile data
       console.log(`Fetching business profile for ID: ${businessIdNum}`);
       const profileResult = await sql`
-        SELECT * FROM business_profile 
+        SELECT 
+          id, business_id, business_name, email, phone, address_line1, city, state, zip,
+          language, country, currency, timezone, logo_url, website_url, description,
+          business_hours, payment_settings, notification_settings, integrations,
+          created_at, updated_at
+        FROM business_profile 
         WHERE business_id = ${businessIdNum}
       `;
       
@@ -134,7 +139,12 @@ export class BusinessSettingsService {
         // Fetch the newly created profile
         console.log(`Fetching newly created profile for ID: ${businessIdNum}`);
         const newResult = await sql`
-          SELECT * FROM business_profile 
+          SELECT 
+            id, business_id, business_name, email, phone, address_line1, city, state, zip,
+            language, country, currency, timezone, logo_url, website_url, description,
+            business_hours, payment_settings, notification_settings, integrations,
+            created_at, updated_at
+          FROM business_profile 
           WHERE business_id = ${businessIdNum}
         `;
         
@@ -165,7 +175,8 @@ export class BusinessSettingsService {
           // Get settings
           console.log(`Fetching business settings for ID: ${businessIdNum}`);
           const settingsResult = await sql`
-            SELECT * FROM business_settings
+            SELECT business_id, points_per_dollar, points_expiry_days, minimum_points_redemption, welcome_bonus
+            FROM business_settings
             WHERE business_id = ${businessIdNum}
           `;
           
@@ -196,7 +207,8 @@ export class BusinessSettingsService {
             // Fetch newly created settings
             console.log(`Fetching newly created settings for ID: ${businessIdNum}`);
             const newSettingsResult = await sql`
-              SELECT * FROM business_settings
+              SELECT business_id, points_per_dollar, points_expiry_days, minimum_points_redemption, welcome_bonus
+              FROM business_settings
               WHERE business_id = ${businessIdNum}
             `;
             
@@ -214,7 +226,8 @@ export class BusinessSettingsService {
       // Get user data as fallback for missing fields
       console.log(`Fetching user data for ID: ${businessIdNum}`);
       const userResult = await sql`
-        SELECT * FROM users
+        SELECT id, name, email, business_name, business_phone
+        FROM users
         WHERE id = ${businessIdNum}
       `;
       
