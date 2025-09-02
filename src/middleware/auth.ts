@@ -19,10 +19,6 @@ declare global {
 /**
  * Authentication middleware
  * Verifies JWT token from Authorization header
- * 
- * SECURITY NOTE: Logging has been sanitized to prevent exposure of sensitive
- * information including user emails, IDs, tokens, and detailed error messages.
- * All logs use generic success/failure messages for security compliance.
  */
 export const auth = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -65,7 +61,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
     
     // Validate payload contains required fields
     if (!payload.userId || !payload.email) {
-      console.error('AUTH ERROR: Token payload missing required fields');
+      console.error('AUTH ERROR: Token payload missing required fields', payload);
       return res.status(401).json({ 
         error: 'Invalid token payload', 
         code: 'AUTH_TOKEN_PAYLOAD_INVALID',
@@ -77,7 +73,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
     const currentUser = await getUserById(payload.userId);
     
     if (!currentUser) {
-      console.error('AUTH ERROR: User not found in database');
+      console.error(`AUTH ERROR: User ${payload.userId} not found in database`);
       return res.status(401).json({ 
         error: 'User not found', 
         code: 'AUTH_USER_NOT_FOUND',
@@ -87,7 +83,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
     
     // Check if user is banned
     if (currentUser.status === 'banned') {
-      console.error('AUTH ERROR: Banned user attempted to access protected resource');
+      console.error(`AUTH ERROR: Banned user ${payload.email} (ID: ${payload.userId}) attempted to access protected resource`);
       return res.status(403).json({ 
         error: 'Account banned', 
         code: 'AUTH_USER_BANNED',
@@ -97,7 +93,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
     
     // Log if user is restricted (allow access but with warning)
     if (currentUser.status === 'restricted') {
-      console.warn('AUTH WARNING: Restricted user accessing protected resource');
+      console.warn(`AUTH WARNING: Restricted user ${payload.email} (ID: ${payload.userId}) accessing protected resource`);
     }
     
     // Add user data to request object including current status
@@ -108,14 +104,14 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
       status: currentUser.status
     };
     
-    console.log('AUTH SUCCESS: User authentication successful');
+    console.log(`AUTH SUCCESS: User ${payload.email} (ID: ${payload.userId}, Status: ${currentUser.status || 'active'}) authenticated`);
     next();
   } catch (error) {
-    console.error('AUTH ERROR: Authentication failed - generic error occurred');
+    console.error('AUTH ERROR: Authentication failed', error);
     res.status(401).json({ 
       error: 'Authentication failed', 
       code: 'AUTH_FAILED',
-      message: 'Unable to authenticate request'
+      message: error instanceof Error ? error.message : 'Unknown authentication error'
     });
   }
 };
