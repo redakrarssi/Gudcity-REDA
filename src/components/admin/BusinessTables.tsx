@@ -27,6 +27,8 @@ import { apiCacheDebugger } from '../../utils/apiCacheDebug';
 import { User, getUsersByType, ensureDemoUsers } from '../../services/userService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { CustomerService } from '../../services/customerService';
+import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
+import { CustomerService } from '../../services/customerService';
 
 // Local helpers for formatting durations and months
 function formatSeconds(totalSeconds: number): string {
@@ -259,7 +261,16 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
     console.log('Fallback: loading businesses via getUsersByType("business")');
     await ensureDemoUsers();
     const users = await getUsersByType('business');
-    const mapped = await mapUsersToBusinesses(users);
+    // Try to enrich with admin overview for address/phone/customer counts
+    let overviewMap: Map<string, any> | undefined;
+    try {
+      const overviewResp = await api.get('/businesses/admin/overview');
+      const list = overviewResp.data?.businesses || [];
+      overviewMap = new Map(list.map((b: any) => [String(b.id), b]));
+    } catch (e) {
+      console.warn('Admin overview not available, continuing without it');
+    }
+    const mapped = await mapUsersToBusinesses(users, overviewMap);
     setBusinesses(mapped);
     // Send analytics
     if (onAnalyticsUpdate) {
@@ -281,7 +292,7 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
   };
 
   // Map business users to Business table shape
-  const mapUsersToBusinesses = async (users: User[]): Promise<Business[]> => {
+  const mapUsersToBusinesses = async (users: User[], overviewMap?: Map<string, any>): Promise<Business[]> => {
     const results: Business[] = [];
     for (const u of users) {
       const createdAt = (u as any).created_at ? new Date((u as any).created_at) : new Date();
@@ -300,6 +311,10 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
       } catch (e) {
         console.warn('Failed to count customers for business', businessId, e);
       }
+      const overview = overviewMap?.get(businessId);
+      const mergedCustomerCount = overview?.customerCount && overview.customerCount > 0 ? overview.customerCount : customersCount;
+      const mergedAddress = overview?.address || '';
+      const mergedPhone = overview?.phone || (u as any).business_phone || '';
       const business: Business = {
         id: u.id!,
         userId: u.id!,
@@ -308,14 +323,14 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
         email: u.email,
         type: 'General',
         status: (u as any).status || 'active',
-        address: '',
-        phone: (u as any).business_phone || '',
+        address: mergedAddress,
+        phone: mergedPhone,
         logo: (u as any).avatar_url || undefined,
         currency: 'USD',
         registeredAt: createdAt.toISOString(),
         lastLogin: (u as any).last_login || undefined,
         programCount: Array.isArray(programs) ? programs.length : 0,
-        customerCount: customersCount,
+        customerCount: mergedCustomerCount,
         promotionCount: 0,
         transactionCount: 0,
         revenue: 0,
