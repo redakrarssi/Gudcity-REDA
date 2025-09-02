@@ -5,6 +5,7 @@ import { Search, Award, Heart, Star, Gift, BadgeCheck, Users, Sparkles, Filter, 
 import { CustomerService, Customer, CustomerProgram } from '../../services/customerService';
 import { PromoService } from '../../services/promoService';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { CustomerBusinessLinker } from '../../components/business/CustomerBusinessLinker';
 import { subscribeToSync } from '../../utils/realTimeSync';
 import type { PromoCode } from '../../types/promo';
@@ -126,6 +127,7 @@ const TierBadge = ({ tier }: { tier: string }) => {
 const CustomersPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { formatAmount } = useBusinessCurrency();
   
   // Guard against undefined translation function
   const translate = (key: string, options?: any) => {
@@ -586,7 +588,7 @@ const CustomersPage = () => {
                     <div className="bg-green-50 rounded-lg p-4 border border-green-100 flex items-center justify-between">
                       <div>
                         <p className="text-sm text-green-600 font-medium">{translate('Total Spent')}</p>
-                        <p className="text-2xl font-bold text-green-700">${selectedCustomer.totalSpent.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-green-700">{formatAmount(selectedCustomer.totalSpent)}</p>
                       </div>
                       <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
                         <Coffee className="h-6 w-6" />

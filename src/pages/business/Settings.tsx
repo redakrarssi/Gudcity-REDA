@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { BusinessSettingsService, type BusinessSettings } from '../../services/businessSettingsService';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
 // Define types for nested objects
 interface BusinessHours {
@@ -239,6 +240,7 @@ const convertBusinessSettingsToData = (settings: BusinessSettings, userEmail: st
 const BusinessSettings = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { refreshCurrency } = useBusinessCurrency();
   const [activeTab, setActiveTab] = useState('business');
   const [animateIn, setAnimateIn] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -453,6 +455,11 @@ const BusinessSettings = () => {
         
         setSaveSuccess(true);
         setEditMode(false);
+        
+        // Refresh currency context if currency was changed
+        if (businessSettings.currency) {
+          refreshCurrency();
+        }
         
         // Clear success message after delay
         setTimeout(() => {
@@ -771,7 +778,7 @@ const BusinessSettings = () => {
               {editMode ? (
                 <select
                   name="currency"
-                  value={formData.currency || 'USD'}
+                  value={formData.currency || 'EUR'}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
@@ -802,7 +809,7 @@ const BusinessSettings = () => {
                   {businessData.currency ? (
                     `${businessData.currency} - ${CURRENCIES.find(c => c.code === businessData.currency)?.name || ''}`
                   ) : (
-                    'USD - US Dollar'
+                    'EUR - Euro'
                   )}
                 </p>
               )}

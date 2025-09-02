@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode.react';
 import { PromoService } from '../../services/promoService';
-import { CurrencyService } from '../../services/currencyService';
 import type { PromoCode, PromoCodeStats } from '../../types/promo';
 import type { CurrencyCode } from '../../types/currency';
 import { createPromoQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
 // Sample promotion ideas for inspiration
 const PROMO_IDEAS = [
@@ -51,13 +51,13 @@ const animationStyles = {
 const PromotionsPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currency, formatAmount } = useBusinessCurrency();
   const [codes, setCodes] = useState<PromoCode[]>([]);
   const [stats, setStats] = useState<PromoCodeStats | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState<string | null>(null);
   const [showPromoIdeas, setShowPromoIdeas] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [activeTab, setActiveTab] = useState<'active' | 'all'>('active');
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -521,7 +521,7 @@ const PromotionsPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {code.type === 'POINTS' 
                           ? `${code.value} ${t('points')}`
-                          : CurrencyService.formatAmount(code.value, code.currency || currency)
+                          : formatAmount(code.value)
                         }
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

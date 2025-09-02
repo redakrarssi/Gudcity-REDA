@@ -5,6 +5,7 @@ import type { LoyaltyProgram } from '../../types/loyalty';
 import type { CurrencyCode } from '../../types/currency';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { BusinessSettingsService } from '../../services/businessSettingsService';
 import { AnalyticsService } from '../../services/analyticsService';
 import { BusinessAnalyticsDashboard } from '../../components/business/BusinessAnalyticsDashboard';
@@ -42,10 +43,10 @@ interface BusinessAnalyticsData {
 const BusinessDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currency, formatAmount } = useBusinessCurrency();
   const [businessData, setBusinessData] = useState<BusinessAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
   
   const [scannerMessage, setScannerMessage] = useState<string>('');
@@ -101,16 +102,10 @@ const BusinessDashboard = () => {
         setIsLoading(true);
         setError(null);
 
-        // Get business profile to determine currency
-        const businessProfile = await BusinessSettingsService.getBusinessSettings(user.id);
-        if (businessProfile && businessProfile.currency) {
-          setCurrency(businessProfile.currency as CurrencyCode);
-        }
-
         console.log(`Loading analytics data for business user ID: ${user.id}`);
         
         // Get analytics data
-        const analytics = await AnalyticsService.getBusinessAnalytics(user.id.toString(), currency, period);
+        const analytics = await AnalyticsService.getBusinessAnalytics(user.id.toString(), currency as CurrencyCode, period);
         
         if (!analytics) {
           setError('Could not retrieve analytics data. Please try again later.');
@@ -389,7 +384,7 @@ const BusinessDashboard = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">{t('Total Sales')}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{currency} {(businessData?.totalSales || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{formatAmount(businessData?.totalSales || 0)}</p>
             </div>
             <div className="bg-green-100 p-2 rounded-md">
               <DollarSign className="h-6 w-6 text-green-600" />

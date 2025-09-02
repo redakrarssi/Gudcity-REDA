@@ -7,10 +7,12 @@ import { TransactionService } from '../../services/transactionService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { BusinessAnalyticsService } from '../../services/businessAnalyticsService';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
 const AnalyticsPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currency } = useBusinessCurrency();
   const [dateRange, setDateRange] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({

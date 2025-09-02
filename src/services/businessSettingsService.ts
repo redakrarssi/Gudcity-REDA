@@ -64,22 +64,7 @@ export interface BusinessSettings {
   updatedAt: string;
 }
 
-// Map our internal field names to the actual database column names
-const DB_FIELD_MAP = {
-  name: 'business_name',
-  businessName: 'business_name',
-  phone: 'phone',
-  email: 'email',
-  address: 'address_line1',
-  description: 'description',
-  website: 'website_url',
-  logo: 'logo_url',
-  country: 'country',
-  currency: 'currency',
-  city: 'city',
-  state: 'state',
-  zip: 'zip'
-};
+// Note: Database field mapping is handled directly in the combineSettingsData method
 
 export class BusinessSettingsService {
   /**
@@ -803,7 +788,7 @@ export class BusinessSettingsService {
       logo: profile?.logo_url || '',
       language: profile?.language || 'en',
       country: profile?.country || '',
-      currency: profile?.currency || 'USD',
+      currency: profile?.currency || 'EUR',
       timezone: profile?.timezone || 'UTC',
       taxId: profile?.tax_id || '',
       businessHours,

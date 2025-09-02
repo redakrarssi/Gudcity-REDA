@@ -7,11 +7,13 @@ import { Plus, Award, Calendar, Tag, Clock, ChevronRight, X } from 'lucide-react
 import type { LoyaltyProgram } from '../../types/loyalty';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import sql, { verifyConnection } from '../../utils/db';
 
 const Programs = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { formatAmount } = useBusinessCurrency();
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [selectedProgram, setSelectedProgram] = useState<LoyaltyProgram | null>(null);
   const [showProgramBuilder, setShowProgramBuilder] = useState(false);
@@ -315,7 +317,7 @@ const Programs = () => {
                             <Award className="w-4 h-4 mr-1 text-gray-400" />
                             <span>
                               {program.type === 'POINTS'
-                                ? t('{{value}} = 1 point', { value: `$${program.pointValue}` })
+                                ? t('{{value}} = 1 point', { value: formatAmount(program.pointValue) })
                                 : t('1 stamp per visit')}
                             </span>
                           </div>
