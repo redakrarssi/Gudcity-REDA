@@ -24,6 +24,7 @@ import {
 import api from '../../api/api';
 import { formatDate, formatRegistrationDuration } from '../../utils/dateUtils';
 import { apiCacheDebugger } from '../../utils/apiCacheDebug';
+import { User, getUsersByType, ensureDemoUsers } from '../../services/userService';
 
 // Local helpers for formatting durations and months
 function formatSeconds(totalSeconds: number): string {
@@ -192,7 +193,13 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
       // Handle successful response (200, etc.)
       if (response.data?.businesses) {
         const businessData = response.data.businesses;
-        setBusinesses(businessData);
+        if (Array.isArray(businessData) && businessData.length > 0) {
+          setBusinesses(businessData);
+        } else {
+          console.log('Admin businesses API returned empty list, falling back to users service...');
+          await loadBusinessesFromUsersService();
+          return;
+        }
         
         // Cache the data for future 304 responses
         localStorage.setItem('admin_businesses_cache', JSON.stringify(response.data));
@@ -219,29 +226,92 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
           });
         }
       } else if (response.status === 200) {
-        // Empty response but successful
-        console.log('Empty business data received from API');
-        setBusinesses([]);
-        if (onAnalyticsUpdate) {
-          onAnalyticsUpdate({
-            totalBusinesses: 0,
-            activeBusinesses: 0,
-            totalPrograms: 0,
-            newThisMonth: 0
-          });
-        }
+        // Empty response but successful, try fallback
+        console.log('Empty business data received from API, attempting fallback via users service');
+        await loadBusinessesFromUsersService();
+        return;
       } else {
-        setError(`API Error: ${response.status} - ${response.error || 'Unknown error'}`);
+        console.warn('Admin businesses API error, attempting fallback:', response.status, response.error);
+        await loadBusinessesFromUsersService();
+        return;
       }
     } catch (err) {
       console.error('Error loading businesses:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load businesses. Please check console for details.';
-      setError(errorMessage);
-      apiCacheDebugger.logError(errorMessage, 'admin_businesses_cache');
-      onConnectionError?.();
+      // On any error, try fallback mechanism before surfacing error
+      try {
+        await loadBusinessesFromUsersService();
+        return;
+      } catch (fallbackError) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load businesses. Please check console for details.';
+        setError(errorMessage);
+        apiCacheDebugger.logError(errorMessage, 'admin_businesses_cache');
+        onConnectionError?.();
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fallback: use the same mechanism as /admin/users to get business users
+  const loadBusinessesFromUsersService = async () => {
+    console.log('Fallback: loading businesses via getUsersByType("business")');
+    await ensureDemoUsers();
+    const users = await getUsersByType('business');
+    const mapped = mapUsersToBusinesses(users);
+    setBusinesses(mapped);
+    // Send analytics
+    if (onAnalyticsUpdate) {
+      const totalPrograms = mapped.reduce((sum: number, b: Business) => sum + (b.programCount || 0), 0);
+      const activeBusinesses = mapped.filter((b: Business) => b.status === 'active').length;
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const newThisMonth = mapped.filter((b: Business) => {
+        const registrationDate = new Date(b.registeredAt);
+        return registrationDate.getMonth() === currentMonth && registrationDate.getFullYear() === currentYear;
+      }).length;
+      onAnalyticsUpdate({
+        totalBusinesses: mapped.length,
+        activeBusinesses,
+        totalPrograms,
+        newThisMonth
+      });
+    }
+  };
+
+  // Map business users to Business table shape
+  const mapUsersToBusinesses = (users: User[]): Business[] => {
+    return users.map((u) => {
+      const createdAt = (u as any).created_at ? new Date((u as any).created_at) : new Date();
+      return {
+        id: u.id!,
+        userId: u.id!,
+        name: (u as any).business_name || u.name,
+        owner: u.name,
+        email: u.email,
+        type: 'General',
+        status: (u as any).status || 'active',
+        address: '',
+        phone: (u as any).business_phone || '',
+        logo: (u as any).avatar_url || undefined,
+        currency: 'USD',
+        registeredAt: createdAt.toISOString(),
+        lastLogin: (u as any).last_login || undefined,
+        programCount: 0,
+        customerCount: 0,
+        promotionCount: 0,
+        transactionCount: 0,
+        revenue: 0,
+        programs: [],
+        promotions: [],
+        recentLogins: [],
+        registrationDuration: {
+          timestamp: createdAt.toISOString(),
+          days: 0,
+          months: 0,
+        },
+        timeSpent: { daily: [], monthly: [] },
+      } as Business;
+    });
   };
 
   const toggleSelected = (id: number, checked: boolean) => {
