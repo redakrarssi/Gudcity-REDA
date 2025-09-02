@@ -1,69 +1,85 @@
 // Pre-initialize browser polyfills before any imports
 // This must be the very first code that runs
 if (typeof window !== 'undefined') {
-  // Immediately define browser and chrome objects to prevent extension errors
-  const browserPolyfill = {
-    runtime: { 
-      sendMessage: () => Promise.resolve(), 
-      onMessage: { addListener: () => {}, removeListener: () => {} },
-      getManifest: () => ({}),
-      getURL: (path) => path,
-      lastError: null,
-      connect: () => ({ 
-        onDisconnect: { addListener: () => {} },
-        postMessage: () => {},
-        disconnect: () => {}
-      }),
-      onConnect: { addListener: () => {} },
-      onInstalled: { addListener: () => {} },
-      id: "dummy-extension-id"
-    },
-    storage: { 
-      local: { get: () => Promise.resolve({}), set: () => Promise.resolve() },
-      sync: { get: () => Promise.resolve({}), set: () => Promise.resolve() }
-    },
-    tabs: { query: () => Promise.resolve([]) }
-  };
+  // Check if HTML polyfills are already applied
+  if (!(window as any).browser || !(window as any).chrome) {
+    // Immediately define browser and chrome objects to prevent extension errors
+    const browserPolyfill = {
+      runtime: { 
+        sendMessage: () => Promise.resolve(null), 
+        onMessage: { addListener: () => {}, removeListener: () => {} },
+        getManifest: () => ({}),
+        getURL: (path) => path,
+        lastError: null,
+        connect: () => ({ 
+          onDisconnect: { addListener: () => {} },
+          postMessage: () => {},
+          disconnect: () => {},
+          onMessage: { addListener: () => {} }
+        }),
+        onConnect: { addListener: () => {} },
+        onInstalled: { addListener: () => {} },
+        id: "dummy-extension-id"
+      },
+      storage: { 
+        local: { get: () => Promise.resolve({}), set: () => Promise.resolve() },
+        sync: { get: () => Promise.resolve({}), set: () => Promise.resolve() }
+      },
+      tabs: { query: () => Promise.resolve([]) }
+    };
 
-  // Define browser globally immediately
-  (window as any).browser = browserPolyfill;
-  (window as any).chrome = {
-    runtime: browserPolyfill.runtime,
-    storage: browserPolyfill.storage,
-    tabs: browserPolyfill.tabs
-  };
+    // Define browser globally immediately
+    (window as any).browser = browserPolyfill;
+    (window as any).chrome = {
+      runtime: browserPolyfill.runtime,
+      storage: browserPolyfill.storage,
+      tabs: browserPolyfill.tabs
+    };
+  }
 
   // Override runtime.lastError to prevent connection errors
-  Object.defineProperty((window as any).browser.runtime, 'lastError', {
-    get: () => null,
-    set: () => {},
-    configurable: true
-  });
+  if ((window as any).browser && (window as any).browser.runtime) {
+    Object.defineProperty((window as any).browser.runtime, 'lastError', {
+      get: () => null,
+      set: () => {},
+      configurable: true
+    });
+  }
 
-  Object.defineProperty((window as any).chrome.runtime, 'lastError', {
-    get: () => null,
-    set: () => {},
-    configurable: true
-  });
+  if ((window as any).chrome && (window as any).chrome.runtime) {
+    Object.defineProperty((window as any).chrome.runtime, 'lastError', {
+      get: () => null,
+      set: () => {},
+      configurable: true
+    });
+  }
 
   // Override connection methods to prevent "Could not establish connection" errors
-  (window as any).browser.runtime.connect = () => ({
-    onDisconnect: { addListener: () => {} },
-    postMessage: () => {},
-    disconnect: () => {},
-    onMessage: { addListener: () => {} }
-  });
+  if ((window as any).browser && (window as any).browser.runtime) {
+    (window as any).browser.runtime.connect = () => ({
+      onDisconnect: { addListener: () => {} },
+      postMessage: () => {},
+      disconnect: () => {},
+      onMessage: { addListener: () => {} }
+    });
+  }
 
-  (window as any).chrome.runtime.connect = () => ({
-    onDisconnect: { addListener: () => {} },
-    postMessage: () => {},
-    disconnect: () => {},
-    onMessage: { addListener: () => {} }
-  });
+  if ((window as any).chrome && (window as any).chrome.runtime) {
+    (window as any).chrome.runtime.connect = () => ({
+      onDisconnect: { addListener: () => {} },
+      postMessage: () => {},
+      disconnect: () => {},
+      onMessage: { addListener: () => {} }
+    });
+  }
 
   // Override sendMessage to prevent connection errors
-  (window as any).browser.runtime.sendMessage = () => Promise.resolve(null);
-  (window as any).chrome.runtime.sendMessage = () => Promise.resolve(null);
+  if ((window as any).browser && (window as any).browser.runtime) {
+    (window as any).browser.runtime.sendMessage = () => Promise.resolve(null);
+  }
+  if ((window as any).chrome && (window as any).chrome.runtime) {
+    (window as any).chrome.runtime.sendMessage = () => Promise.resolve(null);
+  }
 
   // Create a mock server object to prevent errors from server.ts
   if (typeof (window as any).server === 'undefined') {
@@ -91,6 +107,11 @@ if (typeof window !== 'undefined') {
       debug: () => {},
       info: () => {}
     };
+  }
+
+  // Block require errors
+  if (typeof (window as any).require === 'undefined') {
+    (window as any).require = function() { return {}; };
   }
 
   // Aggressively suppress browser extension errors
@@ -481,7 +502,95 @@ setTimeout(() => {
       `;
     }
   }
-}, 5000); // 5 second timeout
+}, 3000); // 3 second timeout
+
+// Add an additional fallback for critical errors
+setTimeout(() => {
+  const rootElement = document.getElementById('root');
+  if (rootElement && rootElement.children.length === 0) {
+    console.warn('Critical fallback: App still not rendered, providing emergency UI');
+    
+    // Emergency UI that doesn't depend on React
+    rootElement.innerHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>GudCity Loyalty Platform</title>
+        <style>
+          body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif; 
+            background: white; 
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+          }
+          .container { 
+            text-align: center; 
+            max-width: 800px; 
+            padding: 40px 20px; 
+          }
+          h1 { color: #333; margin-bottom: 30px; font-size: 2.5em; }
+          p { color: #666; margin-bottom: 30px; font-size: 1.2em; line-height: 1.6; }
+          .buttons { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            flex-wrap: wrap; 
+            margin-bottom: 40px; 
+          }
+          .btn { 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            text-decoration: none; 
+            display: inline-block; 
+          }
+          .btn-primary { background: #007bff; color: white; }
+          .btn-success { background: #28a745; color: white; }
+          .btn-warning { background: #ffc107; color: #212529; }
+          .info-box { 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            padding: 30px; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            text-align: left; 
+          }
+          .info-box h3 { margin-top: 0; color: #495057; }
+          .info-box p { color: #6c757d; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>GudCity Loyalty Platform</h1>
+          <p>Welcome to the comprehensive loyalty platform that connects businesses with customers through innovative reward systems, QR code technology, and seamless digital experiences.</p>
+          
+          <div class="buttons">
+            <a href="/login" class="btn btn-primary">Login</a>
+            <a href="/register" class="btn btn-success">Register</a>
+            <a href="/business" class="btn btn-warning">Business Portal</a>
+          </div>
+          
+          <div class="info-box">
+            <h3>Platform Features</h3>
+            <p>• Customer loyalty programs and rewards</p>
+            <p>• QR code scanning and generation</p>
+            <p>• Business analytics and insights</p>
+            <p>• Secure authentication and user management</p>
+            <p>• Real-time notifications and updates</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+}, 5000); // 5 second critical fallback
 
 // Log app version and initialization
 try {
