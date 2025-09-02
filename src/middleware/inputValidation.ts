@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
+import { sanitizeUserContent } from '../utils/sqlSafety';
 
 export interface ValidationRule {
   field: string;
@@ -35,17 +36,16 @@ function isValidEmail(email: string): boolean {
 
 /**
  * Sanitize string input to prevent injection attacks
+ * Uses enhanced sanitization from sqlSafety module
+ * @deprecated - Consider using sanitizeUserContent directly
  */
 function sanitizeString(input: string): string {
   if (typeof input !== 'string') {
     return String(input);
   }
   
-  return input
-    .replace(/[<>]/g, '') // Remove potential HTML tags
-    .replace(/['"]/g, '') // Remove quotes that could break SQL
-    .replace(/\\/g, '') // Remove backslashes
-    .trim();
+  // Use the enhanced sanitization from sqlSafety with appropriate options
+  return sanitizeUserContent(input);
 }
 
 /**
