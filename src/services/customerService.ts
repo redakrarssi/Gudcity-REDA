@@ -144,35 +144,75 @@ export class CustomerService {
     try {
       const businessIdInt = parseInt(businessId, 10);
       if (isNaN(businessIdInt)) return 0;
-      // Prefer enrollment-based counting (works even without transactions)
-      const result = await sql`
-        WITH enrolled AS (
-          SELECT DISTINCT (pe.customer_id::text) AS cid
+      
+      console.log(`🔍 Counting customers for business ${businessId} (${businessIdInt})`);
+      
+      // Try multiple approaches and use the highest count
+      let maxCount = 0;
+      
+      // Method 1: Count via loyalty_cards
+      try {
+        const cardsResult = await sql`
+          SELECT COUNT(DISTINCT customer_id) as total
+          FROM loyalty_cards
+          WHERE business_id = ${businessIdInt}
+        `;
+        const cardsCount = parseInt(cardsResult[0]?.total as string) || 0;
+        console.log(`📊 Loyalty cards method: ${cardsCount} customers`);
+        maxCount = Math.max(maxCount, cardsCount);
+      } catch (e) {
+        console.warn('Loyalty cards count failed:', e);
+      }
+      
+      // Method 2: Count via program_enrollments
+      try {
+        const enrollResult = await sql`
+          SELECT COUNT(DISTINCT pe.customer_id) as total
           FROM program_enrollments pe
           JOIN loyalty_programs lp ON lp.id = pe.program_id
           WHERE lp.business_id = ${businessIdInt}
             AND (pe.status IS NULL OR UPPER(pe.status) = 'ACTIVE')
-          UNION
-          SELECT DISTINCT (cpe.customer_id::text) AS cid
-          FROM customer_program_enrollments cpe
-          WHERE cpe.business_id = ${businessIdInt}
-            AND (cpe.status IS NULL OR UPPER(cpe.status) = 'ACTIVE')
-          UNION
-          SELECT DISTINCT (lc.customer_id::text) AS cid
-          FROM loyalty_cards lc
-          WHERE lc.business_id = ${businessIdInt}
-        )
-        SELECT COUNT(*) AS total FROM enrolled
-      `;
-      const total = parseInt(result[0]?.total as string);
-      if (!isNaN(total) && total > 0) return total;
-      // Fallback to transaction-based distinct customer count
-      const txn = await sql`
-        SELECT COUNT(DISTINCT customer_id) as total
-        FROM business_transactions
-        WHERE business_id = ${businessIdInt}
-      `;
-      return parseInt(txn[0]?.total as string) || 0;
+        `;
+        const enrollCount = parseInt(enrollResult[0]?.total as string) || 0;
+        console.log(`📊 Program enrollments method: ${enrollCount} customers`);
+        maxCount = Math.max(maxCount, enrollCount);
+      } catch (e) {
+        console.warn('Program enrollments count failed:', e);
+      }
+      
+      // Method 3: Count via customer_program_enrollments if exists
+      try {
+        const cpeResult = await sql`
+          SELECT COUNT(DISTINCT customer_id) as total
+          FROM customer_program_enrollments
+          WHERE business_id = ${businessIdInt}
+            AND (status IS NULL OR UPPER(status) = 'ACTIVE')
+        `;
+        const cpeCount = parseInt(cpeResult[0]?.total as string) || 0;
+        console.log(`📊 Customer program enrollments method: ${cpeCount} customers`);
+        maxCount = Math.max(maxCount, cpeCount);
+      } catch (e) {
+        console.warn('Customer program enrollments count failed (table may not exist):', e);
+      }
+      
+      // Method 4: Fallback to transactions
+      if (maxCount === 0) {
+        try {
+          const txnResult = await sql`
+            SELECT COUNT(DISTINCT customer_id) as total
+            FROM business_transactions
+            WHERE business_id = ${businessIdInt}
+          `;
+          const txnCount = parseInt(txnResult[0]?.total as string) || 0;
+          console.log(`📊 Business transactions method: ${txnCount} customers`);
+          maxCount = Math.max(maxCount, txnCount);
+        } catch (e) {
+          console.warn('Business transactions count failed:', e);
+        }
+      }
+      
+      console.log(`✅ Final customer count for business ${businessId}: ${maxCount}`);
+      return maxCount;
     } catch (error) {
       console.error('Error counting business customers:', error);
       return 0;

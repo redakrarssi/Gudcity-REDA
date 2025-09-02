@@ -476,6 +476,63 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
     }
   };
 
+  // Customer list component
+  const CustomersList: React.FC<{ businessId: string }> = ({ businessId }) => {
+    const [customers, setCustomers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      const loadCustomers = async () => {
+        try {
+          setLoading(true);
+          const customerList = await CustomerService.getBusinessCustomers(businessId);
+          setCustomers(customerList);
+        } catch (error) {
+          console.error('Failed to load customers:', error);
+          setCustomers([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadCustomers();
+    }, [businessId]);
+
+    if (loading) {
+      return <div className="text-gray-500">Loading customers...</div>;
+    }
+
+    if (customers.length === 0) {
+      return (
+        <div className="text-center py-4 text-gray-500">
+          <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+          <p>No customers found</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2 max-h-40 overflow-y-auto">
+        {customers.slice(0, 10).map((customer) => (
+          <div key={customer.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+            <div>
+              <div className="font-medium text-gray-900">{customer.name}</div>
+              <div className="text-xs text-gray-500">{customer.email}</div>
+            </div>
+            <div className="text-right text-xs text-gray-500">
+              <div>{customer.loyaltyPoints || 0} points</div>
+              <div>{customer.programCount || 1} programs</div>
+            </div>
+          </div>
+        ))}
+        {customers.length > 10 && (
+          <div className="text-xs text-gray-500 text-center pt-2">
+            ... and {customers.length - 10} more customers
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Business details component for expanded view
   const BusinessDetails: React.FC<{ business: Business }> = ({ business }) => (
     <div className="bg-gray-50 px-6 py-4 border-t">
@@ -557,48 +614,16 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
           )}
         </div>
 
-        {/* Time Spent */}
+        {/* Customers */}
         <div className="space-y-4">
           <h4 className="text-lg font-medium text-gray-900 flex items-center">
-            <Clock className="h-5 w-5 mr-2 text-gray-500" />
-            Time Spent
+            <Users className="h-5 w-5 mr-2 text-blue-500" />
+            Customers ({business.customerCount})
           </h4>
           <div className="bg-white p-3 rounded-lg border border-gray-200">
-            {business.timeSpent && (business.timeSpent.daily?.length > 0 || business.timeSpent.monthly?.length > 0) ? (
-              <div className="space-y-3 text-sm">
-                {business.timeSpent.daily && business.timeSpent.daily.length > 0 && (
-                  <div>
-                    <div className="text-gray-700 font-medium mb-1">Last 15 days (per day)</div>
-                    <ul className="max-h-40 overflow-y-auto space-y-1">
-                      {business.timeSpent.daily.map((d) => (
-                        <li key={d.date} className="flex justify-between text-gray-600">
-                          <span>{formatDate(d.date)}</span>
-                          <span>{formatSeconds(d.seconds)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {business.timeSpent.monthly && business.timeSpent.monthly.length > 0 && (
-                  <div>
-                    <div className="text-gray-700 font-medium mt-2 mb-1">Older (per month)</div>
-                    <ul className="space-y-1">
-                      {business.timeSpent.monthly.map((m) => (
-                        <li key={m.month} className="flex justify-between text-gray-600">
-                          <span>{formatMonth(m.month)}</span>
-                          <span>{formatSeconds(m.seconds)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                <Clock className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                <p>No session data</p>
-              </div>
-            )}
+            <div className="text-sm">
+              <CustomersList businessId={String(business.id)} />
+            </div>
           </div>
         </div>
 
