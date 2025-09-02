@@ -56,49 +56,22 @@ if (isBrowser) {
   try {
     const validationModule = await import('./utils/validateEnvironment.js');
     
-    // Use environment-appropriate logging
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    if (isProduction) {
-      // Production: Log only critical security issues to reduce verbosity
-      if (validationModule.logCriticalSecurityIssues) {
-        validationModule.logCriticalSecurityIssues();
-      }
-    } else {
-      // Development: Full detailed security validation logging
-      if (validationModule.logSecurityValidation) {
-        validationModule.logSecurityValidation();
-      }
+    // Log security validation results
+    if (validationModule.logSecurityValidation) {
+      validationModule.logSecurityValidation();
     }
     
-    // Check if we can start safely (always critical)
+    // Check if we can start safely
     if (validationModule.canStartSafely && !validationModule.canStartSafely()) {
-      log.security('CRITICAL SECURITY ISSUES DETECTED - Application startup blocked');
-      log.error('Application cannot start safely. Please fix all critical security issues.', null, {
-        environment: process.env.NODE_ENV,
-        action: 'startup_blocked'
-      });
+      log.security('CRITICAL SECURITY ISSUES DETECTED');
+      log.error('Application cannot start safely. Please fix all security issues.');
       process.exit(1);
     }
     
-    // Success logging - minimal in production, detailed in development
-    if (isProduction) {
-      logUtils.prodOnly('info', 'Security validation passed - starting server', {
-        environment: process.env.NODE_ENV,
-        validationLevel: 'critical'
-      });
-    } else {
-      log.security('Security validation passed - starting server', {
-        environment: process.env.NODE_ENV,
-        validationLevel: 'full'
-      });
-    }
+    log.security('Security validation passed - starting server');
   } catch (e) {
-    log.error('Error during security validation', e, {
-      environment: process.env.NODE_ENV,
-      phase: 'startup_validation'
-    });
-    log.warn('Proceeding with server startup, but security validation could not be completed');
+    log.error('Error during security validation', e);
+    log.warn('Proceeding with server startup, but security is not guaranteed');
   }
   
   import express from 'express';
