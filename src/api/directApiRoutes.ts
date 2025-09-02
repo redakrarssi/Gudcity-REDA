@@ -7,7 +7,7 @@ console.log('🔧 Loading directApiRoutes.ts module...');
 
 import { Router, Request, Response } from 'express';
 import { auth } from '../middleware/auth';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { directAwardPoints } from '../utils/directPointsAward';
 import { validateBody, schemas } from '../utils/validation';
 

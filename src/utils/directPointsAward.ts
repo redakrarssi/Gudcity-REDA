@@ -6,7 +6,7 @@
 
 import sql from './db';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from './logger';
+import { log as logger } from './logger';
 
 /**
  * Award points to a customer directly via SQL

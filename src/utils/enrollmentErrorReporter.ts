@@ -4,7 +4,7 @@
  * This utility provides error reporting and tracking for enrollment-related errors.
  */
 
-import { logger } from './logger';
+import { log as logger } from './logger';
 
 /**
  * Enrollment error codes

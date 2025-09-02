@@ -4,7 +4,7 @@
  * This utility provides centralized error handling for enrollment-related operations
  */
 
-import { logger } from './logger';
+import { log as logger } from './logger';
 import { EnrollmentErrorCode, formatEnrollmentErrorForUser } from './enrollmentErrorReporter';
 import { queryClient } from './queryClient';
 

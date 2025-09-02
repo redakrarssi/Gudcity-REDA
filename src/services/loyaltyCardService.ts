@@ -10,7 +10,7 @@ import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
 import { formatPoints, validateCardData } from '../utils/validators';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { createCardSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
 import type { LoyaltyCard } from '../types/loyalty';
 

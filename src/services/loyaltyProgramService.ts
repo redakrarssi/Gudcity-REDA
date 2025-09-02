@@ -6,7 +6,7 @@ import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
 import * as serverFunctions from '../server';
 import { createEnrollmentSyncEvent, createNotificationSyncEvent, createCardSyncEvent } from '../utils/realTimeSync';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import type { ApprovalRequest, CustomerNotificationType, ApprovalRequestType } from '../types/customerNotification';
 
 /**

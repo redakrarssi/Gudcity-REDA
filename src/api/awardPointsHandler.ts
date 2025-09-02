@@ -9,7 +9,7 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import sql from '../utils/db';
 import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 
 /**
  * Award points to a customer

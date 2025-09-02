@@ -1,5 +1,5 @@
 import { CustomerNotificationService } from '../services/customerNotificationService';
-import { logger } from './logger';
+import { log as logger } from './logger';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { createCardSyncEvent } from './realTimeSync';
 import sql from './db';

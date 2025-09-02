@@ -7,7 +7,7 @@
 
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { CustomerNotificationService } from '../services/customerNotificationService';
-import { logger } from './logger';
+import { log as logger } from './logger';
 import { v4 as uuidv4 } from 'uuid';
 import type { CustomerNotificationType } from '../types/customerNotification';
 

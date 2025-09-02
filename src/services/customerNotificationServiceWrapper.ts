@@ -6,7 +6,7 @@
  */
 
 import sql from '../utils/db';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { CustomerNotificationService } from './customerNotificationService';
 import { LoyaltyCardService } from './loyaltyCardService';
 import * as serverFunctions from '../server';

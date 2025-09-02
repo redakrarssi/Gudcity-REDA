@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import sql from '../utils/db';
 import db from '../utils/databaseConnector';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { Customer } from '../types/customer';
 import { QRCodeData } from '../types/qrCode';
 

@@ -7,7 +7,7 @@
 import sql from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
 import * as serverFunctions from '../server';
-import { logger } from '../utils/logger';
+import { log as logger } from '../utils/logger';
 import { createNotificationSyncEvent, createEnrollmentSyncEvent, createCardSyncEvent } from '../utils/realTimeSync';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';
 import { LoyaltyProgramService } from './loyaltyProgramService';

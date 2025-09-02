@@ -10,7 +10,7 @@ import { QrCodeStorageService } from '../services/qrCodeStorageService';
 import { createStandardCustomerQRCode } from './standardQrCodeGenerator';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { User } from '../services/userService';
-import { logger } from './logger';
+import { log as logger } from './logger';
 import db from '../utils/db';
 
 /**
