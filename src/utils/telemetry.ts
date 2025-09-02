@@ -3,33 +3,7 @@
  * especially focused on database connection health and query performance.
  */
 
-// Browser-safe logger import
-let logger: any;
-
-// Check if we're in a browser environment
-if (typeof window !== 'undefined') {
-  // Browser environment - use console as fallback
-  logger = {
-    info: console.log.bind(console),
-    warn: console.warn.bind(console),
-    error: console.error.bind(console),
-    debug: console.log.bind(console)
-  };
-} else {
-  // Node.js environment - use Winston logger
-  try {
-    const { rawLogger } = require('./logger');
-    logger = rawLogger;
-  } catch (error) {
-    // Fallback to console if logger import fails
-    logger = {
-      info: console.log.bind(console),
-      warn: console.warn.bind(console), 
-      error: console.error.bind(console),
-      debug: console.log.bind(console)
-    };
-  }
-}
+import { logger } from './logger';
 
 // Define metric types
 export type MetricName = 

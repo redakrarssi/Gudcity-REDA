@@ -194,14 +194,14 @@ export const log = {
   server: (message: string, meta?: object) => {
     logger.info(`🚀 SERVER: ${message}`, { server: true, ...meta });
   },
-
+  
   /**
    * API request logging
    */
   api: (message: string, meta?: object) => {
     logger.info(`📡 API: ${message}`, { api: true, ...meta });
   },
-
+  
   /**
    * Database-related logging
    */
@@ -220,7 +220,7 @@ export const logUtils = {
       log[level](message, meta);
     }
   },
-
+  
   /**
    * Log only in production environment
    */
@@ -229,7 +229,7 @@ export const logUtils = {
       log[level](message, meta);
     }
   },
-
+  
   /**
    * Create a child logger with context
    */
