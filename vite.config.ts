@@ -76,11 +76,15 @@ export default defineConfig({
       './server': resolve(__dirname, 'src/utils/serverMock.ts'),
       '../server': resolve(__dirname, 'src/utils/serverMock.ts'),
       'src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
-      '/src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
       './server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
       '../server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
       'src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
-      '/src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      // Add more specific aliases for server imports
+      'server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      'server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      // Add absolute path aliases
+      '/server': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '/src/server': resolve(__dirname, 'src/utils/serverMock.ts'),
     }
   },
   
