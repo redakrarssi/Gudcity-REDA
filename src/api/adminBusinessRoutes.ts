@@ -101,10 +101,10 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
       SELECT 
         u.id AS user_id,
         u.name AS user_name,
-        u.email AS user_email,
+        COALESCE(u.email, b.email) AS user_email,
         u.created_at AS user_created_at,
         u.business_name AS user_business_name,
-        u.business_phone AS user_business_phone,
+        COALESCE(u.business_phone, b.phone) AS user_business_phone,
         u.avatar_url AS user_avatar_url,
         u.status AS user_status,
         b.id AS business_id,
@@ -113,7 +113,7 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
         b.type,
         COALESCE(b.status, u.status, 'active') AS status,
         COALESCE(b.address, bp.address, bs.address) AS address,
-        COALESCE(bp.phone, bs.phone, u.business_phone) AS phone,
+        COALESCE(bp.phone, bs.phone, u.business_phone, b.phone) AS phone,
         b.logo,
         COALESCE(bp.currency, 'USD') AS currency,
         MAX(bdl.login_time) AS last_login_time,
@@ -154,7 +154,11 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
       LEFT JOIN business_promotions bpromo ON bpromo.business_id = b.id
       LEFT JOIN recent_daily_json rd ON rd.business_id = b.id
       LEFT JOIN older_monthly_json om ON om.business_id = b.id
-      WHERE u.user_type = 'business'
+      WHERE (
+        LOWER(COALESCE(u.user_type, '')) = 'business' 
+        OR LOWER(COALESCE(u.role, '')) = 'business'
+        OR b.id IS NOT NULL
+      )
       GROUP BY 
         u.id, u.name, u.email, u.created_at, u.business_name, u.business_phone, u.avatar_url, u.status,
         b.id, b.name, b.owner, b.type, b.status, b.address, b.logo, bp.address, bs.address, 
