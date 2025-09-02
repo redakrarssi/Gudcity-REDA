@@ -1048,7 +1048,7 @@ const BusinessSettings = () => {
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('Points per Dollar Spent')}
+            {t('Points per Unit Spent')}
           </label>
           <div className="relative">
             <input
@@ -1079,7 +1079,7 @@ const BusinessSettings = () => {
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {t('How many points customers earn for each dollar spent at your business')}
+            {t('How many points customers earn for each unit spent at your business')}
           </p>
         </div>
         

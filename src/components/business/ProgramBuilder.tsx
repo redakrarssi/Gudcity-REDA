@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PlusCircle, MinusCircle, Award, Check, ChevronRight, ChevronLeft, Star, Gift, Zap } from 'lucide-react';
 import type { LoyaltyProgram, ProgramType, RewardTier } from '../../types/loyalty';
+import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
 interface ProgramBuilderProps {
   initialProgram?: LoyaltyProgram;
@@ -11,6 +12,7 @@ interface ProgramBuilderProps {
 
 export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, onSubmit, onCancel }) => {
   const { t } = useTranslation();
+  const { currencySymbol } = useBusinessCurrency();
   const [program, setProgram] = useState<Partial<LoyaltyProgram>>({
     name: initialProgram?.name || '',
     description: initialProgram?.description || '',
@@ -186,7 +188,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
               <div className="bg-white border border-gray-200 rounded-lg p-6 animate-fadeIn">
                 <label className="block text-sm font-medium text-gray-700 mb-4">{t('How much do customers need to spend to earn 1 point?')}</label>
                 <div className="flex items-center">
-                  <span className="mr-4 text-xl">$</span>
+                  <span className="mr-4 text-xl">{currencySymbol}</span>
                   <input
                     type="number"
                     value={program.pointValue}
@@ -342,7 +344,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 
                 <div className="mt-2 text-sm text-gray-600">
                   {program.type === 'POINTS' && (
-                    <p>{t('Customers earn 1 point for every')} ${program.pointValue} {t('spent')}</p>
+                    <p>{t('Customers earn 1 point for every')} {currencySymbol}{program.pointValue} {t('spent')}</p>
                   )}
                   {program.expirationDays 
                     ? t('Points expire after {{days}} days', { days: program.expirationDays })
