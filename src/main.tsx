@@ -92,8 +92,13 @@ const AppLoading = () => (
 );
 
 // Initialize the database and app when it starts
-initDb();
-startAppInitialization();
+try {
+  initDb();
+  startAppInitialization();
+} catch (error) {
+  console.error('Error during app initialization:', error);
+  // Continue with app rendering even if initialization fails
+}
 
 // Log app version and initialization
   console.log(`Vcarda App v${import.meta.env.VITE_APP_VERSION || '1.0.0'}`);
@@ -111,20 +116,35 @@ const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 
 // Create and render the app with performance optimizations
-const root = createRoot(rootElement);
-root.render(
-  <StrictMode>
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <Suspense fallback={<AppLoading />}>
-            <App />
-          </Suspense>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </HelmetProvider>
-  </StrictMode>
-);
+try {
+  const root = createRoot(rootElement);
+  root.render(
+    <StrictMode>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <Suspense fallback={<AppLoading />}>
+              <App />
+            </Suspense>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </HelmetProvider>
+    </StrictMode>
+  );
+} catch (error) {
+  console.error('Error rendering app:', error);
+  // Fallback to simple content if React rendering fails
+  rootElement.innerHTML = `
+    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+      <h1>Vcarda Loyalty Platform</h1>
+      <p>Loading application...</p>
+      <p>If this message persists, please refresh the page.</p>
+      <button onclick="window.location.reload()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        Refresh Page
+      </button>
+    </div>
+  `;
+}
 
 // Monitor web vitals for performance tracking
 reportWebVitals(console.log);
