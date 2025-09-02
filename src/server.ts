@@ -81,6 +81,7 @@ if (isBrowser) {
   import { createServer } from 'http';
   import { Server, Socket } from 'socket.io';
   import { csrfMiddleware, ensureCsrfCookie, CSRF_HEADER_NAME } from './utils/csrf';
+  import crypto from 'crypto';
 
   // Import centralized API routes
   import apiRoutes from './api/index';
@@ -196,8 +197,9 @@ if (isBrowser) {
         legacyHeaders: false,
         keyGenerator: (req: any) => {
           const ip = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown';
-          const user = (req.body && req.body.email) || '';
-          return `auth:${ip}:${user}`;
+          const email = (req.body && req.body.email) || '';
+          const hashedEmail = email ? crypto.createHash('sha256').update(email).digest('hex') : '';
+          return `auth:${ip}:${hashedEmail}`;
         }
       });
       app.use('/api/auth', authLimiter as any);

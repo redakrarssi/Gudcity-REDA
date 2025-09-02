@@ -993,4 +993,113 @@ Customer → Redeem Reward → Business Notification → Fulfillment → Custome
 - **Priority Queuing**: Important notification prioritization
 - **Background Processing**: Non-blocking notification handling
 
-This comprehensive documentation provides a complete overview of both the reward system and business notification system, enabling developers to understand, maintain, and extend these critical components of the GudCity REDA platform. 
+This comprehensive documentation provides a complete overview of both the reward system and business notification system, enabling developers to understand, maintain, and extend these critical components of the GudCity REDA platform.
+
+---
+
+## ADMIN BUSINESSES PAGE FIX - December 2024
+
+### Issue Resolved
+Fixed the `/admin/businesses` page that was showing "Loading businesses..." indefinitely and displaying incorrect customer counts.
+
+### Root Causes Identified
+1. **Infinite Loading Loop**: The `BusinessTables` component had an unstable dependency (`onRefresh`) in its `useEffect` that caused continuous re-fetching
+2. **Empty Business Data**: The primary `/api/admin/businesses` endpoint was returning empty results due to strict filtering
+3. **Inaccurate Customer Counting**: Customer counts were using different logic than the actual customer list, leading to mismatched numbers
+
+### Solutions Implemented
+
+#### 1. Fixed Infinite Loading
+**File**: `src/components/admin/BusinessTables.tsx`
+- **Problem**: `useEffect(() => { loadBusinesses(); }, [onRefresh, activeTab]);` caused endless refresh cycles
+- **Solution**: Removed `onRefresh` dependency: `useEffect(() => { loadBusinesses(); }, [activeTab]);`
+- **Result**: Page loads once and stops, eliminating the infinite "Loading businesses..." state
+
+#### 2. Enhanced Data Fetching with Fallback
+**Files**: `src/components/admin/BusinessTables.tsx`, `src/api/adminBusinessRoutes.ts`
+- **Problem**: `/api/admin/businesses` returned empty when businesses existed in the system
+- **Solution**: Implemented multi-layered fallback system:
+  1. Primary: Enhanced `/api/admin/businesses` with broader filtering (`user_type = 'business' OR role = 'business' OR businesses table exists`)
+  2. Fallback: Use `getUsersByType('business')` from Users page (proven to work)
+  3. Enrichment: Merge data from `/api/businesses/admin/overview` for addresses and metrics
+- **Result**: Always shows businesses even when primary API fails
+
+#### 3. Accurate Customer Counting
+**File**: `src/services/customerService.ts`
+- **Problem**: `countBusinessCustomers()` used different logic than `getBusinessCustomers()`, causing count mismatches (e.g., showing 6 when actual list had 4)
+- **Solution**: Made counting use identical logic:
+  ```typescript
+  static async countBusinessCustomers(businessId: string): Promise<number> {
+    const customers = await this.getBusinessCustomers(businessId);
+    return customers.length;
+  }
+  ```
+- **Result**: Customer count in header matches exactly what's shown in the customer list
+
+#### 4. Replaced Time Spent with Customer List
+**File**: `src/components/admin/BusinessTables.tsx`
+- **Removed**: "Time Spent" panel (daily/monthly session data)
+- **Added**: "Customers" panel showing:
+  - Customer count in header
+  - List of actual customers with names, emails, points, and program counts
+  - Up to 10 customers displayed with "... and X more" indicator
+- **Result**: More useful business information focused on customer relationships
+
+#### 5. Enhanced Program and Customer Data
+**Files**: `src/components/admin/BusinessTables.tsx`, `src/services/loyaltyProgramService.ts`
+- **Added**: Real program counting via `LoyaltyProgramService.getBusinessPrograms(businessId)`
+- **Added**: Customer counting via multiple enrollment sources:
+  - `loyalty_cards` table
+  - `program_enrollments` joined to `loyalty_programs`
+  - `customer_program_enrollments` table
+  - Fallback to `business_transactions`
+- **Result**: Accurate program and customer counts with actual data display
+
+### Technical Implementation Details
+
+#### Multi-Source Customer Counting
+The system now counts customers from multiple enrollment sources to ensure accuracy:
+```sql
+-- Primary: Program enrollments
+SELECT DISTINCT c.id FROM users c
+JOIN program_enrollments pe ON c.id = pe.customer_id
+JOIN loyalty_programs lp ON pe.program_id = lp.id
+WHERE lp.business_id = ? AND c.user_type = 'customer'
+
+-- Secondary: Loyalty cards
+SELECT DISTINCT customer_id FROM loyalty_cards
+WHERE business_id = ?
+
+-- Fallback: Business transactions
+SELECT DISTINCT customer_id FROM business_transactions
+WHERE business_id = ?
+```
+
+#### Fallback Data Pipeline
+1. **Primary**: `/api/admin/businesses` with enhanced filtering
+2. **Fallback**: `getUsersByType('business')` from userService
+3. **Enrichment**: Merge with `/api/businesses/admin/overview` for complete data
+4. **Enhancement**: Add real-time program and customer data via services
+
+### Files Modified
+- `src/components/admin/BusinessTables.tsx` - Fixed loading, added customer display, removed time spent
+- `src/api/adminBusinessRoutes.ts` - Enhanced filtering for broader business matching
+- `src/services/customerService.ts` - Fixed customer counting accuracy with detailed logging
+- Removed duplicate imports that caused Vercel build failures
+
+### Verification Steps
+1. Navigate to `/admin/businesses`
+2. Page loads without infinite loading
+3. Businesses display with accurate program and customer counts
+4. Expand business details to see customer list matching the count
+5. Console logs show detailed customer counting process for debugging
+
+### Result
+- ✅ `/admin/businesses` loads properly without infinite loading
+- ✅ Shows all registered businesses with their actual programs
+- ✅ Displays accurate customer counts that match the customer list
+- ✅ Provides detailed customer information in expandable sections
+- ✅ Eliminates "No businesses found" when businesses exist
+- ✅ Fixes "No address provided" by merging multiple data sources
+
+This fix ensures the admin businesses page provides accurate, comprehensive business management capabilities following the reda.md guidelines of not modifying core services unnecessarily and maintaining data consistency. 

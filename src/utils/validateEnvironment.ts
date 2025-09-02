@@ -43,10 +43,42 @@ export function validateSecurityEnvironment(): SecurityValidationResult {
     criticalIssues.push('DATABASE_URL is not configured');
     errors.push('DATABASE_URL is required for database connectivity');
   } else {
-    // Check for hardcoded credentials in database URL
-    if (env.DATABASE_URL.includes('neondb_owner:npg_rpc6Nh5oKGzt')) {
-      criticalIssues.push('DATABASE_URL contains hardcoded credentials - SECURITY RISK');
-      errors.push('Remove hardcoded database credentials immediately');
+    // Check for placeholder, default, or suspicious credential patterns
+    const suspiciousPatterns = [
+      // Common placeholder patterns
+      /username:password/i,
+      /user:pass/i,
+      /admin:admin/i,
+      /root:root/i,
+      /test:test/i,
+      /demo:demo/i,
+      /example:example/i,
+      // Simple password patterns
+      /:password@/i,
+      /:123456@/i,
+      /:admin@/i,
+      /:test@/i,
+      // Development/placeholder indicators
+      /localhost.*:.*@/i,
+      /127\.0\.0\.1.*:.*@/i,
+      // Generic warning patterns for common insecure practices
+      /@localhost/i,
+      /@127\.0\.0\.1/i
+    ];
+    
+    const foundSuspiciousPattern = suspiciousPatterns.some(pattern => 
+      pattern.test(env.DATABASE_URL)
+    );
+    
+    if (foundSuspiciousPattern) {
+      criticalIssues.push('DATABASE_URL contains suspicious credential patterns - SECURITY RISK');
+      errors.push('Database URL appears to contain placeholder or insecure credentials');
+    }
+    
+    // Additional checks for production environment
+    if (env.isProduction() && env.DATABASE_URL.includes('localhost')) {
+      criticalIssues.push('DATABASE_URL uses localhost in production environment');
+      errors.push('Production database should not use localhost');
     }
   }
 

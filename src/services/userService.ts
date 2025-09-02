@@ -130,48 +130,11 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     
     // Check if we're in mock mode (no database connection)
     if (!env.DATABASE_URL) {
-      console.log('Using mock data mode for getUserByEmail');
+      console.log('No database connection available - users must be created through proper registration');
       
-      // Return mock users for development/testing
-      const mockEmail = email.toLowerCase();
-      if (mockEmail === 'admin@vcarda.com') {
-        return {
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@vcarda.com',
-          password: 'a4def47bd16d0a847e2cdf3d2e828bc9594c3e12e57398e45c59fa943dfa61a0', // password
-          role: 'admin',
-          user_type: 'customer',
-          status: 'active',
-          created_at: new Date()
-        };
-      } else if (mockEmail === 'customer@example.com') {
-        return {
-          id: 2,
-          name: 'Demo Customer',
-          email: 'customer@example.com',
-          password: 'a4def47bd16d0a847e2cdf3d2e828bc9594c3e12e57398e45c59fa943dfa61a0', // password
-          role: 'customer',
-          user_type: 'customer',
-          status: 'active',
-          created_at: new Date()
-        };
-      } else if (mockEmail === 'business@example.com') {
-        return {
-          id: 3,
-          name: 'Demo Business',
-          email: 'business@example.com',
-          password: 'a4def47bd16d0a847e2cdf3d2e828bc9594c3e12e57398e45c59fa943dfa61a0', // password
-          role: 'business',
-          user_type: 'business',
-          business_name: 'Demo Business LLC',
-          business_phone: '+1234567890',
-          status: 'active',
-          created_at: new Date()
-        };
-      }
-      
-      console.log(`No mock user found with email: ${email}`);
+      // SECURITY: No hardcoded users - all users must be created through proper registration
+      // with their own passwords. This ensures no hardcoded credentials exist in the system.
+      console.log(`No user found with email: ${email} (Database connection required)`);
       return null;
     }
     
@@ -363,7 +326,7 @@ export async function validateUser(email: string, password: string): Promise<Use
       return userWithoutPassword as User;
     } 
     
-    // SECURITY: Removed hardcoded demo credentials - never allow fallback to demo users in production
+    // SECURITY: No hardcoded credentials - all authentication requires database connection
     if (!user && !env?.DATABASE_URL) {
       console.error('SECURITY ALERT: Database connection unavailable - authentication failed');
       throw new Error('Authentication service unavailable. Please check database connection.');
@@ -386,70 +349,23 @@ export async function deleteUser(id: number): Promise<boolean> {
   }
 }
 
-// Ensure demo users exist in the system
+// SECURITY: Demo users disabled - all users must register with their own passwords
 export async function ensureDemoUsers(): Promise<void> {
   try {
-    console.log('Ensuring demo users exist...');
+    console.log('Demo user creation disabled for security - all users must register properly');
     
     // First, ensure the users table exists with all required columns
     await ensureUserTableExists();
     
-    // Check if admin user exists
-    const adminEmail = 'admin@vcarda.com';
-    const existingAdmin = await getUserByEmail(adminEmail);
+    // SECURITY: No automatic demo user creation with hardcoded passwords.
+    // All users must be created through the proper registration process where they
+    // set their own secure passwords. This eliminates any hardcoded credentials
+    // from the system and ensures proper password security.
     
-    if (!existingAdmin) {
-      console.log('Creating demo admin user...');
-      await createUser({
-        name: 'Admin User',
-        email: adminEmail,
-        password: 'password',
-        role: 'admin',
-        user_type: 'customer',
-      });
-    } else {
-      console.log('Admin user already exists');
-    }
+    console.log('Users must register through the registration form with their own secure passwords');
     
-    // Check if customer demo user exists
-    const customerEmail = 'customer@example.com';
-    const existingCustomer = await getUserByEmail(customerEmail);
-    
-    if (!existingCustomer) {
-      console.log('Creating demo customer user...');
-      await createUser({
-        name: 'Demo Customer',
-        email: customerEmail,
-        password: 'password',
-        role: 'customer',
-        user_type: 'customer',
-      });
-    } else {
-      console.log('Customer demo user already exists');
-    }
-    
-    // Check if business demo user exists
-    const businessEmail = 'business@example.com';
-    const existingBusiness = await getUserByEmail(businessEmail);
-    
-    if (!existingBusiness) {
-      console.log('Creating demo business user...');
-      await createUser({
-        name: 'Demo Business',
-        email: businessEmail,
-        password: 'password',
-        role: 'business',
-        user_type: 'business',
-        business_name: 'Demo Business LLC',
-        business_phone: '+1234567890',
-      });
-    } else {
-      console.log('Business demo user already exists');
-    }
-    
-    console.log('Demo users check completed');
   } catch (error) {
-    console.error('Error ensuring demo users exist:', error);
+    console.error('Error during database initialization:', error);
   }
 }
 
@@ -568,51 +484,13 @@ export async function getUsersByType(userType: UserType | 'all' | 'staff'): Prom
   try {
     console.log(`Fetching users of type: ${userType}`);
     
-    // If no database connection, return mock data
+    // If no database connection, return empty array
     if (!env.DATABASE_URL) {
-      console.log('Using mock data for getUsersByType');
+      console.log('No database connection available - getUsersByType requires database');
       
-      // Return mock users
-      const mockUsers: User[] = [
-        {
-          id: 1,
-          name: 'Admin User',
-          email: 'admin@vcarda.com',
-          role: 'admin',
-          user_type: 'customer',
-          status: 'active',
-          created_at: new Date()
-        },
-        {
-          id: 2,
-          name: 'Demo Customer',
-          email: 'customer@example.com',
-          role: 'customer',
-          user_type: 'customer',
-          status: 'active',
-          created_at: new Date()
-        },
-        {
-          id: 3,
-          name: 'Demo Business',
-          email: 'business@example.com',
-          role: 'business',
-          user_type: 'business',
-          business_name: 'Demo Business LLC',
-          business_phone: '+1234567890',
-          status: 'active',
-          created_at: new Date()
-        }
-      ];
-      
-      // Filter based on userType
-      if (userType === 'all') {
-        return mockUsers;
-      } else if (userType === 'staff') {
-        return mockUsers.filter(user => user.role === 'admin');
-      } else {
-        return mockUsers.filter(user => user.user_type === userType);
-      }
+      // SECURITY: No mock users - all users must exist in database through proper registration
+      console.log('Database connection required to retrieve users');
+      return [];
     }
     
     // With database connection, use real queries
@@ -654,11 +532,9 @@ export async function getUsersByType(userType: UserType | 'all' | 'staff'): Prom
     const users = await query;
     console.log(`Retrieved ${users.length} users of type ${userType}:`, users);
     
-    // If no users and this is during initialization, create some demo users
+    // SECURITY: No automatic demo user creation - users must register properly
     if (users.length === 0) {
-      await ensureDemoUsers();
-      // Try again after creating demo users
-      return getUsersByType(userType);
+      console.log(`No users found of type ${userType} - users must register through the registration form`);
     }
     
     return users as User[];
