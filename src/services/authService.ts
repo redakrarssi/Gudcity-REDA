@@ -2,6 +2,7 @@ import sql from '../utils/db';
 import env from '../utils/env';
 import { User, getUserByEmail } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
+import bcrypt from 'bcryptjs';
 
 // For rate limiting
 interface RateLimitEntry {
@@ -448,9 +449,18 @@ function parseJwtExpiry(expiry: string): number {
 }
 
 /**
- * Hash password with stronger settings
+ * Hash password with stronger settings and comprehensive error handling
  */
 export async function hashPassword(password: string): Promise<string> {
+  // Input validation
+  if (!password || typeof password !== 'string') {
+    throw new Error('Password is required and must be a string');
+  }
+
+  if (password.length === 0) {
+    throw new Error('Password cannot be empty');
+  }
+
   try {
     // SECURITY: Validate password before hashing
     const validation = validatePassword(password);
@@ -458,46 +468,183 @@ export async function hashPassword(password: string): Promise<string> {
       throw new Error(`Password validation failed: ${validation.errors.join(', ')}`);
     }
     
-    // Import bcrypt dynamically
-    const bcrypt = await import('bcryptjs');
+    // Primary method: Use bcrypt with static import
+    try {
+      if (!bcrypt || typeof bcrypt.genSalt !== 'function' || typeof bcrypt.hash !== 'function') {
+        throw new Error('bcrypt functions not available');
+      }
+
     // Use a higher cost factor (12-14 is recommended for security vs. performance)
-    const salt = await bcrypt.genSalt(14);
-    return bcrypt.hash(password, salt);
+      const saltRounds = 14;
+      const salt = await bcrypt.genSalt(saltRounds);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      
+      // Verify the hash was created successfully
+      if (!hashedPassword || typeof hashedPassword !== 'string' || hashedPassword.length === 0) {
+        throw new Error('bcrypt failed to generate hash');
+      }
+
+      // Additional validation: bcrypt hashes should start with $2
+      if (!hashedPassword.startsWith('$2')) {
+        throw new Error('bcrypt generated invalid hash format');
+      }
+
+      console.log('✅ Password hashed successfully with bcrypt');
+      return hashedPassword;
+
+    } catch (bcryptError) {
+      console.warn('bcrypt hashing failed, attempting fallback:', bcryptError);
+      
+      // Fallback method: Use crypto-based hashing
+      try {
+        if (!cryptoUtils || typeof cryptoUtils.createSha256Hash !== 'function') {
+          throw new Error('Crypto utilities not available');
+        }
+
+        // Generate a cryptographically secure salt for SHA-256 fallback
+        const timestamp = Date.now().toString();
+        let randomValue: string;
+        
+        // Use crypto.randomBytes if available for secure random generation
+        try {
+          const crypto = await import('crypto');
+          randomValue = crypto.randomBytes(16).toString('hex');
+        } catch {
+          // Final fallback: use performance timing (avoid Math.random)
+          const performanceNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          randomValue = (timestamp + performanceNow.toString()).slice(-16);
+        }
+        
+        const salt = `${timestamp}_${randomValue}`;
+        const saltedPassword = `${salt}:${password}`;
+        
+        const sha256Hash = await cryptoUtils.createSha256Hash(saltedPassword);
+        const fallbackHash = `sha256:${salt}:${sha256Hash}`;
+
+        console.warn('⚠️ Using SHA-256 fallback for password hashing');
+        return fallbackHash;
+
+      } catch (cryptoError) {
+        console.error('Crypto fallback also failed:', cryptoError);
+        throw new Error('All password hashing methods failed - system configuration error');
+      }
+    }
+
   } catch (error) {
-    console.error('Error hashing password:', error);
-    throw new Error('Failed to hash password');
+    console.error('Password hashing error:', error);
+    
+    // Provide specific error messages for different failure modes
+    if (error instanceof Error) {
+      if (error.message.includes('Password validation failed')) {
+        throw error; // Re-throw validation errors as-is
+      } else if (error.message.includes('system configuration')) {
+        throw new Error('Password hashing system is not properly configured. Please contact support.');
+      } else if (error.message.includes('bcrypt')) {
+        throw new Error('Password encryption service temporarily unavailable. Please try again.');
+      } else {
+        throw new Error(`Password hashing failed: ${error.message}`);
+      }
+    }
+    
+    throw new Error('Password hashing failed due to unknown error');
   }
 }
 
 /**
- * Verify password using bcrypt or fallback to SHA-256
+ * Verify password using bcrypt or fallback to SHA-256 with comprehensive error handling
  */
 export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  // Input validation
+  if (!plainPassword || typeof plainPassword !== 'string') {
+    console.error('Invalid plainPassword provided for verification');
+    return false;
+  }
+
+  if (!hashedPassword || typeof hashedPassword !== 'string') {
+    console.error('Invalid hashedPassword provided for verification');
+    return false;
+  }
+
+  if (plainPassword.length === 0) {
+    console.error('Empty password provided for verification');
+    return false;
+  }
+
+  if (hashedPassword.length === 0) {
+    console.error('Empty hash provided for verification');
+    return false;
+  }
+
   try {
-    // If password or hash is missing, fail the validation
-    if (!plainPassword || !hashedPassword) {
-      console.error('Missing password or hash during verification');
+    // Method 1: bcrypt verification (starts with $2a$, $2b$, etc.)
+    if (hashedPassword.startsWith('$2')) {
+      try {
+        if (!bcrypt || typeof bcrypt.compare !== 'function') {
+          console.error('bcrypt compare function not available');
       return false;
     }
 
-    // First try bcrypt (secure)
-    try {
-      // Import bcrypt dynamically to avoid SSR issues
-      const bcrypt = await import('bcryptjs');
-      
-      // Check if it's a bcrypt hash (starts with $2a$, $2b$, etc.)
-      if (hashedPassword.startsWith('$2')) {
-        return await bcrypt.compare(plainPassword, hashedPassword);
+        const isValid = await bcrypt.compare(plainPassword, hashedPassword);
+        console.log('✅ Password verified with bcrypt:', isValid ? 'valid' : 'invalid');
+        return isValid;
+
+      } catch (bcryptError) {
+        console.error('bcrypt password verification failed:', bcryptError);
+        return false;
       }
-    } catch (bcryptError) {
-      console.log('bcryptjs not available, falling back to SHA-256');
     }
-    
-    // Fallback to SHA-256 hash for legacy passwords
-    const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
-    return sha256Hash === hashedPassword;
+
+    // Method 2: SHA-256 with salt verification (our fallback format: sha256:salt:hash)
+    if (hashedPassword.startsWith('sha256:')) {
+      try {
+        const parts = hashedPassword.split(':');
+        if (parts.length !== 3) {
+          console.error('Invalid SHA-256 hash format');
+          return false;
+        }
+
+        const [, salt, hash] = parts;
+        if (!salt || !hash) {
+          console.error('Missing salt or hash in SHA-256 format');
+          return false;
+        }
+
+        const saltedPassword = `${salt}:${plainPassword}`;
+        const computedHash = await cryptoUtils.createSha256Hash(saltedPassword);
+        const isValid = computedHash === hash;
+        
+        console.log('✅ Password verified with SHA-256 fallback:', isValid ? 'valid' : 'invalid');
+        return isValid;
+
+      } catch (sha256Error) {
+        console.error('SHA-256 fallback verification failed:', sha256Error);
+        return false;
+      }
+    }
+
+    // Method 3: Legacy SHA-256 hash (plain hash without salt)
+    try {
+      if (!cryptoUtils || typeof cryptoUtils.createSha256Hash !== 'function') {
+        console.error('Crypto utilities not available for legacy hash verification');
+        return false;
+      }
+
+      const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
+      const isValid = sha256Hash === hashedPassword;
+      
+      if (isValid) {
+        console.warn('⚠️ Password verified with legacy SHA-256 (consider upgrading to bcrypt)');
+      }
+      
+      return isValid;
+
+    } catch (legacyError) {
+      console.error('Legacy SHA-256 verification failed:', legacyError);
+      return false;
+    }
+
   } catch (error) {
-    console.error('Error verifying password:', error);
+    console.error('Password verification error:', error);
     return false;
   }
 }
