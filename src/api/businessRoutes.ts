@@ -110,12 +110,17 @@ interface BusinessEnrollmentResult {
 }
 router.get('/businesses/:id/enrolled-customers', auth, async (req: Request, res: Response) => {
   try {
-    const { id: businessId } = req.params;
-    const { programId } = req.query;
+    const { id: businessIdParam } = req.params;
+    const { programId: programIdParam } = req.query;
     
-    if (!businessId || !programId) {
+    // SECURITY: Validate input parameters before using in SQL
+    if (!businessIdParam || !programIdParam) {
       return res.status(400).json({ error: 'Missing businessId or programId' });
     }
+    
+    // SECURITY: Use proper validation instead of type assertion
+    const businessId = validateBusinessId(businessIdParam);
+    const programId = validateUserId(String(programIdParam)); // Validate program ID format
     
     const results = await sql<BusinessEnrollmentResult[]>`
       SELECT u.id, u.name
@@ -124,13 +129,14 @@ router.get('/businesses/:id/enrolled-customers', auth, async (req: Request, res:
       JOIN loyalty_programs lp ON ce.program_id = lp.id
       WHERE lp.business_id = ${businessId}
       AND u.user_type = 'customer'
-      AND ce.program_id = ${programId as string}
+      AND ce.program_id = ${programId}
     `;
     
     res.json(results);
   } catch (error) {
     console.error('Error fetching enrolled customers:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    return res.status(statusCode).json(response);
   }
 });
 
@@ -152,7 +158,8 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
     res.json(businesses);
   } catch (error) {
     console.error('Error fetching businesses:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    return res.status(statusCode).json(response);
   }
 });
 
@@ -219,7 +226,8 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
     res.json({ businesses: data });
   } catch (error) {
     console.error('Error fetching admin businesses overview:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -229,7 +237,17 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
  */
 router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const businessId = req.params.id;
+    const businessIdParam = req.params.id;
+
+    // SECURITY: Validate and sanitize business ID input
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+
+    const businessIdNumber = parseInt(businessIdParam);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
 
     // Base profile info from businesses table
     const result = await sql<any[]>`
@@ -241,7 +259,7 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
       FROM businesses b
       LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
       LEFT JOIN business_transactions bt ON b.id = bt.business_id
-      WHERE b.id = ${parseInt(businessId)}
+      WHERE b.id = ${businessIdNumber}
       GROUP BY b.id
     `;
 
@@ -252,10 +270,10 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     const base = result[0];
 
     // Programs list
-    const programs = await LoyaltyProgramService.getBusinessPrograms(String(businessId));
+    const programs = await LoyaltyProgramService.getBusinessPrograms(String(businessIdNumber));
 
     // Analytics summary (total points and redemptions)
-    const analytics = await BusinessAnalyticsService.getBusinessAnalytics(String(businessId), 'month');
+    const analytics = await BusinessAnalyticsService.getBusinessAnalytics(String(businessIdNumber), 'month');
 
     res.json({
       profile: {
@@ -283,7 +301,8 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     });
   } catch (error) {
     console.error('Error fetching business details:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -293,21 +312,41 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
  */
 router.get('/admin/:id/activity', auth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const businessId = parseInt(req.params.id);
-    const limit = Math.min(parseInt(String(req.query.limit || '5')), 50);
+    const businessIdParam = req.params.id;
+    const limitParam = req.query.limit;
+
+    // SECURITY: Validate business ID input
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+
+    const businessIdNumber = parseInt(businessIdParam);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
+
+    // SECURITY: Validate and sanitize limit parameter
+    let limitNumber = 5; // Default value
+    if (limitParam) {
+      const parsedLimit = parseInt(String(limitParam));
+      if (!isNaN(parsedLimit) && parsedLimit > 0 && parsedLimit <= 50) {
+        limitNumber = parsedLimit;
+      }
+    }
 
     const rows = await sql<any[]>`
       SELECT id, user_id, login_time, ip_address, device
       FROM business_daily_logins
-      WHERE business_id = ${businessId}
+      WHERE business_id = ${businessIdNumber}
       ORDER BY login_time DESC
-      LIMIT ${limit}
+      LIMIT ${limitNumber}
     `;
 
     res.json({ activity: rows });
   } catch (error) {
     console.error('Error fetching business activity:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -317,14 +356,30 @@ router.get('/admin/:id/activity', auth, requireAdmin, async (req: Request, res: 
  */
 router.put('/admin/:id/status', auth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const businessId = parseInt(req.params.id);
+    const businessIdParam = req.params.id;
     const { status } = req.body as { status?: string };
-    if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+
+    // SECURITY: Validate business ID input
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+
+    const businessIdNumber = parseInt(businessIdParam);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
+
+    // SECURITY: Validate status parameter with whitelist
+    const validStatuses = ['active', 'inactive', 'suspended'] as const;
+    if (!status || !validStatuses.includes(status as any)) {
+      return res.status(400).json({ 
+        error: 'Invalid status', 
+        validStatuses 
+      });
     }
 
     const updated = await sql<any[]>`
-      UPDATE businesses SET status = ${status}, updated_at = NOW() WHERE id = ${businessId} RETURNING *
+      UPDATE businesses SET status = ${status}, updated_at = NOW() WHERE id = ${businessIdNumber} RETURNING *
     `;
     if (!updated.length) {
       return res.status(404).json({ error: 'Business not found' });
@@ -332,7 +387,8 @@ router.put('/admin/:id/status', auth, requireAdmin, async (req: Request, res: Re
     res.json({ success: true, business: updated[0] });
   } catch (error) {
     console.error('Error updating business status:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -343,13 +399,23 @@ router.put('/admin/:id/status', auth, requireAdmin, async (req: Request, res: Re
 router.delete('/admin/:id', auth, requireAdmin, async (req: Request, res: Response) => {
   const client = sql;
   try {
-    const businessId = parseInt(req.params.id);
+    const businessIdParam = req.params.id;
+
+    // SECURITY: Validate business ID input
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+
+    const businessIdNumber = parseInt(businessIdParam);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
 
     // Best-effort cleanup. Some FKs are ON DELETE CASCADE, others may not be.
-    await client`DELETE FROM business_transactions WHERE business_id = ${businessId}`;
-    await client`DELETE FROM business_daily_logins WHERE business_id = ${businessId}`;
-    await client`DELETE FROM loyalty_programs WHERE business_id = ${businessId}`;
-    const deleted = await client`DELETE FROM businesses WHERE id = ${businessId} RETURNING id`;
+    await client`DELETE FROM business_transactions WHERE business_id = ${businessIdNumber}`;
+    await client`DELETE FROM business_daily_logins WHERE business_id = ${businessIdNumber}`;
+    await client`DELETE FROM loyalty_programs WHERE business_id = ${businessIdNumber}`;
+    const deleted = await client`DELETE FROM businesses WHERE id = ${businessIdNumber} RETURNING id`;
 
     if (!deleted.length) {
       return res.status(404).json({ error: 'Business not found' });
@@ -357,7 +423,8 @@ router.delete('/admin/:id', auth, requireAdmin, async (req: Request, res: Respon
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting business:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 

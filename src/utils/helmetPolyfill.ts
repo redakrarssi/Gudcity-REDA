@@ -1,9 +1,17 @@
 /**
  * Enhanced Helmet polyfill with strengthened security headers
- * This provides a production-ready security headers implementation
+ * This provides a production-ready security headers implementation with nonce-based CSP
  */
 
 import type { Request, Response, NextFunction } from './expressPolyfill';
+import crypto from 'crypto';
+
+// Extend Request interface to include CSP nonce
+declare module './expressPolyfill' {
+  interface Request {
+    cspNonce?: string;
+  }
+}
 
 // Define the HelmetOptions interface
 interface HelmetOptions {
@@ -25,6 +33,20 @@ interface HelmetOptions {
 }
 
 /**
+ * Generate a cryptographically secure nonce for CSP
+ * @returns A base64-encoded random nonce string
+ */
+function generateCSPNonce(): string {
+  try {
+    return crypto.randomBytes(16).toString('base64');
+  } catch (error) {
+    console.warn('Failed to generate crypto nonce, using fallback:', error);
+    // Fallback to timestamp + random for environments without crypto
+    return Buffer.from(`${Date.now()}_${Math.random().toString(36).slice(2)}`).toString('base64');
+  }
+}
+
+/**
  * Enhanced Helmet middleware polyfill with production-ready security
  * @param options Helmet configuration options
  * @returns Middleware function
@@ -33,12 +55,21 @@ function helmet(options: HelmetOptions = {}) {
   console.log('Enhanced Helmet polyfill initialized with options:', options);
   
   return function helmetMiddleware(req: Request, res: Response, next: NextFunction) {
-    // SECURITY: Enhanced Content Security Policy
+    // SECURITY: Generate cryptographically secure nonce for each request
+    const styleNonce = generateCSPNonce();
+    const scriptNonce = generateCSPNonce();
+    
+    // Make nonces available for use in templates
+    req.cspNonce = styleNonce;
+    (req as any).scriptNonce = scriptNonce;
+    
+    // SECURITY: Enhanced Content Security Policy with nonce-based inline styles
     const cspDirectives = [
       "default-src 'self'",
-      // SECURITY: Remove 'unsafe-eval'; keep inline only for legacy content during dev via style, not scripts
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      // SECURITY: Use nonce for scripts instead of unsafe-eval
+      `script-src 'self' 'nonce-${scriptNonce}'`,
+      // SECURITY: Use nonce for styles instead of unsafe-inline
+      `style-src 'self' 'nonce-${styleNonce}' https://fonts.googleapis.com`,
       "img-src 'self' data: https: blob:",
       "connect-src 'self' https: wss:",
       "font-src 'self' https://fonts.gstatic.com",
@@ -91,6 +122,14 @@ function helmet(options: HelmetOptions = {}) {
     next();
   };
 }
+
+/**
+ * Utility function to generate CSP nonces for use in templates
+ * Usage in HTML templates:
+ * <style nonce="${req.cspNonce}">...</style>
+ * <script nonce="${req.scriptNonce}">...</script>
+ */
+export { generateCSPNonce };
 
 // Export the helmet function
 export default helmet; 
