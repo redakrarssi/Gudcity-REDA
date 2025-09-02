@@ -144,12 +144,33 @@ export class CustomerService {
     try {
       const businessIdInt = parseInt(businessId, 10);
       if (isNaN(businessIdInt)) return 0;
+      // Prefer enrollment-based counting (works even without transactions)
       const result = await sql`
+        WITH enrolled AS (
+          SELECT DISTINCT 
+            CASE WHEN (pe.customer_id::text) ~ '^[0-9]+$' THEN pe.customer_id::int ELSE NULL END AS customer_id
+          FROM program_enrollments pe
+          JOIN loyalty_programs lp ON lp.id = pe.program_id
+          WHERE lp.business_id = ${businessIdInt}
+            AND (pe.status = 'ACTIVE' OR pe.status IS NULL)
+          UNION
+          SELECT DISTINCT 
+            CASE WHEN (cpe.customer_id::text) ~ '^[0-9]+$' THEN cpe.customer_id::int ELSE NULL END AS customer_id
+          FROM customer_program_enrollments cpe
+          WHERE cpe.business_id = ${businessIdInt}
+            AND (cpe.status = 'ACTIVE' OR cpe.status IS NULL)
+        )
+        SELECT COUNT(*) AS total FROM enrolled WHERE customer_id IS NOT NULL
+      `;
+      const total = parseInt(result[0]?.total as string);
+      if (!isNaN(total) && total > 0) return total;
+      // Fallback to transaction-based distinct customer count
+      const txn = await sql`
         SELECT COUNT(DISTINCT customer_id) as total
         FROM business_transactions
         WHERE business_id = ${businessIdInt}
       `;
-      return parseInt(result[0]?.total as string) || 0;
+      return parseInt(txn[0]?.total as string) || 0;
     } catch (error) {
       console.error('Error counting business customers:', error);
       return 0;
