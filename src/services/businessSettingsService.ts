@@ -175,7 +175,7 @@ export class BusinessSettingsService {
           // Get settings
           console.log(`Fetching business settings for ID: ${businessIdNum}`);
           const settingsResult = await sql`
-            SELECT *
+            SELECT business_id, points_per_dollar, points_expiry_days, minimum_points_redemption, welcome_bonus
             FROM business_settings
             WHERE business_id = ${businessIdNum}
           `;
@@ -207,7 +207,7 @@ export class BusinessSettingsService {
             // Fetch newly created settings
             console.log(`Fetching newly created settings for ID: ${businessIdNum}`);
             const newSettingsResult = await sql`
-              SELECT *
+              SELECT business_id, points_per_dollar, points_expiry_days, minimum_points_redemption, welcome_bonus
               FROM business_settings
               WHERE business_id = ${businessIdNum}
             `;
@@ -226,7 +226,7 @@ export class BusinessSettingsService {
       // Get user data as fallback for missing fields
       console.log(`Fetching user data for ID: ${businessIdNum}`);
       const userResult = await sql`
-        SELECT *
+        SELECT id, name, email, business_name, business_phone
         FROM users
         WHERE id = ${businessIdNum}
       `;
@@ -263,7 +263,7 @@ export class BusinessSettingsService {
       
       // First, make sure we have a business_profile entry
       const profileResult = await sql`
-        SELECT * FROM business_profile
+        SELECT id, business_name FROM business_profile
         WHERE business_id = ${businessIdNum}
       `;
       
@@ -272,7 +272,7 @@ export class BusinessSettingsService {
       if (profileResult.length === 0) {
         // Create profile if it doesn't exist
         const userResult = await sql`
-          SELECT * FROM users
+          SELECT id, name, email, business_name, business_phone FROM users
           WHERE id = ${businessIdNum}
         `;
         
@@ -592,4 +592,240 @@ export class BusinessSettingsService {
           }
         } catch (notificationError) {
           console.error('Error updating notification settings:', notificationError);
-          throw new Error(`
+          throw new Error(`Failed to update notification settings: ${notificationError instanceof Error ? notificationError.message : 'JSON format error'}`);
+        }
+      }
+      
+      // Update integrations if provided
+      if (settings.integrations) {
+        try {
+          // Check if column exists
+          const integrationsColumnsResult = await sql`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'business_profile' 
+            AND column_name = 'integrations'
+          `;
+          
+          if (integrationsColumnsResult.length > 0) {
+            // Column exists, update it
+            await sql`
+              UPDATE business_profile SET
+                integrations = ${JSON.stringify(settings.integrations)},
+                updated_at = CURRENT_TIMESTAMP
+              WHERE business_id = ${businessIdNum}
+            `;
+          } else {
+            // Column doesn't exist, try to add it
+            try {
+              console.log('Integrations column not found, attempting to add it...');
+              await sql`
+                ALTER TABLE business_profile 
+                ADD COLUMN IF NOT EXISTS integrations JSONB DEFAULT '{
+                  "pos": false,
+                  "accounting": false,
+                  "marketing": false,
+                  "crm": false
+                }'
+              `;
+              
+              // Now try to update again
+              await sql`
+                UPDATE business_profile SET
+                  integrations = ${JSON.stringify(settings.integrations)},
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE business_id = ${businessIdNum}
+              `;
+            } catch (alterError) {
+              console.error('Error adding integrations column:', alterError);
+              throw new Error(`Could not add integrations column: ${alterError instanceof Error ? alterError.message : 'Unknown error'}`);
+            }
+          }
+        } catch (integrationsError) {
+          console.error('Error updating integrations:', integrationsError);
+          throw new Error(`Failed to update integrations: ${integrationsError instanceof Error ? integrationsError.message : 'JSON format error'}`);
+        }
+      }
+      
+      // Check if business_settings table exists and update loyalty settings
+      if (settings.loyaltySettings) {
+        try {
+          const tableExists = await sql`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' 
+              AND table_name = 'business_settings'
+            ) as exists
+          `;
+          
+          if (tableExists[0]?.exists) {
+            // Check if entry exists
+            const settingsExists = await sql`
+              SELECT id FROM business_settings
+              WHERE business_id = ${businessIdNum}
+            `;
+            
+            if (settingsExists.length > 0) {
+              // Update existing settings
+              await sql`
+                UPDATE business_settings SET
+                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},
+                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},
+                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},
+                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE business_id = ${businessIdNum}
+              `;
+            } else {
+              // Insert new settings
+              await sql`
+                INSERT INTO business_settings (
+                  business_id,
+                  points_per_dollar,
+                  points_expiry_days,
+                  minimum_points_redemption,
+                  welcome_bonus
+                ) VALUES (
+                  ${businessIdNum},
+                  ${settings.loyaltySettings.pointsPerDollar},
+                  ${settings.loyaltySettings.pointsExpiryDays},
+                  ${settings.loyaltySettings.minimumPointsRedemption},
+                  ${settings.loyaltySettings.welcomeBonus}
+                )
+                ON CONFLICT (business_id) DO UPDATE SET
+                  points_per_dollar = ${settings.loyaltySettings.pointsPerDollar},
+                  points_expiry_days = ${settings.loyaltySettings.pointsExpiryDays},
+                  minimum_points_redemption = ${settings.loyaltySettings.minimumPointsRedemption},
+                  welcome_bonus = ${settings.loyaltySettings.welcomeBonus},
+                  updated_at = CURRENT_TIMESTAMP
+              `;
+            }
+          } else {
+            throw new Error('Loyalty settings table does not exist');
+          }
+        } catch (loyaltyError) {
+          console.error('Error updating loyalty settings:', loyaltyError);
+          throw new Error(`Failed to update loyalty settings: ${loyaltyError instanceof Error ? loyaltyError.message : 'Unknown error'}`);
+        }
+      }
+      
+      // Get the updated settings
+      return await this.getBusinessSettings(businessId);
+    } catch (error) {
+      console.error('Error updating business settings:', error);
+      throw error; // Re-throw the error so it can be handled by the caller
+    }
+  }
+  
+  /**
+   * Combine data from different sources into a single settings object
+   */
+  private static combineSettingsData(
+    profile: any, 
+    businessSettings: any, 
+    user: any
+  ): BusinessSettings {
+    // Default values
+    const defaultBusinessHours: BusinessHours = {
+      monday: { open: "09:00", close: "17:00", isClosed: false },
+      tuesday: { open: "09:00", close: "17:00", isClosed: false },
+      wednesday: { open: "09:00", close: "17:00", isClosed: false },
+      thursday: { open: "09:00", close: "17:00", isClosed: false },
+      friday: { open: "09:00", close: "17:00", isClosed: false },
+      saturday: { open: "10:00", close: "14:00", isClosed: false },
+      sunday: { open: "00:00", close: "00:00", isClosed: true }
+    };
+    
+    const defaultPaymentSettings: PaymentSettings = {
+      acceptsCard: true,
+      acceptsCash: true,
+      acceptsOnline: false,
+      serviceFeePercent: 0
+    };
+    
+    const defaultLoyaltySettings: LoyaltySettings = {
+      pointsPerDollar: 10,
+      pointsExpiryDays: 365,
+      minimumPointsRedemption: 100,
+      welcomeBonus: 50
+    };
+    
+    const defaultNotificationSettings: NotificationSettings = {
+      email: true,
+      push: true,
+      sms: false,
+      customerActivity: true,
+      promotionStats: true,
+      systemUpdates: true
+    };
+    
+    const defaultIntegrations: Integrations = {
+      pos: false,
+      accounting: false,
+      marketing: false,
+      crm: false
+    };
+    
+    // Extract loyalty settings from business_settings if available
+    let loyaltySettings = { ...defaultLoyaltySettings };
+    if (businessSettings) {
+      loyaltySettings = {
+        pointsPerDollar: parseFloat(businessSettings.points_per_dollar) || defaultLoyaltySettings.pointsPerDollar,
+        pointsExpiryDays: businessSettings.points_expiry_days || defaultLoyaltySettings.pointsExpiryDays,
+        minimumPointsRedemption: businessSettings.minimum_points_redemption || defaultLoyaltySettings.minimumPointsRedemption,
+        welcomeBonus: businessSettings.welcome_bonus || defaultLoyaltySettings.welcomeBonus
+      };
+    }
+    
+    // Extract from profile or use defaults
+    const businessHours = profile?.business_hours || defaultBusinessHours;
+    const paymentSettings = profile?.payment_settings || defaultPaymentSettings;
+    const notificationSettings = profile?.notification_settings || defaultNotificationSettings;
+    const integrations = profile?.integrations || defaultIntegrations;
+    
+    // Log where the business name is coming from
+    console.log('Business name sources:');
+    console.log(`- user?.name: "${user?.name}"`);
+    console.log(`- user?.business_name: "${user?.business_name}"`);
+    console.log(`- profile?.business_name: "${profile?.business_name}"`);
+    
+    // Choose business name in this order: profile.business_name, user.business_name, user.name
+    let businessName = '';
+    if (profile?.business_name) {
+      businessName = profile.business_name;
+      console.log(`Using profile.business_name: "${businessName}"`);
+    } else if (user?.business_name) {
+      businessName = user.business_name;
+      console.log(`Using user.business_name: "${businessName}"`);
+    } else if (user?.name) {
+      businessName = user.name;
+      console.log(`Using user.name: "${businessName}"`);
+    }
+    
+    // Return combined data
+    return {
+      id: profile?.id || 0,
+      businessId: user?.id || (profile?.business_id || 0),
+      name: businessName,
+      businessName: businessName,
+      phone: profile?.phone || user?.business_phone || '',
+      email: profile?.email || user?.email || '',
+      address: profile?.address_line1 || '',
+      description: profile?.description || '',
+      website: profile?.website_url || '',
+      logo: profile?.logo_url || '',
+      language: profile?.language || 'en',
+      country: profile?.country || '',
+      currency: profile?.currency || 'USD',
+      timezone: profile?.timezone || 'UTC',
+      taxId: profile?.tax_id || '',
+      businessHours,
+      paymentSettings,
+      loyaltySettings,
+      notificationSettings,
+      integrations,
+      createdAt: profile?.created_at || new Date().toISOString(),
+      updatedAt: profile?.updated_at || new Date().toISOString()
+    };
+  }
+} 

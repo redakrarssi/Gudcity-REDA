@@ -404,8 +404,7 @@ export class CustomerService {
         
         try {
           const relationships = await sql`
-            SELECT id, customer_id, business_id, status, created_at, updated_at
-            FROM customer_business_relationships
+            SELECT * FROM customer_business_relationships
             WHERE customer_id = ${customerId}
               AND business_id = ${businessId}
               AND status = 'ACTIVE'
@@ -570,8 +569,7 @@ export class CustomerService {
     try {
       // Check if the customer-business association already exists
       const existingCheck = await sql`
-        SELECT id, customer_id, business_id, status, created_at, updated_at
-        FROM customer_business_relationships
+        SELECT * FROM customer_business_relationships
         WHERE customer_id = ${customerId}
           AND business_id = ${businessId}
       `;

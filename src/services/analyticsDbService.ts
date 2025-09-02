@@ -126,36 +126,14 @@ export class AnalyticsDbService {
   ): Promise<CoreBusinessMetricsResult> {
     const results = await sql<CoreBusinessMetricsResult[]>`
       WITH current_period AS (
-        SELECT 
-          business_id,
-          period_type,
-          period_start,
-          active_customers,
-          churn_rate,
-          repeat_visit_rate,
-          avg_visit_frequency,
-          customer_lifetime_value,
-          total_revenue,
-          revenue_growth,
-          avg_order_value,
-          transactions,
-          redemptions
-        FROM business_analytics
+        SELECT * FROM business_analytics
         WHERE business_id = ${businessId}
         AND period_type = ${period}
         ORDER BY period_start DESC
         LIMIT 1
       ),
       previous_period AS (
-        SELECT 
-          business_id,
-          period_type,
-          period_start,
-          active_customers,
-          total_revenue,
-          transactions,
-          redemptions
-        FROM business_analytics
+        SELECT * FROM business_analytics
         WHERE business_id = ${businessId}
         AND period_type = ${period}
         AND period_start < (SELECT period_start FROM current_period)
@@ -375,30 +353,13 @@ export class AnalyticsDbService {
 
     const results = await sql<PlatformMetricsResult[]>`
       WITH current_period AS (
-        SELECT 
-          period_type,
-          period_start,
-          total_users,
-          active_users,
-          user_growth,
-          business_growth,
-          program_growth,
-          total_revenue,
-          revenue_growth,
-          transaction_volume,
-          avg_user_value
-        FROM platform_analytics
+        SELECT * FROM platform_analytics
         WHERE period_type = ${period}
         ORDER BY period_start DESC
         LIMIT 1
       ),
       previous_period AS (
-        SELECT 
-          period_type,
-          period_start,
-          total_users,
-          total_revenue
-        FROM platform_analytics
+        SELECT * FROM platform_analytics
         WHERE period_type = ${period}
         AND period_start < (SELECT period_start FROM current_period)
         ORDER BY period_start DESC
