@@ -117,6 +117,9 @@ const BusinessDashboard = () => {
         // Cast analytics to BusinessAnalyticsData for now to satisfy state type
         setBusinessData(analytics as unknown as BusinessAnalyticsData);
         
+        // Load business profile for settings completeness check
+        const businessProfile = await BusinessSettingsService.getBusinessSettings(user.id);
+        
         // Mock program data (will be replaced with real data later)
         setPrograms([
           {

@@ -386,7 +386,7 @@ const PromotionsPage = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-500">{t('Value Generated')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {CurrencyService.formatAmount(stats.redemptionValue || 0, currency)}
+                    {formatAmount(stats.redemptionValue || 0)}
                   </p>
                 </div>
                 <div className="bg-purple-50 p-3 rounded-full">
