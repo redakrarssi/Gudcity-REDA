@@ -1,18 +1,30 @@
 import { QueryClient } from '@tanstack/react-query';
 
-// Create a client with error handling
+// Create a client with error handling and safe defaults
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60000, // 1 minute
       retry: 1,
       onError: (error) => {
-        console.warn('Query error:', error);
+        try {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('Query error:', error);
+          }
+        } catch (bindError) {
+          // Silently fail if console binding fails
+        }
       }
     },
     mutations: {
       onError: (error) => {
-        console.warn('Mutation error:', error);
+        try {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('Mutation error:', error);
+          }
+        } catch (bindError) {
+          // Silently fail if console binding fails
+        }
       }
     }
   },
@@ -73,20 +85,36 @@ export const queryKeys = {
 // Function to invalidate all queries related to a specific customer
 export function invalidateCustomerQueries(customerId: string | number) {
   try {
-    queryClient.invalidateQueries({ queryKey: ['customers', customerId.toString()] });
-    queryClient.invalidateQueries({ queryKey: ['transactions', 'customer', customerId.toString()] });
-    queryClient.invalidateQueries({ queryKey: ['dashboard', 'customer', customerId.toString()] });
+    if (queryClient && typeof queryClient.invalidateQueries === 'function') {
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', 'customer', customerId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'customer', customerId.toString()] });
+    }
   } catch (error) {
-    console.warn('Error invalidating customer queries:', error);
+    try {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('Error invalidating customer queries:', error);
+      }
+    } catch (bindError) {
+      // Silently fail if console binding fails
+    }
   }
 }
 
 // Function to invalidate all queries related to a specific program
 export function invalidateProgramQueries(programId: string | number) {
   try {
-    queryClient.invalidateQueries({ queryKey: ['programs', programId.toString()] });
-    queryClient.invalidateQueries({ queryKey: ['transactions', 'program', programId.toString()] });
+    if (queryClient && typeof queryClient.invalidateQueries === 'function') {
+      queryClient.invalidateQueries({ queryKey: ['programs', programId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', 'program', programId.toString()] });
+    }
   } catch (error) {
-    console.warn('Error invalidating program queries:', error);
+    try {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('Error invalidating program queries:', error);
+      }
+    } catch (bindError) {
+      // Silently fail if console binding fails
+    }
   }
 } 
