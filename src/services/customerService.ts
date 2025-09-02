@@ -147,20 +147,18 @@ export class CustomerService {
       // Prefer enrollment-based counting (works even without transactions)
       const result = await sql`
         WITH enrolled AS (
-          SELECT DISTINCT 
-            CASE WHEN (pe.customer_id::text) ~ '^[0-9]+$' THEN pe.customer_id::int ELSE NULL END AS customer_id
+          SELECT DISTINCT (pe.customer_id::text) AS cid
           FROM program_enrollments pe
           JOIN loyalty_programs lp ON lp.id = pe.program_id
           WHERE lp.business_id = ${businessIdInt}
-            AND (pe.status = 'ACTIVE' OR pe.status IS NULL)
+            AND (pe.status IS NULL OR UPPER(pe.status) = 'ACTIVE')
           UNION
-          SELECT DISTINCT 
-            CASE WHEN (cpe.customer_id::text) ~ '^[0-9]+$' THEN cpe.customer_id::int ELSE NULL END AS customer_id
+          SELECT DISTINCT (cpe.customer_id::text) AS cid
           FROM customer_program_enrollments cpe
           WHERE cpe.business_id = ${businessIdInt}
-            AND (cpe.status = 'ACTIVE' OR cpe.status IS NULL)
+            AND (cpe.status IS NULL OR UPPER(cpe.status) = 'ACTIVE')
         )
-        SELECT COUNT(*) AS total FROM enrolled WHERE customer_id IS NOT NULL
+        SELECT COUNT(*) AS total FROM enrolled
       `;
       const total = parseInt(result[0]?.total as string);
       if (!isNaN(total) && total > 0) return total;
