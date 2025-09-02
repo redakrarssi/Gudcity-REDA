@@ -3,7 +3,7 @@ import { auth } from '../middleware/auth';
 import { validateBusinessId, validateUserId } from '../utils/sqlSafety';
 import { Business, BusinessListItem, BusinessWithoutSensitiveData, UserRole } from '../types/business';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
-import { log as logger } from '../utils/logger';
+import { logger } from '../utils/logger';
 import sql from '../utils/db';
 import { CustomerService } from '../services/customerService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';

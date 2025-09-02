@@ -11,7 +11,7 @@ import { batchDatabaseQueries } from './batchQueries';
 import { SqlRow } from './db';
 import { invalidateCache, invalidateCacheByTag } from './cache';
 import { telemetry } from './telemetry';
-import { log as logger } from './logger';
+import { logger } from './logger';
 import env, { FEATURES } from './env';
 import { getConnectionState, ConnectionState } from './db';
 import mockData from './mockData';

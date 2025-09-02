@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, UseQueryOptions, QueryClient } from '@tanstack/react-query';
-import { log as logger } from '../utils/logger';
+import { logger } from '../utils/logger';
 import { withRetry } from '../utils/withRetry';
 import { FEATURES } from '../utils/env';
 import { telemetry } from '../utils/telemetry';
