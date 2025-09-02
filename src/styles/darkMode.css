@@ -1,0 +1,168 @@
+/* Dark mode styles */
+
+:root {
+  --primary-bg: #ffffff;
+  --secondary-bg: #f7f9fc;
+  --accent-bg: #e5edff;
+  
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+  
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-focus: rgba(59, 130, 246, 0.2);
+  
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+:root.dark {
+  --primary-bg: #1a1a1a;
+  --secondary-bg: #111111;
+  --accent-bg: #2a2a2a;
+  
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  
+  --border-color: #333333;
+  --border-light: #444444;
+  
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-focus: rgba(59, 130, 246, 0.3);
+  
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Apply CSS variables to specific elements */
+.dark body {
+  background-color: var(--secondary-bg);
+  color: var(--text-primary);
+}
+
+.dark .bg-white {
+  background-color: var(--primary-bg);
+}
+
+.dark .bg-gray-50, 
+.dark .bg-gray-100 {
+  background-color: var(--accent-bg);
+}
+
+.dark .text-gray-800, 
+.dark .text-gray-900 {
+  color: var(--text-primary);
+}
+
+.dark .text-gray-600, 
+.dark .text-gray-700 {
+  color: var(--text-secondary);
+}
+
+.dark .text-gray-500 {
+  color: var(--text-tertiary);
+}
+
+.dark .border-gray-100, 
+.dark .border-gray-200 {
+  border-color: var(--border-color);
+}
+
+.dark .shadow-sm, 
+.dark .shadow-md, 
+.dark .shadow-lg, 
+.dark .shadow-xl {
+  box-shadow: var(--shadow-md);
+}
+
+/* Improve readability for buttons in dark mode */
+.dark button:not(.bg-blue-500):not(.bg-green-500):not(.bg-red-500):not(.bg-yellow-500):not(.bg-purple-500):not(.bg-indigo-500):not(.bg-pink-500) {
+  background-color: var(--accent-bg);
+  color: var(--text-primary);
+}
+
+.dark input, 
+.dark select, 
+.dark textarea {
+  background-color: var(--accent-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.dark input:focus, 
+.dark select:focus, 
+.dark textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-focus);
+}
+
+/* Table styles for dark mode */
+.dark table thead {
+  background-color: var(--accent-bg);
+}
+
+.dark table tbody tr:hover {
+  background-color: var(--accent-bg);
+}
+
+/* Utility classes for gradients in dark mode */
+.dark .bg-gradient-to-r.from-white.to-gray-50,
+.dark .bg-gradient-to-br.from-white.to-gray-50 {
+  background: linear-gradient(to right, var(--primary-bg), var(--accent-bg));
+}
+
+.dark .bg-gradient-to-r.from-white.to-blue-50,
+.dark .bg-gradient-to-br.from-white.to-blue-50 {
+  background: linear-gradient(to right, var(--primary-bg), #162c4a);
+}
+
+.dark .bg-gradient-to-r.from-white.to-purple-50,
+.dark .bg-gradient-to-br.from-white.to-purple-50 {
+  background: linear-gradient(to right, var(--primary-bg), #2e1e4b);
+}
+
+/* Card and modal backdrops in dark mode */
+.dark .bg-black.bg-opacity-50 {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* Improved readability for notifications/alerts in dark mode */
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.dark .bg-yellow-50 {
+  background-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Fix for code blocks and pre elements */
+.dark pre, 
+.dark code {
+  background-color: #1e1e1e;
+  color: #e2e2e2;
+} 

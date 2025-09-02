@@ -1,0 +1,6 @@
+@import './styles/animations.css';
+@import './styles/darkMode.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
