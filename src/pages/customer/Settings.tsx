@@ -20,14 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { CustomerSettingsService, type CustomerSettings } from '../../services/customerSettingsService';
-
-// Available languages
-const LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Español' },
-  { code: 'fr', name: 'Français' },
-  { code: 'ar', name: 'العربية' }
-];
+import LanguageSelector from '../../components/LanguageSelector';
 
 // Available currencies
 const CURRENCIES = [
@@ -436,26 +429,18 @@ const CustomerSettings = () => {
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Language')}
+              {t('settings.language')}
             </label>
-            {editMode ? (
-              <select
-                name="regionalSettings.language"
-                value={formData?.regionalSettings.language || 'en'}
-                onChange={handleLanguageChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {LANGUAGES.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-gray-800">
-                {LANGUAGES.find(lang => lang.code === userData?.regionalSettings.language)?.name || userData?.regionalSettings.language}
-              </p>
-            )}
+            <div className="mt-1">
+              <LanguageSelector 
+                variant="settings"
+                showIcon={true}
+                className="w-full"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {t('Language changes will be applied immediately')}
+            </p>
           </div>
           
           <div>

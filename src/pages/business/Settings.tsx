@@ -29,6 +29,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { BusinessSettingsService, type BusinessSettings } from '../../services/businessSettingsService';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
+import LanguageSelector from '../../components/LanguageSelector';
 
 // Define types for nested objects
 interface BusinessHours {
@@ -813,6 +814,22 @@ const BusinessSettings = () => {
                   )}
                 </p>
               )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.language')}
+              </label>
+              <div className="mt-1">
+                <LanguageSelector 
+                  variant="settings"
+                  showIcon={true}
+                  className="w-full"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {t('Language changes will be applied immediately')}
+              </p>
             </div>
             
             <div>

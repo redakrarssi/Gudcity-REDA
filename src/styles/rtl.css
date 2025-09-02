@@ -1,0 +1,255 @@
+/* RTL (Right-to-Left) Support for Arabic Language */
+
+/* Base RTL styles */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] body {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  text-align: right;
+}
+
+/* Layout adjustments for RTL */
+[dir="rtl"] .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .flex-col {
+  flex-direction: column;
+}
+
+[dir="rtl"] .flex-row {
+  flex-direction: row-reverse;
+}
+
+/* Margins and padding adjustments */
+[dir="rtl"] .mr-1 { margin-right: 0; margin-left: 0.25rem; }
+[dir="rtl"] .mr-2 { margin-right: 0; margin-left: 0.5rem; }
+[dir="rtl"] .mr-3 { margin-right: 0; margin-left: 0.75rem; }
+[dir="rtl"] .mr-4 { margin-right: 0; margin-left: 1rem; }
+[dir="rtl"] .mr-6 { margin-right: 0; margin-left: 1.5rem; }
+[dir="rtl"] .mr-8 { margin-right: 0; margin-left: 2rem; }
+
+[dir="rtl"] .ml-1 { margin-left: 0; margin-right: 0.25rem; }
+[dir="rtl"] .ml-2 { margin-left: 0; margin-right: 0.5rem; }
+[dir="rtl"] .ml-3 { margin-left: 0; margin-right: 0.75rem; }
+[dir="rtl"] .ml-4 { margin-left: 0; margin-right: 1rem; }
+[dir="rtl"] .ml-6 { margin-left: 0; margin-right: 1.5rem; }
+[dir="rtl"] .ml-8 { margin-left: 0; margin-right: 2rem; }
+[dir="rtl"] .ml-auto { margin-left: 0; margin-right: auto; }
+
+[dir="rtl"] .pl-1 { padding-left: 0; padding-right: 0.25rem; }
+[dir="rtl"] .pl-2 { padding-left: 0; padding-right: 0.5rem; }
+[dir="rtl"] .pl-3 { padding-left: 0; padding-right: 0.75rem; }
+[dir="rtl"] .pl-4 { padding-left: 0; padding-right: 1rem; }
+[dir="rtl"] .pl-6 { padding-left: 0; padding-right: 1.5rem; }
+[dir="rtl"] .pl-8 { padding-left: 0; padding-right: 2rem; }
+
+[dir="rtl"] .pr-1 { padding-right: 0; padding-left: 0.25rem; }
+[dir="rtl"] .pr-2 { padding-right: 0; padding-left: 0.5rem; }
+[dir="rtl"] .pr-3 { padding-right: 0; padding-left: 0.75rem; }
+[dir="rtl"] .pr-4 { padding-right: 0; padding-left: 1rem; }
+[dir="rtl"] .pr-6 { padding-right: 0; padding-left: 1.5rem; }
+[dir="rtl"] .pr-8 { padding-right: 0; padding-left: 2rem; }
+[dir="rtl"] .pr-9 { padding-right: 0; padding-left: 2.25rem; }
+
+/* Text alignment */
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .text-right { text-align: left; }
+
+/* Border radius adjustments */
+[dir="rtl"] .rounded-l { border-radius: 0; border-top-right-radius: 0.25rem; border-bottom-right-radius: 0.25rem; }
+[dir="rtl"] .rounded-r { border-radius: 0; border-top-left-radius: 0.25rem; border-bottom-left-radius: 0.25rem; }
+[dir="rtl"] .rounded-tl { border-radius: 0; border-top-right-radius: 0.25rem; }
+[dir="rtl"] .rounded-tr { border-radius: 0; border-top-left-radius: 0.25rem; }
+[dir="rtl"] .rounded-bl { border-radius: 0; border-bottom-right-radius: 0.25rem; }
+[dir="rtl"] .rounded-br { border-radius: 0; border-bottom-left-radius: 0.25rem; }
+
+/* Border adjustments */
+[dir="rtl"] .border-l { border-left: 0; border-right-width: 1px; }
+[dir="rtl"] .border-r { border-right: 0; border-left-width: 1px; }
+[dir="rtl"] .border-l-2 { border-left: 0; border-right-width: 2px; }
+[dir="rtl"] .border-r-2 { border-right: 0; border-left-width: 2px; }
+[dir="rtl"] .border-l-4 { border-left: 0; border-right-width: 4px; }
+[dir="rtl"] .border-r-4 { border-right: 0; border-left-width: 4px; }
+
+/* Position adjustments */
+[dir="rtl"] .left-0 { left: auto; right: 0; }
+[dir="rtl"] .right-0 { right: auto; left: 0; }
+[dir="rtl"] .left-1 { left: auto; right: 0.25rem; }
+[dir="rtl"] .right-1 { right: auto; left: 0.25rem; }
+[dir="rtl"] .left-2 { left: auto; right: 0.5rem; }
+[dir="rtl"] .right-2 { right: auto; left: 0.5rem; }
+[dir="rtl"] .left-4 { left: auto; right: 1rem; }
+[dir="rtl"] .right-4 { right: auto; left: 1rem; }
+
+/* Transform adjustments */
+[dir="rtl"] .transform.scale-x-[-1] { transform: scaleX(1); }
+
+/* Icon adjustments */
+[dir="rtl"] .lucide-chevron-left { transform: rotate(180deg); }
+[dir="rtl"] .lucide-chevron-right { transform: rotate(180deg); }
+[dir="rtl"] .lucide-arrow-left { transform: rotate(180deg); }
+[dir="rtl"] .lucide-arrow-right { transform: rotate(180deg); }
+
+/* Dropdown and modal positioning */
+[dir="rtl"] .origin-top-right { transform-origin: top left; }
+[dir="rtl"] .origin-top-left { transform-origin: top right; }
+[dir="rtl"] .origin-bottom-right { transform-origin: bottom left; }
+[dir="rtl"] .origin-bottom-left { transform-origin: bottom right; }
+
+/* Navigation specific adjustments */
+[dir="rtl"] nav ul {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .breadcrumb {
+  flex-direction: row-reverse;
+}
+
+/* Form specific adjustments */
+[dir="rtl"] .form-input,
+[dir="rtl"] .form-select,
+[dir="rtl"] .form-textarea {
+  text-align: right;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+[dir="rtl"] .form-checkbox,
+[dir="rtl"] .form-radio {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* Table adjustments */
+[dir="rtl"] table {
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+[dir="rtl"] th:first-child,
+[dir="rtl"] td:first-child {
+  text-align: right;
+}
+
+/* Dashboard specific adjustments */
+[dir="rtl"] .dashboard-sidebar {
+  right: 0;
+  left: auto;
+}
+
+[dir="rtl"] .dashboard-content {
+  margin-right: 0;
+  margin-left: 16rem;
+}
+
+/* QR Card specific adjustments */
+[dir="rtl"] .qr-card .absolute.top-2.left-2 {
+  left: auto;
+  right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card .absolute.top-2.right-2 {
+  right: auto;
+  left: 0.5rem;
+}
+
+/* Button groups */
+[dir="rtl"] .btn-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .btn-group .btn:first-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[dir="rtl"] .btn-group .btn:last-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Notification positioning */
+[dir="rtl"] .notification-top-right {
+  right: auto;
+  left: 1rem;
+}
+
+[dir="rtl"] .notification-top-left {
+  left: auto;
+  right: 1rem;
+}
+
+/* Language specific font improvements for Arabic */
+[dir="rtl"] {
+  font-family: 'Segoe UI', 'Tahoma', 'Arial Unicode MS', 'Lucida Grande', sans-serif;
+  line-height: 1.6;
+}
+
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+[dir="rtl"] .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+[dir="rtl"] .text-xs {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Responsive RTL adjustments */
+@media (max-width: 768px) {
+  [dir="rtl"] .mobile-menu {
+    right: 0;
+    left: auto;
+  }
+  
+  [dir="rtl"] .mobile-drawer {
+    transform: translateX(-100%);
+  }
+  
+  [dir="rtl"] .mobile-drawer.open {
+    transform: translateX(0);
+  }
+}
+
+/* Animation adjustments for RTL */
+[dir="rtl"] .slide-in-right {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+[dir="rtl"] .slide-in-left {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
