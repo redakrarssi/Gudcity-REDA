@@ -139,28 +139,29 @@ router.get('/feedback/business/:businessId', auth, async (req: Request, res: Res
     }
     
     // Calculate date range based on period
-    let dateFilter;
     const now = new Date();
+    
+    let dateValue;
     
     if (period === 'week') {
       const weekAgo = new Date(now);
       weekAgo.setDate(now.getDate() - 7);
-      dateFilter = `timestamp >= '${weekAgo.toISOString()}'`;
+      dateValue = weekAgo.toISOString();
     } else if (period === 'month') {
       const monthAgo = new Date(now);
       monthAgo.setMonth(now.getMonth() - 1);
-      dateFilter = `timestamp >= '${monthAgo.toISOString()}'`;
+      dateValue = monthAgo.toISOString();
     } else {
       const yearAgo = new Date(now);
       yearAgo.setFullYear(now.getFullYear() - 1);
-      dateFilter = `timestamp >= '${yearAgo.toISOString()}'`;
+      dateValue = yearAgo.toISOString();
     }
     
     // Get all feedback for this business in the specified period
     const feedbackItems = await sql`
       SELECT * FROM feedback
       WHERE business_id = ${businessId}
-      AND ${sql.raw(dateFilter)}
+      AND timestamp >= ${dateValue}
       ORDER BY timestamp DESC
     `;
     
