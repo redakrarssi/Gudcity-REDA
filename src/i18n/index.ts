@@ -240,6 +240,39 @@ const resources = {
         heart: '♥'
       },
       
+      // Promotions Page
+      promotions: {
+        exclusivePromotions: 'Exclusive Promotions',
+        discoverSpecialOffers: 'Discover special offers from your favorite places',
+        searchPromotions: 'Search promotions...',
+        all: 'All',
+        favorites: 'Favorites',
+        expiringSoon: 'Expiring Soon',
+        discounts: 'Discounts',
+        points: 'Points',
+        featuredOffers: 'Featured Offers',
+        copied: 'Copied!',
+        copy: 'Copy',
+        expires: 'Expires: {{time}}',
+        neverExpires: 'Never expires',
+        used: 'used',
+        unlimited: 'Unlimited',
+        noFavoritesYet: 'No favorites yet',
+        noPromotionsFound: 'No promotions found',
+        favoritePromotionsYouLike: 'Favorite promotions you like to find them here later',
+        tryAdjustingSearchTerms: 'Try adjusting your search terms or filters',
+        checkBackLaterForNewOffers: 'Check back later for new offers!',
+        failedToLoadPromotions: 'Failed to load promotions',
+        neverExpiresText: 'Never expires',
+        monthsLeft: '{{months}} months left',
+        daysLeft: '{{days}} days left',
+        lastDay: 'Last day!',
+        discount: 'DISCOUNT',
+        pointsType: 'POINTS',
+        cashback: 'CASHBACK',
+        gift: 'GIFT'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Business Dashboard',
@@ -630,6 +663,39 @@ const resources = {
         beFirstToExplore: 'كن أول من يستكشف المكافآت القريبة ويكتشف صفقات مذهلة من الشركات المحلية عندما نطلق هذه الميزة المثيرة.',
         proudlyCreatedWith: '© 2024 بواسطة VCarda • تم إنشاؤه بفخر باستخدام',
         heart: '♥'
+      },
+      
+      // Promotions Page
+      promotions: {
+        exclusivePromotions: 'العروض الحصرية',
+        discoverSpecialOffers: 'اكتشف العروض الخاصة من الأماكن المفضلة لديك',
+        searchPromotions: 'البحث في العروض...',
+        all: 'الكل',
+        favorites: 'المفضلة',
+        expiringSoon: 'تنتهي قريباً',
+        discounts: 'الخصومات',
+        points: 'النقاط',
+        featuredOffers: 'العروض المميزة',
+        copied: 'تم النسخ!',
+        copy: 'نسخ',
+        expires: 'تنتهي: {{time}}',
+        neverExpires: 'لا تنتهي أبداً',
+        used: 'مستخدم',
+        unlimited: 'غير محدود',
+        noFavoritesYet: 'لا توجد مفضلة بعد',
+        noPromotionsFound: 'لم يتم العثور على عروض',
+        favoritePromotionsYouLike: 'أضف العروض التي تعجبك إلى المفضلة لتجدها هنا لاحقاً',
+        tryAdjustingSearchTerms: 'حاول تعديل مصطلحات البحث أو المرشحات',
+        checkBackLaterForNewOffers: 'تحقق لاحقاً للحصول على عروض جديدة!',
+        failedToLoadPromotions: 'فشل في تحميل العروض',
+        neverExpiresText: 'لا تنتهي أبداً',
+        monthsLeft: '{{months}} أشهر متبقية',
+        daysLeft: '{{days}} أيام متبقية',
+        lastDay: 'اليوم الأخير!',
+        discount: 'خصم',
+        pointsType: 'نقاط',
+        cashback: 'استرداد نقدي',
+        gift: 'هدية'
       },
       
       // Business Dashboard
@@ -1024,6 +1090,39 @@ const resources = {
         heart: '♥'
       },
       
+      // Promotions Page
+      promotions: {
+        exclusivePromotions: 'Promociones Exclusivas',
+        discoverSpecialOffers: 'Descubre ofertas especiales de tus lugares favoritos',
+        searchPromotions: 'Buscar promociones...',
+        all: 'Todas',
+        favorites: 'Favoritas',
+        expiringSoon: 'Expiran Pronto',
+        discounts: 'Descuentos',
+        points: 'Puntos',
+        featuredOffers: 'Ofertas Destacadas',
+        copied: '¡Copiado!',
+        copy: 'Copiar',
+        expires: 'Expira: {{time}}',
+        neverExpires: 'Nunca expira',
+        used: 'usado',
+        unlimited: 'Ilimitado',
+        noFavoritesYet: 'Sin favoritas aún',
+        noPromotionsFound: 'No se encontraron promociones',
+        favoritePromotionsYouLike: 'Marca como favoritas las promociones que te gusten para encontrarlas aquí más tarde',
+        tryAdjustingSearchTerms: 'Intenta ajustar tus términos de búsqueda o filtros',
+        checkBackLaterForNewOffers: '¡Vuelve más tarde para nuevas ofertas!',
+        failedToLoadPromotions: 'Error al cargar promociones',
+        neverExpiresText: 'Nunca expira',
+        monthsLeft: '{{months}} meses restantes',
+        daysLeft: '{{days}} días restantes',
+        lastDay: '¡Último día!',
+        discount: 'DESCUENTO',
+        pointsType: 'PUNTOS',
+        cashback: 'REEMBOLSO',
+        gift: 'REGALO'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Panel de Negocios',
@@ -1414,6 +1513,39 @@ const resources = {
         beFirstToExplore: 'Soyez le premier à explorer les récompenses à proximité et découvrez des offres incroyables d\'entreprises locales lorsque nous lancerons cette fonctionnalité passionnante.',
         proudlyCreatedWith: '© 2024 par VCarda • Créé avec fierté en utilisant',
         heart: '♥'
+      },
+      
+      // Promotions Page
+      promotions: {
+        exclusivePromotions: 'Promotions Exclusives',
+        discoverSpecialOffers: 'Découvrez des offres spéciales de vos endroits préférés',
+        searchPromotions: 'Rechercher des promotions...',
+        all: 'Toutes',
+        favorites: 'Favoris',
+        expiringSoon: 'Expirent Bientôt',
+        discounts: 'Remises',
+        points: 'Points',
+        featuredOffers: 'Offres en Vedette',
+        copied: 'Copié !',
+        copy: 'Copier',
+        expires: 'Expire : {{time}}',
+        neverExpires: 'N\'expire jamais',
+        used: 'utilisé',
+        unlimited: 'Illimité',
+        noFavoritesYet: 'Pas encore de favoris',
+        noPromotionsFound: 'Aucune promotion trouvée',
+        favoritePromotionsYouLike: 'Marquez comme favoris les promotions que vous aimez pour les retrouver ici plus tard',
+        tryAdjustingSearchTerms: 'Essayez d\'ajuster vos termes de recherche ou filtres',
+        checkBackLaterForNewOffers: 'Revenez plus tard pour de nouvelles offres !',
+        failedToLoadPromotions: 'Échec du chargement des promotions',
+        neverExpiresText: 'N\'expire jamais',
+        monthsLeft: '{{months}} mois restants',
+        daysLeft: '{{days}} jours restants',
+        lastDay: 'Dernier jour !',
+        discount: 'REMISE',
+        pointsType: 'POINTS',
+        cashback: 'REMBOURSEMENT',
+        gift: 'CADEAU'
       },
       
       // Business Dashboard

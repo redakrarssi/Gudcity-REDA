@@ -839,6 +839,187 @@
   }
 }
 
+/* Promotions Page specific RTL enhancements */
+[dir="rtl"] .promotions-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotions-header {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotions-header .header-title {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotions-header .header-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .search-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .search-container .search-input {
+  text-align: right;
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .promotions-page .search-container .search-icon {
+  right: 0.75rem;
+  left: auto;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs .filter-tab {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs .filter-tab .filter-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .promotions-page .featured-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .featured-section .featured-title {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .featured-section .featured-title .featured-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotions-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotion-card {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-type-badge {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-type-badge .type-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .favorite-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section .promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section .copy-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details .expiry-info {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details .usage-info {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .empty-state .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .empty-state .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .error-state {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .error-state .error-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .promotions-page .error-state .error-message {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .loading-state {
+  text-align: center;
+}
+
+/* Responsive adjustments for promotions page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .promotions-page .promotions-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .promotions-page .search-container {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .filter-tabs {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotions-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .card-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .promo-code-section {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .promo-details {
+    flex-direction: row-reverse;
+  }
+}
+
 /* Button groups */
 [dir="rtl"] .btn-group {
   flex-direction: row-reverse;
