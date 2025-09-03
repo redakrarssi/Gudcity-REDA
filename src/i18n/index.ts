@@ -189,6 +189,37 @@ const resources = {
       hideTechnicalDetails: 'Hide technical details',
       showTechnicalDetails: 'Show technical details',
       
+      // Cards Page
+      cards: {
+        myCards: 'My Cards',
+        noCards: 'No cards found',
+        refreshCards: 'Refresh Cards',
+        refreshing: 'Refreshing...',
+        expiryDate: 'Expiry Date',
+        lastUsed: 'Last Used',
+        cardId: 'Card ID',
+        cardActivity: 'Card Activity',
+        noRecentActivity: 'No recent activity',
+        availableRewards: 'Available Rewards',
+        noRewardsAvailableForProgram: 'No rewards available for this program',
+        processing: 'Processing...',
+        decline: 'Decline',
+        joinProgram: 'Join Program',
+        close: 'Close',
+        viewPromoCode: 'View promo code',
+        refreshCardsAria: 'Refresh cards',
+        failedToSyncEnrollments: 'Failed to sync enrollments to cards',
+        errorParsingNotification: 'Error parsing notification data',
+        pointsAwardedMessage: 'Points awarded message received via BroadcastChannel',
+        failedToProcessResponse: 'Failed to process your response',
+        errorProcessingResponse: 'An error occurred while processing your response',
+        business: 'Business',
+        promoCodeCopied: 'Promo code copied to clipboard',
+        failedToCopyPromoCode: 'Failed to copy promo code',
+        redeemedPoints: 'Redeemed {{points}} points',
+        cardUsed: 'Card used'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Business Dashboard',
@@ -529,6 +560,37 @@ const resources = {
       missingRequiredCardInformation: 'معلومات البطاقة المطلوبة مفقودة',
       hideTechnicalDetails: 'إخفاء التفاصيل التقنية',
       showTechnicalDetails: 'عرض التفاصيل التقنية',
+      
+      // Cards Page
+      cards: {
+        myCards: 'بطاقاتي',
+        noCards: 'لا توجد بطاقات',
+        refreshCards: 'تحديث البطاقات',
+        refreshing: 'جاري التحديث...',
+        expiryDate: 'تاريخ الانتهاء',
+        lastUsed: 'آخر استخدام',
+        cardId: 'معرف البطاقة',
+        cardActivity: 'نشاط البطاقة',
+        noRecentActivity: 'لا يوجد نشاط حديث',
+        availableRewards: 'المكافآت المتاحة',
+        noRewardsAvailableForProgram: 'لا توجد مكافآت متاحة لهذا البرنامج',
+        processing: 'جاري المعالجة...',
+        decline: 'رفض',
+        joinProgram: 'انضم للبرنامج',
+        close: 'إغلاق',
+        viewPromoCode: 'عرض رمز الخصم',
+        refreshCardsAria: 'تحديث البطاقات',
+        failedToSyncEnrollments: 'فشل في مزامنة التسجيلات مع البطاقات',
+        errorParsingNotification: 'خطأ في تحليل بيانات الإشعار',
+        pointsAwardedMessage: 'تم استلام رسالة منح النقاط عبر BroadcastChannel',
+        failedToProcessResponse: 'فشل في معالجة استجابتك',
+        errorProcessingResponse: 'حدث خطأ أثناء معالجة استجابتك',
+        business: 'الشركة',
+        promoCodeCopied: 'تم نسخ رمز الخصم إلى الحافظة',
+        failedToCopyPromoCode: 'فشل في نسخ رمز الخصم',
+        redeemedPoints: 'تم استبدال {{points}} نقاط',
+        cardUsed: 'تم استخدام البطاقة'
+      },
       
       // Business Dashboard
       business: {
@@ -871,6 +933,37 @@ const resources = {
       hideTechnicalDetails: 'Ocultar detalles técnicos',
       showTechnicalDetails: 'Mostrar detalles técnicos',
       
+      // Cards Page
+      cards: {
+        myCards: 'Mis Tarjetas',
+        noCards: 'No se encontraron tarjetas',
+        refreshCards: 'Actualizar Tarjetas',
+        refreshing: 'Actualizando...',
+        expiryDate: 'Fecha de Vencimiento',
+        lastUsed: 'Último Uso',
+        cardId: 'ID de Tarjeta',
+        cardActivity: 'Actividad de la Tarjeta',
+        noRecentActivity: 'Sin actividad reciente',
+        availableRewards: 'Recompensas Disponibles',
+        noRewardsAvailableForProgram: 'No hay recompensas disponibles para este programa',
+        processing: 'Procesando...',
+        decline: 'Rechazar',
+        joinProgram: 'Unirse al Programa',
+        close: 'Cerrar',
+        viewPromoCode: 'Ver código promocional',
+        refreshCardsAria: 'Actualizar tarjetas',
+        failedToSyncEnrollments: 'Error al sincronizar inscripciones con tarjetas',
+        errorParsingNotification: 'Error al analizar datos de notificación',
+        pointsAwardedMessage: 'Mensaje de puntos otorgados recibido vía BroadcastChannel',
+        failedToProcessResponse: 'Error al procesar tu respuesta',
+        errorProcessingResponse: 'Ocurrió un error al procesar tu respuesta',
+        business: 'Negocio',
+        promoCodeCopied: 'Código promocional copiado al portapapeles',
+        failedToCopyPromoCode: 'Error al copiar código promocional',
+        redeemedPoints: '{{points}} puntos canjeados',
+        cardUsed: 'Tarjeta utilizada'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Panel de Negocios',
@@ -1211,6 +1304,37 @@ const resources = {
       missingRequiredCardInformation: 'Informations de carte requises manquantes',
       hideTechnicalDetails: 'Masquer les détails techniques',
       showTechnicalDetails: 'Afficher les détails techniques',
+      
+      // Cards Page
+      cards: {
+        myCards: 'Mes Cartes',
+        noCards: 'Aucune carte trouvée',
+        refreshCards: 'Actualiser les Cartes',
+        refreshing: 'Actualisation...',
+        expiryDate: 'Date d\'Expiration',
+        lastUsed: 'Dernière Utilisation',
+        cardId: 'ID de la Carte',
+        cardActivity: 'Activité de la Carte',
+        noRecentActivity: 'Aucune activité récente',
+        availableRewards: 'Récompenses Disponibles',
+        noRewardsAvailableForProgram: 'Aucune récompense disponible pour ce programme',
+        processing: 'Traitement...',
+        decline: 'Refuser',
+        joinProgram: 'Rejoindre le Programme',
+        close: 'Fermer',
+        viewPromoCode: 'Voir le code promotionnel',
+        refreshCardsAria: 'Actualiser les cartes',
+        failedToSyncEnrollments: 'Échec de la synchronisation des inscriptions avec les cartes',
+        errorParsingNotification: 'Erreur lors de l\'analyse des données de notification',
+        pointsAwardedMessage: 'Message de points attribués reçu via BroadcastChannel',
+        failedToProcessResponse: 'Échec du traitement de votre réponse',
+        errorProcessingResponse: 'Une erreur s\'est produite lors du traitement de votre réponse',
+        business: 'Entreprise',
+        promoCodeCopied: 'Code promotionnel copié dans le presse-papiers',
+        failedToCopyPromoCode: 'Échec de la copie du code promotionnel',
+        redeemedPoints: '{{points}} points échangés',
+        cardUsed: 'Carte utilisée'
+      },
       
       // Business Dashboard
       business: {

@@ -180,7 +180,7 @@ const CustomerCards = () => {
       return [];
     } catch (error) {
       console.error('Error syncing enrollments to cards:', error);
-      addNotification('error', 'Failed to sync enrollments to cards');
+      addNotification('error', t('cards.failedToSyncEnrollments'));
       return [];
     }
   }, [user?.id, addNotification]);
@@ -379,7 +379,7 @@ const CustomerCards = () => {
               localStorage.removeItem(key);
             }
           } catch (error) {
-            console.warn('Error parsing notification data', error);
+            console.warn(t('cards.errorParsingNotification'), error);
           }
         }
       });
@@ -653,7 +653,7 @@ const CustomerCards = () => {
       broadcastChannel.onmessage = (event) => {
         const data = event.data;
         if (data.type === 'POINTS_AWARDED' && data.customerId === user.id.toString()) {
-          console.log('Points awarded message received via BroadcastChannel');
+          console.log(t('cards.pointsAwardedMessage'));
           
           // Enhanced logging with program-to-card mapping info
           if (data.mappingInfo) {
@@ -766,7 +766,7 @@ const CustomerCards = () => {
         const { EnrollmentErrorCode } = await import('../../utils/enrollmentErrorReporter');
         const errorCode = result.errorCode || EnrollmentErrorCode.GENERIC_ERROR;
         
-        addNotification('error', result.error || 'Failed to process your response');
+        addNotification('error', result.error || t('cards.failedToProcessResponse'));
         
         // Close the modal on error too
         setEnrollmentRequestState(prev => ({
@@ -781,7 +781,7 @@ const CustomerCards = () => {
       }
     } catch (error) {
       console.error('Error responding to enrollment request:', error);
-      addNotification('error', 'An error occurred while processing your response');
+      addNotification('error', t('cards.errorProcessingResponse'));
       
       // Close the modal on error too
       setEnrollmentRequestState(prev => ({
@@ -833,7 +833,7 @@ const CustomerCards = () => {
       isOpen: true,
       cardId: card.id,
       promoCode: card.promoCode,
-      businessName: card.businessName || 'Business',
+      businessName: card.businessName || t('cards.business'),
       isLoading: false
     });
   };
@@ -910,10 +910,10 @@ const CustomerCards = () => {
     if (promoCodeState.promoCode) {
       navigator.clipboard.writeText(promoCodeState.promoCode)
         .then(() => {
-          addNotification('success', 'Promo code copied to clipboard');
+          addNotification('success', t('cards.promoCodeCopied'));
         })
         .catch(() => {
-          addNotification('error', 'Failed to copy promo code');
+          addNotification('error', t('cards.failedToCopyPromoCode'));
         });
     }
   };
@@ -975,7 +975,7 @@ const CustomerCards = () => {
             <button 
               onClick={() => setEnrollmentRequestState(prev => ({ ...prev, isOpen: false }))}
               className="text-gray-400 hover:text-gray-600 focus:outline-none"
-              aria-label="Close"
+              aria-label={t('cards.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -996,7 +996,7 @@ const CustomerCards = () => {
                 isProcessingResponse ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
               }`}
             >
-              {isProcessingResponse ? 'Processing...' : 'Decline'}
+              {isProcessingResponse ? t('cards.processing') : t('cards.decline')}
             </button>
             <button
               onClick={() => handleEnrollmentResponse(true)}
@@ -1005,7 +1005,7 @@ const CustomerCards = () => {
                 isProcessingResponse ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
               }`}
             >
-              {isProcessingResponse ? 'Processing...' : 'Join Program'}
+              {isProcessingResponse ? t('cards.processing') : t('cards.joinProgram')}
             </button>
           </div>
         </div>
@@ -1024,7 +1024,7 @@ const CustomerCards = () => {
 
   return (
     <CustomerLayout>
-      <div className="p-4 md:p-6 lg:p-8 space-y-8">
+      <div className="p-4 md:p-6 lg:p-8 space-y-8 cards-page">
         {/* Total Enrollment Count */}
         <AnimatePresence>
           {!hideEnrollmentInfo && (
@@ -1044,7 +1044,7 @@ const CustomerCards = () => {
                 <button 
                   onClick={handleHideEnrollmentInfo} 
                   className="text-blue-500 hover:text-blue-700 focus:outline-none"
-                  aria-label="Close"
+                  aria-label={t('cards.close')}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1107,10 +1107,10 @@ const CustomerCards = () => {
                   ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
                   : 'bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700'
               }`}
-              aria-label="Refresh cards"
+              aria-label={t('cards.refreshCardsAria')}
             >
               <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Refreshing...' : 'Refresh Cards'}
+              {isRefreshing ? t('cards.refreshing') : t('cards.refreshCards')}
             </button>
           </div>
           
@@ -1134,11 +1134,11 @@ const CustomerCards = () => {
           )}
 
           {/* The rest of the component remains unchanged */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 cards-grid">
             {loyaltyCards.map(card => (
                 <motion.div 
                   key={card.id}
-                  className={`transition-all duration-700 ease-out ${
+                  className={`transition-all duration-700 ease-out card-item ${
                     animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
                   }`}
                   style={{ transitionDelay: `${loyaltyCards.indexOf(card) * 150}ms` }}
@@ -1165,7 +1165,7 @@ const CustomerCards = () => {
                             {getIconForCard(card)}
                           </div>
                           <div>
-                            <h3 className="font-bold text-xl tracking-wide">{card.programName || 'Loyalty Program'}</h3>
+                            <h3 className="font-bold text-xl tracking-wide">{card.programName || t('loyaltyProgram')}</h3>
                             <div className="flex items-center mt-1">
                               <span className="text-white/80 text-sm uppercase tracking-wider font-medium">{card.businessName}</span>
                               {card.cardType?.toLowerCase() === 'premium' && (
@@ -1182,7 +1182,7 @@ const CustomerCards = () => {
                             <button 
                               onClick={(e) => handlePromoCodeClick(e, card)}
                               className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
-                              aria-label="View promo code"
+                              aria-label={t('cards.viewPromoCode')}
                             >
                               <Tag className="w-5 h-5" />
                             </button>
@@ -1269,28 +1269,28 @@ const CustomerCards = () => {
                         transition={{ duration: 0.3 }}
                         className="bg-white rounded-b-2xl shadow-lg border border-gray-100 overflow-hidden"
                       >
-                        <div className="p-5">
+                        <div className="p-5 card-content">
                           {/* Card Info */}
-                          <div className="grid grid-cols-3 gap-4 mb-5">
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Expiry Date')}</p>
-                              <p className="font-medium text-gray-800">{formatDate(card.expiryDate)}</p>
+                          <div className="grid grid-cols-3 gap-4 mb-5 card-stats">
+                            <div className="bg-gray-50 p-3 rounded-lg stat-item">
+                              <p className="text-xs text-gray-500 mb-1 stat-label">{t('cards.expiryDate')}</p>
+                              <p className="font-medium text-gray-800 stat-value">{formatDate(card.expiryDate)}</p>
                             </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Last Used')}</p>
-                              <p className="font-medium text-gray-800">{formatDate(card.lastUsed)}</p>
+                            <div className="bg-gray-50 p-3 rounded-lg stat-item">
+                              <p className="text-xs text-gray-500 mb-1 stat-label">{t('cards.lastUsed')}</p>
+                              <p className="font-medium text-gray-800 stat-value">{formatDate(card.lastUsed)}</p>
                             </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">{t('Card ID')}</p>
-                              <p className="font-medium text-gray-800">{card.id}</p>
+                            <div className="bg-gray-50 p-3 rounded-lg stat-item">
+                              <p className="text-xs text-gray-500 mb-1 stat-label">{t('cards.cardId')}</p>
+                              <p className="font-medium text-gray-800 stat-value">{card.id}</p>
                             </div>
                           </div>
                           
                           {/* Card Activity */}
-                          <div className="mb-5">
+                          <div className="mb-5 card-activity">
                             <h4 className="font-medium text-gray-800 mb-3 flex items-center">
                               <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                              {t('Card Activity')}
+                              {t('cards.cardActivity')}
                             </h4>
                             
                             {cardActivities[card.id]?.length ? (
@@ -1313,8 +1313,8 @@ const CustomerCards = () => {
                                         {activity.type === 'EARN_POINTS' 
                                           ? `Earned ${activity.points} points`
                                           : activity.type === 'REDEEM_POINTS'
-                                            ? `Redeemed ${activity.points} points`
-                                            : 'Card used'
+                                            ? t('cards.redeemedPoints', { points: activity.points })
+                                            : t('cards.cardUsed')
                                         }
                                         {activity.description ? ` - ${activity.description}` : ''}
                                       </p>
@@ -1325,16 +1325,16 @@ const CustomerCards = () => {
                               </div>
                             ) : (
                               <div className="bg-gray-50 p-3 rounded-lg text-center">
-                                <p className="text-sm text-gray-500">{t('No recent activity')}</p>
+                                <p className="text-sm text-gray-500">{t('cards.noRecentActivity')}</p>
                               </div>
                             )}
                           </div>
                           
                           {/* Available Rewards */}
-                          <div>
+                          <div className="card-rewards">
                             <h4 className="font-medium text-gray-800 mb-3 flex items-center">
                               <Gift className="w-4 h-4 mr-2 text-gray-500" />
-                              {t('Available Rewards')}
+                              {t('cards.availableRewards')}
                             </h4>
                             
                             {card.availableRewards?.length ? (
@@ -1400,7 +1400,7 @@ const CustomerCards = () => {
                             ) : (
                               <div className="bg-gray-50 p-4 rounded-lg text-center">
                                 <Gift className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-500">{t('No rewards available for this program')}</p>
+                                <p className="text-sm text-gray-500">{t('cards.noRewardsAvailableForProgram')}</p>
                               </div>
                             )}
                           </div>

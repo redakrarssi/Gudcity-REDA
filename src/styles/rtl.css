@@ -399,6 +399,267 @@
   right: 0.5rem;
 }
 
+/* Cards Page specific RTL enhancements */
+[dir="rtl"] .cards-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .cards-header {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .cards-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .cards-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content .grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content .grid > * {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity .activity-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity .activity-item .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards .reward-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards .reward-item .flex {
+  flex-direction: row-reverse;
+}
+
+/* Modal dialogs RTL for cards page */
+[dir="rtl"] .cards-page .modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .modal .modal-header {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .modal .modal-body {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .modal .modal-footer {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-footer .flex {
+  flex-direction: row-reverse;
+}
+
+/* Button groups RTL for cards page */
+[dir="rtl"] .cards-page .button-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .button-group .btn:first-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[dir="rtl"] .cards-page .button-group .btn:last-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Card stats RTL */
+[dir="rtl"] .cards-page .card-stats {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item .stat-label {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item .stat-value {
+  text-align: right;
+}
+
+/* Notification items RTL for cards page */
+[dir="rtl"] .cards-page .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .notification-item .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .notification-item .notification-content {
+  direction: rtl;
+}
+
+/* Promo code modal RTL */
+[dir="rtl"] .cards-page .promo-code-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .promo-code-modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .promo-code-modal .promo-code-display {
+  text-align: center;
+  direction: ltr; /* Keep promo codes LTR for readability */
+}
+
+/* Enrollment request modal RTL */
+[dir="rtl"] .cards-page .enrollment-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-info {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-actions .flex {
+  flex-direction: row-reverse;
+}
+
+/* Card icons and badges RTL */
+[dir="rtl"] .cards-page .card-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .cards-page .card-badge {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .card-badge .flex {
+  flex-direction: row-reverse;
+}
+
+/* Refresh button RTL */
+[dir="rtl"] .cards-page .refresh-button {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .refresh-button .flex {
+  flex-direction: row-reverse;
+}
+
+/* Empty state RTL */
+[dir="rtl"] .cards-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .empty-state .empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .cards-page .empty-state .empty-message {
+  text-align: center;
+}
+
+/* Loading states RTL */
+[dir="rtl"] .cards-page .loading-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .loading-state .loading-spinner {
+  margin: 0 auto;
+}
+
+/* Error states RTL */
+[dir="rtl"] .cards-page .error-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .error-state .error-message {
+  text-align: center;
+}
+
+/* Card animations RTL */
+[dir="rtl"] .cards-page .card-animation {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-animation .animated-element {
+  text-align: right;
+}
+
+/* Responsive adjustments for cards page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .cards-page .cards-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .cards-page .card-item {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .cards-page .card-item .card-content {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .cards-page .modal .modal-content {
+    direction: rtl;
+  }
+}
+}
+
 [dir="rtl"] .qr-card .absolute.top-2.right-2 {
   right: auto;
   left: 0.5rem;
