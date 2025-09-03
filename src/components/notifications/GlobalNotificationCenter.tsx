@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EnrollmentErrorCode } from '../../utils/enrollmentErrorReporter';
+import { NotificationMessageTranslator } from '../../utils/notificationMessageTranslator';
 
 /**
  * Global notification center component that displays as a drawer/modal
@@ -238,15 +239,27 @@ const GlobalNotificationCenter: React.FC = () => {
                                     {getNotificationIcon(notification.type)}
                           </div>
                                 <div className="flex-1">
-                                  <h4 className="font-medium text-sm">
-                              {notification.title}
-                                    {!notification.isRead && (
-                                      <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
-                                    )}
-                                  </h4>
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                              {notification.message}
-                            </p>
+                                  {(() => {
+                                    const translated = NotificationMessageTranslator.translateNotification(
+                                      notification.title,
+                                      notification.message,
+                                      t,
+                                      notification.data
+                                    );
+                                    return (
+                                      <>
+                                        <h4 className="font-medium text-sm">
+                                          {translated.title}
+                                          {!notification.isRead && (
+                                            <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-600"></span>
+                                          )}
+                                        </h4>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                                          {translated.message}
+                                        </p>
+                                      </>
+                                    );
+                                  })()}
                                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center">
                                     <Clock className="w-3 h-3 mr-1" />
                                 {formatRelativeTime(notification.createdAt)}

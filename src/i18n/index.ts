@@ -423,7 +423,23 @@ const resources = {
         // Promo code messages
         promoCode: 'Promo Code',
         // Program messages
-        aProgram: 'a program'
+        aProgram: 'a program',
+        // Notification content messages
+        youEarnedPoints: 'You earned {{points}} points!',
+        youEarnedPointsAt: 'You\'ve earned {{points}} points at {{businessName}} for the {{programName}} program.',
+        youRedeemedReward: 'You redeemed a reward!',
+        youRedeemedRewardFor: 'You\'ve redeemed {{rewardName}} for {{points}} points at {{businessName}}.',
+        qrCodeScannedSuccessfully: 'QR Code Scanned Successfully',
+        youEarnedPointsAtBusiness: 'You earned {{points}} points at {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'Your QR code was successfully scanned at {{businessName}}',
+        qrCodeScanFailed: 'QR Code Scan Failed',
+        qrCodeScanProblem: 'There was a problem scanning your QR code at {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'QR Code Scanned',
+        qrCodeScannedBy: 'Your QR code was scanned by {{businessName}}',
+        programDiscontinued: 'Program Discontinued',
+        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}}. Your points and rewards from this program are no longer available.',
+        newEnrollmentIn: 'New enrollment in {{programName}}',
+        aReward: 'a reward'
       },
       
       // Authentication Pages
@@ -885,7 +901,23 @@ const resources = {
         // Promo code messages
         promoCode: 'كود الخصم',
         // Program messages
-        aProgram: 'برنامج'
+        aProgram: 'برنامج',
+        // Notification content messages
+        youEarnedPoints: 'لقد ربحت {{points}} نقطة!',
+        youEarnedPointsAt: 'لقد ربحت {{points}} نقطة في {{businessName}} لبرنامج {{programName}}.',
+        youRedeemedReward: 'لقد استبدلت مكافأة!',
+        youRedeemedRewardFor: 'لقد استبدلت {{rewardName}} مقابل {{points}} نقطة في {{businessName}}.',
+        qrCodeScannedSuccessfully: 'تم مسح رمز QR بنجاح',
+        youEarnedPointsAtBusiness: 'لقد ربحت {{points}} نقطة في {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'تم مسح رمز QR الخاص بك بنجاح في {{businessName}}',
+        qrCodeScanFailed: 'فشل في مسح رمز QR',
+        qrCodeScanProblem: 'كانت هناك مشكلة في مسح رمز QR الخاص بك في {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'تم مسح رمز QR',
+        qrCodeScannedBy: 'تم مسح رمز QR الخاص بك من قبل {{businessName}}',
+        programDiscontinued: 'تم إيقاف البرنامج',
+        programDiscontinuedMessage: 'تم إيقاف برنامج الولاء "{{programName}}" من قبل {{businessName}}. نقاطك ومكافآتك من هذا البرنامج لم تعد متاحة.',
+        newEnrollmentIn: 'انضمام جديد إلى {{programName}}',
+        aReward: 'مكافأة'
       },
       
       // Business Dashboard
@@ -1445,7 +1477,23 @@ const resources = {
         // Promo code messages
         promoCode: 'Código Promocional',
         // Program messages
-        aProgram: 'un programa'
+        aProgram: 'un programa',
+        // Notification content messages
+        youEarnedPoints: '¡Ganaste {{points}} puntos!',
+        youEarnedPointsAt: 'Has ganado {{points}} puntos en {{businessName}} para el programa {{programName}}.',
+        youRedeemedReward: '¡Canjeaste una recompensa!',
+        youRedeemedRewardFor: 'Has canjeado {{rewardName}} por {{points}} puntos en {{businessName}}.',
+        qrCodeScannedSuccessfully: 'Código QR Escaneado Exitosamente',
+        youEarnedPointsAtBusiness: '¡Ganaste {{points}} puntos en {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'Tu código QR fue escaneado exitosamente en {{businessName}}',
+        qrCodeScanFailed: 'Error al Escanear Código QR',
+        qrCodeScanProblem: 'Hubo un problema al escanear tu código QR en {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'Código QR Escaneado',
+        qrCodeScannedBy: 'Tu código QR fue escaneado por {{businessName}}',
+        programDiscontinued: 'Programa Descontinuado',
+        programDiscontinuedMessage: 'El programa de lealtad "{{programName}}" ha sido descontinuado por {{businessName}}. Tus puntos y recompensas de este programa ya no están disponibles.',
+        newEnrollmentIn: 'Nueva inscripción en {{programName}}',
+        aReward: 'una recompensa'
       },
       
       // Business Dashboard
@@ -2005,7 +2053,23 @@ const resources = {
         // Promo code messages
         promoCode: 'Code Promo',
         // Program messages
-        aProgram: 'un programme'
+        aProgram: 'un programme',
+        // Notification content messages
+        youEarnedPoints: 'Vous avez gagné {{points}} points !',
+        youEarnedPointsAt: 'Vous avez gagné {{points}} points chez {{businessName}} pour le programme {{programName}}.',
+        youRedeemedReward: 'Vous avez échangé une récompense !',
+        youRedeemedRewardFor: 'Vous avez échangé {{rewardName}} contre {{points}} points chez {{businessName}}.',
+        qrCodeScannedSuccessfully: 'Code QR Scanné avec Succès',
+        youEarnedPointsAtBusiness: 'Vous avez gagné {{points}} points chez {{businessName}} !',
+        qrCodeSuccessfullyScanned: 'Votre code QR a été scanné avec succès chez {{businessName}}',
+        qrCodeScanFailed: 'Échec du Scan du Code QR',
+        qrCodeScanProblem: 'Il y a eu un problème lors du scan de votre code QR chez {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'Code QR Scanné',
+        qrCodeScannedBy: 'Votre code QR a été scanné par {{businessName}}',
+        programDiscontinued: 'Programme Arrêté',
+        programDiscontinuedMessage: 'Le programme de fidélité "{{programName}}" a été arrêté par {{businessName}}. Vos points et récompenses de ce programme ne sont plus disponibles.',
+        newEnrollmentIn: 'Nouvelle inscription à {{programName}}',
+        aReward: 'une récompense'
       },
       
       // Business Dashboard

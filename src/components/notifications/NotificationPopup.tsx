@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Check, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { NotificationMessageTranslator } from '../../utils/notificationMessageTranslator';
 
 /**
  * Global notification popup that displays the latest notification
@@ -56,9 +57,19 @@ const NotificationPopup: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   {getNotificationIcon(latestNotification.type)}
-                  <h3 className="font-medium text-gray-900 dark:text-white">
-                    {latestNotification.title}
-                  </h3>
+                  {(() => {
+                    const translated = NotificationMessageTranslator.translateNotification(
+                      latestNotification.title,
+                      latestNotification.message,
+                      t,
+                      latestNotification.data
+                    );
+                    return (
+                      <h3 className="font-medium text-gray-900 dark:text-white">
+                        {translated.title}
+                      </h3>
+                    );
+                  })()}
                 </div>
                 <button
                   onClick={dismissPopup}
@@ -68,9 +79,19 @@ const NotificationPopup: React.FC = () => {
                 </button>
               </div>
               <div className="mt-2">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  {latestNotification.message}
-                </p>
+                {(() => {
+                  const translated = NotificationMessageTranslator.translateNotification(
+                    latestNotification.title,
+                    latestNotification.message,
+                    t,
+                    latestNotification.data
+                  );
+                  return (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {translated.message}
+                    </p>
+                  );
+                })()}
                 {latestNotification.businessName && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {latestNotification.businessName}

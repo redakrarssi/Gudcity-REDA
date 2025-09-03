@@ -5,6 +5,36 @@ import type {
 } from '../types/notification';
 import sql from '../utils/db';
 
+// Helper function to get translated notification messages
+// This will be used by the notification components to translate messages
+export const getTranslatedNotificationMessage = (
+  key: string, 
+  params: Record<string, any> = {},
+  language: string = 'en'
+): string => {
+  // For now, return the English version
+  // The actual translation will be handled by the frontend components
+  const messages: Record<string, string> = {
+    'youEarnedPoints': `You earned ${params.points} points!`,
+    'youEarnedPointsAt': `You've earned ${params.points} points at ${params.businessName} for the ${params.programName} program.`,
+    'youRedeemedReward': 'You redeemed a reward!',
+    'youRedeemedRewardFor': `You've redeemed ${params.rewardName || 'a reward'} for ${params.points} points at ${params.businessName}.`,
+    'qrCodeScannedSuccessfully': 'QR Code Scanned Successfully',
+    'youEarnedPointsAtBusiness': `You earned ${params.points} points at ${params.businessName}!`,
+    'qrCodeSuccessfullyScanned': `Your QR code was successfully scanned at ${params.businessName}`,
+    'qrCodeScanFailed': 'QR Code Scan Failed',
+    'qrCodeScanProblem': `There was a problem scanning your QR code at ${params.businessName}. ${params.errorMessage || ''}`,
+    'qrCodeScanned': 'QR Code Scanned',
+    'qrCodeScannedBy': `Your QR code was scanned by ${params.businessName}`,
+    'programDiscontinued': 'Program Discontinued',
+    'programDiscontinuedMessage': `The loyalty program "${params.programName}" has been discontinued by ${params.businessName}. Your points and rewards from this program are no longer available.`,
+    'newEnrollmentIn': `New enrollment in ${params.programName}`,
+    'aReward': 'a reward'
+  };
+  
+  return messages[key] || key;
+};
+
 // Extended preferences interface to include SMS
 export interface NotificationPreferences {
   userId: string;

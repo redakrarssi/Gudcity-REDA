@@ -5,6 +5,7 @@ import { NotificationService } from '../../services/notificationService';
 import type { Notification, NotificationPreferences, NotificationType } from '../../types/notification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { NotificationMessageTranslator } from '../../utils/notificationMessageTranslator';
 
 interface NotificationCenterProps {
   userId: string;
@@ -204,12 +205,24 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                             {getNotificationIcon(notification.type)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                              {notification.message}
-                            </p>
+                            {(() => {
+                              const translated = NotificationMessageTranslator.translateNotification(
+                                notification.title,
+                                notification.message,
+                                t,
+                                notification.data
+                              );
+                              return (
+                                <>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {translated.title}
+                                  </p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                    {translated.message}
+                                  </p>
+                                </>
+                              );
+                            })()}
                             
                             {/* Special display for promo code notifications */}
                             {notification.type === 'PROMO_CODE_RECEIVED' && notification.data && (
