@@ -1020,6 +1020,256 @@
   }
 }
 
+/* QR Card Page specific RTL enhancements */
+[dir="rtl"] .qr-card-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header .header-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header .header-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-container .qr-card-content {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .card-actions {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .card-actions .action-button {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .card-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-title .programs-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-name {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-tier {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-points {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-joined {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-title .promos-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-discount {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-claim {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .security-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-description {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .success-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .success-message .success-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .success-message .success-text {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .error-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .error-message .error-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .error-message .error-text {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .signin-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .signin-message .signin-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .signin-message .signin-text {
+  text-align: right;
+}
+
+/* Responsive adjustments for QR card page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .qr-card-page .qr-card-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .card-actions {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .programs-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .program-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .program-card .program-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promos-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card .promo-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card .promo-details {
+    flex-direction: row-reverse;
+  }
+}
+
 /* Button groups */
 [dir="rtl"] .btn-group {
   flex-direction: row-reverse;

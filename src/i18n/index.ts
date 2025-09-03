@@ -698,6 +698,39 @@ const resources = {
         gift: 'هدية'
       },
       
+      // QR Card Page
+      qrCard: {
+        pleaseSignInToView: 'يرجى تسجيل الدخول لعرض بطاقة QR الخاصة بك.',
+        yourLoyaltyCard: 'بطاقة الولاء الخاصة بك',
+        useThisCardToCollect: 'استخدم هذه البطاقة لجمع واستبدال النقاط في الشركات المشاركة',
+        copied: 'تم النسخ!',
+        copyCardNumber: 'نسخ رقم البطاقة',
+        shareCard: 'مشاركة البطاقة',
+        printCard: 'طباعة البطاقة',
+        myPrograms: 'برامجي',
+        points: 'النقاط',
+        joined: 'انضممت',
+        youHaveNotJoinedAnyPrograms: 'لم تنضم إلى أي برامج بعد',
+        showYourQrCardToJoin: 'اعرض بطاقة QR الخاصة بك في الشركات المشاركة للانضمام إلى برامج الولاء الخاصة بهم',
+        availablePromos: 'العروض المتاحة',
+        expires: 'تنتهي',
+        claim: 'استلام',
+        claimed: 'تم الاستلام',
+        noPromoCodesAvailable: 'لا توجد أكواد خصم متاحة في الوقت الحالي',
+        showYourQrCardToReceive: 'اعرض بطاقة QR الخاصة بك في الشركات المشاركة للحصول على عروض خاصة',
+        securityInformation: 'معلومات الأمان',
+        yourQrCodeIsUnique: 'رمز QR الخاص بك فريد لك ومُوقَّع بأمان. يتم تحديثه تلقائياً لحماية حسابك.',
+        failedToLoadLoyaltyCard: 'فشل في تحميل معلومات بطاقة الولاء الخاصة بك',
+        successfullyJoinedProgram: 'تم الانضمام إلى البرنامج بنجاح!',
+        failedToJoinProgram: 'فشل في الانضمام إلى البرنامج',
+        successfullyClaimedPromo: 'تم استلام رمز الخصم بنجاح!',
+        failedToClaimPromo: 'فشل في استلام رمز الخصم',
+        myLoyaltyCard: 'بطاقة الولاء الخاصة بي',
+        scanMyLoyaltyCard: 'امسح بطاقة الولاء الخاصة بي (المعرف: {{cardNumber}})',
+        specialDiscountOffer: 'عرض خصم خاص',
+        customer: 'عميل'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'لوحة تحكم الأعمال',
@@ -1123,6 +1156,39 @@ const resources = {
         gift: 'REGALO'
       },
       
+      // QR Card Page
+      qrCard: {
+        pleaseSignInToView: 'Por favor inicia sesión para ver tu tarjeta QR.',
+        yourLoyaltyCard: 'Tu Tarjeta de Lealtad',
+        useThisCardToCollect: 'Usa esta tarjeta para acumular y canjear puntos en negocios participantes',
+        copied: '¡Copiado!',
+        copyCardNumber: 'Copiar Número de Tarjeta',
+        shareCard: 'Compartir Tarjeta',
+        printCard: 'Imprimir Tarjeta',
+        myPrograms: 'Mis Programas',
+        points: 'Puntos',
+        joined: 'Unido',
+        youHaveNotJoinedAnyPrograms: 'Aún no te has unido a ningún programa',
+        showYourQrCardToJoin: 'Muestra tu tarjeta QR en negocios participantes para unirte a sus programas de lealtad',
+        availablePromos: 'Promociones Disponibles',
+        expires: 'Expira',
+        claim: 'Reclamar',
+        claimed: 'Reclamado',
+        noPromoCodesAvailable: 'No hay códigos promocionales disponibles en este momento',
+        showYourQrCardToReceive: 'Muestra tu tarjeta QR en negocios participantes para recibir ofertas especiales',
+        securityInformation: 'Información de Seguridad',
+        yourQrCodeIsUnique: 'Tu código QR es único para ti y está firmado de forma segura. Se actualiza automáticamente para proteger tu cuenta.',
+        failedToLoadLoyaltyCard: 'Error al cargar la información de tu tarjeta de lealtad',
+        successfullyJoinedProgram: '¡Te uniste al programa exitosamente!',
+        failedToJoinProgram: 'Error al unirse al programa',
+        successfullyClaimedPromo: '¡Código promocional reclamado exitosamente!',
+        failedToClaimPromo: 'Error al reclamar código promocional',
+        myLoyaltyCard: 'Mi Tarjeta de Lealtad',
+        scanMyLoyaltyCard: 'Escanea mi tarjeta de lealtad (ID: {{cardNumber}})',
+        specialDiscountOffer: 'Oferta de descuento especial',
+        customer: 'Cliente'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Panel de Negocios',
@@ -1546,6 +1612,39 @@ const resources = {
         pointsType: 'POINTS',
         cashback: 'REMBOURSEMENT',
         gift: 'CADEAU'
+      },
+      
+      // QR Card Page
+      qrCard: {
+        pleaseSignInToView: 'Veuillez vous connecter pour voir votre carte QR.',
+        yourLoyaltyCard: 'Votre Carte de Fidélité',
+        useThisCardToCollect: 'Utilisez cette carte pour collecter et échanger des points chez les entreprises participantes',
+        copied: 'Copié !',
+        copyCardNumber: 'Copier le Numéro de Carte',
+        shareCard: 'Partager la Carte',
+        printCard: 'Imprimer la Carte',
+        myPrograms: 'Mes Programmes',
+        points: 'Points',
+        joined: 'Rejoint',
+        youHaveNotJoinedAnyPrograms: 'Vous n\'avez encore rejoint aucun programme',
+        showYourQrCardToJoin: 'Montrez votre carte QR aux entreprises participantes pour rejoindre leurs programmes de fidélité',
+        availablePromos: 'Promotions Disponibles',
+        expires: 'Expire',
+        claim: 'Réclamer',
+        claimed: 'Réclamé',
+        noPromoCodesAvailable: 'Aucun code promotionnel disponible pour le moment',
+        showYourQrCardToReceive: 'Montrez votre carte QR aux entreprises participantes pour recevoir des offres spéciales',
+        securityInformation: 'Informations de Sécurité',
+        yourQrCodeIsUnique: 'Votre code QR vous est unique et est signé de manière sécurisée. Il se met à jour automatiquement pour protéger votre compte.',
+        failedToLoadLoyaltyCard: 'Échec du chargement des informations de votre carte de fidélité',
+        successfullyJoinedProgram: 'Programme rejoint avec succès !',
+        failedToJoinProgram: 'Échec de l\'adhésion au programme',
+        successfullyClaimedPromo: 'Code promotionnel réclamé avec succès !',
+        failedToClaimPromo: 'Échec de la réclamation du code promotionnel',
+        myLoyaltyCard: 'Ma Carte de Fidélité',
+        scanMyLoyaltyCard: 'Scannez ma carte de fidélité (ID : {{cardNumber}})',
+        specialDiscountOffer: 'Offre de remise spéciale',
+        customer: 'Client'
       },
       
       // Business Dashboard
