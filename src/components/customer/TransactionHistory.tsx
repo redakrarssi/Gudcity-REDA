@@ -200,7 +200,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder={t('Search transactions...')}
+                placeholder={t('searchTransactions')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 py-2 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -213,7 +213,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               className="py-2 px-3 bg-blue-50 text-blue-600 rounded-md text-sm flex items-center hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4 mr-1" />
-              {t('Export')}
+              {t('export')}
             </button>
           </div>
         </div>
@@ -224,9 +224,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             onChange={(e) => setFilterType(e.target.value as 'ALL' | 'EARN' | 'REDEEM')}
             className="py-1.5 px-3 border border-gray-300 bg-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="ALL">{t('All Types')}</option>
-            <option value="EARN">{t('Points Earned')}</option>
-            <option value="REDEEM">{t('Points Redeemed')}</option>
+            <option value="ALL">{t('allTypes')}</option>
+            <option value="EARN">{t('pointsEarned')}</option>
+            <option value="REDEEM">{t('pointsRedeemed')}</option>
           </select>
           
           <select
@@ -234,10 +234,10 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             onChange={(e) => setDateRange(e.target.value as 'ALL' | 'WEEK' | 'MONTH' | 'YEAR')}
             className="py-1.5 px-3 border border-gray-300 bg-white rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="ALL">{t('All Time')}</option>
-            <option value="WEEK">{t('Last Week')}</option>
-            <option value="MONTH">{t('Last Month')}</option>
-            <option value="YEAR">{t('Last Year')}</option>
+            <option value="ALL">{t('allTime')}</option>
+            <option value="WEEK">{t('lastWeek')}</option>
+            <option value="MONTH">{t('lastMonth')}</option>
+            <option value="YEAR">{t('lastYear')}</option>
           </select>
         </div>
       </div>

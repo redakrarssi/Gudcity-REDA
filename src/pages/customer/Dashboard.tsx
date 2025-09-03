@@ -383,7 +383,7 @@ const CustomerDashboard = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-8">
+      <div className="space-y-8 customer-dashboard">
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
@@ -407,29 +407,29 @@ const CustomerDashboard = () => {
             
             <div className="relative flex flex-col md:flex-row justify-between items-center">
               <div className="text-white mb-6 md:mb-0">
-                <h2 className="text-2xl font-bold">Welcome back, {userData.name}!</h2>
-                <p className="opacity-80 mt-2 text-blue-100">Scan your QR code to earn rewards</p>
+                <h2 className="text-2xl font-bold">{t('welcomeBack')}, {userData.name}!</h2>
+                <p className="opacity-80 mt-2 text-blue-100">{t('scanQRCode')}</p>
                 
                 <div className="flex items-center mt-4 text-sm space-x-4">
                   {!pointsLoading && (
                     <>
                       <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
                         <BadgeCheck className="w-4 h-4 text-blue-200 mr-1.5" />
-                        <span className="text-blue-100">{upcomingRewards.length} Programs</span>
+                        <span className="text-blue-100">{upcomingRewards.length} {t('programs')}</span>
                       </div>
                       <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
                         <Gift className="w-4 h-4 text-blue-200 mr-1.5" />
                         <span className="text-blue-100">
-                          {upcomingRewards.filter(r => r.progress >= 90).length} Rewards Ready
+                          {upcomingRewards.filter(r => r.progress >= 90).length} {t('rewardsReady')}
                         </span>
                       </div>
                     </>
                   )}
                 </div>
               </div>
-              <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20">
+              <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20 qr-card-container">
                 <QRCard userId={userData.id} displayName={userData.name} />
-                <div className="mt-2 text-center text-xs text-white/80">Tap to enlarge</div>
+                <div className="mt-2 text-center text-xs text-white/80">{t('tapToEnlarge')}</div>
               </div>
             </div>
           </div>
@@ -486,9 +486,9 @@ const CustomerDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Activity className="w-4 h-4 text-blue-500 mr-1.5" />
-                Recent Activity
+                {t('recentActivity')}
               </h3>
-              <span className="text-xs bg-blue-50 px-2 py-1 rounded-full text-blue-700">Last 7 days</span>
+              <span className="text-xs bg-blue-50 px-2 py-1 rounded-full text-blue-700">{t('last7Days')}</span>
             </div>
             
             {activitiesLoading ? (
@@ -497,12 +497,12 @@ const CustomerDashboard = () => {
               </div>
             ) : recentActivity.length === 0 ? (
               <div className="text-center py-6 text-gray-500">
-                <p>No recent activity found</p>
+                <p>{t('noRecentActivity')}</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentActivity.map(activity => (
-                  <div key={activity.id} className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100">
+                  <div key={activity.id} className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100 activity-card">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform ${
                       activity.type === 'EARN' ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-indigo-600'
                     }`}>
@@ -515,9 +515,9 @@ const CustomerDashboard = () => {
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-700">
                         {activity.type === 'EARN' ? (
-                          `Earned ${activity.points} points`
+                          t('earnedPoints', { points: activity.points })
                         ) : (
-                          `Redeemed ${activity.points} points`
+                          t('redeemedPoints', { points: activity.points })
                         )}
                       </p>
                       <p className="text-xs text-gray-500">
@@ -534,9 +534,9 @@ const CustomerDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Gift className="w-4 h-4 text-blue-500 mr-1.5" />
-                Next Rewards
+                {t('nextRewards')}
               </h3>
-              <span className="text-xs text-blue-600 cursor-pointer hover:underline">View all</span>
+              <span className="text-xs text-blue-600 cursor-pointer hover:underline">{t('viewAll')}</span>
             </div>
             
             {rewardsLoading ? (
@@ -545,7 +545,7 @@ const CustomerDashboard = () => {
               </div>
             ) : upcomingRewards.length === 0 ? (
               <div className="text-center py-6 text-gray-500">
-                <p>No upcoming rewards found</p>
+                <p>{t('noUpcomingRewards')}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -559,10 +559,10 @@ const CustomerDashboard = () => {
                         <p className="text-sm font-medium text-gray-800">{reward.reward}</p>
                       </div>
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
-                        {reward.pointsNeeded} points more
+                        {reward.pointsNeeded} {t('pointsMore')}
                       </span>
                     </div>
-                    <div className="w-full bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden">
+                    <div className="w-full bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden reward-progress">
                       <div 
                         className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full" 
                         style={{ width: `${reward.progress}%` }}
@@ -573,7 +573,7 @@ const CustomerDashboard = () => {
                         {reward.currentPoints}/{reward.pointsRequired} points
                       </span>
                       <span className="text-xs text-blue-700 font-medium">
-                        {reward.progress}% complete
+                        {reward.progress}% {t('complete')}
                       </span>
                     </div>
                   </div>
@@ -586,24 +586,24 @@ const CustomerDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Sparkles className="w-4 h-4 text-purple-500 mr-1.5" />
-                Trending Rewards
+                {t('trendingRewards')}
               </h3>
-              <span className="text-xs bg-purple-50 px-2 py-1 rounded-full text-purple-700">Popular now</span>
+              <span className="text-xs bg-purple-50 px-2 py-1 rounded-full text-purple-700">{t('popularNow')}</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 trending-rewards">
               <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 shadow-sm hover:shadow-md transition-shadow transform hover:-translate-y-0.5">
                 <p className="text-sm font-medium text-purple-800 flex items-center">
                   <span className="w-6 h-6 flex items-center justify-center bg-purple-100 rounded-full text-purple-800 mr-2 text-xs font-bold">1</span>
                   20% Off at Fashion Store
                 </p>
-                <p className="text-xs text-purple-600 mt-2 ml-8">Limited time offer • 230 redeemed</p>
+                <p className="text-xs text-purple-600 mt-2 ml-8">{t('limitedTimeOffer')} • 230 {t('redeemed')}</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200 shadow-sm hover:shadow-md transition-shadow transform hover:-translate-y-0.5">
                 <p className="text-sm font-medium text-amber-800 flex items-center">
                   <span className="w-6 h-6 flex items-center justify-center bg-amber-100 rounded-full text-amber-800 mr-2 text-xs font-bold">2</span>
                   Free Dessert at Local Restaurant
                 </p>
-                <p className="text-xs text-amber-600 mt-2 ml-8">With any meal purchase • 178 redeemed</p>
+                <p className="text-xs text-amber-600 mt-2 ml-8">{t('withAnyMealPurchase')} • 178 {t('redeemed')}</p>
               </div>
             </div>
           </div>

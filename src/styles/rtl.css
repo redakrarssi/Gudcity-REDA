@@ -149,6 +149,55 @@
   margin-left: 16rem;
 }
 
+/* Customer Dashboard specific RTL fixes */
+[dir="rtl"] .customer-dashboard .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-dashboard .space-x-4 > * + * {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+[dir="rtl"] .customer-dashboard .space-x-2 > * + * {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* QR Card positioning in RTL */
+[dir="rtl"] .qr-card-container {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-container .absolute {
+  position: absolute;
+}
+
+/* Activity cards RTL adjustments */
+[dir="rtl"] .activity-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .activity-card .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+/* Reward progress bars RTL */
+[dir="rtl"] .reward-progress {
+  direction: ltr; /* Keep progress bars left-to-right for visual consistency */
+}
+
+/* Trending rewards RTL */
+[dir="rtl"] .trending-rewards .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .trending-rewards .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
 /* QR Card specific adjustments */
 [dir="rtl"] .qr-card .absolute.top-2.left-2 {
   left: auto;
