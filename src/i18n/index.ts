@@ -409,7 +409,21 @@ const resources = {
         successfullyEnrolledIn: 'Successfully enrolled in',
         declinedEnrollmentIn: 'Declined enrollment in',
         theProgram: 'the program',
-        enrollmentProcessInterrupted: 'The enrollment process was interrupted'
+        enrollmentProcessInterrupted: 'The enrollment process was interrupted',
+        // Time-related messages
+        justNow: 'just now',
+        minuteAgo: 'minute ago',
+        minutesAgo: 'minutes ago',
+        hourAgo: 'hour ago',
+        hoursAgo: 'hours ago',
+        dayAgo: 'day ago',
+        daysAgo: 'days ago',
+        // Action messages
+        actionRequired: 'Action required - check your notifications',
+        // Promo code messages
+        promoCode: 'Promo Code',
+        // Program messages
+        aProgram: 'a program'
       },
       
       // Authentication Pages
@@ -857,7 +871,21 @@ const resources = {
         successfullyEnrolledIn: 'تم الانضمام بنجاح إلى',
         declinedEnrollmentIn: 'تم رفض الانضمام إلى',
         theProgram: 'البرنامج',
-        enrollmentProcessInterrupted: 'تم مقاطعة عملية الانضمام'
+        enrollmentProcessInterrupted: 'تم مقاطعة عملية الانضمام',
+        // Time-related messages
+        justNow: 'الآن',
+        minuteAgo: 'منذ دقيقة',
+        minutesAgo: 'منذ دقائق',
+        hourAgo: 'منذ ساعة',
+        hoursAgo: 'منذ ساعات',
+        dayAgo: 'منذ يوم',
+        daysAgo: 'منذ أيام',
+        // Action messages
+        actionRequired: 'إجراء مطلوب - تحقق من إشعاراتك',
+        // Promo code messages
+        promoCode: 'كود الخصم',
+        // Program messages
+        aProgram: 'برنامج'
       },
       
       // Business Dashboard
@@ -1403,7 +1431,21 @@ const resources = {
         successfullyEnrolledIn: 'Inscrito exitosamente en',
         declinedEnrollmentIn: 'Rechazada la inscripción en',
         theProgram: 'el programa',
-        enrollmentProcessInterrupted: 'El proceso de inscripción fue interrumpido'
+        enrollmentProcessInterrupted: 'El proceso de inscripción fue interrumpido',
+        // Time-related messages
+        justNow: 'ahora mismo',
+        minuteAgo: 'hace un minuto',
+        minutesAgo: 'hace minutos',
+        hourAgo: 'hace una hora',
+        hoursAgo: 'hace horas',
+        dayAgo: 'hace un día',
+        daysAgo: 'hace días',
+        // Action messages
+        actionRequired: 'Acción requerida - revisa tus notificaciones',
+        // Promo code messages
+        promoCode: 'Código Promocional',
+        // Program messages
+        aProgram: 'un programa'
       },
       
       // Business Dashboard
@@ -1949,7 +1991,21 @@ const resources = {
         successfullyEnrolledIn: 'Inscrit avec succès à',
         declinedEnrollmentIn: 'Inscription refusée à',
         theProgram: 'le programme',
-        enrollmentProcessInterrupted: 'Le processus d\'inscription a été interrompu'
+        enrollmentProcessInterrupted: 'Le processus d\'inscription a été interrompu',
+        // Time-related messages
+        justNow: 'à l\'instant',
+        minuteAgo: 'il y a une minute',
+        minutesAgo: 'il y a minutes',
+        hourAgo: 'il y a une heure',
+        hoursAgo: 'il y a heures',
+        dayAgo: 'il y a un jour',
+        daysAgo: 'il y a jours',
+        // Action messages
+        actionRequired: 'Action requise - vérifiez vos notifications',
+        // Promo code messages
+        promoCode: 'Code Promo',
+        // Program messages
+        aProgram: 'un programme'
       },
       
       // Business Dashboard

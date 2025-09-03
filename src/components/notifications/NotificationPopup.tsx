@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Check, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../contexts/NotificationContext';
 
 /**
@@ -8,6 +9,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
  * Shows on any page when a new notification arrives
  */
 const NotificationPopup: React.FC = () => {
+  const { t } = useTranslation();
   const { 
     showPopup,
     latestNotification,
@@ -78,7 +80,7 @@ const NotificationPopup: React.FC = () => {
               {latestNotification.requiresAction && (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                    Action required - check your notifications
+                    {t('notifications.actionRequired')}
                   </span>
                 </div>
               )}

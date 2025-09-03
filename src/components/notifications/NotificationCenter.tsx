@@ -109,13 +109,13 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
     const diffDay = Math.floor(diffHour / 24);
 
     if (diffSec < 60) {
-      return 'just now';
+      return t('notifications.justNow');
     } else if (diffMin < 60) {
-      return `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
+      return diffMin === 1 ? t('notifications.minuteAgo') : `${diffMin} ${t('notifications.minutesAgo')}`;
     } else if (diffHour < 24) {
-      return `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
+      return diffHour === 1 ? t('notifications.hourAgo') : `${diffHour} ${t('notifications.hoursAgo')}`;
     } else if (diffDay < 30) {
-      return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
+      return diffDay === 1 ? t('notifications.dayAgo') : `${diffDay} ${t('notifications.daysAgo')}`;
     } else {
       return date.toLocaleDateString();
     }
@@ -184,7 +184,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                   {notifications.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                       <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No notifications yet</p>
+                      <p>{t('notifications.noNotificationsYet')}</p>
                     </div>
                   ) : (
                     notifications.map(notification => (
@@ -217,7 +217,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <p className="text-xs font-medium text-green-800 dark:text-green-200">
-                                      {notification.data.promoCodeName || 'Promo Code'}
+                                      {notification.data.promoCodeName || t('notifications.promoCode')}
                                     </p>
                                     <p className="text-xs text-green-600 dark:text-green-300">
                                       {notification.data.promoCodeType}: {notification.data.promoCodeValue} {notification.data.promoCodeCurrency || 'points'}
@@ -258,7 +258,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                   {approvalRequests.length === 0 ? (
                     <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                       <Check className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No pending approvals</p>
+                      <p>{t('notifications.noPendingApprovals')}</p>
                     </div>
                   ) : (
                     approvalRequests.map(approval => (
@@ -277,19 +277,19 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {approval.requestType === 'ENROLLMENT'
-                                ? 'Program Enrollment Request'
-                                : 'Points Deduction Request'}
+                                ? t('notifications.programEnrollmentRequest')
+                                : t('notifications.pointsDeductionRequest')}
                             </p>
                             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                               {approval.requestType === 'ENROLLMENT'
-                                ? `${approval.businessName} wants to enroll you in ${approval.data?.programName || 'a program'}.`
-                                : `${approval.businessName} wants to deduct ${approval.data?.points || ''} points.`}
+                                ? `${approval.businessName} ${t('notifications.wantsToEnrollYou')} ${approval.data?.programName || t('notifications.aProgram')}.`
+                                : `${approval.businessName} ${t('notifications.wantsToDeduct')} ${approval.data?.points || ''} ${t('notifications.points')}.`}
                             </p>
                             
                             {/* Display benefits if available */}
                             {approval.data?.benefits && (
                               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                                <p className="font-medium">Benefits:</p>
+                                <p className="font-medium">{t('notifications.benefits')}:</p>
                                 <ul className="list-disc list-inside pl-2 mt-1">
                                   {approval.data.benefits.map((benefit: string, i: number) => (
                                     <li key={i}>{benefit}</li>
@@ -301,7 +301,7 @@ export const NotificationCenter: FC<NotificationCenterProps> = ({ userId }) => {
                             {/* Display reason if available */}
                             {approval.data?.reason && (
                               <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                                <span className="font-medium">Reason: </span>
+                                <span className="font-medium">{t('notifications.reason')}: </span>
                                 {approval.data.reason}
                               </p>
                             )}

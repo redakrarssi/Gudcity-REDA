@@ -55,13 +55,13 @@ const GlobalNotificationCenter: React.FC = () => {
     const diffDay = Math.floor(diffHour / 24);
 
     if (diffSec < 60) {
-      return 'just now';
+      return t('notifications.justNow');
     } else if (diffMin < 60) {
-      return `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
+      return diffMin === 1 ? t('notifications.minuteAgo') : `${diffMin} ${t('notifications.minutesAgo')}`;
     } else if (diffHour < 24) {
-      return `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
+      return diffHour === 1 ? t('notifications.hourAgo') : `${diffHour} ${t('notifications.hoursAgo')}`;
     } else if (diffDay < 30) {
-      return `${diffDay} day${diffDay > 1 ? 's' : ''} ago`;
+      return diffDay === 1 ? t('notifications.dayAgo') : `${diffDay} ${t('notifications.daysAgo')}`;
     } else {
       return date.toLocaleDateString();
     }
