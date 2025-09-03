@@ -71,7 +71,6 @@ const resources = {
       // Dashboard Content
       welcomeBack: 'Welcome back',
       scanQRCode: 'Scan your QR code to earn rewards',
-      programs: 'Programs',
       rewardsReady: 'Rewards Ready',
       tapToEnlarge: 'Tap to enlarge',
       recentActivity: 'Recent Activity',
@@ -113,7 +112,6 @@ const resources = {
       noTransactions: 'No transactions found',
       searchTransactions: 'Search transactions...',
       export: 'Export',
-      allTypes: 'All Types',
       pointsEarned: 'Points Earned',
       pointsRedeemed: 'Points Redeemed',
       allTime: 'All Time',
@@ -124,13 +122,11 @@ const resources = {
       
       // Loyalty Card
       availableRewards: 'Available Rewards!',
-      rewards: 'Rewards',
       viewCard: 'View Card',
       allRewardsEarned: 'All rewards earned!',
       noRewardsAvailable: 'No rewards available',
       
       // Loyalty Card Additional
-      loyaltyProgram: 'Loyalty Program',
       business: 'Business',
       pointsMoreToNextTier: '{{points}} more points to {{nextTier}}',
       maximumTierReached: 'Maximum tier reached',
@@ -443,7 +439,6 @@ const resources = {
       // Dashboard Content
       welcomeBack: 'مرحباً بعودتك',
       scanQRCode: 'امسح رمز QR الخاص بك لكسب المكافآت',
-      programs: 'البرامج',
       rewardsReady: 'المكافآت جاهزة',
       tapToEnlarge: 'اضغط للتكبير',
       recentActivity: 'النشاط الحديث',
@@ -485,7 +480,6 @@ const resources = {
       noTransactions: 'لا توجد معاملات',
       searchTransactions: 'البحث في المعاملات...',
       export: 'تصدير',
-      allTypes: 'جميع الأنواع',
       pointsEarned: 'نقاط مكسبة',
       pointsRedeemed: 'نقاط مستبدلة',
       allTime: 'كل الوقت',
@@ -496,13 +490,11 @@ const resources = {
       
       // Loyalty Card
       availableRewards: 'المكافآت متاحة!',
-      rewards: 'المكافآت',
       viewCard: 'عرض البطاقة',
       allRewardsEarned: 'تم كسب جميع المكافآت!',
       noRewardsAvailable: 'لا توجد مكافآت متاحة',
       
       // Loyalty Card Additional
-      loyaltyProgram: 'برنامج الولاء',
       business: 'الشركة',
       pointsMoreToNextTier: '{{points}} نقاط إضافية للوصول إلى {{nextTier}}',
       maximumTierReached: 'تم الوصول للدرجة القصوى',
@@ -815,7 +807,6 @@ const resources = {
       // Dashboard Content
       welcomeBack: 'Bienvenido de vuelta',
       scanQRCode: 'Escanea tu código QR para ganar recompensas',
-      programs: 'Programas',
       rewardsReady: 'Recompensas Listas',
       tapToEnlarge: 'Toca para ampliar',
       recentActivity: 'Actividad Reciente',
@@ -857,7 +848,6 @@ const resources = {
       noTransactions: 'No se encontraron transacciones',
       searchTransactions: 'Buscar transacciones...',
       export: 'Exportar',
-      allTypes: 'Todos los Tipos',
       pointsEarned: 'Puntos Ganados',
       pointsRedeemed: 'Puntos Canjeados',
       allTime: 'Todo el Tiempo',
@@ -868,13 +858,11 @@ const resources = {
       
       // Loyalty Card
       availableRewards: '¡Recompensas Disponibles!',
-      rewards: 'Recompensas',
       viewCard: 'Ver Tarjeta',
       allRewardsEarned: '¡Todas las recompensas ganadas!',
       noRewardsAvailable: 'No hay recompensas disponibles',
       
       // Loyalty Card Additional
-      loyaltyProgram: 'Programa de Lealtad',
       business: 'Negocio',
       pointsMoreToNextTier: '{{points}} puntos más para {{nextTier}}',
       maximumTierReached: 'Nivel máximo alcanzado',
@@ -1187,7 +1175,6 @@ const resources = {
       // Dashboard Content
       welcomeBack: 'Bon retour',
       scanQRCode: 'Scannez votre code QR pour gagner des récompenses',
-      programs: 'Programmes',
       rewardsReady: 'Récompenses Prêtes',
       tapToEnlarge: 'Appuyez pour agrandir',
       recentActivity: 'Activité Récente',
@@ -1229,7 +1216,6 @@ const resources = {
       noTransactions: 'Aucune transaction trouvée',
       searchTransactions: 'Rechercher des transactions...',
       export: 'Exporter',
-      allTypes: 'Tous les Types',
       pointsEarned: 'Points Gagnés',
       pointsRedeemed: 'Points Échangés',
       allTime: 'Tout le Temps',
@@ -1240,13 +1226,11 @@ const resources = {
       
       // Loyalty Card
       availableRewards: 'Récompenses Disponibles!',
-      rewards: 'Récompenses',
       viewCard: 'Voir la Carte',
       allRewardsEarned: 'Toutes les récompenses gagnées!',
       noRewardsAvailable: 'Aucune récompense disponible',
       
       // Loyalty Card Additional
-      loyaltyProgram: 'Programme de Fidélité',
       business: 'Entreprise',
       pointsMoreToNextTier: '{{points}} points de plus pour {{nextTier}}',
       maximumTierReached: 'Niveau maximum atteint',

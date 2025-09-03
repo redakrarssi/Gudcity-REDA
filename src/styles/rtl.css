@@ -658,7 +658,6 @@
     direction: rtl;
   }
 }
-}
 
 [dir="rtl"] .qr-card .absolute.top-2.right-2 {
   right: auto;
