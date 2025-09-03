@@ -371,6 +371,47 @@ const resources = {
         contactSupport: 'Contact Support'
       },
       
+      // Customer Menu & Navigation
+      menu: {
+        dashboard: 'Dashboard',
+        myCards: 'My Cards',
+        nearbyRewards: 'Nearby Rewards',
+        promotions: 'Promotions',
+        qrCard: 'QR Card',
+        settings: 'Settings',
+        logout: 'Logout',
+        rewards: 'Rewards'
+      },
+      
+      // Notification Center
+      notifications: {
+        notifications: 'Notifications',
+        closeNotifications: 'Close notifications',
+        all: 'All',
+        approvals: 'Approvals',
+        noNotificationsYet: 'No notifications yet',
+        noPendingApprovals: 'No pending approvals',
+        clearAll: 'Clear All',
+        clearing: 'Clearing...',
+        deleteNotification: 'Delete notification',
+        programEnrollmentRequest: 'Program Enrollment Request',
+        pointsDeductionRequest: 'Points Deduction Request',
+        wantsToEnrollYou: 'wants to enroll you in',
+        wantsToDeduct: 'wants to deduct',
+        points: 'points',
+        benefits: 'Benefits',
+        reason: 'Reason',
+        processing: 'Processing',
+        approved: 'Approved',
+        approve: 'Approve',
+        declined: 'Declined',
+        decline: 'Decline',
+        successfullyEnrolledIn: 'Successfully enrolled in',
+        declinedEnrollmentIn: 'Declined enrollment in',
+        theProgram: 'the program',
+        enrollmentProcessInterrupted: 'The enrollment process was interrupted'
+      },
+      
       // Authentication Pages
       auth: {
         // Login Page

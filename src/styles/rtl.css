@@ -2006,3 +2006,402 @@
     flex-direction: column;
   }
 }
+
+/* Customer Menu RTL Styles */
+[dir="rtl"] .customer-layout {
+  text-align: right;
+}
+
+[dir="rtl"] .sidebar {
+  border-right: none;
+  border-left: 1px solid #e5e7eb;
+}
+
+[dir="rtl"] .brand-section {
+  text-align: right;
+}
+
+[dir="rtl"] .brand-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .brand-subtitle {
+  text-align: right;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+[dir="rtl"] .header-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .navigation {
+  text-align: right;
+}
+
+[dir="rtl"] .nav-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .nav-text {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .footer-section {
+  text-align: right;
+}
+
+[dir="rtl"] .footer-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .footer-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .mobile-header {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-brand {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .mobile-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .mobile-control {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .mobile-menu {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .mobile-nav-text {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Arabic Font and Icon Improvements */
+[dir="rtl"] {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+[dir="rtl"] .brand-title,
+[dir="rtl"] .mobile-brand {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+[dir="rtl"] .nav-text,
+[dir="rtl"] .mobile-nav-text {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .brand-subtitle {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+
+/* Icon Size and Spacing Adjustments for Arabic */
+[dir="rtl"] .nav-icon,
+[dir="rtl"] .footer-icon,
+[dir="rtl"] .mobile-nav-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+[dir="rtl"] .title-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .clear-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .action-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .success-icon,
+[dir="rtl"] .error-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Notification Center RTL Improvements */
+[dir="rtl"] .notification-center {
+  right: auto;
+  left: 0;
+  text-align: right;
+}
+
+[dir="rtl"] .notification-header {
+  flex-direction: row-reverse;
+  padding: 1rem;
+}
+
+[dir="rtl"] .notification-title {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .notification-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .tab-button {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .notification-content {
+  text-align: right;
+  padding: 1rem;
+}
+
+[dir="rtl"] .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .empty-title {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 0.75rem;
+}
+
+[dir="rtl"] .clear-all-section {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .clear-all-button {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .notifications-list {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .notification-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+[dir="rtl"] .notification-content {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .notification-message {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .notification-time {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .time-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+[dir="rtl"] .delete-button {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .approvals-list {
+  text-align: right;
+}
+
+[dir="rtl"] .approval-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .approval-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .approval-description {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .approval-benefits {
+  text-align: right;
+}
+
+[dir="rtl"] .benefits-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .benefits-list {
+  text-align: right;
+}
+
+[dir="rtl"] .approval-reason {
+  text-align: right;
+}
+
+[dir="rtl"] .reason-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .approval-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .approve-button,
+[dir="rtl"] .decline-button {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .action-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .success-message {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .error-message {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Responsive RTL adjustments for menu and notifications */
+@media (max-width: 768px) {
+  [dir="rtl"] .mobile-controls {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .mobile-nav {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .mobile-nav-item {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .notification-center {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  [dir="rtl"] .notification-tabs {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .approval-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .approve-button,
+  [dir="rtl"] .decline-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
