@@ -198,6 +198,201 @@
   margin-left: 0.5rem;
 }
 
+/* Dashboard specific RTL enhancements */
+[dir="rtl"] .dashboard-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .dashboard-container .space-x-4 > * + * {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+[dir="rtl"] .dashboard-container .space-x-2 > * + * {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* Transaction history table RTL */
+[dir="rtl"] .transaction-table {
+  direction: rtl;
+}
+
+[dir="rtl"] .transaction-table th,
+[dir="rtl"] .transaction-table td {
+  text-align: right;
+}
+
+[dir="rtl"] .transaction-table .text-left {
+  text-align: right;
+}
+
+/* Program browser RTL */
+[dir="rtl"] .program-browser .grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-browser .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .program-browser .program-card .flex {
+  flex-direction: row-reverse;
+}
+
+/* Notification list RTL */
+[dir="rtl"] .notification-list .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-list .notification-item .flex {
+  flex-direction: row-reverse;
+}
+
+/* Loyalty card RTL */
+[dir="rtl"] .loyalty-card {
+  text-align: right;
+}
+
+[dir="rtl"] .loyalty-card .card-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .loyalty-card .flex {
+  flex-direction: row-reverse;
+}
+
+/* Form elements RTL */
+[dir="rtl"] .form-input,
+[dir="rtl"] .form-select,
+[dir="rtl"] .form-textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .form-input::placeholder,
+[dir="rtl"] .form-textarea::placeholder {
+  text-align: right;
+}
+
+/* Button groups RTL */
+[dir="rtl"] .button-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .button-group .btn:first-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[dir="rtl"] .button-group .btn:last-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Status badges RTL */
+[dir="rtl"] .status-badge {
+  text-align: center;
+}
+
+[dir="rtl"] .status-badge .flex {
+  flex-direction: row-reverse;
+}
+
+/* Progress bars RTL - keep LTR for visual consistency */
+[dir="rtl"] .progress-bar {
+  direction: ltr;
+}
+
+[dir="rtl"] .progress-bar .progress-fill {
+  direction: ltr;
+}
+
+/* Modal and overlay RTL */
+[dir="rtl"] .modal {
+  text-align: right;
+}
+
+[dir="rtl"] .modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .modal .modal-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .modal .modal-footer .flex {
+  flex-direction: row-reverse;
+}
+
+/* Tooltip RTL */
+[dir="rtl"] .tooltip {
+  text-align: right;
+}
+
+[dir="rtl"] .tooltip .tooltip-content {
+  direction: rtl;
+}
+
+/* Dropdown RTL */
+[dir="rtl"] .dropdown {
+  text-align: right;
+}
+
+[dir="rtl"] .dropdown .dropdown-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .dropdown .dropdown-item {
+  text-align: right;
+}
+
+/* Search input RTL */
+[dir="rtl"] .search-input {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .search-input::placeholder {
+  text-align: right;
+}
+
+[dir="rtl"] .search-input .search-icon {
+  left: auto;
+  right: 0.75rem;
+}
+
+/* Filter dropdown RTL */
+[dir="rtl"] .filter-dropdown {
+  text-align: right;
+}
+
+[dir="rtl"] .filter-dropdown select {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Card layout RTL */
+[dir="rtl"] .card {
+  text-align: right;
+}
+
+[dir="rtl"] .card .card-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .card .card-body {
+  direction: rtl;
+}
+
+[dir="rtl"] .card .card-footer .flex {
+  flex-direction: row-reverse;
+}
+
 /* QR Card specific adjustments */
 [dir="rtl"] .qr-card .absolute.top-2.left-2 {
   left: auto;

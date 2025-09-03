@@ -88,14 +88,14 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
           })
           .catch(error => {
             console.error('Error generating QR code:', error);
-            setQrCodeError('Failed to generate QR code');
+            setQrCodeError(t('failedToGenerateQRCode'));
           });
       } catch (error) {
         console.error('Error creating QR code data:', error);
-        setQrCodeError('Error creating QR code data');
+        setQrCodeError(t('errorCreatingQRCodeData'));
       }
     } else {
-      setQrCodeError('Missing required card information');
+      setQrCodeError(t('missingRequiredCardInformation'));
     }
   }, [card.id, card.customerId, card.programId, card.businessId, programName, businessName]);
 
@@ -196,7 +196,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
             })
             .catch(error => {
               console.error('Error generating QR code on retry:', error);
-              setQrCodeError('Failed to generate QR code');
+              setQrCodeError(t('failedToGenerateQRCode'));
             });
         } catch (error) {
           console.error('Error creating QR code data on retry:', error);
@@ -213,7 +213,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   );
   
   return (
-    <div className={`rounded-xl overflow-hidden shadow-md ${className}`}>
+    <div className={`rounded-xl overflow-hidden shadow-md loyalty-card ${className}`}>
       {/* Card Header */}
       <div 
         className={`${tierColors.bg} ${tierColors.border} border-b p-4 flex justify-between items-center`}

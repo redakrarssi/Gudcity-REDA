@@ -89,7 +89,7 @@ export const ProgramBrowser: React.FC<ProgramBrowserProps> = ({ onEnroll }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 program-browser">
       <div className="flex flex-col md:flex-row gap-4">
         {/* Search Bar */}
         <div className="flex-1 relative">
@@ -139,7 +139,7 @@ export const ProgramBrowser: React.FC<ProgramBrowserProps> = ({ onEnroll }) => {
             return (
               <div 
                 key={program.id} 
-                className={`group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-500 border border-gray-200 overflow-hidden transform ${
+                className={`group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-500 border border-gray-200 overflow-hidden transform program-card ${
                   animatedItems[program.id] ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'
                 } hover:-translate-y-2 hover:border-blue-300 perspective-1000`}
               >
@@ -241,7 +241,7 @@ export const ProgramBrowser: React.FC<ProgramBrowserProps> = ({ onEnroll }) => {
         <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-dashed border-gray-300 shadow-inner">
           <Search className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <p className="text-gray-500 mb-4 font-medium">{t('noPrograms')}</p>
-          <p className="text-sm text-gray-500">Try adjusting your search or filter criteria</p>
+          <p className="text-sm text-gray-500">{t('tryAdjustingSearch')}</p>
         </div>
       )}
     </div>

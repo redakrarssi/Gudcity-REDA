@@ -383,7 +383,7 @@ const CustomerDashboard = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-8 customer-dashboard">
+      <div className="space-y-8 customer-dashboard dashboard-container">
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
