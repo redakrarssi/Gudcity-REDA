@@ -51,79 +51,78 @@ const NearbyComingSoon = () => {
   const features = [
     {
       icon: <MapPin className="w-6 h-6" />,
-      title: "Location-Based Discovery",
-      description: "Find loyalty programs and rewards near your current location"
+      title: t('nearby.locationBasedDiscovery'),
+      description: t('nearby.locationBasedDiscoveryDesc')
     },
     {
       icon: <Navigation className="w-6 h-6" />,
-      title: "Smart Recommendations",
-      description: "Get personalized suggestions based on your preferences"
+      title: t('nearby.smartRecommendations'),
+      description: t('nearby.smartRecommendationsDesc')
     },
     {
       icon: <Star className="w-6 h-6" />,
-      title: "Exclusive Offers",
-      description: "Access special deals only available to nearby customers"
+      title: t('nearby.exclusiveOffers'),
+      description: t('nearby.exclusiveOffersDesc')
     },
     {
       icon: <Gift className="w-6 h-6" />,
-      title: "Instant Rewards",
-      description: "Discover and redeem rewards from businesses around you"
+      title: t('nearby.instantRewards'),
+      description: t('nearby.instantRewardsDesc')
     }
   ];
 
   const mockBusinesses = [
-    { name: "City Coffee", category: "Cafe", icon: <Coffee className="w-5 h-5" />, distance: "0.2 km", color: "bg-amber-100 text-amber-600" },
-    { name: "Fashion Hub", category: "Retail", icon: <ShoppingBag className="w-5 h-5" />, distance: "0.5 km", color: "bg-purple-100 text-purple-600" },
-    { name: "Gourmet Bistro", category: "Restaurant", icon: <Utensils className="w-5 h-5" />, distance: "0.8 km", color: "bg-green-100 text-green-600" }
+    { name: t('nearby.cityCoffee'), category: t('nearby.cafe'), icon: <Coffee className="w-5 h-5" />, distance: "0.2 km", color: "bg-amber-100 text-amber-600" },
+    { name: t('nearby.fashionHub'), category: t('nearby.retail'), icon: <ShoppingBag className="w-5 h-5" />, distance: "0.5 km", color: "bg-purple-100 text-purple-600" },
+    { name: t('nearby.gourmetBistro'), category: t('nearby.restaurant'), icon: <Utensils className="w-5 h-5" />, distance: "0.8 km", color: "bg-green-100 text-green-600" }
   ];
 
   return (
     <CustomerLayout>
-      <div className="min-h-screen relative overflow-hidden">
+      <div className="min-h-screen relative overflow-hidden nearby-page">
         {/* Animated background decorations */}
         {decorations.map((decoration, index) => (
           <div
             key={index}
-            className={`absolute ${decoration.position} ${decoration.rotation} animate-pulse opacity-30`}
+            className={`absolute ${decoration.position} ${decoration.rotation} animate-pulse opacity-30 decoration`}
             style={{ animationDelay: `${index * 0.3}s`, animationDuration: '3s' }}
           >
             {decoration.type === 'line' && (
-              <div className={`${decoration.color} ${decoration.size} rounded-full`}></div>
+              <div className={`${decoration.color} ${decoration.size} rounded-full decoration-line`}></div>
             )}
             {decoration.type === 'plus' && (
-              <div className={`${decoration.color} ${decoration.size} font-bold`}>+</div>
+              <div className={`${decoration.color} ${decoration.size} font-bold decoration-plus`}>+</div>
             )}
             {decoration.type === 'dot' && (
-              <div className={`${decoration.color} ${decoration.size} rounded-full`}></div>
+              <div className={`${decoration.color} ${decoration.size} rounded-full decoration-dot`}></div>
             )}
             {decoration.type === 'x' && (
-              <div className={`${decoration.color} ${decoration.size} font-bold`}>×</div>
+              <div className={`${decoration.color} ${decoration.size} font-bold decoration-x`}>×</div>
             )}
           </div>
         ))}
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-12">
           {/* Hero Section */}
-          <div className={`text-center mb-16 transition-all duration-1000 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className={`text-center mb-16 transition-all duration-1000 ease-out transform hero-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
             <div className="mb-8">
               <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mb-6 shadow-2xl transform hover:scale-110 transition-transform">
                 <Map className="w-12 h-12 text-white" />
               </div>
-              <h1 className="text-6xl font-black text-gray-800 mb-4 tracking-tight">
-                COMING
+              <h1 className="text-6xl font-black text-gray-800 mb-4 tracking-tight hero-title">
+                {t('nearby.comingSoon').split(' ')[0]}
               </h1>
-              <h1 className="text-6xl font-black text-gray-800 -mt-4 tracking-tight">
-                SOON
+              <h1 className="text-6xl font-black text-gray-800 -mt-4 tracking-tight hero-title">
+                {t('nearby.comingSoon').split(' ')[1]}
               </h1>
             </div>
             
             <div className="max-w-3xl mx-auto space-y-6">
-              <h2 className="text-3xl font-bold text-gray-700 mb-4">
-                🗺️ Nearby Rewards Feature
+              <h2 className="text-3xl font-bold text-gray-700 mb-4 hero-subtitle">
+                {t('nearby.nearbyRewardsFeature')}
               </h2>
-              <p className="text-xl text-gray-600 leading-relaxed">
-                We're building something amazing! Soon you'll be able to discover loyalty programs, 
-                exclusive offers, and instant rewards from businesses right around you.
+              <p className="text-xl text-gray-600 leading-relaxed hero-description">
+                {t('nearby.buildingSomethingAmazing')}
               </p>
               
 
@@ -131,24 +130,24 @@ const NearbyComingSoon = () => {
           </div>
 
           {/* Features Preview */}
-          <div className={`mb-16 transition-all duration-1000 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className={`mb-16 transition-all duration-1000 ease-out transform delay-300 features-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
             <h3 className="text-3xl font-bold text-center text-gray-800 mb-12">
-              What's Coming Your Way
+              {t('nearby.whatsComingYourWay')}
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 features-grid">
               {features.map((feature, index) => (
                 <div 
                   key={index}
-                  className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl transition-all transform hover:-translate-y-2"
+                  className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl transition-all transform hover:-translate-y-2 feature-card"
                   style={{ animationDelay: `${600 + index * 200}ms` }}
                 >
-                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white mb-6 shadow-lg">
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white mb-6 shadow-lg feature-icon">
                     {feature.icon}
                   </div>
-                  <h4 className="text-xl font-bold text-gray-800 mb-3">
+                  <h4 className="text-xl font-bold text-gray-800 mb-3 feature-title">
                     {feature.title}
                   </h4>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="text-gray-600 leading-relaxed feature-description">
                     {feature.description}
                   </p>
                 </div>
@@ -157,39 +156,39 @@ const NearbyComingSoon = () => {
           </div>
 
           {/* Mock Business Preview */}
-          <div className={`mb-16 transition-all duration-1000 ease-out transform delay-600 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className={`mb-16 transition-all duration-1000 ease-out transform delay-600 business-preview-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
             <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-3xl p-12 border border-blue-200">
-              <h3 className="text-3xl font-bold text-center text-gray-800 mb-4">
-                Preview: Businesses Near You
+              <h3 className="text-3xl font-bold text-center text-gray-800 mb-4 preview-title">
+                {t('nearby.previewBusinessesNearYou')}
               </h3>
-              <p className="text-center text-gray-600 mb-8 text-lg">
-                Here's a sneak peek of what you'll discover in your area
+              <p className="text-center text-gray-600 mb-8 text-lg preview-description">
+                {t('nearby.sneakPeekDescription')}
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto businesses-grid">
                 {mockBusinesses.map((business, index) => (
                   <div 
                     key={index}
-                    className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 border border-gray-100"
+                    className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 border border-gray-100 business-card"
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className={`w-10 h-10 rounded-lg ${business.color} flex items-center justify-center`}>
+                    <div className="flex items-center justify-between mb-4 business-header">
+                      <div className={`w-10 h-10 rounded-lg ${business.color} flex items-center justify-center business-icon`}>
                         {business.icon}
                       </div>
-                      <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                      <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium business-distance">
                         {business.distance}
                       </span>
                     </div>
-                    <h4 className="text-lg font-bold text-gray-800 mb-1">
+                    <h4 className="text-lg font-bold text-gray-800 mb-1 business-name">
                       {business.name}
                     </h4>
-                    <p className="text-gray-600 text-sm mb-3">
+                    <p className="text-gray-600 text-sm mb-3 business-category">
                       {business.category}
                     </p>
-                    <div className="flex items-center text-amber-500 text-sm">
-                      <Star className="w-4 h-4 fill-current mr-1" />
+                    <div className="flex items-center text-amber-500 text-sm business-rating">
+                      <Star className="w-4 h-4 fill-current mr-1 rating-star" />
                       <span className="font-medium">4.8</span>
-                      <span className="text-gray-400 ml-2">• Loyalty Program</span>
+                      <span className="text-gray-400 ml-2 loyalty-program">• {t('nearby.loyaltyProgram')}</span>
                     </div>
                   </div>
                 ))}
@@ -198,33 +197,32 @@ const NearbyComingSoon = () => {
           </div>
 
           {/* Call to Action */}
-          <div className={`text-center transition-all duration-1000 ease-out transform delay-900 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className={`text-center transition-all duration-1000 ease-out transform delay-900 cta-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-12 text-white shadow-2xl">
               <Sparkles className="w-16 h-16 mx-auto mb-6 text-yellow-400" />
-              <h3 className="text-3xl font-bold mb-4">
-                Get Ready for Launch! 🚀
+              <h3 className="text-3xl font-bold mb-4 cta-title">
+                {t('nearby.getReadyForLaunch')}
               </h3>
-              <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-                Be the first to explore nearby rewards and discover amazing deals 
-                from local businesses when we launch this exciting feature.
+              <p className="text-xl text-gray-300 max-w-2xl mx-auto cta-description">
+                {t('nearby.beFirstToExplore')}
               </p>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-16 opacity-70">
-            <p className="text-sm text-gray-500 flex items-center justify-center">
-              © 2024 by VCarda • Proudly created with{' '}
-              <span className="ml-1 text-red-500">♥</span>
+          <div className="text-center mt-16 opacity-70 footer-section">
+            <p className="text-sm text-gray-500 flex items-center justify-center footer-text">
+              {t('nearby.proudlyCreatedWith')}{' '}
+              <span className="ml-1 text-red-500">{t('nearby.heart')}</span>
             </p>
-            <div className="flex justify-center space-x-3 mt-3">
-              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center">
+            <div className="flex justify-center space-x-3 mt-3 social-icons">
+              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center social-icon">
                 <span className="text-white text-xs font-bold">f</span>
               </div>
-              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center">
+              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center social-icon">
                 <span className="text-white text-xs font-bold">t</span>
               </div>
-              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center">
+              <div className="w-5 h-5 bg-gray-400 rounded-sm flex items-center justify-center social-icon">
                 <span className="text-white text-xs font-bold">@</span>
               </div>
             </div>

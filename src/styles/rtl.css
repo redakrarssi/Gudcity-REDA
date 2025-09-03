@@ -85,7 +85,7 @@
 [dir="rtl"] .right-4 { right: auto; left: 1rem; }
 
 /* Transform adjustments */
-[dir="rtl"] .transform.scale-x-[-1] { transform: scaleX(1); }
+[dir="rtl"] .transform.scale-x-neg-1 { transform: scaleX(1); }
 
 /* Icon adjustments */
 [dir="rtl"] .lucide-chevron-left { transform: rotate(180deg); }
@@ -662,6 +662,181 @@
 [dir="rtl"] .qr-card .absolute.top-2.right-2 {
   right: auto;
   left: 0.5rem;
+}
+
+/* Nearby Page specific RTL enhancements */
+[dir="rtl"] .nearby-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .hero-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-subtitle {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .features-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .features-section .features-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-icon {
+  margin-right: 0;
+  margin-left: 1.5rem;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-title {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-description {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .preview-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .preview-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .businesses-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-distance {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-category {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating .rating-star {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating .loyalty-program {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .nearby-page .cta-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .cta-section .cta-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .cta-section .cta-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section .footer-text {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section .social-icons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .footer-section .social-icons .social-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+/* Animated decorations RTL */
+[dir="rtl"] .nearby-page .decoration {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-line {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-plus {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-dot {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-x {
+  direction: rtl;
+}
+
+/* Responsive adjustments for nearby page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .nearby-page .features-section .features-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .nearby-page .features-section .feature-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .businesses-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .business-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .business-card .business-header {
+    flex-direction: row-reverse;
+  }
 }
 
 /* Button groups */
