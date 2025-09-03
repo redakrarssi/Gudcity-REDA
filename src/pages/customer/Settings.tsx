@@ -281,7 +281,7 @@ const CustomerSettings = () => {
       <CustomerLayout>
         <div className="flex items-center justify-center h-64">
           <Loader className="w-8 h-8 text-blue-500 animate-spin" />
-          <span className="ml-2 text-lg text-gray-600">{t('Loading settings...')}</span>
+          <span className="ml-2 text-lg text-gray-600">{t('settings.loadingSettings')}</span>
         </div>
       </CustomerLayout>
     );
@@ -294,10 +294,10 @@ const CustomerSettings = () => {
         <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700 max-w-xl mx-auto mt-10">
           <h2 className="text-lg font-semibold flex items-center">
             <AlertCircle className="w-5 h-5 mr-2" />
-            {t('Error Loading Settings')}
+            {t('settings.errorLoadingSettings')}
           </h2>
           <p className="mt-2">
-            {t('We couldn\'t load your settings. Please try refreshing the page or contact support if the problem persists.')}
+            {t('settings.couldNotLoadSettings')}
           </p>
         </div>
       </CustomerLayout>
@@ -305,12 +305,12 @@ const CustomerSettings = () => {
   }
 
   const renderPersonalSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <User className="w-5 h-5 text-blue-500 mr-2" />
-            {t('Personal Information')}
+    <div className="space-y-6 settings-content">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 settings-section">
+        <div className="flex justify-between items-center mb-6 settings-section-header">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center settings-section-title">
+            <User className="w-5 h-5 text-blue-500 mr-2 settings-section-icon" />
+            {t('settings.personalInformation')}
           </h2>
           {!editMode ? (
             <button
@@ -318,7 +318,7 @@ const CustomerSettings = () => {
               className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
             >
               <Edit3 className="w-4 h-4 mr-1.5" />
-              {t('Edit')}
+              {t('settings.edit')}
             </button>
           ) : (
             <div className="flex gap-2">
@@ -327,7 +327,7 @@ const CustomerSettings = () => {
                 className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
               >
                 <X className="w-4 h-4 mr-1.5" />
-                {t('Cancel')}
+                {t('settings.cancel')}
               </button>
               <button
                 onClick={handleSaveSettings}
@@ -339,7 +339,7 @@ const CustomerSettings = () => {
                 ) : (
                   <Save className="w-4 h-4 mr-1.5" />
                 )}
-                {t('Save')}
+                {t('settings.save')}
               </button>
             </div>
           )}
@@ -348,21 +348,21 @@ const CustomerSettings = () => {
         {saveSuccess && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
             <Check className="w-5 h-5 mr-2" />
-            {t('Your settings have been successfully updated')}
+            {t('settings.settingsUpdatedSuccessfully')}
           </div>
         )}
         
         {saveError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center">
             <AlertCircle className="w-5 h-5 mr-2" />
-            {t('There was an error updating your settings. Please try again.')}
+            {t('settings.errorUpdatingSettings')}
           </div>
         )}
         
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Full Name')}
+              {t('settings.fullName')}
             </label>
             {editMode ? (
               <input
@@ -379,7 +379,7 @@ const CustomerSettings = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Email Address')}
+              {t('settings.emailAddress')}
             </label>
             {editMode ? (
               <input
@@ -396,7 +396,7 @@ const CustomerSettings = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Phone Number')}
+              {t('settings.phoneNumber')}
             </label>
             {editMode ? (
               <input
@@ -407,13 +407,13 @@ const CustomerSettings = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             ) : (
-              <p className="text-gray-800">{userData?.phone || t('Not specified')}</p>
+              <p className="text-gray-800">{userData?.phone || t('settings.notSpecified')}</p>
             )}
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Member Since')}
+              {t('settings.memberSince')}
             </label>
             <p className="text-gray-800">{new Date(userData?.joinedAt || '').toLocaleDateString()}</p>
           </div>
@@ -423,7 +423,7 @@ const CustomerSettings = () => {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
           <Globe className="w-5 h-5 text-blue-500 mr-2" />
-          {t('Regional Settings')}
+          {t('settings.regionalSettings')}
         </h2>
         
         <div className="grid gap-6 md:grid-cols-2">
@@ -439,13 +439,13 @@ const CustomerSettings = () => {
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {t('Language changes will be applied immediately')}
+              {t('settings.languageChangesApplied')}
             </p>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('Preferred Currency')}
+              {t('settings.preferredCurrency')}
             </label>
             {editMode ? (
               <select
@@ -479,7 +479,7 @@ const CustomerSettings = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-800 flex items-center">
             <Bell className="w-5 h-5 text-blue-500 mr-2" />
-            {t('Notification Settings')}
+            {t('settings.notificationSettings')}
           </h2>
           {!editMode ? (
             <button
@@ -487,7 +487,7 @@ const CustomerSettings = () => {
               className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
             >
               <Edit3 className="w-4 h-4 mr-1.5" />
-              {t('Edit')}
+              {t('settings.edit')}
             </button>
           ) : (
             <div className="flex gap-2">
@@ -496,7 +496,7 @@ const CustomerSettings = () => {
                 className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
               >
                 <X className="w-4 h-4 mr-1.5" />
-                {t('Cancel')}
+                {t('settings.cancel')}
               </button>
               <button
                 onClick={handleSaveSettings}
@@ -508,7 +508,7 @@ const CustomerSettings = () => {
                 ) : (
                   <Save className="w-4 h-4 mr-1.5" />
                 )}
-                {t('Save')}
+                {t('settings.save')}
               </button>
             </div>
           )}
@@ -517,7 +517,7 @@ const CustomerSettings = () => {
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <h3 className="text-md font-medium text-gray-700 mb-3">
-              {t('Communication Channels')}
+              {t('settings.communicationChannels')}
             </h3>
             <div className="space-y-3">
               <div className="flex items-center">
@@ -531,7 +531,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="email-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('Email Notifications')}
+                  {t('settings.emailNotifications')}
                 </label>
               </div>
               
@@ -546,7 +546,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="push-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('Push Notifications')}
+                  {t('settings.pushNotifications')}
                 </label>
               </div>
               
@@ -561,7 +561,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="sms-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('SMS Notifications')}
+                  {t('settings.smsNotifications')}
                 </label>
               </div>
             </div>
@@ -569,7 +569,7 @@ const CustomerSettings = () => {
         
           <div>
             <h3 className="text-md font-medium text-gray-700 mb-3">
-              {t('Notification Types')}
+              {t('settings.notificationTypes')}
             </h3>
             <div className="space-y-3">
               <div className="flex items-center">
@@ -583,7 +583,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="promotion-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('Promotions and Offers')}
+                  {t('settings.promotionsAndOffers')}
                 </label>
               </div>
               
@@ -598,7 +598,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="reward-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('Rewards and Points Updates')}
+                  {t('settings.rewardsAndPointsUpdates')}
                 </label>
               </div>
               
@@ -613,7 +613,7 @@ const CustomerSettings = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="system-notifications" className="ml-2 block text-sm text-gray-700">
-                  {t('System Notifications')}
+                  {t('settings.systemNotifications')}
                 </label>
               </div>
             </div>
@@ -631,10 +631,10 @@ const CustomerSettings = () => {
             {loading ? (
               <span className="flex items-center">
                 <Loader className="w-4 h-4 mr-2 animate-spin" />
-                {t('Saving...')}
+                {t('settings.saving')}
               </span>
             ) : (
-              t('Save Preferences')
+              t('settings.savePreferences')
             )}
           </button>
         )}
@@ -647,7 +647,7 @@ const CustomerSettings = () => {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
           <ShieldCheck className="w-5 h-5 text-blue-500 mr-2" />
-          {t('Security Settings')}
+          {t('settings.securitySettings')}
         </h2>
         
         <div className="space-y-4">
@@ -659,8 +659,8 @@ const CustomerSettings = () => {
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-800">{t('Change Password')}</h3>
-                <p className="text-sm text-gray-500">{t('Update your password')}</p>
+                <h3 className="font-medium text-gray-800">{t('settings.changePassword')}</h3>
+                <p className="text-sm text-gray-500">{t('settings.updateYourPassword')}</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -674,12 +674,12 @@ const CustomerSettings = () => {
                 <Bell className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-800">{t('Login Notifications')}</h3>
-                <p className="text-sm text-gray-500">{t('Get notified of new logins to your account')}</p>
+                <h3 className="font-medium text-gray-800">{t('settings.loginNotifications')}</h3>
+                <p className="text-sm text-gray-500">{t('settings.getNotifiedOfNewLogins')}</p>
               </div>
             </div>
             <div className="flex items-center">
-              <span className="mr-2 text-sm text-green-600 font-medium">{t('Enabled')}</span>
+              <span className="mr-2 text-sm text-green-600 font-medium">{t('settings.enabled')}</span>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </div>
           </button>
@@ -689,7 +689,7 @@ const CustomerSettings = () => {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
           <CreditCard className="w-5 h-5 text-blue-500 mr-2" />
-          {t('Connected Accounts')}
+          {t('settings.connectedAccounts')}
         </h2>
         
         <div className="space-y-4">
@@ -702,11 +702,11 @@ const CustomerSettings = () => {
               </div>
               <div>
                 <h3 className="font-medium text-gray-800">Google</h3>
-                <p className="text-sm text-gray-500">{t('Connect your Google account')}</p>
+                <p className="text-sm text-gray-500">{t('settings.connectYourGoogleAccount')}</p>
               </div>
             </div>
             <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors">
-              {t('Connect')}
+              {t('settings.connect')}
             </button>
           </div>
           
@@ -719,11 +719,11 @@ const CustomerSettings = () => {
               </div>
               <div>
                 <h3 className="font-medium text-gray-800">Facebook</h3>
-                <p className="text-sm text-gray-500">{t('Connect your Facebook account')}</p>
+                <p className="text-sm text-gray-500">{t('settings.connectYourFacebookAccount')}</p>
               </div>
             </div>
             <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors">
-              {t('Connect')}
+              {t('settings.connect')}
             </button>
           </div>
         </div>
@@ -732,7 +732,7 @@ const CustomerSettings = () => {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
           <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-          {t('Account Actions')}
+          {t('settings.accountActions')}
         </h2>
         
         <div className="space-y-4">
@@ -744,8 +744,8 @@ const CustomerSettings = () => {
                 <LogOut className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h3 className="font-medium">{t('Delete Account')}</h3>
-                <p className="text-sm opacity-80">{t('Permanently delete your account and data')}</p>
+                <h3 className="font-medium">{t('settings.deleteAccount')}</h3>
+                <p className="text-sm opacity-80">{t('settings.permanentlyDeleteAccount')}</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5" />
@@ -757,52 +757,52 @@ const CustomerSettings = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-6 pb-10 max-w-5xl mx-auto">
+      <div className="space-y-6 pb-10 max-w-5xl mx-auto settings-page">
         {/* Header */}
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
-                <SettingsIcon className="w-6 h-6 text-blue-500 mr-2" />
-                {t('Settings')}
+              <h1 className="text-2xl font-semibold text-gray-800 flex items-center settings-header">
+                <SettingsIcon className="w-6 h-6 text-blue-500 mr-2 settings-icon" />
+                {t('settings.title')}
               </h1>
-              <p className="text-gray-500 mt-1">{t('Manage your account settings and preferences')}</p>
+              <p className="text-gray-500 mt-1">{t('settings.manageAccountSettings')}</p>
             </div>
           </div>
         </div>
 
         {/* Settings Tabs */}
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200 settings-tabs">
             <button
               onClick={() => setActiveTab('personal')}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
                 activeTab === 'personal'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('Personal Settings')}
+              {t('settings.personalSettings')}
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
                 activeTab === 'notifications'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('Notifications')}
+              {t('settings.notifications')}
             </button>
             <button
               onClick={() => setActiveTab('account')}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
                 activeTab === 'account'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('Account')}
+              {t('settings.account')}
             </button>
           </div>
         </div>
@@ -818,16 +818,16 @@ const CustomerSettings = () => {
         <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2">
             <HelpCircle className="w-5 h-5 text-indigo-500 mr-2" />
-            {t('Need Help?')}
+            {t('settings.needHelp')}
           </h2>
           <p className="text-gray-600 text-sm mb-4">
-            {t('If you have any questions about your account or settings, our support team is here to help.')}
+            {t('settings.supportTeamHelp')}
           </p>
           <button
             className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
           >
             <HelpCircle className="w-4 h-4 mr-1.5" />
-            {t('Contact Support')}
+            {t('settings.contactSupport')}
           </button>
         </div>
       </div>

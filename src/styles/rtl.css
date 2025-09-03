@@ -85,7 +85,7 @@
 [dir="rtl"] .right-4 { right: auto; left: 1rem; }
 
 /* Transform adjustments */
-[dir="rtl"] .transform.scale-x-[-1] { transform: scaleX(1); }
+[dir="rtl"] .transform.scale-x-neg-1 { transform: scaleX(1); }
 
 /* Icon adjustments */
 [dir="rtl"] .lucide-chevron-left { transform: rotate(180deg); }
@@ -149,15 +149,1436 @@
   margin-left: 16rem;
 }
 
+/* Customer Dashboard specific RTL fixes */
+[dir="rtl"] .customer-dashboard .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-dashboard .space-x-4 > * + * {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+[dir="rtl"] .customer-dashboard .space-x-2 > * + * {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* QR Card positioning in RTL */
+[dir="rtl"] .qr-card-container {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-container .absolute {
+  position: absolute;
+}
+
+/* Activity cards RTL adjustments */
+[dir="rtl"] .activity-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .activity-card .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+/* Reward progress bars RTL */
+[dir="rtl"] .reward-progress {
+  direction: ltr; /* Keep progress bars left-to-right for visual consistency */
+}
+
+/* Trending rewards RTL */
+[dir="rtl"] .trending-rewards .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .trending-rewards .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Dashboard specific RTL enhancements */
+[dir="rtl"] .dashboard-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .dashboard-container .space-x-4 > * + * {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+[dir="rtl"] .dashboard-container .space-x-2 > * + * {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* Transaction history table RTL */
+[dir="rtl"] .transaction-table {
+  direction: rtl;
+}
+
+[dir="rtl"] .transaction-table th,
+[dir="rtl"] .transaction-table td {
+  text-align: right;
+}
+
+[dir="rtl"] .transaction-table .text-left {
+  text-align: right;
+}
+
+/* Program browser RTL */
+[dir="rtl"] .program-browser .grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-browser .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .program-browser .program-card .flex {
+  flex-direction: row-reverse;
+}
+
+/* Notification list RTL */
+[dir="rtl"] .notification-list .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-list .notification-item .flex {
+  flex-direction: row-reverse;
+}
+
+/* Loyalty card RTL */
+[dir="rtl"] .loyalty-card {
+  text-align: right;
+}
+
+[dir="rtl"] .loyalty-card .card-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .loyalty-card .flex {
+  flex-direction: row-reverse;
+}
+
+/* Form elements RTL */
+[dir="rtl"] .form-input,
+[dir="rtl"] .form-select,
+[dir="rtl"] .form-textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .form-input::placeholder,
+[dir="rtl"] .form-textarea::placeholder {
+  text-align: right;
+}
+
+/* Button groups RTL */
+[dir="rtl"] .button-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .button-group .btn:first-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[dir="rtl"] .button-group .btn:last-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Status badges RTL */
+[dir="rtl"] .status-badge {
+  text-align: center;
+}
+
+[dir="rtl"] .status-badge .flex {
+  flex-direction: row-reverse;
+}
+
+/* Progress bars RTL - keep LTR for visual consistency */
+[dir="rtl"] .progress-bar {
+  direction: ltr;
+}
+
+[dir="rtl"] .progress-bar .progress-fill {
+  direction: ltr;
+}
+
+/* Modal and overlay RTL */
+[dir="rtl"] .modal {
+  text-align: right;
+}
+
+[dir="rtl"] .modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .modal .modal-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .modal .modal-footer .flex {
+  flex-direction: row-reverse;
+}
+
+/* Tooltip RTL */
+[dir="rtl"] .tooltip {
+  text-align: right;
+}
+
+[dir="rtl"] .tooltip .tooltip-content {
+  direction: rtl;
+}
+
+/* Dropdown RTL */
+[dir="rtl"] .dropdown {
+  text-align: right;
+}
+
+[dir="rtl"] .dropdown .dropdown-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .dropdown .dropdown-item {
+  text-align: right;
+}
+
+/* Search input RTL */
+[dir="rtl"] .search-input {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .search-input::placeholder {
+  text-align: right;
+}
+
+[dir="rtl"] .search-input .search-icon {
+  left: auto;
+  right: 0.75rem;
+}
+
+/* Filter dropdown RTL */
+[dir="rtl"] .filter-dropdown {
+  text-align: right;
+}
+
+[dir="rtl"] .filter-dropdown select {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Card layout RTL */
+[dir="rtl"] .card {
+  text-align: right;
+}
+
+[dir="rtl"] .card .card-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .card .card-body {
+  direction: rtl;
+}
+
+[dir="rtl"] .card .card-footer .flex {
+  flex-direction: row-reverse;
+}
+
 /* QR Card specific adjustments */
 [dir="rtl"] .qr-card .absolute.top-2.left-2 {
   left: auto;
   right: 0.5rem;
 }
 
+/* Cards Page specific RTL enhancements */
+[dir="rtl"] .cards-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .cards-header {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .cards-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .cards-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content .grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-content .grid > * {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity .activity-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-activity .activity-item .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards .reward-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-item .card-rewards .reward-item .flex {
+  flex-direction: row-reverse;
+}
+
+/* Modal dialogs RTL for cards page */
+[dir="rtl"] .cards-page .modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .modal .modal-header {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .modal .modal-body {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .modal .modal-footer {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .modal .modal-footer .flex {
+  flex-direction: row-reverse;
+}
+
+/* Button groups RTL for cards page */
+[dir="rtl"] .cards-page .button-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .button-group .btn:first-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+[dir="rtl"] .cards-page .button-group .btn:last-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Card stats RTL */
+[dir="rtl"] .cards-page .card-stats {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item .stat-label {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .card-stats .stat-item .stat-value {
+  text-align: right;
+}
+
+/* Notification items RTL for cards page */
+[dir="rtl"] .cards-page .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .notification-item .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .cards-page .notification-item .notification-content {
+  direction: rtl;
+}
+
+/* Promo code modal RTL */
+[dir="rtl"] .cards-page .promo-code-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .promo-code-modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .promo-code-modal .promo-code-display {
+  text-align: center;
+  direction: ltr; /* Keep promo codes LTR for readability */
+}
+
+/* Enrollment request modal RTL */
+[dir="rtl"] .cards-page .enrollment-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-info {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .enrollment-modal .enrollment-actions .flex {
+  flex-direction: row-reverse;
+}
+
+/* Card icons and badges RTL */
+[dir="rtl"] .cards-page .card-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .cards-page .card-badge {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .card-badge .flex {
+  flex-direction: row-reverse;
+}
+
+/* Refresh button RTL */
+[dir="rtl"] .cards-page .refresh-button {
+  text-align: right;
+}
+
+[dir="rtl"] .cards-page .refresh-button .flex {
+  flex-direction: row-reverse;
+}
+
+/* Empty state RTL */
+[dir="rtl"] .cards-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .empty-state .empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .cards-page .empty-state .empty-message {
+  text-align: center;
+}
+
+/* Loading states RTL */
+[dir="rtl"] .cards-page .loading-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .loading-state .loading-spinner {
+  margin: 0 auto;
+}
+
+/* Error states RTL */
+[dir="rtl"] .cards-page .error-state {
+  text-align: center;
+}
+
+[dir="rtl"] .cards-page .error-state .error-message {
+  text-align: center;
+}
+
+/* Card animations RTL */
+[dir="rtl"] .cards-page .card-animation {
+  direction: rtl;
+}
+
+[dir="rtl"] .cards-page .card-animation .animated-element {
+  text-align: right;
+}
+
+/* Responsive adjustments for cards page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .cards-page .cards-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .cards-page .card-item {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .cards-page .card-item .card-content {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .cards-page .modal .modal-content {
+    direction: rtl;
+  }
+}
+
 [dir="rtl"] .qr-card .absolute.top-2.right-2 {
   right: auto;
   left: 0.5rem;
+}
+
+/* Nearby Page specific RTL enhancements */
+[dir="rtl"] .nearby-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .hero-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-subtitle {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .hero-section .hero-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .features-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .features-section .features-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-icon {
+  margin-right: 0;
+  margin-left: 1.5rem;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-title {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .features-section .feature-card .feature-description {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .preview-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .preview-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .businesses-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-distance {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-category {
+  text-align: right;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating .rating-star {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .nearby-page .business-preview-section .business-card .business-rating .loyalty-program {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .nearby-page .cta-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .cta-section .cta-title {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .cta-section .cta-description {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section .footer-text {
+  text-align: center;
+}
+
+[dir="rtl"] .nearby-page .footer-section .social-icons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nearby-page .footer-section .social-icons .social-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+/* Animated decorations RTL */
+[dir="rtl"] .nearby-page .decoration {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-line {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-plus {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-dot {
+  direction: rtl;
+}
+
+[dir="rtl"] .nearby-page .decoration .decoration-x {
+  direction: rtl;
+}
+
+/* Responsive adjustments for nearby page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .nearby-page .features-section .features-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .nearby-page .features-section .feature-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .businesses-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .business-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .nearby-page .business-preview-section .business-card .business-header {
+    flex-direction: row-reverse;
+  }
+}
+
+/* Promotions Page specific RTL enhancements */
+[dir="rtl"] .promotions-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotions-header {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotions-header .header-title {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotions-header .header-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .search-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .search-container .search-input {
+  text-align: right;
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .promotions-page .search-container .search-icon {
+  right: 0.75rem;
+  left: auto;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs .filter-tab {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .filter-tabs .filter-tab .filter-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .promotions-page .featured-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .featured-section .featured-title {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .featured-section .featured-title .featured-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotions-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotion-card {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-type-badge {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-type-badge .type-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .favorite-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section .promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-code-section .copy-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details .expiry-info {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .promotion-card .promo-details .usage-info {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .empty-state .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .empty-state .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .promotions-page .error-state {
+  direction: rtl;
+}
+
+[dir="rtl"] .promotions-page .error-state .error-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .promotions-page .error-state .error-message {
+  text-align: right;
+}
+
+[dir="rtl"] .promotions-page .loading-state {
+  text-align: center;
+}
+
+/* Responsive adjustments for promotions page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .promotions-page .promotions-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .promotions-page .search-container {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .filter-tabs {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotions-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .card-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .promo-code-section {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .promotions-page .promotion-card .promo-details {
+    flex-direction: row-reverse;
+  }
+}
+
+/* QR Card Page specific RTL enhancements */
+[dir="rtl"] .qr-card-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header .header-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-header .header-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .qr-card-container .qr-card-content {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .card-actions {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .card-actions .action-button {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .card-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-title .programs-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-name {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-tier {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-points {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .program-card .program-joined {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .programs-section .empty-programs .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-title .promos-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promos-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-discount {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .promo-card .promo-claim {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .promos-section .empty-promos .empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-card-page .security-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-title {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .security-section .security-description {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .success-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .success-message .success-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .success-message .success-text {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .error-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .error-message .error-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .error-message .error-text {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-card-page .signin-message {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-card-page .signin-message .signin-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-card-page .signin-message .signin-text {
+  text-align: right;
+}
+
+/* Responsive adjustments for QR card page RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .qr-card-page .qr-card-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .card-actions {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .programs-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .program-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .programs-section .program-card .program-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promos-grid {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card .promo-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .qr-card-page .promos-section .promo-card .promo-details {
+    flex-direction: row-reverse;
+  }
+}
+
+/* Customer Layout Menu RTL enhancements */
+[dir="rtl"] .customer-layout {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .header-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-layout .sidebar .navigation {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item .nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item .nav-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section .footer-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section .footer-item .footer-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-brand {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-controls .mobile-control {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-text {
+  text-align: right;
+}
+
+/* Notification Center RTL enhancements */
+[dir="rtl"] .notification-center {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-header {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-header .notification-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-header .notification-title .title-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-header .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-tabs .tab-button {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-section {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-button {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-button .clear-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notifications-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-content {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-time {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-time .time-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .delete-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .empty-state .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .approvals-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-header {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-description {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits .benefits-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits .benefits-list {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-reason {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-reason .reason-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .approve-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .decline-button {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .action-button {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .success-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .success-message .success-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .error-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .error-message .error-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Responsive adjustments for customer layout and notifications RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-layout .mobile-header {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-header .mobile-controls {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-icon {
+    margin-right: 0;
+    margin-left: 0.75rem;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .approve-button {
+    margin-left: 0;
+    margin-right: 0.5rem;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .decline-button {
+    margin-right: 0;
+    margin-left: 0.5rem;
+  }
 }
 
 /* Button groups */
@@ -424,5 +1845,563 @@
   }
   to {
     transform: translateX(0);
+  }
+}
+
+/* Settings Page RTL Styles */
+[dir="rtl"] .settings-page {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .settings-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-tab {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-content {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-section {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-section-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-section-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-section-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .settings-edit-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-form-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-form-label {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-form-input {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-form-select {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-checkbox-group {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-checkbox-item {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-checkbox-label {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .settings-button-group {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-save-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-cancel-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-connect-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-account-item {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-account-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .settings-account-content {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-account-title {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-account-description {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-help-section {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-help-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-help-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .settings-help-description {
+  text-align: right;
+}
+
+[dir="rtl"] .settings-help-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .settings-help-button-icon {
+  margin-right: 0;
+  margin-left: 0.375rem;
+}
+
+/* Responsive RTL adjustments for settings */
+@media (max-width: 768px) {
+  [dir="rtl"] .settings-tabs {
+    flex-direction: column;
+  }
+  
+  [dir="rtl"] .settings-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .settings-button-group {
+    flex-direction: column;
+  }
+}
+
+/* Customer Menu RTL Styles */
+[dir="rtl"] .customer-layout {
+  text-align: right;
+}
+
+[dir="rtl"] .sidebar {
+  border-right: none;
+  border-left: 1px solid #e5e7eb;
+}
+
+[dir="rtl"] .brand-section {
+  text-align: right;
+}
+
+[dir="rtl"] .brand-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .brand-subtitle {
+  text-align: right;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+[dir="rtl"] .header-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .navigation {
+  text-align: right;
+}
+
+[dir="rtl"] .nav-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .nav-text {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .footer-section {
+  text-align: right;
+}
+
+[dir="rtl"] .footer-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .footer-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .mobile-header {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-brand {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .mobile-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .mobile-control {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .mobile-menu {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[dir="rtl"] .mobile-nav-text {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Arabic Font and Icon Improvements */
+[dir="rtl"] {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+[dir="rtl"] .brand-title,
+[dir="rtl"] .mobile-brand {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+[dir="rtl"] .nav-text,
+[dir="rtl"] .mobile-nav-text {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .brand-subtitle {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+
+/* Icon Size and Spacing Adjustments for Arabic */
+[dir="rtl"] .nav-icon,
+[dir="rtl"] .footer-icon,
+[dir="rtl"] .mobile-nav-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+[dir="rtl"] .title-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .clear-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .action-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .success-icon,
+[dir="rtl"] .error-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Notification Center RTL Improvements */
+[dir="rtl"] .notification-center {
+  right: auto;
+  left: 0;
+  text-align: right;
+}
+
+[dir="rtl"] .notification-header {
+  flex-direction: row-reverse;
+  padding: 1rem;
+}
+
+[dir="rtl"] .notification-title {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .notification-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .tab-button {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .notification-content {
+  text-align: right;
+  padding: 1rem;
+}
+
+[dir="rtl"] .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .empty-title {
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 0.75rem;
+}
+
+[dir="rtl"] .clear-all-section {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .clear-all-button {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .notifications-list {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .notification-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+[dir="rtl"] .notification-content {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .notification-message {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .notification-time {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .time-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+[dir="rtl"] .delete-button {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .approvals-list {
+  text-align: right;
+}
+
+[dir="rtl"] .approval-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .approval-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .approval-description {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .approval-benefits {
+  text-align: right;
+}
+
+[dir="rtl"] .benefits-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .benefits-list {
+  text-align: right;
+}
+
+[dir="rtl"] .approval-reason {
+  text-align: right;
+}
+
+[dir="rtl"] .reason-title {
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .approval-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .approve-button,
+[dir="rtl"] .decline-button {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .action-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .success-message {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .error-message {
+  flex-direction: row-reverse;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Responsive RTL adjustments for menu and notifications */
+@media (max-width: 768px) {
+  [dir="rtl"] .mobile-controls {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .mobile-nav {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .mobile-nav-item {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .notification-center {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  [dir="rtl"] .notification-tabs {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .approval-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .approve-button,
+  [dir="rtl"] .decline-button {
+    width: 100%;
+    justify-content: center;
   }
 }

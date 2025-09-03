@@ -423,7 +423,7 @@ const NotificationList: React.FC<NotificationListProps> = ({
                       className="text-sm flex items-center text-red-700 hover:text-red-900"
                     >
                       <Info className="h-4 w-4 mr-1" />
-                      {responseStatus.showDetails ? 'Hide details' : 'Show details'}
+                      {responseStatus.showDetails ? t('hideDetails') : t('showDetails')}
                     </button>
                     
                     {responseStatus.showDetails && (
@@ -489,8 +489,8 @@ const NotificationList: React.FC<NotificationListProps> = ({
                           : 'text-gray-900 dark:text-white'
                       }`}>
                         {approval.requestType === 'ENROLLMENT'
-                          ? 'Program Enrollment Request'
-                          : 'Points Deduction Request'}
+                          ? t('programEnrollmentRequest')
+                          : t('pointsDeductionRequest')}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                         {approval.requestType === 'ENROLLMENT'

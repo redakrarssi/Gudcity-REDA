@@ -108,7 +108,7 @@ const EnrollmentErrorDisplay: React.FC<EnrollmentErrorDisplayProps> = ({
                     className="text-xs flex items-center text-red-700 hover:text-red-800"
                   >
                     <HelpCircle className="h-3 w-3 mr-1" />
-                    {showDetails ? 'Hide technical details' : 'Show technical details'}
+                    {showDetails ? t('hideTechnicalDetails') : t('showTechnicalDetails')}
                   </button>
                   
                   {showDetails && (
