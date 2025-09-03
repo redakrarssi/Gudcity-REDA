@@ -31,27 +31,27 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
   const menuItems = [
     { 
-      name: t('menu.dashboard'), 
+      name: t('Dashboard'), 
       icon: <Home className="w-5 h-5" />, 
       path: '/dashboard' 
     },
     { 
-      name: t('menu.myCards'), 
+      name: t('My Cards'), 
       icon: <CreditCard className="w-5 h-5" />, 
       path: '/cards' 
     },
     { 
-      name: t('menu.nearbyRewards'), 
+      name: t('Nearby Rewards'), 
       icon: <Map className="w-5 h-5" />, 
       path: '/nearby' 
     },
     { 
-      name: t('menu.promotions'), 
+      name: t('Promotions'), 
       icon: <Ticket className="w-5 h-5" />, 
       path: '/promotions' 
     },
     { 
-      name: t('menu.qrCard'), 
+      name: t('QR Card'), 
       icon: <QrCode className="w-5 h-5" />, 
       path: '/qr-card' 
     }
@@ -78,7 +78,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
           <div className="p-6 flex justify-between items-center">
             <div className="brand-section">
               <h2 className="text-2xl font-bold text-blue-600 brand-title">Vcarda</h2>
-              <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('menu.rewards')}</p>
+              <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('Rewards')}</p>
             </div>
             <div className="flex items-center space-x-2 header-controls">
               <NotificationIndicator />
@@ -109,14 +109,14 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg footer-item"
             >
               <Settings className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.settings')}</span>
+              <span className="ml-3">{t('Settings')}</span>
             </Link>
             <button
               onClick={handleLogout}
               className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left footer-item"
             >
               <LogOut className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.logout')}</span>
+              <span className="ml-3">{t('Logout')}</span>
             </button>
           </div>
         </aside>

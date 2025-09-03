@@ -154,12 +154,12 @@ const GlobalNotificationCenter: React.FC = () => {
             >
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 notification-header">
                 <h2 className="text-xl font-semibold flex items-center notification-title">
-                  <Bell className="mr-2 title-icon" /> {t('notifications.notifications')}
+                  <Bell className="mr-2 title-icon" /> {t('Notifications')}
                 </h2>
               <button
                 onClick={toggleNotificationCenter}
                   className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors close-button"
-                  aria-label={t('notifications.closeNotifications')}
+                  aria-label={t('Close notifications')}
               >
                   <X />
               </button>
@@ -175,7 +175,7 @@ const GlobalNotificationCenter: React.FC = () => {
                       : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
                 }`}
               >
-                {t('notifications.all')}
+                {t('All')}
               </button>
               <button
                 onClick={() => setActiveTab('approvals')}
@@ -185,7 +185,7 @@ const GlobalNotificationCenter: React.FC = () => {
                       : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
                 }`}
               >
-                  {t('notifications.approvals')} ({approvalRequests.length})
+                  {t('Approvals')} ({approvalRequests.length})
               </button>
             </div>
 
@@ -196,7 +196,7 @@ const GlobalNotificationCenter: React.FC = () => {
                   {notifications.length === 0 ? (
                       <div className="text-center p-6 text-gray-500 dark:text-gray-400 empty-state">
                         <Bell className="mx-auto mb-3 w-12 h-12 opacity-30" />
-                      <p className="empty-title">{t('notifications.noNotificationsYet')}</p>
+                      <p className="empty-title">{t('No notifications yet')}</p>
                     </div>
                   ) : (
                       <div>
@@ -214,12 +214,12 @@ const GlobalNotificationCenter: React.FC = () => {
                             {isDeleting ? (
                               <>
                                 <Loader className="w-3 h-3 mr-2 animate-spin clear-icon" />
-                                {t('notifications.clearing')}
+                                {t('Clearing...')}
                               </>
                             ) : (
                               <>
                                 <Trash2 className="w-3 h-3 mr-2 clear-icon" />
-                                {t('notifications.clearAll')}
+                                {t('Clear All')}
                               </>
                             )}
                           </button>
@@ -257,7 +257,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                 <button
                                   onClick={() => deleteNotification(notification.id)}
                                   className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
-                                  aria-label={t('notifications.deleteNotification')}
+                                  aria-label={t('Delete notification')}
                                 >
                                   <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                                 </button>
@@ -274,7 +274,7 @@ const GlobalNotificationCenter: React.FC = () => {
                   {approvalRequests.length === 0 ? (
                       <div className="text-center p-6 text-gray-500 dark:text-gray-400">
                         <ThumbsUp className="mx-auto mb-3 w-12 h-12 opacity-30" />
-                      <p>{t('notifications.noPendingApprovals')}</p>
+                      <p>{t('No pending approvals')}</p>
                     </div>
                   ) : (
                       <div className="space-y-3">
@@ -304,19 +304,19 @@ const GlobalNotificationCenter: React.FC = () => {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {approval.requestType === 'ENROLLMENT'
-                                ? t('notifications.programEnrollmentRequest')
-                                : t('notifications.pointsDeductionRequest')}
+                                ? t('Program Enrollment Request')
+                                : t('Points Deduction Request')}
                             </p>
                             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                               {approval.requestType === 'ENROLLMENT'
-                                ? `${approval.businessName} ${t('notifications.wantsToEnrollYou')} ${approval.data?.programName || t('notifications.theProgram')}.`
-                                : `${approval.businessName} ${t('notifications.wantsToDeduct')} ${approval.data?.points || ''} ${t('notifications.points')}.`}
+                                ? `${approval.businessName} ${t('wants to enroll you in')} ${approval.data?.programName || t('the program')}.`
+                                : `${approval.businessName} ${t('wants to deduct')} ${approval.data?.points || ''} ${t('points')}.`}
                             </p>
                             
                             {/* Display benefits if available */}
                             {approval.data?.benefits && (
                               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                                <p className="font-medium">{t('notifications.benefits')}:</p>
+                                <p className="font-medium">{t('Benefits')}:</p>
                                 <ul className="list-disc list-inside pl-2 mt-1">
                                   {approval.data.benefits.map((benefit: string, i: number) => (
                                     <li key={i}>{benefit}</li>
@@ -328,7 +328,7 @@ const GlobalNotificationCenter: React.FC = () => {
                             {/* Display reason if available */}
                             {approval.data?.reason && (
                               <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                                <span className="font-medium">{t('notifications.reason')}: </span>
+                                <span className="font-medium">{t('Reason')}: </span>
                                 {approval.data.reason}
                               </p>
                             )}
@@ -345,7 +345,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                 await respondToApproval(approval.id, true);
                                       setSuccessMessages(prev => ({ 
                                         ...prev, 
-                                        [approval.id]: `${t('notifications.successfullyEnrolledIn')} ${approval.data?.programName || t('notifications.theProgram')}` 
+                                        [approval.id]: `${t('Successfully enrolled in')} ${approval.data?.programName || t('the program')}` 
                                       }));
                                       
                                       // Close the notification center after a short delay to show feedback
@@ -354,7 +354,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                       }, 5000);
                               } catch (error: any) {
                                 console.error('Error approving request:', error);
-                                setErrorMessage(error?.message || t('notifications.enrollmentProcessInterrupted'));
+                                setErrorMessage(error?.message || t('The enrollment process was interrupted'));
                                       setErrorCode(approval.id);
                               } finally {
                                 setProcessingApprovals(prev => ({ ...prev, [approval.id]: false }));
@@ -375,17 +375,17 @@ const GlobalNotificationCenter: React.FC = () => {
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                      {t('notifications.processing')}
+                                      {t('Processing')}
                                     </span>
                                   ) : successMessages[approval.id] ? (
                                     <span className="flex items-center">
                                       <Check className="mr-1" size={16} />
-                                      {t('notifications.approved')}
+                                      {t('Approved')}
                                     </span>
                                   ) : (
                                     <span className="flex items-center">
                                       <ThumbsUp className="mr-1" size={16} />
-                                      {t('notifications.approve')}
+                                      {t('Approve')}
                                     </span>
                             )}
                           </button>
@@ -400,7 +400,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                 await respondToApproval(approval.id, false);
                                       setSuccessMessages(prev => ({ 
                                         ...prev, 
-                                        [approval.id]: `${t('notifications.declinedEnrollmentIn')} ${approval.data?.programName || t('notifications.theProgram')}` 
+                                        [approval.id]: `${t('Declined enrollment in')} ${approval.data?.programName || t('the program')}` 
                                       }));
                                       
                                       // Close the notification center after a short delay
@@ -409,7 +409,7 @@ const GlobalNotificationCenter: React.FC = () => {
                                       }, 5000);
                               } catch (error: any) {
                                 console.error('Error declining request:', error);
-                                setErrorMessage(error?.message || t('notifications.enrollmentProcessInterrupted'));
+                                setErrorMessage(error?.message || t('The enrollment process was interrupted'));
                                       setErrorCode(approval.id);
                               } finally {
                                 setProcessingApprovals(prev => ({ ...prev, [approval.id]: false }));
@@ -430,17 +430,17 @@ const GlobalNotificationCenter: React.FC = () => {
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                      {t('notifications.processing')}
+                                      {t('Processing')}
                                     </span>
                                   ) : successMessages[approval.id] ? (
                                     <span className="flex items-center">
                                       <X className="mr-1" size={16} />
-                                      {t('notifications.declined')}
+                                      {t('Declined')}
                                     </span>
                                   ) : (
                                     <span className="flex items-center">
                                       <ThumbsDown className="mr-1" size={16} />
-                                      {t('notifications.decline')}
+                                      {t('Decline')}
                                     </span>
                             )}
                           </button>
