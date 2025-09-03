@@ -1270,6 +1270,317 @@
   }
 }
 
+/* Customer Layout Menu RTL enhancements */
+[dir="rtl"] .customer-layout {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .brand-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .header-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-layout .sidebar .navigation {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item .nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .sidebar .nav-item .nav-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section .footer-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .sidebar .footer-section .footer-item .footer-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-brand {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-controls {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-layout .mobile-header .mobile-controls .mobile-control {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-text {
+  text-align: right;
+}
+
+/* Notification Center RTL enhancements */
+[dir="rtl"] .notification-center {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-header {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-header .notification-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-header .notification-title .title-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-header .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-tabs .tab-button {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-section {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-button {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .clear-all-button .clear-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notifications-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-content {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-time {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .notification-time .time-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .notification-item .delete-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .empty-state .empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .approvals-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-header {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-description {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits .benefits-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-benefits .benefits-list {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-reason {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-reason .reason-title {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .approve-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .decline-button {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .action-button {
+  text-align: center;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .success-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .success-message .success-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .error-message {
+  text-align: right;
+}
+
+[dir="rtl"] .notification-center .notification-content .approval-item .error-message .error-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Responsive adjustments for customer layout and notifications RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-layout .mobile-header {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-header .mobile-controls {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-layout .mobile-menu .mobile-nav-item .mobile-nav-icon {
+    margin-right: 0;
+    margin-left: 0.75rem;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .approve-button {
+    margin-left: 0;
+    margin-right: 0.5rem;
+  }
+  
+  [dir="rtl"] .notification-center .notification-content .approval-item .approval-actions .decline-button {
+    margin-right: 0;
+    margin-left: 0.5rem;
+  }
+}
+
 /* Button groups */
 [dir="rtl"] .btn-group {
   flex-direction: row-reverse;

@@ -731,6 +731,47 @@ const resources = {
         customer: 'عميل'
       },
       
+      // Customer Menu & Navigation
+      menu: {
+        dashboard: 'لوحة التحكم',
+        myCards: 'بطاقاتي',
+        nearbyRewards: 'المكافآت القريبة',
+        promotions: 'العروض',
+        qrCard: 'بطاقة QR',
+        settings: 'الإعدادات',
+        logout: 'تسجيل الخروج',
+        rewards: 'المكافآت'
+      },
+      
+      // Notification Center
+      notifications: {
+        notifications: 'الإشعارات',
+        closeNotifications: 'إغلاق الإشعارات',
+        all: 'الكل',
+        approvals: 'الموافقات',
+        noNotificationsYet: 'لا توجد إشعارات بعد',
+        noPendingApprovals: 'لا توجد موافقات معلقة',
+        clearAll: 'مسح الكل',
+        clearing: 'جاري المسح...',
+        deleteNotification: 'حذف الإشعار',
+        programEnrollmentRequest: 'طلب انضمام للبرنامج',
+        pointsDeductionRequest: 'طلب خصم النقاط',
+        wantsToEnrollYou: 'يريد انضمامك إلى',
+        wantsToDeduct: 'يريد خصم',
+        points: 'نقاط',
+        benefits: 'الفوائد',
+        reason: 'السبب',
+        processing: 'جاري المعالجة',
+        approved: 'تم الموافقة',
+        approve: 'موافقة',
+        declined: 'تم الرفض',
+        decline: 'رفض',
+        successfullyEnrolledIn: 'تم الانضمام بنجاح إلى',
+        declinedEnrollmentIn: 'تم رفض الانضمام إلى',
+        theProgram: 'البرنامج',
+        enrollmentProcessInterrupted: 'تم مقاطعة عملية الانضمام'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'لوحة تحكم الأعمال',
@@ -1189,6 +1230,47 @@ const resources = {
         customer: 'Cliente'
       },
       
+      // Customer Menu & Navigation
+      menu: {
+        dashboard: 'Panel',
+        myCards: 'Mis Tarjetas',
+        nearbyRewards: 'Recompensas Cercanas',
+        promotions: 'Promociones',
+        qrCard: 'Tarjeta QR',
+        settings: 'Configuración',
+        logout: 'Cerrar Sesión',
+        rewards: 'Recompensas'
+      },
+      
+      // Notification Center
+      notifications: {
+        notifications: 'Notificaciones',
+        closeNotifications: 'Cerrar notificaciones',
+        all: 'Todas',
+        approvals: 'Aprobaciones',
+        noNotificationsYet: 'Aún no hay notificaciones',
+        noPendingApprovals: 'No hay aprobaciones pendientes',
+        clearAll: 'Limpiar Todo',
+        clearing: 'Limpiando...',
+        deleteNotification: 'Eliminar notificación',
+        programEnrollmentRequest: 'Solicitud de Inscripción al Programa',
+        pointsDeductionRequest: 'Solicitud de Deducción de Puntos',
+        wantsToEnrollYou: 'quiere inscribirte en',
+        wantsToDeduct: 'quiere deducir',
+        points: 'puntos',
+        benefits: 'Beneficios',
+        reason: 'Razón',
+        processing: 'Procesando',
+        approved: 'Aprobado',
+        approve: 'Aprobar',
+        declined: 'Rechazado',
+        decline: 'Rechazar',
+        successfullyEnrolledIn: 'Inscrito exitosamente en',
+        declinedEnrollmentIn: 'Rechazada la inscripción en',
+        theProgram: 'el programa',
+        enrollmentProcessInterrupted: 'El proceso de inscripción fue interrumpido'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Panel de Negocios',
@@ -1645,6 +1727,47 @@ const resources = {
         scanMyLoyaltyCard: 'Scannez ma carte de fidélité (ID : {{cardNumber}})',
         specialDiscountOffer: 'Offre de remise spéciale',
         customer: 'Client'
+      },
+      
+      // Customer Menu & Navigation
+      menu: {
+        dashboard: 'Tableau de Bord',
+        myCards: 'Mes Cartes',
+        nearbyRewards: 'Récompenses à Proximité',
+        promotions: 'Promotions',
+        qrCard: 'Carte QR',
+        settings: 'Paramètres',
+        logout: 'Déconnexion',
+        rewards: 'Récompenses'
+      },
+      
+      // Notification Center
+      notifications: {
+        notifications: 'Notifications',
+        closeNotifications: 'Fermer les notifications',
+        all: 'Toutes',
+        approvals: 'Approbations',
+        noNotificationsYet: 'Aucune notification pour le moment',
+        noPendingApprovals: 'Aucune approbation en attente',
+        clearAll: 'Tout Effacer',
+        clearing: 'Effacement...',
+        deleteNotification: 'Supprimer la notification',
+        programEnrollmentRequest: 'Demande d\'Inscription au Programme',
+        pointsDeductionRequest: 'Demande de Déduction de Points',
+        wantsToEnrollYou: 'souhaite vous inscrire à',
+        wantsToDeduct: 'souhaite déduire',
+        points: 'points',
+        benefits: 'Avantages',
+        reason: 'Raison',
+        processing: 'Traitement',
+        approved: 'Approuvé',
+        approve: 'Approuver',
+        declined: 'Refusé',
+        decline: 'Refuser',
+        successfullyEnrolledIn: 'Inscrit avec succès à',
+        declinedEnrollmentIn: 'Inscription refusée à',
+        theProgram: 'le programme',
+        enrollmentProcessInterrupted: 'Le processus d\'inscription a été interrompu'
       },
       
       // Business Dashboard
