@@ -2787,3 +2787,203 @@
     align-items: flex-start;
   }
 }
+
+/* Business Programs Page RTL Styles */
+[dir="rtl"] .programs-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .programs-page .programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .create-program-btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .programs-loading {
+  justify-content: center;
+}
+
+[dir="rtl"] .programs-page .programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .programs-page .program-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-content {
+  padding: 1.5rem;
+}
+
+[dir="rtl"] .programs-page .program-card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-card-info {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-card-icon {
+  margin-right: 0;
+  margin-left: 1rem;
+}
+
+[dir="rtl"] .programs-page .program-card-details {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-name {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-description {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-status {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .program-card-stats {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+}
+
+[dir="rtl"] .programs-page .program-stat {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-stat .w-4 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .programs-page .program-reward-tiers {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tiers-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tiers-list {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tier-item {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-actions {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .programs-page .program-delete-btn {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .program-edit-btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-edit-btn .w-4 {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .programs-page .programs-empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .programs-page .programs-empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-btn {
+  flex-direction: row-reverse;
+  margin: 0 auto;
+}
+
+[dir="rtl"] .programs-page .programs-empty-btn .w-5 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .programs-page .program-builder-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-builder-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-builder-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-builder-close {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .error-alert {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .error-alert .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .error-alert .ml-3 {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+/* Responsive RTL adjustments for programs page */
+@media (max-width: 768px) {
+  [dir="rtl"] .programs-page .programs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-info {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-stats {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+}
