@@ -127,7 +127,6 @@ const resources = {
       noRewardsAvailable: 'No rewards available',
       
       // Loyalty Card Additional
-      business: 'Business',
       pointsMoreToNextTier: '{{points}} more points to {{nextTier}}',
       maximumTierReached: 'Maximum tier reached',
       collectPointsForRewards: 'Collect points for rewards',
@@ -204,7 +203,6 @@ const resources = {
         pointsAwardedMessage: 'Points awarded message received via BroadcastChannel',
         failedToProcessResponse: 'Failed to process your response',
         errorProcessingResponse: 'An error occurred while processing your response',
-        business: 'Business',
         promoCodeCopied: 'Promo code copied to clipboard',
         failedToCopyPromoCode: 'Failed to copy promo code',
         redeemedPoints: 'Redeemed {{points}} points',
@@ -285,7 +283,57 @@ const resources = {
         'Send Promo Code': 'Send Promo Code',
         'Send Surprise Gift': 'Send Surprise Gift',
         'Send Message': 'Send Message',
-        'Enter your message to the customer:': 'Enter your message to the customer:'
+        'Enter your message to the customer:': 'Enter your message to the customer:',
+        
+        // Dashboard specific translations
+        'Loading dashboard data...': 'Loading dashboard data...',
+        'Error Loading Dashboard': 'Error Loading Dashboard',
+        'Retry': 'Retry',
+        'Your business profile is incomplete': 'Your business profile is incomplete',
+        'Complete your profile to unlock all features': 'Complete your profile to unlock all features',
+        'Complete Profile': 'Complete Profile',
+        'Total Customers': 'Total Customers',
+        'Total Sales': 'Total Sales',
+        'Transactions': 'Transactions',
+        'Active Programs': 'Active Programs',
+        'vs last period': 'vs last period',
+        'Active': 'Active',
+        'All programs running': 'All programs running',
+        'Quick Award Points': 'Quick Award Points',
+        'Send points directly to any customer in your programs': 'Send points directly to any customer in your programs',
+        'Award Points': 'Award Points',
+        'Business Analytics': 'Business Analytics',
+        'Day': 'Day',
+        'Week': 'Week',
+        'Month': 'Month',
+        'Year': 'Year',
+        'Recent Activity': 'Recent Activity',
+        'No recent activity to display': 'No recent activity to display',
+        'Activity will appear here as you use the system': 'Activity will appear here as you use the system',
+        'View All Activity': 'View All Activity',
+        'Scan Customer QR Code': 'Scan Customer QR Code',
+        'Close': 'Close',
+        'Edit Loyalty Program': 'Edit Loyalty Program',
+        'Create New Loyalty Program': 'Create New Loyalty Program',
+        
+        // Activity types
+        'POINTS_AWARDED': 'Points Awarded',
+        'REWARD_REDEEMED': 'Reward Redeemed',
+        'NEW_CUSTOMER': 'New Customer',
+        
+        // Mock program data (will be replaced with dynamic content)
+        'Coffee Rewards': 'Coffee Rewards',
+        'Earn points for every coffee purchase': 'Earn points for every coffee purchase',
+        'Free Coffee': 'Free Coffee',
+        'Free Dessert': 'Free Dessert',
+        '$10 Gift Card': '$10 Gift Card',
+        'Your Business': 'Your Business',
+        'Successful Scan': 'Successful Scan',
+        'Scan Failed': 'Scan Failed',
+        'Failed to process QR code scan': 'Failed to process QR code scan',
+        'Unknown error': 'Unknown error',
+        'Scan Error': 'Scan Error',
+        'An error occurred while processing the QR code': 'An error occurred while processing the QR code'
       },
       
       // Forms & Validation
@@ -312,7 +360,7 @@ const resources = {
       },
       
       // Settings Page
-      settings: {
+      settingsPage: {
         title: 'Settings',
         personalInfo: 'Personal Information',
         preferences: 'Preferences',
@@ -670,7 +718,6 @@ const resources = {
       noRewardsAvailable: 'لا توجد مكافآت متاحة',
       
       // Loyalty Card Additional
-      business: 'الشركة',
       pointsMoreToNextTier: '{{points}} نقاط إضافية للوصول إلى {{nextTier}}',
       maximumTierReached: 'تم الوصول للدرجة القصوى',
       collectPointsForRewards: 'اجمع النقاط للحصول على المكافآت',
@@ -747,7 +794,6 @@ const resources = {
         pointsAwardedMessage: 'تم استلام رسالة منح النقاط عبر BroadcastChannel',
         failedToProcessResponse: 'فشل في معالجة استجابتك',
         errorProcessingResponse: 'حدث خطأ أثناء معالجة استجابتك',
-        business: 'الشركة',
         promoCodeCopied: 'تم نسخ رمز الخصم إلى الحافظة',
         failedToCopyPromoCode: 'فشل في نسخ رمز الخصم',
         redeemedPoints: 'تم استبدال {{points}} نقاط',
@@ -932,7 +978,57 @@ const resources = {
         'Send Promo Code': 'إرسال رمز ترويجي',
         'Send Surprise Gift': 'إرسال هدية مفاجئة',
         'Send Message': 'إرسال رسالة',
-        'Enter your message to the customer:': 'أدخل رسالتك للعميل:'
+        'Enter your message to the customer:': 'أدخل رسالتك للعميل:',
+        
+        // Dashboard specific translations
+        'Loading dashboard data...': 'جاري تحميل بيانات لوحة التحكم...',
+        'Error Loading Dashboard': 'خطأ في تحميل لوحة التحكم',
+        'Retry': 'إعادة المحاولة',
+        'Your business profile is incomplete': 'ملف شركتك الشخصي غير مكتمل',
+        'Complete your profile to unlock all features': 'أكمل ملفك الشخصي لفتح جميع الميزات',
+        'Complete Profile': 'إكمال الملف الشخصي',
+        'Total Customers': 'إجمالي العملاء',
+        'Total Sales': 'إجمالي المبيعات',
+        'Transactions': 'المعاملات',
+        'Active Programs': 'البرامج النشطة',
+        'vs last period': 'مقارنة بالفترة السابقة',
+        'Active': 'نشط',
+        'All programs running': 'جميع البرامج تعمل',
+        'Quick Award Points': 'منح النقاط السريع',
+        'Send points directly to any customer in your programs': 'أرسل النقاط مباشرة لأي عميل في برامجك',
+        'Award Points': 'منح النقاط',
+        'Business Analytics': 'تحليلات الأعمال',
+        'Day': 'يوم',
+        'Week': 'أسبوع',
+        'Month': 'شهر',
+        'Year': 'سنة',
+        'Recent Activity': 'النشاط الحديث',
+        'No recent activity to display': 'لا يوجد نشاط حديث للعرض',
+        'Activity will appear here as you use the system': 'سيظهر النشاط هنا أثناء استخدامك للنظام',
+        'View All Activity': 'عرض جميع الأنشطة',
+        'Scan Customer QR Code': 'مسح رمز QR للعميل',
+        'Close': 'إغلاق',
+        'Edit Loyalty Program': 'تعديل برنامج الولاء',
+        'Create New Loyalty Program': 'إنشاء برنامج ولاء جديد',
+        
+        // Activity types
+        'POINTS_AWARDED': 'تم منح النقاط',
+        'REWARD_REDEEMED': 'تم استبدال المكافأة',
+        'NEW_CUSTOMER': 'عميل جديد',
+        
+        // Mock program data (will be replaced with dynamic content)
+        'Coffee Rewards': 'مكافآت القهوة',
+        'Earn points for every coffee purchase': 'اكسب نقاط لكل مشتريات القهوة',
+        'Free Coffee': 'قهوة مجانية',
+        'Free Dessert': 'حلوى مجانية',
+        '$10 Gift Card': 'بطاقة هدية بقيمة 10 دولارات',
+        'Your Business': 'شركتك',
+        'Successful Scan': 'مسح ناجح',
+        'Scan Failed': 'فشل المسح',
+        'Failed to process QR code scan': 'فشل في معالجة مسح رمز QR',
+        'Unknown error': 'خطأ غير معروف',
+        'Scan Error': 'خطأ في المسح',
+        'An error occurred while processing the QR code': 'حدث خطأ أثناء معالجة رمز QR'
       },
       
       // Forms & Validation
@@ -959,7 +1055,7 @@ const resources = {
       },
       
       // Settings Page
-      settings: {
+      settingsPage: {
         title: 'الإعدادات',
         personalInfo: 'المعلومات الشخصية',
         preferences: 'التفضيلات',
@@ -1246,7 +1342,6 @@ const resources = {
       noRewardsAvailable: 'No hay recompensas disponibles',
       
       // Loyalty Card Additional
-      business: 'Negocio',
       pointsMoreToNextTier: '{{points}} puntos más para {{nextTier}}',
       maximumTierReached: 'Nivel máximo alcanzado',
       collectPointsForRewards: 'Recolecta puntos para recompensas',
@@ -1323,7 +1418,6 @@ const resources = {
         pointsAwardedMessage: 'Mensaje de puntos otorgados recibido vía BroadcastChannel',
         failedToProcessResponse: 'Error al procesar tu respuesta',
         errorProcessingResponse: 'Ocurrió un error al procesar tu respuesta',
-        business: 'Negocio',
         promoCodeCopied: 'Código promocional copiado al portapapeles',
         failedToCopyPromoCode: 'Error al copiar código promocional',
         redeemedPoints: '{{points}} puntos canjeados',
@@ -1508,7 +1602,57 @@ const resources = {
         'Send Promo Code': 'Enviar Código Promocional',
         'Send Surprise Gift': 'Enviar Regalo Sorpresa',
         'Send Message': 'Enviar Mensaje',
-        'Enter your message to the customer:': 'Ingrese su mensaje para el cliente:'
+        'Enter your message to the customer:': 'Ingrese su mensaje para el cliente:',
+        
+        // Dashboard specific translations
+        'Loading dashboard data...': 'Cargando datos del panel...',
+        'Error Loading Dashboard': 'Error al Cargar el Panel',
+        'Retry': 'Reintentar',
+        'Your business profile is incomplete': 'Su perfil de negocio está incompleto',
+        'Complete your profile to unlock all features': 'Complete su perfil para desbloquear todas las funciones',
+        'Complete Profile': 'Completar Perfil',
+        'Total Customers': 'Total de Clientes',
+        'Total Sales': 'Ventas Totales',
+        'Transactions': 'Transacciones',
+        'Active Programs': 'Programas Activos',
+        'vs last period': 'vs período anterior',
+        'Active': 'Activo',
+        'All programs running': 'Todos los programas funcionando',
+        'Quick Award Points': 'Otorgar Puntos Rápido',
+        'Send points directly to any customer in your programs': 'Envíe puntos directamente a cualquier cliente en sus programas',
+        'Award Points': 'Otorgar Puntos',
+        'Business Analytics': 'Análisis de Negocios',
+        'Day': 'Día',
+        'Week': 'Semana',
+        'Month': 'Mes',
+        'Year': 'Año',
+        'Recent Activity': 'Actividad Reciente',
+        'No recent activity to display': 'No hay actividad reciente para mostrar',
+        'Activity will appear here as you use the system': 'La actividad aparecerá aquí mientras usa el sistema',
+        'View All Activity': 'Ver Toda la Actividad',
+        'Scan Customer QR Code': 'Escanear Código QR del Cliente',
+        'Close': 'Cerrar',
+        'Edit Loyalty Program': 'Editar Programa de Lealtad',
+        'Create New Loyalty Program': 'Crear Nuevo Programa de Lealtad',
+        
+        // Activity types
+        'POINTS_AWARDED': 'Puntos Otorgados',
+        'REWARD_REDEEMED': 'Recompensa Canjeada',
+        'NEW_CUSTOMER': 'Nuevo Cliente',
+        
+        // Mock program data (will be replaced with dynamic content)
+        'Coffee Rewards': 'Recompensas de Café',
+        'Earn points for every coffee purchase': 'Gana puntos por cada compra de café',
+        'Free Coffee': 'Café Gratis',
+        'Free Dessert': 'Postre Gratis',
+        '$10 Gift Card': 'Tarjeta de Regalo de $10',
+        'Your Business': 'Su Negocio',
+        'Successful Scan': 'Escaneo Exitoso',
+        'Scan Failed': 'Escaneo Fallido',
+        'Failed to process QR code scan': 'Error al procesar el escaneo del código QR',
+        'Unknown error': 'Error desconocido',
+        'Scan Error': 'Error de Escaneo',
+        'An error occurred while processing the QR code': 'Ocurrió un error al procesar el código QR'
       },
       
       // Forms & Validation
@@ -1535,7 +1679,7 @@ const resources = {
       },
       
       // Settings Page
-      settings: {
+      settingsPage: {
         title: 'Configuración',
         personalInfo: 'Información Personal',
         preferences: 'Preferencias',
@@ -1822,7 +1966,6 @@ const resources = {
       noRewardsAvailable: 'Aucune récompense disponible',
       
       // Loyalty Card Additional
-      business: 'Entreprise',
       pointsMoreToNextTier: '{{points}} points de plus pour {{nextTier}}',
       maximumTierReached: 'Niveau maximum atteint',
       collectPointsForRewards: 'Collectez des points pour des récompenses',
@@ -1899,7 +2042,6 @@ const resources = {
         pointsAwardedMessage: 'Message de points attribués reçu via BroadcastChannel',
         failedToProcessResponse: 'Échec du traitement de votre réponse',
         errorProcessingResponse: 'Une erreur s\'est produite lors du traitement de votre réponse',
-        business: 'Entreprise',
         promoCodeCopied: 'Code promotionnel copié dans le presse-papiers',
         failedToCopyPromoCode: 'Échec de la copie du code promotionnel',
         redeemedPoints: '{{points}} points échangés',
@@ -2084,7 +2226,57 @@ const resources = {
         'Send Promo Code': 'Envoyer Code Promo',
         'Send Surprise Gift': 'Envoyer Cadeau Surprise',
         'Send Message': 'Envoyer Message',
-        'Enter your message to the customer:': 'Entrez votre message pour le client:'
+        'Enter your message to the customer:': 'Entrez votre message pour le client:',
+        
+        // Dashboard specific translations
+        'Loading dashboard data...': 'Chargement des données du tableau de bord...',
+        'Error Loading Dashboard': 'Erreur lors du Chargement du Tableau de Bord',
+        'Retry': 'Réessayer',
+        'Your business profile is incomplete': 'Votre profil d\'entreprise est incomplet',
+        'Complete your profile to unlock all features': 'Complétez votre profil pour débloquer toutes les fonctionnalités',
+        'Complete Profile': 'Compléter le Profil',
+        'Total Customers': 'Total des Clients',
+        'Total Sales': 'Ventes Totales',
+        'Transactions': 'Transactions',
+        'Active Programs': 'Programmes Actifs',
+        'vs last period': 'vs période précédente',
+        'Active': 'Actif',
+        'All programs running': 'Tous les programmes fonctionnent',
+        'Quick Award Points': 'Attribuer des Points Rapidement',
+        'Send points directly to any customer in your programs': 'Envoyez des points directement à tout client de vos programmes',
+        'Award Points': 'Attribuer des Points',
+        'Business Analytics': 'Analyses d\'Entreprise',
+        'Day': 'Jour',
+        'Week': 'Semaine',
+        'Month': 'Mois',
+        'Year': 'Année',
+        'Recent Activity': 'Activité Récente',
+        'No recent activity to display': 'Aucune activité récente à afficher',
+        'Activity will appear here as you use the system': 'L\'activité apparaîtra ici pendant que vous utilisez le système',
+        'View All Activity': 'Voir Toute l\'Activité',
+        'Scan Customer QR Code': 'Scanner le Code QR du Client',
+        'Close': 'Fermer',
+        'Edit Loyalty Program': 'Modifier le Programme de Fidélité',
+        'Create New Loyalty Program': 'Créer un Nouveau Programme de Fidélité',
+        
+        // Activity types
+        'POINTS_AWARDED': 'Points Attribués',
+        'REWARD_REDEEMED': 'Récompense Échangée',
+        'NEW_CUSTOMER': 'Nouveau Client',
+        
+        // Mock program data (will be replaced with dynamic content)
+        'Coffee Rewards': 'Récompenses Café',
+        'Earn points for every coffee purchase': 'Gagnez des points pour chaque achat de café',
+        'Free Coffee': 'Café Gratuit',
+        'Free Dessert': 'Dessert Gratuit',
+        '$10 Gift Card': 'Carte Cadeau de 10$',
+        'Your Business': 'Votre Entreprise',
+        'Successful Scan': 'Scan Réussi',
+        'Scan Failed': 'Échec du Scan',
+        'Failed to process QR code scan': 'Échec du traitement du scan du code QR',
+        'Unknown error': 'Erreur inconnue',
+        'Scan Error': 'Erreur de Scan',
+        'An error occurred while processing the QR code': 'Une erreur s\'est produite lors du traitement du code QR'
       },
       
       // Forms & Validation
@@ -2111,7 +2303,7 @@ const resources = {
       },
       
       // Settings Page
-      settings: {
+      settingsPage: {
         title: 'Paramètres',
         personalInfo: 'Informations Personnelles',
         preferences: 'Préférences',

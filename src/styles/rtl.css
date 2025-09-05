@@ -2429,3 +2429,361 @@
 [dir="rtl"] .customer-layout { direction: rtl; }
 [dir="rtl"] .customer-layout .sidebar { border-right: 0; border-left: 1px solid #e5e7eb; }
 [dir="rtl"] .customer-layout .mobile-header { direction: rtl; }
+
+/* Business Dashboard RTL Styles */
+[dir="rtl"] .business-dashboard {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header .header-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header .header-subtitle {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions .action-button {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .stats-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-dashboard .stat-card {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-value {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change .change-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change .change-text {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-title {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-title .title-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .analytics-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .analytics-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .period-selector {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .period-button {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-list {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-details {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-time {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-title {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-description {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .view-all-link {
+  flex-direction: row-reverse;
+  text-align: center;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .view-all-link .link-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .scanner-message {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-footer {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .close-button-footer {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-text {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link .link-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link .link-text {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Responsive RTL adjustments for business dashboard */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-dashboard .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .business-dashboard .dashboard-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .business-dashboard .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .business-dashboard .analytics-section .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .business-dashboard .analytics-section .period-selector {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  [dir="rtl"] .business-dashboard .qr-scanner-modal .modal-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .business-dashboard .program-builder-modal .modal-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
