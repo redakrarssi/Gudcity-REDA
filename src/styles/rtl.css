@@ -2405,3 +2405,27 @@
     justify-content: center;
   }
 }
+
+/* Arabic typography utility */
+.arabic-text {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  text-align: right;
+  direction: rtl;
+}
+
+/* Prefer Arabic fonts across RTL for better readability */
+[dir="rtl"] body,
+[dir="rtl"] .customer-layout {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', 'Tahoma', sans-serif;
+}
+
+/* Logical spacing helpers for RTL alignment (non-breaking if unused) */
+[dir="rtl"] .ms-3 { margin-inline-start: 0.75rem; }
+[dir="rtl"] .me-3 { margin-inline-end: 0.75rem; }
+[dir="rtl"] .ps-3 { padding-inline-start: 0.75rem; }
+[dir="rtl"] .pe-3 { padding-inline-end: 0.75rem; }
+
+/* Ensure sidebar appears on the right and main content on the left in RTL */
+[dir="rtl"] .customer-layout { direction: rtl; }
+[dir="rtl"] .customer-layout .sidebar { border-right: 0; border-left: 1px solid #e5e7eb; }
+[dir="rtl"] .customer-layout .mobile-header { direction: rtl; }

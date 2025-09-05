@@ -25,3 +25,15 @@
 .noscript-fallback h1 {
   margin-bottom: 1rem;
 }
+
+/* Minimal RTL support early in page load */
+[dir="rtl"] body {
+  direction: rtl;
+  text-align: right;
+}
+
+.arabic-text {
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+  text-align: right;
+  direction: rtl;
+}

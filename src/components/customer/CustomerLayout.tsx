@@ -24,10 +24,11 @@ interface CustomerLayoutProps {
 }
 
 export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const { logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isArabic = (i18n?.language || '').startsWith('ar');
 
   const menuItems = [
     { 
@@ -72,7 +73,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
   return (
     <NotificationProvider>
-      <div className="flex h-screen bg-gray-50 customer-layout">
+      <div dir={isArabic ? 'rtl' : 'ltr'} lang={isArabic ? 'ar' : i18n?.language} className={`flex h-screen bg-gray-50 customer-layout ${isArabic ? 'arabic-text' : ''}`}>
         {/* Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 sidebar">
           <div className="p-6 flex justify-between items-center">
