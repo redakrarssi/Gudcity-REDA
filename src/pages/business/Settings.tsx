@@ -512,7 +512,7 @@ const BusinessSettings = () => {
   if (loading && !businessData) {
     return (
       <BusinessLayout>
-        <div className="flex flex-col items-center justify-center h-64">
+        <div className="flex flex-col items-center justify-center h-64 loading-state">
           <div className="flex items-center justify-center mb-4">
             <Loader className="w-8 h-8 text-blue-500 animate-spin" />
           </div>
@@ -527,7 +527,7 @@ const BusinessSettings = () => {
     return (
       <BusinessLayout>
         <div className="max-w-5xl mx-auto mt-10">
-          <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700 error-state">
             <h2 className="text-lg font-semibold flex items-center mb-2">
               <AlertCircle className="w-5 h-5 mr-2" />
               {t('Error Loading Settings')}
@@ -549,13 +549,13 @@ const BusinessSettings = () => {
   if (!businessData || !formData) {
     return (
       <BusinessLayout>
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 empty-state">
           <div className="flex">
             <div className="flex-shrink-0">
               <AlertCircle className="h-5 w-5 text-yellow-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm text-yellow-700">No business settings found</p>
+              <p className="text-sm text-yellow-700">{t('No business settings found')}</p>
             </div>
           </div>
         </div>
@@ -567,7 +567,7 @@ const BusinessSettings = () => {
     if (!formData || !businessData) return null;
     
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 settings-section">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
@@ -583,7 +583,7 @@ const BusinessSettings = () => {
                 {t('Edit')}
               </button>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 action-buttons">
                 <button
                   onClick={handleCancelEdit}
                   className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
@@ -638,9 +638,9 @@ const BusinessSettings = () => {
             </div>
           )}
           
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="grid gap-6 md:grid-cols-2 business-info-grid">
+            <div className="form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Business Name')}
               </label>
               {editMode ? (
@@ -652,19 +652,19 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800">{businessData.businessName}</p>
+                <p className="text-gray-800 info-value">{businessData.businessName}</p>
               )}
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Business Email')}
               </label>
-              <p className="text-gray-800">{businessData.email}</p>
+              <p className="text-gray-800 info-value">{businessData.email}</p>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Phone Number')}
               </label>
               {editMode ? (
@@ -676,12 +676,12 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800">{businessData.phone}</p>
+                <p className="text-gray-800 info-value">{businessData.phone}</p>
               )}
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Website')}
               </label>
               {editMode ? (
@@ -694,20 +694,20 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800">
+                <p className="text-gray-800 info-value">
                   {businessData.website ? (
                     <a href={businessData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
                       {businessData.website} <Link className="w-3 h-3 ml-1" />
                     </a>
                   ) : (
-                    'Not specified'
+                    t('Not specified')
                   )}
                 </p>
               )}
             </div>
             
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="md:col-span-2 form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Business Description')}
               </label>
               {editMode ? (
@@ -719,12 +719,12 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800">{businessData.description || 'No description provided'}</p>
+                <p className="text-gray-800 info-value">{businessData.description || t('No description provided')}</p>
               )}
             </div>
             
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="md:col-span-2 form-group business-info-item">
+              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
                 {t('Business Address')}
               </label>
               {editMode ? (
@@ -736,7 +736,7 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 whitespace-pre-line">{businessData.address || 'No address provided'}</p>
+                <p className="text-gray-800 whitespace-pre-line info-value">{businessData.address || t('No address provided')}</p>
               )}
             </div>
             
@@ -1503,9 +1503,9 @@ const BusinessSettings = () => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6 pb-10 max-w-5xl mx-auto">
+      <div className="space-y-6 pb-10 max-w-5xl mx-auto business-settings-page">
         {/* Header */}
-        <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`transition-all duration-500 ease-out transform business-settings-header ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
@@ -1519,7 +1519,7 @@ const BusinessSettings = () => {
 
         {/* Settings Tabs */}
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex border-b border-gray-200 overflow-x-auto">
+          <div className="flex border-b border-gray-200 overflow-x-auto settings-tabs">
             <button
               onClick={() => setActiveTab('business')}
               className={`px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
@@ -1574,7 +1574,7 @@ const BusinessSettings = () => {
         </div>
 
         {/* Settings Content */}
-        <div className={`transition-all duration-500 ease-out transform delay-200 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`transition-all duration-500 ease-out transform delay-200 settings-content ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           {activeTab === 'business' && renderBusinessSettings()}
           {activeTab === 'hours' && renderBusinessHours()}
           {activeTab === 'loyalty' && renderLoyaltySettings()}
@@ -1583,7 +1583,7 @@ const BusinessSettings = () => {
         </div>
         
         {/* Help Section */}
-        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 help-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2">
             <HelpCircle className="w-5 h-5 text-indigo-500 mr-2" />
             {t('Need Help?')}
@@ -1592,7 +1592,7 @@ const BusinessSettings = () => {
             {t('If you have any questions about your business settings or loyalty program configuration, our support team is here to help.')}
           </p>
           <button
-            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium help-button"
           >
             <Send className="w-4 h-4 mr-1.5" />
             {t('Contact Business Support')}

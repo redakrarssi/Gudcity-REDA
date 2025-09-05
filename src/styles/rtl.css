@@ -3713,3 +3713,398 @@
     margin-left: 0;
   }
 }
+
+/* Business Settings Page RTL Styles */
+[dir="rtl"] .business-settings-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header h1 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs button svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-settings-page .settings-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .settings-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .settings-section h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-section h3 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-section p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .form-group label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group input,
+[dir="rtl"] .business-settings-page .form-group textarea,
+[dir="rtl"] .business-settings-page .form-group select {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group .form-help {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-info-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item .info-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item .info-value {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .day-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-inputs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-inputs input {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-separator {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .status-badge {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-input {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-unit {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator .calculator-example {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-types {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-status {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .help-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .help-section h3 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .help-section p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .help-section .help-button {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .action-buttons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .action-buttons button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loading-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .loading-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .error-state h3 {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .empty-state h3 {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* Responsive adjustments for business settings page */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-settings-page .settings-tabs {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .settings-tabs button {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .settings-tabs button svg {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+
+  [dir="rtl"] .business-settings-page .business-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-item {
+    flex-direction: column;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-item .time-inputs {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  [dir="rtl"] .business-settings-page .loyalty-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-channels {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-channels .channel-item {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-types {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-types .type-item {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .integrations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header {
+    flex-direction: column;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .action-buttons {
+    flex-direction: column;
+  }
+}
