@@ -3405,3 +3405,311 @@
     order: 2;
   }
 }
+
+/* Business QR Scanner Page RTL Styles */
+[dir="rtl"] .qr-scanner-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header h1 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header h1 svg {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav button svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress-header svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .bg-indigo-100 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .bg-indigo-100 svg {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Settings RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Main Content RTL */
+[dir="rtl"] .qr-scanner-page .grid.lg\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .lg\\:col-span-2 {
+  order: 2;
+}
+
+[dir="rtl"] .qr-scanner-page .lg\\:row-start-1.lg\\:row-span-2.lg\\:col-start-3 {
+  order: 1;
+}
+
+/* QR Scanner Details Panel RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.justify-between svg {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Data Display RTL */
+[dir="rtl"] .qr-scanner-page .flex.items-center.space-x-2 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.space-x-2 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .font-mono {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .font-mono span {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Recent Scans RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .grid.sm\\:grid-cols-2.lg\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.justify-between svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Guide RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .grid.md\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl .flex svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Manual Entry RTL */
+[dir="rtl"] .qr-scanner-page .space-y-5 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex.items-start {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex.items-start svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .list-disc {
+  padding-left: 0;
+  padding-right: 1.25rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .list-disc li {
+  text-align: right;
+}
+
+/* QR Scanner Input RTL */
+[dir="rtl"] .qr-scanner-page input {
+  text-align: right;
+  padding-left: 1rem;
+  padding-right: 3rem;
+}
+
+[dir="rtl"] .qr-scanner-page .relative button {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .qr-scanner-page .relative button svg {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+/* QR Scanner Modal RTL */
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .bg-white {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .flex.justify-end {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .space-x-3 > * + * {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .grid.grid-cols-2 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-center {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-left {
+  text-align: right;
+}
+
+/* Responsive RTL Adjustments for QR Scanner */
+@media (max-width: 1024px) {
+  [dir="rtl"] .qr-scanner-page .grid.lg\\:grid-cols-3 {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .qr-scanner-page .lg\\:col-span-2 {
+    order: 1;
+  }
+
+  [dir="rtl"] .qr-scanner-page .lg\\:row-start-1.lg\\:row-span-2.lg\\:col-start-3 {
+    order: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  [dir="rtl"] .qr-scanner-page .qr-scanner-header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav button {
+    flex-direction: row;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav button svg {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+}

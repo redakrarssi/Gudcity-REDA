@@ -78,13 +78,13 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       setBrowserSupported(cameraSupport && qrScanningSupport);
       
       if (!cameraSupport) {
-        setScannerError('Your browser does not support camera access');
+        setScannerError(t('business.Your browser does not support camera access'));
         return;
       } else if (!qrScanningSupport) {
-        setScannerError('Your browser does not support QR code scanning');
+        setScannerError(t('business.Your browser does not support QR code scanning'));
         return;
       } else if (requiresHttpsForCamera()) {
-        setScannerError('Camera access requires HTTPS. Please access this site using https:// instead of http://');
+        setScannerError(t('business.Camera access requires HTTPS. Please access this site using https:// instead of http://'));
         return;
       }
       
@@ -217,7 +217,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     setInputError(null);
     
     if (!manualInput.trim()) {
-      setInputError('Please enter a customer ID or code');
+      setInputError(t('business.Please enter a customer ID or code'));
       return;
     }
     
@@ -277,7 +277,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       }
     } catch (error) {
       console.error('Error processing manual input:', error);
-      setInputError('Invalid input format');
+      setInputError(t('business.Invalid input format'));
     }
   };
 
@@ -353,7 +353,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   };
   
   const getQrCodeDisplayData = (data: QrCodeData | undefined): { title: string, subtitle: string } => {
-    if (!data) return { title: t('Unknown QR Code'), subtitle: t('No data available') };
+    if (!data) return { title: t('business.Unknown QR Code'), subtitle: t('business.No data available') };
     
     // Safely check if data is an object before using properties
     const isObject = typeof data === 'object' && data !== null;
@@ -364,7 +364,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         const customerName = customerData.customerName || customerData.name || customerData.customerId || 'Unknown';
         const customerId = customerData.customerId || 'Unknown';
         return {
-          title: `${t('Customer')}: ${customerName}`,
+          title: `${t('business.Customer')}: ${customerName}`,
           subtitle: `ID: ${customerId}`
         };
       }
@@ -374,18 +374,18 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         const cardId = cardData.cardId || 'Unknown';
         const loyaltyCustomerId = cardData.customerId || 'Unknown';
         return {
-          title: `${t('Loyalty Card')}: ${cardId}`,
-          subtitle: `${t('Customer')}: ${loyaltyCustomerId}`
+          title: `${t('business.Loyalty Card')}: ${cardId}`,
+          subtitle: `${t('business.Customer')}: ${loyaltyCustomerId}`
         };
       }
         
       case 'promoCode': {
         const promoData = data as Partial<PromoCodeQrCodeData>;
         const code = promoData.code || 'Unknown';
-        const discount = promoData.discount !== undefined ? promoData.discount : t('N/A');
+        const discount = promoData.discount !== undefined ? promoData.discount : t('business.N/A');
         return {
-          title: `${t('Promo Code')}: ${code}`,
-          subtitle: `${t('Value')}: ${discount}`
+          title: `${t('business.Promo Code')}: ${code}`,
+          subtitle: `${t('business.Value')}: ${discount}`
         };
       }
         
@@ -395,8 +395,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         const unknownData = data as Partial<UnknownQrCodeData>;
         const rawData = unknownData.rawData ? String(unknownData.rawData).substring(0, 30) : 'N/A';
         return {
-          title: t('Unknown QR Code'),
-          subtitle: `${t('Raw data')}: ${rawData}${rawData !== 'N/A' && rawData.length > 30 ? '...' : ''}`
+          title: t('business.Unknown QR Code'),
+          subtitle: `${t('business.Raw data')}: ${rawData}${rawData !== 'N/A' && rawData.length > 30 ? '...' : ''}`
         };
       }
     }
@@ -411,11 +411,11 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
     return (
       <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-md">
         <AlertTriangle size={48} className="text-yellow-500 mb-4" />
-        <h2 className="text-xl font-bold mb-2">QR Scanner Unavailable</h2>
-        <p className="text-center mb-4">{scannerError || 'The QR scanner could not be initialized'}</p>
+        <h2 className="text-xl font-bold mb-2">{t('business.QR Scanner Unavailable')}</h2>
+        <p className="text-center mb-4">{scannerError || t('business.The QR scanner could not be initialized')}</p>
         {!isHttps && process.env.NODE_ENV === 'production' && (
           <p className="text-sm text-gray-600 mb-4">
-            Try accessing this page using HTTPS instead of HTTP
+            {t('business.Try accessing this page using HTTPS instead of HTTP')}
           </p>
         )}
         <button
@@ -423,7 +423,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
           onClick={() => setActiveTab('manual')}
         >
           <Keyboard className="inline-block mr-2" size={16} />
-          Switch to Manual Entry
+          {t('business.Switch to Manual Entry')}
         </button>
       </div>
     );
@@ -444,7 +444,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               <User className="w-5 h-5 mr-2" />
-              {t('Show Customer Details')}
+              {t('business.Show Customer Details')}
             </button>
             
             <button
@@ -455,7 +455,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
             >
               <Award className="w-5 h-5 mr-2" />
-              {t('Award Points')}
+              {t('business.Award Points')}
             </button>
             
             <button
@@ -466,7 +466,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-blue-400 text-white rounded-lg hover:bg-blue-500 transition-colors"
             >
               <Users className="w-5 h-5 mr-2" />
-              {t('Join Program')}
+              {t('business.Join Program')}
             </button>
             
             <button
@@ -477,7 +477,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
             >
               <Trophy className="w-5 h-5 mr-2" />
-              {t('Give Reward')}
+              {t('business.Give Reward')}
             </button>
           </>
         )}
@@ -492,7 +492,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
             >
               <Award className="w-5 h-5 mr-2" />
-              {t('Award Points')}
+              {t('business.Award Points')}
             </button>
             
             <button
@@ -502,7 +502,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               className="flex items-center justify-center w-full py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
             >
               <Trophy className="w-5 h-5 mr-2" />
-              {t('Give Reward')}
+              {t('business.Give Reward')}
             </button>
           </>
         )}
@@ -513,7 +513,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             className="flex items-center justify-center w-full py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
           >
             <Check className="w-5 h-5 mr-2" />
-            {t('Redeem Promo Code')}
+            {t('business.Redeem Promo Code')}
           </button>
         )}
       </div>
@@ -522,23 +522,23 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6 pb-10">
+      <div className="space-y-6 pb-10 qr-scanner-page">
         {/* Header with animated gradient */}
-        <div className="bg-gradient-to-r from-blue-600 via-purple-500 to-indigo-700 rounded-xl p-6 shadow-lg mb-8 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 via-purple-500 to-indigo-700 rounded-xl p-6 shadow-lg mb-8 relative overflow-hidden qr-scanner-header">
           <div className="absolute top-0 left-0 right-0 bottom-0 bg-[url('/assets/images/pattern-dots.svg')] opacity-20"></div>
           <div className="relative z-10">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between qr-scanner-header-content">
               <div>
                 <h1 className="text-3xl font-bold text-white flex items-center mb-2">
                   <QrCode className="w-8 h-8 text-white mr-3" />
-                  {t('QR Scanner')}
+                  {t('business.QR Scanner')}
                 </h1>
-                <p className="text-blue-100">{t('Scan QR codes to reward your customers')}</p>
+                <p className="text-blue-100">{t('business.Scan QR codes to reward your customers')}</p>
               </div>
               <div className="text-center">
                 <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 text-white">
                   <div className="text-4xl font-bold">{scanCount}</div>
-                  <div className="text-xs uppercase tracking-wider mt-1">{t('Total Scans')}</div>
+                  <div className="text-xs uppercase tracking-wider mt-1">{t('business.Total Scans')}</div>
                 </div>
               </div>
             </div>
@@ -546,8 +546,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
         </div>
         
         {/* Tab navigation with modern styling */}
-        <div className="bg-white rounded-xl shadow-md p-2 mb-6">
-          <nav className="flex space-x-1">
+        <div className="bg-white rounded-xl shadow-md p-2 mb-6 qr-scanner-tabs">
+          <nav className="flex space-x-1 qr-scanner-nav">
             <button
               className={`py-3 px-4 rounded-lg flex-1 font-medium text-sm flex items-center justify-center space-x-2 transition-all duration-200 ${
                 activeTab === 'scanner'
@@ -557,7 +557,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               onClick={() => setActiveTab('scanner')}
             >
               <Camera className="w-4 h-4" />
-              <span>{t('Scanner')}</span>
+              <span>{t('business.Scanner')}</span>
             </button>
             
             <button
@@ -569,16 +569,16 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               onClick={() => setActiveTab('manual')}
             >
               <Keyboard className="w-4 h-4" />
-              <span>{t('Manual Entry')}</span>
+              <span>{t('business.Manual Entry')}</span>
             </button>
           </nav>
         </div>
         
         {/* Progress tracker */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="flex items-center mb-3">
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6 qr-scanner-progress">
+          <div className="flex items-center mb-3 qr-scanner-progress-header">
             <Trophy className="w-5 h-5 text-amber-500 mr-2" />
-            <h2 className="font-medium text-gray-800">{t('Scan Progress')}</h2>
+            <h2 className="font-medium text-gray-800">{t('business.Scan Progress')}</h2>
           </div>
           
           <div className="space-y-3">
@@ -596,11 +596,11 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             
             <div className="flex justify-between items-center text-sm">
               <div className="text-gray-600">
-                {getMilestoneStatus()?.remaining} more to next reward
+                {getMilestoneStatus()?.remaining} {t('business.more to next reward')}
               </div>
               <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full flex items-center">
                 <Target className="w-4 h-4 mr-1" />
-                Next: {getMilestoneStatus()?.next} scans
+                {t('business.Next:')} {getMilestoneStatus()?.next} {t('business.scans')}
               </div>
             </div>
           </div>
@@ -611,7 +611,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
           <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 border-b border-blue-100">
             <div className="flex items-center">
               <Settings className="w-5 h-5 text-blue-500 mr-2" />
-              <h2 className="font-medium text-gray-800">{t('Scan Settings')}</h2>
+              <h2 className="font-medium text-gray-800">{t('business.Scan Settings')}</h2>
             </div>
           </div>
           
@@ -619,7 +619,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="program" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Select Program')}
+                  {t('business.Select Program')}
                 </label>
                 {isLoading ? (
                   <div className="animate-pulse h-10 bg-gray-200 rounded"></div>
@@ -638,14 +638,14 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   </select>
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                    {t('No programs found. Please create a loyalty program first.')}
+                    {t('business.No programs found. Please create a loyalty program first.')}
                   </div>
                 )}
               </div>
               
               <div>
                 <label htmlFor="points" className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('Points to Award')}
+                  {t('business.Points to Award')}
                 </label>
                 <div className="relative">
                   <input
@@ -697,7 +697,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 {showConfetti && (
                   <div className="relative z-20 mb-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white p-3 rounded-lg animate-bounce-subtle flex items-center">
                     <Trophy className="w-5 h-5 mr-2" />
-                    <span>{t('Milestone reached!')} {scanCount} {t('scans completed!')}</span>
+                    <span>{t('business.Milestone reached!')} {scanCount} {t('business.scans completed!')}</span>
                   </div>
                 )}
                 
@@ -727,13 +727,13 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600"></div>
                 <h2 className="font-medium text-gray-800 mb-4 flex items-center">
                   <Keyboard className="w-5 h-5 text-indigo-500 mr-2" />
-                  {t('Manual Customer ID Entry')}
+                  {t('business.Manual Customer ID Entry')}
                 </h2>
                 
                 <div className="space-y-5">
                   <div>
                     <label htmlFor="manualInput" className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('Customer ID or Code')}
+                      {t('business.Customer ID or Code')}
                     </label>
                     <div className="relative">
                       <input
@@ -742,7 +742,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                         value={manualInput}
                         onChange={(e) => setManualInput(e.target.value)}
                         className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-3 pr-12"
-                        placeholder="Enter Customer ID or Promo Code"
+                        placeholder={t('business.Enter Customer ID or Promo Code')}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             handleManualEntry();
@@ -768,11 +768,11 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                     <div className="flex items-start">
                       <Info className="w-5 h-5 mt-0.5 mr-2 flex-shrink-0 text-blue-500" />
                       <div>
-                        <p className="font-medium mb-1">{t('How to use manual entry')}:</p>
+                        <p className="font-medium mb-1">{t('business.How to use manual entry')}:</p>
                         <ul className="list-disc pl-5 space-y-1">
-                          <li>{t('Enter a customer ID to award points')}</li>
-                          <li>{t('Enter a promotion code to apply discount')}</li>
-                          <li>{t('Press Enter or click the arrow button to submit')}</li>
+                          <li>{t('business.Enter a customer ID to award points')}</li>
+                          <li>{t('business.Enter a promotion code to apply discount')}</li>
+                          <li>{t('business.Press Enter or click the arrow button to submit')}</li>
                         </ul>
                       </div>
                     </div>
@@ -787,7 +787,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 border-b border-blue-100 flex items-center justify-between">
               <h2 className="font-medium text-gray-800 flex items-center">
                 <ClipboardList className="w-5 h-5 text-blue-500 mr-2" />
-                {t('Scan Details')}
+                {t('business.Scan Details')}
               </h2>
               {scanResults.length > 0 && (
                 <button
@@ -795,7 +795,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   onClick={clearResults}
                 >
                   <RotateCcw className="w-4 h-4 mr-1" />
-                  {t('Clear')}
+                  {t('business.Clear')}
                 </button>
               )}
             </div>
@@ -811,7 +811,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <h3 className="text-sm font-medium text-gray-500">{t('Scan Type')}:</h3>
+                    <h3 className="text-sm font-medium text-gray-500">{t('business.Scan Type')}:</h3>
                     <p className="text-base font-semibold capitalize bg-blue-50 px-2 py-0.5 rounded text-blue-700">
                       {selectedResult.type.replace('_', ' ')}
                     </p>
@@ -819,24 +819,24 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <h3 className="text-sm font-medium text-gray-500">{t('Timestamp')}:</h3>
+                    <h3 className="text-sm font-medium text-gray-500">{t('business.Timestamp')}:</h3>
                     <p className="text-base text-gray-700">{formatTimestamp(selectedResult.timestamp)}</p>
                   </div>
                   
                   <div>
                     <div className="flex items-center space-x-2 mb-2">
                       <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <h3 className="text-sm font-medium text-gray-500">{t('Data')}:</h3>
+                      <h3 className="text-sm font-medium text-gray-500">{t('business.Data')}:</h3>
                     </div>
                     <div className="mt-1 bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg text-sm text-gray-800 font-mono overflow-x-auto border border-gray-200 shadow-inner">
                       {selectedResult.type === 'customer' && (
                         <div>
-                          <p><span className="text-blue-500">name:</span> {selectedResult.data.name || 'Customer'}</p>
+                          <p><span className="text-blue-500">{t('business.name:')}</span> {selectedResult.data.name || 'Customer'}</p>
                         </div>
                       )}
                       
                       {selectedResult.type === 'promoCode' && (
-                        <p><span className="text-amber-500">code:</span> {selectedResult.data.code}</p>
+                        <p><span className="text-amber-500">{t('business.code:')}</span> {selectedResult.data.code}</p>
                       )}
                       
                       {selectedResult.type === 'unknown' && (
@@ -851,7 +851,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   <div className="pt-3 border-t border-gray-100">
                     <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                       <Zap className="w-4 h-4 text-amber-500 mr-1" />
-                      {t('Actions')}:
+                      {t('business.Actions')}:
                     </h3>
                     
                     {renderScanResultActions(selectedResult)}
@@ -862,8 +862,8 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
                     <ClipboardList className="w-10 h-10 text-gray-300" />
                   </div>
-                  <p className="text-gray-500">{t('Scan a code to see details')}</p>
-                  <p className="text-sm text-gray-400 mt-1">{t('Details will appear here')}</p>
+                  <p className="text-gray-500">{t('business.Scan a code to see details')}</p>
+                  <p className="text-sm text-gray-400 mt-1">{t('business.Details will appear here')}</p>
                 </div>
               )}
             </div>
@@ -876,7 +876,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             <div className="bg-gradient-to-r from-gray-50 to-indigo-50 p-4 border-b border-indigo-100">
               <h2 className="font-medium text-gray-800 flex items-center">
                 <Layers className="w-5 h-5 text-indigo-500 mr-2" />
-                {t('Recent Scans')}
+                {t('business.Recent Scans')}
               </h2>
             </div>
             <div className="p-6">
@@ -905,10 +905,10 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-2 truncate">
-                      {result.type === 'customer' ? `Customer: ${result.data.name || 'Customer'}` :
-                       result.type === 'promoCode' ? `Code: ${result.data.code}` :
+                      {result.type === 'customer' ? `${t('business.Customer')}: ${result.data.name || 'Customer'}` :
+                       result.type === 'promoCode' ? `${t('business.code:')} ${result.data.code}` :
                        result.type === 'loyaltyCard' ? `Card: ${result.data.cardId}` :
-                       `Text: ${result.type === 'unknown' && 'rawData' in result.data ? result.data.rawData.substring(0, 20) + (result.data.rawData.length > 20 ? '...' : '') : 'Unknown'}`}
+                       `${t('business.Text:')} ${result.type === 'unknown' && 'rawData' in result.data ? result.data.rawData.substring(0, 20) + (result.data.rawData.length > 20 ? '...' : '') : t('business.Unknown')}`}
                     </p>
                   </div>
                 ))}
@@ -922,7 +922,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
           <div className="bg-gradient-to-r from-gray-50 to-purple-50 p-4 border-b border-purple-100">
             <h2 className="font-medium text-gray-800 flex items-center">
               <Info className="w-5 h-5 text-purple-500 mr-2" />
-              {t('Scanner Guide')}
+              {t('business.Scanner Guide')}
             </h2>
           </div>
           
@@ -932,9 +932,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 <div className="mb-3 w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm border border-blue-200">
                   <QrCode className="w-6 h-6 text-blue-600" />
                 </div>
-                <h3 className="font-medium text-blue-800 mb-2">{t('Scan Customer QR')}</h3>
+                <h3 className="font-medium text-blue-800 mb-2">{t('business.Scan Customer QR')}</h3>
                 <p className="text-sm text-blue-700">
-                  {t('Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.')}
+                  {t('business.Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.')}
                 </p>
               </div>
               
@@ -942,9 +942,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 <div className="mb-3 w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm border border-amber-200">
                   <Badge className="w-6 h-6 text-amber-600" />
                 </div>
-                <h3 className="font-medium text-amber-800 mb-2">{t('Scan Promotion Codes')}</h3>
+                <h3 className="font-medium text-amber-800 mb-2">{t('business.Scan Promotion Codes')}</h3>
                 <p className="text-sm text-amber-700">
-                  {t('Scan promotion codes to apply discounts or special offers at checkout.')}
+                  {t('business.Scan promotion codes to apply discounts or special offers at checkout.')}
                 </p>
               </div>
               
@@ -952,9 +952,9 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 <div className="mb-3 w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm border border-green-200">
                   <KeyRound className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800 mb-2">{t('Manual Entry')}</h3>
+                <h3 className="font-medium text-green-800 mb-2">{t('business.Manual Entry')}</h3>
                 <p className="text-sm text-green-700">
-                  {t('Enter customer IDs or promotion codes manually when scanning is not possible.')}
+                  {t('business.Enter customer IDs or promotion codes manually when scanning is not possible.')}
                 </p>
               </div>
             </div>
