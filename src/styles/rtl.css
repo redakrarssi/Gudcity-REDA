@@ -2987,3 +2987,242 @@
     gap: 0.5rem;
   }
 }
+
+/* Business Analytics Page RTL Styles */
+[dir="rtl"] .analytics-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .analytics-page .analytics-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-period-selector {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-period-buttons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-loading {
+  justify-content: center;
+}
+
+[dir="rtl"] .analytics-page .analytics-stats-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-icon {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+[dir="rtl"] .analytics-page .analytics-charts-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header .mr-1 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header .mr-1 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-tip-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tip-card .text-right {
+  text-align: left;
+}
+
+/* Responsive RTL adjustments for analytics page */
+@media (max-width: 768px) {
+  [dir="rtl"] .analytics-page .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-period-selector {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-rewards-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-programs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-insights-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-tips-grid {
+    grid-template-columns: 1fr;
+  }
+}
