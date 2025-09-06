@@ -4948,3 +4948,100 @@
     text-align: right;
   }
 }
+
+/* Customer Settings RTL Styles */
+[dir="rtl"] .customer-settings-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-tabs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-tab {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-content {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-help {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-help-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-button {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-button-icon {
+  margin-left: 0.375rem;
+  margin-right: 0;
+}
+
+/* Mobile responsive adjustments for Customer Settings RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-settings-page {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-subtitle {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-tabs {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-content {
+    text-align: right;
+  }
+}

@@ -305,11 +305,11 @@ const CustomerSettings = () => {
   }
 
   const renderPersonalSettings = () => (
-    <div className="space-y-6 settings-content">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 settings-section">
-        <div className="flex justify-between items-center mb-6 settings-section-header">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center settings-section-title">
-            <User className="w-5 h-5 text-blue-500 mr-2 settings-section-icon" />
+    <div className="space-y-6 settings-content customer-settings-content">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 settings-section customer-settings-section">
+        <div className="flex justify-between items-center mb-6 settings-section-header customer-settings-section-header">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center settings-section-title customer-settings-section-title">
+            <User className="w-5 h-5 text-blue-500 mr-2 settings-section-icon customer-settings-section-icon" />
             {t('settings.personalInformation')}
           </h2>
           {!editMode ? (
@@ -474,11 +474,11 @@ const CustomerSettings = () => {
   );
 
   const renderNotificationSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <Bell className="w-5 h-5 text-blue-500 mr-2" />
+    <div className="space-y-6 customer-settings-content">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 customer-settings-section">
+        <div className="flex justify-between items-center mb-6 customer-settings-section-header">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center customer-settings-section-title">
+            <Bell className="w-5 h-5 text-blue-500 mr-2 customer-settings-section-icon" />
             {t('settings.notificationSettings')}
           </h2>
           {!editMode ? (
@@ -643,10 +643,10 @@ const CustomerSettings = () => {
   );
 
   const renderAccountSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
-          <ShieldCheck className="w-5 h-5 text-blue-500 mr-2" />
+    <div className="space-y-6 customer-settings-content">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 customer-settings-section">
+        <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6 customer-settings-section-title">
+          <ShieldCheck className="w-5 h-5 text-blue-500 mr-2 customer-settings-section-icon" />
           {t('settings.securitySettings')}
         </h2>
         
@@ -757,26 +757,26 @@ const CustomerSettings = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-6 pb-10 max-w-5xl mx-auto settings-page">
+      <div className="space-y-6 pb-10 max-w-5xl mx-auto settings-page customer-settings-page">
         {/* Header */}
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-800 flex items-center settings-header">
-                <SettingsIcon className="w-6 h-6 text-blue-500 mr-2 settings-icon" />
+              <h1 className="text-2xl font-semibold text-gray-800 flex items-center settings-header customer-settings-header">
+                <SettingsIcon className="w-6 h-6 text-blue-500 mr-2 settings-icon customer-settings-icon" />
                 {t('settings.title')}
               </h1>
-              <p className="text-gray-500 mt-1">{t('settings.manageAccountSettings')}</p>
+              <p className="text-gray-500 mt-1 customer-settings-subtitle">{t('settings.manageAccountSettings')}</p>
             </div>
           </div>
         </div>
 
         {/* Settings Tabs */}
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex border-b border-gray-200 settings-tabs">
+          <div className="flex border-b border-gray-200 settings-tabs customer-settings-tabs">
             <button
               onClick={() => setActiveTab('personal')}
-              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab customer-settings-tab ${
                 activeTab === 'personal'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -786,7 +786,7 @@ const CustomerSettings = () => {
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab customer-settings-tab ${
                 activeTab === 'notifications'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -796,7 +796,7 @@ const CustomerSettings = () => {
             </button>
             <button
               onClick={() => setActiveTab('account')}
-              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab ${
+              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab customer-settings-tab ${
                 activeTab === 'account'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -815,18 +815,18 @@ const CustomerSettings = () => {
         </div>
         
         {/* Help Section */}
-        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2">
-            <HelpCircle className="w-5 h-5 text-indigo-500 mr-2" />
+        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 customer-settings-help ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+          <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2 customer-settings-help-title">
+            <HelpCircle className="w-5 h-5 text-indigo-500 mr-2 customer-settings-help-icon" />
             {t('settings.needHelp')}
           </h2>
-          <p className="text-gray-600 text-sm mb-4">
+          <p className="text-gray-600 text-sm mb-4 customer-settings-help-description">
             {t('settings.supportTeamHelp')}
           </p>
           <button
-            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium customer-settings-help-button"
           >
-            <HelpCircle className="w-4 h-4 mr-1.5" />
+            <HelpCircle className="w-4 h-4 mr-1.5 customer-settings-help-button-icon" />
             {t('settings.contactSupport')}
           </button>
         </div>
