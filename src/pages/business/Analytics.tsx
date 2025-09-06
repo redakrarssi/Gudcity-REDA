@@ -77,14 +77,14 @@ const AnalyticsPage = () => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t('Business Analytics')}
+      <div className="space-y-6 analytics-page">
+        <div className="flex justify-between items-center analytics-header">
+          <h1 className="text-2xl font-semibold text-gray-800 analytics-title">
+            {t('business.Business Analytics')}
           </h1>
           
-          <div className="flex items-center space-x-3">
-            <div className="bg-white rounded-lg shadow-sm p-1 flex">
+          <div className="flex items-center space-x-3 analytics-period-selector">
+            <div className="bg-white rounded-lg shadow-sm p-1 flex analytics-period-buttons">
               <button
                 onClick={() => setDateRange('day')}
                 className={`flex items-center px-3 py-1.5 rounded-md text-sm ${
@@ -92,7 +92,7 @@ const AnalyticsPage = () => {
                 }`}
               >
                 <Clock className="w-4 h-4 mr-1" />
-                {t('Day')}
+                {t('business.Day')}
               </button>
               <button
                 onClick={() => setDateRange('week')}
@@ -101,7 +101,7 @@ const AnalyticsPage = () => {
                 }`}
               >
                 <Calendar className="w-4 h-4 mr-1" />
-                {t('Week')}
+                {t('business.Week')}
               </button>
               <button
                 onClick={() => setDateRange('month')}
@@ -110,7 +110,7 @@ const AnalyticsPage = () => {
                 }`}
               >
                 <Calendar className="w-4 h-4 mr-1" />
-                {t('Month')}
+                {t('business.Month')}
               </button>
               <button
                 onClick={() => setDateRange('year')}
@@ -119,36 +119,36 @@ const AnalyticsPage = () => {
                 }`}
               >
                 <Calendar className="w-4 h-4 mr-1" />
-                {t('Year')}
+                {t('business.Year')}
               </button>
             </div>
           </div>
         </div>
         
         {loading ? (
-          <div className="flex justify-center items-center py-12">
+          <div className="flex justify-center items-center py-12 analytics-loading">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-500">{t('Total Points')}</h3>
-                  <span className="p-2 bg-blue-50 rounded-full">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 analytics-stats-grid">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 analytics-stat-card">
+                <div className="flex items-center justify-between analytics-stat-header">
+                  <h3 className="text-sm font-medium text-gray-500 analytics-stat-title">{t('business.Total Points')}</h3>
+                  <span className="p-2 bg-blue-50 rounded-full analytics-stat-icon">
                     <Award className="h-5 w-5 text-blue-500" />
                   </span>
                 </div>
                 <p className="text-3xl font-bold mt-4 mb-1">{stats.totalPoints.toLocaleString()}</p>
                 <div className="flex items-center text-green-600 text-sm font-medium">
                   <TrendingUp className="h-4 w-4 mr-1" />
-                  <span>Avg: {stats.averagePointsPerCustomer} per customer</span>
+                  <span>{t('business.Avg: {{value}} per customer', { value: stats.averagePointsPerCustomer })}</span>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-500">{t('Redemptions')}</h3>
+                  <h3 className="text-sm font-medium text-gray-500">{t('business.Redemptions')}</h3>
                   <span className="p-2 bg-purple-50 rounded-full">
                     <Gift className="h-5 w-5 text-purple-500" />
                   </span>
@@ -156,13 +156,13 @@ const AnalyticsPage = () => {
                 <p className="text-3xl font-bold mt-4 mb-1">{stats.totalRedemptions.toLocaleString()}</p>
                 <div className="flex items-center text-green-600 text-sm font-medium">
                   <TrendingUp className="h-4 w-4 mr-1" />
-                  <span>Rate: {stats.redemptionRate}%</span>
+                  <span>{t('business.Rate: {{value}}%', { value: stats.redemptionRate })}</span>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-500">{t('Active Customers')}</h3>
+                  <h3 className="text-sm font-medium text-gray-500">{t('business.Active Customers')}</h3>
                   <span className="p-2 bg-green-50 rounded-full">
                     <Users className="h-5 w-5 text-green-500" />
                   </span>
@@ -170,31 +170,31 @@ const AnalyticsPage = () => {
                 <p className="text-3xl font-bold mt-4 mb-1">{stats.activeCustomers.toLocaleString()}</p>
                 <div className="flex items-center text-green-600 text-sm font-medium">
                   <TrendingUp className="h-4 w-4 mr-1" />
-                  <span>Retention: {stats.retentionRate}%</span>
+                  <span>{t('business.Retention: {{value}}%', { value: stats.retentionRate })}</span>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-500">{t('Programs & Promos')}</h3>
+                  <h3 className="text-sm font-medium text-gray-500">{t('business.Programs & Promos')}</h3>
                   <span className="p-2 bg-amber-50 rounded-full">
                     <PieChart className="h-5 w-5 text-amber-500" />
                   </span>
                 </div>
                 <p className="text-3xl font-bold mt-4 mb-1">{stats.totalPrograms}</p>
                 <div className="flex items-center text-amber-600 text-sm font-medium">
-                  <span>{stats.totalPromoCodes} active promo codes</span>
+                  <span>{t('business.{{value}} active promo codes', { value: stats.totalPromoCodes })}</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-lg font-semibold text-gray-800">{t('Customer Engagement')}</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 analytics-charts-grid">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 analytics-chart-card">
+                <div className="flex justify-between items-center mb-6 analytics-chart-header">
+                  <h2 className="text-lg font-semibold text-gray-800 analytics-chart-title">{t('business.Customer Engagement')}</h2>
                   <div className="flex items-center text-sm text-gray-500">
                     <BarChart2 className="h-4 w-4 mr-1" />
-                    <span>Last {stats.customerEngagement.length} days</span>
+                    <span>{t('business.Last {{value}} days', { value: stats.customerEngagement.length })}</span>
                   </div>
                 </div>
                 <div className="h-60">
@@ -214,12 +214,12 @@ const AnalyticsPage = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800">{t('Popular Rewards')}</h2>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 analytics-rewards-card">
+                <div className="flex justify-between items-center mb-4 analytics-rewards-header">
+                  <h2 className="text-lg font-semibold text-gray-800 analytics-rewards-title">{t('business.Popular Rewards')}</h2>
                   <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
                     <ArrowUpDown className="h-4 w-4 mr-1" />
-                    {t('Sort')}
+                    {t('business.Sort')}
                   </button>
                 </div>
                 <div className="divide-y">
@@ -233,16 +233,16 @@ const AnalyticsPage = () => {
                           <span>{item.reward}</span>
                         </div>
                         <div className="text-right">
-                          <div className="text-gray-900 font-medium">{item.count} redeemed</div>
+                          <div className="text-gray-900 font-medium">{t('business.{{value}} redeemed', { value: item.count })}</div>
                           <div className="text-sm text-gray-500">
-                            {stats.totalRedemptions > 0 ? Math.round(item.count / stats.totalRedemptions * 100) : 0}% of total
+                            {t('business.{{value}}% of total', { value: stats.totalRedemptions > 0 ? Math.round(item.count / stats.totalRedemptions * 100) : 0 })}
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="py-3 text-center text-gray-500">
-                      No redemptions yet
+                      {t('business.No redemptions yet')}
                     </div>
                   )}
                 </div>
@@ -252,9 +252,9 @@ const AnalyticsPage = () => {
             {/* Top Performing Programs */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">{t('Top Performing Programs')}</h2>
+                <h2 className="text-lg font-semibold text-gray-800">{t('business.Top Performing Programs')}</h2>
                 <div className="text-sm text-gray-500">
-                  {stats.topPerformingPrograms.length} active programs
+                  {t('business.{{value}} active programs', { value: stats.topPerformingPrograms.length })}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -269,32 +269,32 @@ const AnalyticsPage = () => {
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-blue-600">
-                          <span className="font-medium">{program.customers}</span> customers
+                          <span className="font-medium">{program.customers}</span> {t('business.customers')}
                         </p>
                         <p className="text-sm text-blue-600">
-                          <span className="font-medium">{program.points.toLocaleString()}</span> total points
+                          <span className="font-medium">{program.points.toLocaleString()}</span> {t('business.total points')}
                         </p>
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="col-span-full text-center py-8 text-gray-500">
-                    No programs created yet
+                    {t('business.No programs created yet')}
                   </div>
                 )}
               </div>
             </div>
             
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('Customer Retention Insights')}</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('business.Customer Retention Insights')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-lg border border-green-100">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-green-700">{t('Retention Rate')}</h3>
+                    <h3 className="font-medium text-green-700">{t('business.Retention Rate')}</h3>
                     <span className="bg-green-100 text-green-800 text-sm px-2 py-1 rounded-full">{stats.retentionRate}%</span>
                   </div>
                   <p className="text-sm text-green-600">
-                    {t('Percentage of customers who return within 30 days of their first visit.')}
+                    {t('business.Percentage of customers who return within 30 days of their first visit.')}
                   </p>
                   <div className="mt-3 bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden">
                     <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${stats.retentionRate}%` }}></div>
@@ -303,11 +303,11 @@ const AnalyticsPage = () => {
                 
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-blue-700">{t('Engagement Score')}</h3>
+                    <h3 className="font-medium text-blue-700">{t('business.Engagement Score')}</h3>
                     <span className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full">8.3/10</span>
                   </div>
                   <p className="text-sm text-blue-600">
-                    {t('Based on visit frequency, points earned, and redemption activity.')}
+                    {t('business.Based on visit frequency, points earned, and redemption activity.')}
                   </p>
                   <div className="mt-3 bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden">
                     <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: '83%' }}></div>
@@ -316,7 +316,7 @@ const AnalyticsPage = () => {
                 
                 <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-100">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium text-purple-700">{t('Points Balance')}</h3>
+                    <h3 className="font-medium text-purple-700">{t('business.Points Balance')}</h3>
                     <span className="bg-purple-100 text-purple-800 text-sm px-2 py-1 rounded-full">Distribution</span>
                   </div>
                   <div className="flex items-center justify-between gap-2 mb-2">
@@ -336,24 +336,24 @@ const AnalyticsPage = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('Tips to Grow Your Business')}</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('business.Tips to Grow Your Business')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                  <h3 className="font-medium text-blue-700 mb-2">{t('Increase Customer Retention')}</h3>
+                  <h3 className="font-medium text-blue-700 mb-2">{t('business.Increase Customer Retention')}</h3>
                   <p className="text-sm text-blue-600">
-                    {t('Consider adding a tier to your loyalty program that rewards frequent visitors. Offer exclusive benefits for customers who visit more than 5 times per month.')}
+                    {t('business.Consider adding a tier to your loyalty program that rewards frequent visitors. Offer exclusive benefits for customers who visit more than 5 times per month.')}
                   </p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                  <h3 className="font-medium text-green-700 mb-2">{t('Optimize Reward Structure')}</h3>
+                  <h3 className="font-medium text-green-700 mb-2">{t('business.Optimize Reward Structure')}</h3>
                   <p className="text-sm text-green-600">
-                    {t('Your "Free Coffee" reward is the most popular. Consider creating additional variations or tiers of this reward to increase engagement.')}
+                    {t('business.Your "Free Coffee" reward is the most popular. Consider creating additional variations or tiers of this reward to increase engagement.')}
                   </p>
                 </div>
                 <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
-                  <h3 className="font-medium text-purple-700 mb-2">{t('Reclaim Lost Customers')}</h3>
+                  <h3 className="font-medium text-purple-700 mb-2">{t('business.Reclaim Lost Customers')}</h3>
                   <p className="text-sm text-purple-600">
-                    {t('You have 48 customers who haven\'t visited in 30+ days. Consider sending a limited-time bonus offer to bring them back.')}
+                    {t('business.You have 48 customers who haven\'t visited in 30+ days. Consider sending a limited-time bonus offer to bring them back.')}
                   </p>
                 </div>
               </div>

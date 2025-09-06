@@ -56,7 +56,7 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">
-              {t('Delete Program')}
+              {t('business.Delete Program')}
             </h2>
           </div>
           <button
@@ -75,11 +75,11 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
               <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
               <div>
                 <h3 className="text-sm font-medium text-red-800 mb-1">
-                  {t('Permanent Action Warning')}
+                  {t('business.Permanent Action Warning')}
                 </h3>
                 <p className="text-sm text-red-700">
-                  {t('You are about to permanently delete the program')} "<span className="font-semibold">{programName}</span>". 
-                  {t('This action cannot be undone.')}
+                  {t('business.You are about to permanently delete the program')} "<span className="font-semibold">{programName}</span>". 
+                  {t('business.This action cannot be undone.')}
                 </p>
               </div>
             </div>
@@ -94,16 +94,16 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-medium text-orange-800 mb-1">
-                  {t('Customer Notification')}
+                  {t('business.Customer Notification')}
                 </h3>
                 <p className="text-sm text-orange-700">
                   {enrolledCustomersCount > 0 ? (
                     <>
-                      <span className="font-semibold">{enrolledCustomersCount}</span> {t('enrolled customers will be automatically notified')} 
-                      {t(' about this program deletion via red alert notifications.')}
+                      <span className="font-semibold">{enrolledCustomersCount}</span> {t('business.enrolled customers will be automatically notified')} 
+                      {t('business.about this program deletion via red alert notifications.')}
                     </>
                   ) : (
-                    t('All enrolled customers will be automatically notified about this program deletion via red alert notifications.')
+                    t('business.All enrolled customers will be automatically notified about this program deletion via red alert notifications.')
                   )}
                 </p>
               </div>
@@ -113,21 +113,21 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
           {/* What will happen */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-800 mb-2">
-              {t('What will happen:')}
+              {t('business.What will happen:')}
             </h3>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li>• {t('Program will be permanently deleted')}</li>
-              <li>• {t('All customer enrollments will be removed')}</li>
-              <li>• {t('All reward tiers will be deleted')}</li>
-              <li>• {t('Customer points from this program will be lost')}</li>
-              <li className="text-red-600 font-medium">• {t('All enrolled customers will receive red alert notifications')}</li>
+              <li>• {t('business.Program will be permanently deleted')}</li>
+              <li>• {t('business.All customer enrollments will be removed')}</li>
+              <li>• {t('business.All reward tiers will be deleted')}</li>
+              <li>• {t('business.Customer points from this program will be lost')}</li>
+              <li className="text-red-600 font-medium">• {t('business.All enrolled customers will receive red alert notifications')}</li>
             </ul>
           </div>
 
           {/* Confirmation Input */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700">
-              {t('To confirm deletion, type exactly:')} 
+              {t('business.To confirm deletion, type exactly:')} 
               <span className="block font-mono text-red-600 bg-red-50 p-2 rounded mt-1 text-center">
                 {requiredText}
               </span>
@@ -137,7 +137,7 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
               type="text"
               value={confirmationText}
               onChange={handleInputChange}
-              placeholder={t('Type the confirmation text here...')}
+              placeholder={t('business.Type the confirmation text here...')}
               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:outline-none font-mono text-center ${
                 isTyping 
                   ? isConfirmationValid 
@@ -154,8 +154,8 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
                 isConfirmationValid ? 'text-green-600' : 'text-red-600'
               }`}>
                 {isConfirmationValid 
-                  ? t('✓ Confirmation text matches. You can now delete the program.')
-                  : t('✗ Confirmation text does not match. Please type exactly as shown above.')
+                  ? t('business.✓ Confirmation text matches. You can now delete the program.')
+                  : t('business.✗ Confirmation text does not match. Please type exactly as shown above.')
                 }
               </div>
             )}
@@ -168,7 +168,7 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            {t('Cancel')}
+            {t('business.Cancel')}
           </button>
           <button
             onClick={handleConfirm}
@@ -179,7 +179,7 @@ export const ProgramDeleteModal: React.FC<ProgramDeleteModalProps> = ({
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {t('Delete Program')}
+            {t('business.Delete Program')}
           </button>
         </div>
       </div>

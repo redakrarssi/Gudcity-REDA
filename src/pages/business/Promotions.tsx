@@ -298,10 +298,10 @@ const PromotionsPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-800 flex items-center">
               <Sparkles className="w-6 h-6 text-purple-500 mr-2" />
-              {t('Promotions & Special Offers')}
+              {t('business.Promotions & Special Offers')}
             </h1>
             <p className="text-gray-500 mt-1">
-              {t('Create exciting promotions to attract and reward your customers')}
+              {t('business.Create exciting promotions to attract and reward your customers')}
             </p>
           </div>
           
@@ -311,7 +311,7 @@ const PromotionsPage = () => {
               className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition-colors border border-purple-100"
             >
               <Rocket className="w-5 h-5" />
-              {t('Promo Ideas')}
+              {t('business.Promo Ideas')}
             </button>
             
             <button
@@ -319,7 +319,7 @@ const PromotionsPage = () => {
               className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
-              {t('Create Promotion')}
+              {t('business.Create Promotion')}
             </button>
           </div>
         </div>
@@ -330,7 +330,7 @@ const PromotionsPage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">{t('Active Promotions')}</p>
+                  <p className="text-sm font-medium text-gray-500">{t('business.Active Promotions')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stats.activeCodes}</p>
                 </div>
                 <div className="bg-green-50 p-3 rounded-full">
@@ -339,7 +339,7 @@ const PromotionsPage = () => {
               </div>
               <div className="mt-4 flex items-center text-sm">
                 <span className={stats.activeCodes > 0 ? "text-green-500" : "text-gray-400"}>
-                  {stats.activeCodes > 0 ? t('Running now') : t('Create your first promo!')}
+                  {stats.activeCodes > 0 ? t('business.Running now') : t('business.Create your first promo!')}
                 </span>
               </div>
             </div>
@@ -347,7 +347,7 @@ const PromotionsPage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">{t('Total Redemptions')}</p>
+                  <p className="text-sm font-medium text-gray-500">{t('business.Total Redemptions')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalRedemptions}</p>
                 </div>
                 <div className="bg-blue-50 p-3 rounded-full">
@@ -357,7 +357,7 @@ const PromotionsPage = () => {
               <div className="mt-4 flex items-center text-sm">
                 <ArrowUp className="w-4 h-4 text-green-500 mr-1" />
                 <span className="text-green-500">
-                  {Math.floor(Math.random() * 20) + 5}% {t('from last month')}
+                  {Math.floor(Math.random() * 20) + 5}% {t('business.from last month')}
                 </span>
               </div>
             </div>
@@ -365,7 +365,7 @@ const PromotionsPage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">{t('Usage Rate')}</p>
+                  <p className="text-sm font-medium text-gray-500">{t('business.Usage Rate')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
                     {stats.redemptionRate ? Math.round(stats.redemptionRate * 100) : 0}%
                   </p>
@@ -376,7 +376,7 @@ const PromotionsPage = () => {
               </div>
               <div className="mt-4 flex items-center text-sm">
                 <span className="text-gray-500">
-                  {t('Percentage of promo codes used')}
+                  {t('business.Percentage of promo codes used')}
                 </span>
               </div>
             </div>
@@ -384,7 +384,7 @@ const PromotionsPage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">{t('Value Generated')}</p>
+                  <p className="text-sm font-medium text-gray-500">{t('business.Value Generated')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
                     {formatAmount(stats.redemptionValue || 0)}
                   </p>
@@ -395,7 +395,7 @@ const PromotionsPage = () => {
               </div>
               <div className="mt-4 flex items-center text-sm">
                 <span className="text-gray-500">
-                  {t('Total value of all redemptions')}
+                  {t('business.Total value of all redemptions')}
                 </span>
               </div>
             </div>
@@ -408,7 +408,7 @@ const PromotionsPage = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-purple-800">
                 <Rocket className="w-5 h-5 inline mr-2" />
-                {t('Promotion Ideas to Boost Your Business')}
+                {t('business.Promotion Ideas to Boost Your Business')}
               </h2>
               <button 
                 onClick={() => setShowPromoIdeas(false)}
@@ -442,7 +442,7 @@ const PromotionsPage = () => {
                     <h3 className="font-semibold mt-3">{idea.title}</h3>
                     <p className="text-sm mt-1">{idea.description}</p>
                     <button className="mt-3 text-xs font-medium flex items-center">
-                      {t('Use this idea')}
+                      {t('business.Use this idea')}
                       <ChevronRight className="w-3 h-3 ml-1" />
                     </button>
                   </div>
@@ -463,7 +463,7 @@ const PromotionsPage = () => {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t('Active Promotions')}
+              {t('business.Active Promotions')}
             </button>
             <button
               onClick={() => setActiveTab('all')}
@@ -473,7 +473,7 @@ const PromotionsPage = () => {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t('All Promotions')}
+              {t('business.All Promotions')}
             </button>
           </div>
           
@@ -483,22 +483,22 @@ const PromotionsPage = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Code')}
+                      {t('business.Code')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Type')}
+                      {t('business.Type')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Value')}
+                      {t('business.Value')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Usage')}
+                      {t('business.Usage')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Status')}
+                      {t('business.Status')}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('Actions')}
+                      {t('business.Actions')}
                     </th>
                   </tr>
                 </thead>
@@ -520,7 +520,7 @@ const PromotionsPage = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {code.type === 'POINTS' 
-                          ? `${code.value} ${t('points')}`
+                          ? `${code.value} ${t('business.points')}`
                           : formatAmount(code.value)
                         }
                       </td>
@@ -551,7 +551,7 @@ const PromotionsPage = () => {
                           <button
                             onClick={() => handleShowQRCode(code.code)}
                             className="text-blue-600 hover:text-blue-800"
-                            title={t('Show QR Code')}
+                            title={t('business.Show QR Code')}
                           >
                             <QrCode className="h-5 w-5" />
                           </button>
@@ -559,7 +559,7 @@ const PromotionsPage = () => {
                             <button
                               onClick={() => handleCancelCode(code.id)}
                               className="text-red-600 hover:text-red-800"
-                              title={t('Cancel Promotion')}
+                              title={t('business.Cancel Promotion')}
                             >
                               <Trash2 className="h-5 w-5" />
                             </button>
@@ -574,14 +574,14 @@ const PromotionsPage = () => {
           ) : (
             <div className="py-12 text-center">
               <Gift className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-500">{t('No promotions found')}</h3>
-              <p className="text-gray-400 text-sm mt-2 mb-4">{t('Create your first promotion to start attracting customers')}</p>
+              <h3 className="text-lg font-medium text-gray-500">{t('business.No promotions found')}</h3>
+              <p className="text-gray-400 text-sm mt-2 mb-4">{t('business.Create your first promotion to start attracting customers')}</p>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
               >
                 <Plus className="h-5 w-5 mr-2" />
-                {t('Create Your First Promotion')}
+                {t('business.Create Your First Promotion')}
               </button>
             </div>
           )}
@@ -594,8 +594,8 @@ const PromotionsPage = () => {
               <Sparkles className="h-5 w-5 text-green-700" />
             </div>
             <div>
-              <p className="font-medium">{t('Promotion Created!')}</p>
-              <p className="text-sm">{t('Your new promotion is now live')}</p>
+              <p className="font-medium">{t('business.Promotion Created!')}</p>
+              <p className="text-sm">{t('business.Your new promotion is now live')}</p>
             </div>
           </div>
         )}
@@ -607,7 +607,7 @@ const PromotionsPage = () => {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800 flex items-center">
                   <Sparkles className="w-5 h-5 text-purple-500 mr-2" />
-                  {t('Create New Promotion')}
+                  {t('business.Create New Promotion')}
                 </h3>
                 <button
                   onClick={() => setShowCreateModal(false)}
@@ -620,20 +620,20 @@ const PromotionsPage = () => {
               <form onSubmit={handleCreateCode} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Promotion Name')}
+                    {t('business.Promotion Name')}
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-2"
-                    placeholder={t('e.g. Summer Special')}
+                    placeholder={t('business.e.g. Summer Special')}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Promotion Type')}
+                    {t('business.Promotion Type')}
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {['POINTS', 'DISCOUNT', 'CASHBACK', 'GIFT'].map((type) => (
@@ -655,7 +655,7 @@ const PromotionsPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Value')}
+                    {t('business.Value')}
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     {formData.type !== 'POINTS' && (
@@ -676,7 +676,7 @@ const PromotionsPage = () => {
                     />
                     {formData.type === 'POINTS' && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">{t('points')}</span>
+                        <span className="text-gray-500 sm:text-sm">{t('business.points')}</span>
                       </div>
                     )}
                   </div>
@@ -684,21 +684,21 @@ const PromotionsPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('Description')} <span className="text-gray-400">{t('(optional)')}</span>
+                    {t('business.Description')} <span className="text-gray-400">{t('business.(optional)')}</span>
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     rows={2}
-                    placeholder={t('Enter details about this promotion')}
+                    placeholder={t('business.Enter details about this promotion')}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('Maximum Uses')} <span className="text-gray-400">{t('(optional)')}</span>
+                      {t('business.Maximum Uses')} <span className="text-gray-400">{t('business.(optional)')}</span>
                     </label>
                     <input
                       type="number"
@@ -706,13 +706,13 @@ const PromotionsPage = () => {
                       onChange={(e) => setFormData({ ...formData, maxUses: e.target.value })}
                       className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                       min="0"
-                      placeholder={t('Unlimited')}
+                      placeholder={t('business.Unlimited')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('Expiration Date')} <span className="text-gray-400">{t('(optional)')}</span>
+                      {t('business.Expiration Date')} <span className="text-gray-400">{t('business.(optional)')}</span>
                     </label>
                     <input
                       type="date"
@@ -730,7 +730,7 @@ const PromotionsPage = () => {
                     onClick={() => setShowCreateModal(false)}
                     className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    {t('Cancel')}
+                    {t('business.Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -740,12 +740,12 @@ const PromotionsPage = () => {
                     {loading ? (
                       <span className="flex items-center">
                         <RefreshCw className="animate-spin h-4 w-4 mr-2" />
-                        {t('Creating...')}
+                        {t('business.Creating...')}
                       </span>
                     ) : (
                       <span className="flex items-center">
                         <Sparkles className="h-4 w-4 mr-2" />
-                        {t('Create Promotion')}
+                        {t('business.Create Promotion')}
                       </span>
                     )}
                   </button>
@@ -760,7 +760,7 @@ const PromotionsPage = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className={`bg-white rounded-xl max-w-sm w-full p-6 ${animationStyles.scaleIn}`}>
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-800">{t('Promo QR Code')}</h3>
+                <h3 className="text-lg font-medium text-gray-800">{t('business.Promo QR Code')}</h3>
                 <button
                   onClick={() => setShowQRModal(null)}
                   className="text-gray-400 hover:text-gray-500"
@@ -775,8 +775,8 @@ const PromotionsPage = () => {
                 </div>
                 
                 <div className="text-center">
-                  <p className="text-gray-500 text-sm mb-2">{t('Code')}: <span className="font-medium text-gray-800">{showQRModal}</span></p>
-                  <p className="text-gray-500 text-sm">{t('Scan this code to apply the promotion')}</p>
+                  <p className="text-gray-500 text-sm mb-2">{t('business.Code')}: <span className="font-medium text-gray-800">{showQRModal}</span></p>
+                  <p className="text-gray-500 text-sm">{t('business.Scan this code to apply the promotion')}</p>
                 </div>
                 
                 <button
@@ -784,7 +784,7 @@ const PromotionsPage = () => {
                   className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 w-full justify-center"
                 >
                   <Download className="h-5 w-5 mr-2" />
-                  {t('Download QR Code')}
+                  {t('business.Download QR Code')}
                 </button>
               </div>
             </div>

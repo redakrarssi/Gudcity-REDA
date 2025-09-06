@@ -34,10 +34,10 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
   const steps = [
-    { title: t('Program Basics'), description: t('Name and describe your loyalty program') },
-    { title: t('Program Type'), description: t('Choose how customers earn rewards') },
-    { title: t('Create Rewards'), description: t('Define what customers can redeem') },
-    { title: t('Review & Launch'), description: t('Ready to launch your program?') },
+    { title: t('business.Program Basics'), description: t('business.Name and describe your loyalty program') },
+    { title: t('business.Program Type'), description: t('business.Choose how customers earn rewards') },
+    { title: t('business.Create Rewards'), description: t('business.Define what customers can redeem') },
+    { title: t('business.Review & Launch'), description: t('business.Ready to launch your program?') },
   ];
 
   const handleInputChange = (field: keyof LoyaltyProgram, value: any) => {
@@ -77,13 +77,13 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
     const newErrors: Record<string, string> = {};
     
     if (step === 0) {
-      if (!program.name) newErrors.name = t('required');
-      if (!program.description) newErrors.description = t('required');
+      if (!program.name) newErrors.name = t('business.required');
+      if (!program.description) newErrors.description = t('business.required');
     } else if (step === 1) {
-      if (program.pointValue && program.pointValue <= 0) newErrors.pointValue = t('mustBePositive');
+      if (program.pointValue && program.pointValue <= 0) newErrors.pointValue = t('business.mustBePositive');
     } else if (step === 2) {
       const hasEmptyRewards = program.rewardTiers?.some(tier => !tier.reward);
-      if (hasEmptyRewards) newErrors.rewardTiers = t('allRewardsRequired');
+      if (hasEmptyRewards) newErrors.rewardTiers = t('business.allRewardsRequired');
     }
 
     setErrors(newErrors);
@@ -132,29 +132,29 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
         return (
           <div className="space-y-6 mb-8">
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-100 mb-6">
-              <h3 className="text-lg font-medium text-blue-800 mb-2">{t('Create Your Loyalty Program')}</h3>
-              <p className="text-blue-700">{t('Give your program a memorable name and clear description to attract customers')}</p>
+              <h3 className="text-lg font-medium text-blue-800 mb-2">{t('business.Create Your Loyalty Program')}</h3>
+              <p className="text-blue-700">{t('business.Give your program a memorable name and clear description to attract customers')}</p>
             </div>
             <div className="animate-fadeIn">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Program Name')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('business.Program Name')}</label>
               <input
                 type="text"
                 value={program.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg"
-                placeholder={t('e.g. Coffee Lovers Club')}
+                placeholder={t('business.e.g. Coffee Lovers Club')}
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
             </div>
 
             <div className="animate-fadeIn delay-100">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Program Description')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('business.Program Description')}</label>
               <textarea
                 value={program.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 rows={3}
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder={t('Describe what makes your loyalty program special...')}
+                placeholder={t('business.Describe what makes your loyalty program special...')}
               />
               {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
             </div>
@@ -166,27 +166,27 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <ProgramTypeCard 
                 type="POINTS" 
-                title={t('Points')} 
-                description={t('Customers earn points based on purchases that they can redeem for rewards')}
+                title={t('business.Points')} 
+                description={t('business.Customers earn points based on purchases that they can redeem for rewards')}
                 icon={<Star className="w-6 h-6 text-blue-500" />}
               />
               <ProgramTypeCard 
                 type="STAMPS" 
-                title={t('Stamps')} 
-                description={t('Digital punch card: one stamp per visit or purchase, simple and effective')}
+                title={t('business.Stamps')} 
+                description={t('business.Digital punch card: one stamp per visit or purchase, simple and effective')}
                 icon={<Check className="w-6 h-6 text-green-500" />}
               />
               <ProgramTypeCard 
                 type="CASHBACK" 
-                title={t('Cashback')} 
-                description={t('Customers earn a percentage back from each purchase to use on future orders')}
+                title={t('business.Cashback')} 
+                description={t('business.Customers earn a percentage back from each purchase to use on future orders')}
                 icon={<Zap className="w-6 h-6 text-yellow-500" />}
               />
             </div>
 
             {program.type === 'POINTS' && (
               <div className="bg-white border border-gray-200 rounded-lg p-6 animate-fadeIn">
-                <label className="block text-sm font-medium text-gray-700 mb-4">{t('How much do customers need to spend to earn 1 point?')}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-4">{t('business.How much do customers need to spend to earn 1 point?')}</label>
                 <div className="flex items-center">
                   <span className="mr-4 text-xl">{currencySymbol}</span>
                   <input
@@ -198,28 +198,28 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                     step="0.01"
                     min="0.01"
                   />
-                  <span className="ml-4 text-gray-600">{t('= 1 point')}</span>
+                  <span className="ml-4 text-gray-600">{t('business.= 1 point')}</span>
                 </div>
                 {errors.pointValue && <p className="mt-1 text-sm text-red-600">{errors.pointValue}</p>}
               </div>
             )}
 
             <div className="animate-fadeIn delay-100">
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('Do your points expire?')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('business.Do your points expire?')}</label>
               <div className="flex items-center space-x-4">
                 <button
                   type="button"
                   onClick={() => handleInputChange('expirationDays', null)}
                   className={`px-4 py-2 rounded-md ${program.expirationDays === null ? 'bg-blue-100 text-blue-700 border-2 border-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                 >
-                  {t('Never expire')}
+                  {t('business.Never expire')}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleInputChange('expirationDays', 365)}
                   className={`px-4 py-2 rounded-md ${program.expirationDays !== null ? 'bg-blue-100 text-blue-700 border-2 border-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                 >
-                  {t('Expire after')}
+                  {t('business.Expire after')}
                 </button>
                 {program.expirationDays !== null && (
                   <div className="flex items-center">
@@ -230,7 +230,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                       className="w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-center"
                       min="1"
                     />
-                    <span className="ml-2">{t('days')}</span>
+                    <span className="ml-2">{t('business.days')}</span>
                   </div>
                 )}
               </div>
@@ -242,12 +242,12 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
         return (
           <div className="space-y-6 mb-8">
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border border-purple-100 mb-6">
-              <h3 className="text-lg font-medium text-purple-800 mb-2">{t('Create Exciting Rewards')}</h3>
-              <p className="text-purple-700">{t('Design rewards that will delight your customers and keep them coming back')}</p>
+              <h3 className="text-lg font-medium text-purple-800 mb-2">{t('business.Create Exciting Rewards')}</h3>
+              <p className="text-purple-700">{t('business.Design rewards that will delight your customers and keep them coming back')}</p>
             </div>
             
             <div className="space-y-4">
-              <label className="block text-base font-medium text-gray-800">{t('Reward Tiers')}</label>
+              <label className="block text-base font-medium text-gray-800">{t('business.Reward Tiers')}</label>
               
               <div className={`space-y-6 ${animation === 'pulse' ? 'animate-pulse' : ''}`}>
                 {program.rewardTiers?.map((tier, index) => (
@@ -256,7 +256,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                       <span className="w-8 h-8 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full mr-3">
                         {index + 1}
                       </span>
-                      <h4 className="text-lg font-medium">{t('Reward Tier')}</h4>
+                      <h4 className="text-lg font-medium">{t('business.Reward Tier')}</h4>
                       {index > 0 && (
                         <button
                           type="button"
@@ -271,7 +271,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {program.type === 'POINTS' ? t('Points Required') : t('Stamps Required')}
+                          {program.type === 'POINTS' ? t('business.Points Required') : t('business.Stamps Required')}
                         </label>
                         <div className="flex">
                           <input
@@ -282,13 +282,13 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                             min="1"
                           />
                           <span className="ml-2 flex items-center text-gray-600">
-                            {program.type === 'POINTS' ? t('points') : t('stamps')}
+                            {program.type === 'POINTS' ? t('business.points') : t('business.stamps')}
                           </span>
                         </div>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('Reward Description')}</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('business.Reward Description')}</label>
                         <div className="flex">
                           <span className="flex items-center mr-2">
                             <Gift className="w-5 h-5 text-purple-500" />
@@ -298,7 +298,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                             value={tier.reward}
                             onChange={(e) => handleRewardTierChange(index, 'reward', e.target.value)}
                             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder={t('e.g. Free Coffee')}
+                            placeholder={t('business.e.g. Free Coffee')}
                           />
                         </div>
                       </div>
@@ -313,7 +313,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 className="flex items-center justify-center w-full py-3 mt-4 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
               >
                 <PlusCircle className="w-5 h-5 mr-2" />
-                {t('Add Another Reward Tier')}
+                {t('business.Add Another Reward Tier')}
               </button>
               
               {errors.rewardTiers && (
@@ -326,8 +326,8 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
         return (
           <div className="space-y-6 mb-8">
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-100 mb-6">
-              <h3 className="text-lg font-medium text-green-800 mb-2">{t('Ready to Launch!')}</h3>
-              <p className="text-green-700">{t('Review your program details before launching it to your customers')}</p>
+              <h3 className="text-lg font-medium text-green-800 mb-2">{t('business.Ready to Launch!')}</h3>
+              <p className="text-green-700">{t('business.Review your program details before launching it to your customers')}</p>
             </div>
             
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -339,21 +339,21 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
               <div className="p-6 border-b border-gray-200 bg-gray-50">
                 <div className="flex items-center">
                   <Star className="w-5 h-5 text-yellow-500 mr-2" />
-                  <h4 className="font-medium">{t('Program Type')}: {program.type}</h4>
+                  <h4 className="font-medium">{t('business.Program Type')}: {program.type}</h4>
                 </div>
                 
                 <div className="mt-2 text-sm text-gray-600">
                   {program.type === 'POINTS' && (
-                    <p>{t('Customers earn 1 point for every')} {currencySymbol}{program.pointValue} {t('spent')}</p>
+                    <p>{t('business.Customers earn 1 point for every')} {currencySymbol}{program.pointValue} {t('business.spent')}</p>
                   )}
                   {program.expirationDays 
-                    ? t('Points expire after {{days}} days', { days: program.expirationDays })
-                    : t('Points never expire')}
+                    ? t('business.Points expire after {{days}} days', { days: program.expirationDays })
+                    : t('business.Points never expire')}
                 </div>
               </div>
               
               <div className="p-6">
-                <h4 className="font-medium mb-3">{t('Reward Tiers')}:</h4>
+                <h4 className="font-medium mb-3">{t('business.Reward Tiers')}:</h4>
                 <ul className="space-y-2">
                   {program.rewardTiers?.map((tier, index) => (
                     <li key={index} className="flex items-center py-2 border-b border-gray-100">
@@ -363,7 +363,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                       <div>
                         <span className="text-gray-900 font-medium">{tier.reward}</span>
                         <div className="text-sm text-gray-600">
-                          {tier.pointsRequired} {program.type === 'POINTS' ? t('points') : t('stamps')} {t('required')}
+                          {tier.pointsRequired} {program.type === 'POINTS' ? t('business.points') : t('business.stamps')} {t('business.required')}
                         </div>
                       </div>
                     </li>
@@ -373,7 +373,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('Program Status')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('business.Program Status')}</label>
               <div className="flex items-center space-x-4">
                 <button
                   type="button"
@@ -382,7 +382,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 >
                   <div className="flex items-center">
                     <Check className="w-4 h-4 mr-2" />
-                    {t('Launch as Active')}
+                    {t('business.Launch as Active')}
                   </div>
                 </button>
                 <button
@@ -390,7 +390,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                   onClick={() => handleInputChange('status', 'INACTIVE')}
                   className={`px-4 py-2 rounded-md ${program.status === 'INACTIVE' ? 'bg-gray-700 text-white border-2 border-gray-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                 >
-                  {t('Save as Draft')}
+                  {t('business.Save as Draft')}
                 </button>
               </div>
             </div>
@@ -449,9 +449,9 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
             {step > 0 ? (
               <div className="flex items-center">
                 <ChevronLeft className="w-4 h-4 mr-1" />
-                {t('Previous')}
+                {t('business.Previous')}
               </div>
-            ) : t('Cancel')}
+            ) : t('business.Cancel')}
           </button>
           
           <button
@@ -460,7 +460,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             <div className="flex items-center">
-              {step === steps.length - 1 ? t('Launch Program') : t('Continue')}
+              {step === steps.length - 1 ? t('business.Launch Program') : t('business.Continue')}
               {step < steps.length - 1 && <ChevronRight className="w-4 h-4 ml-1" />}
             </div>
           </button>

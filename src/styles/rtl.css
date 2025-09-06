@@ -1273,6 +1273,7 @@
 /* Customer Layout Menu RTL enhancements */
 [dir="rtl"] .customer-layout {
   direction: rtl;
+  flex-direction: row-reverse;
 }
 
 [dir="rtl"] .customer-layout .sidebar {
@@ -2429,3 +2430,2618 @@
 [dir="rtl"] .customer-layout { direction: rtl; }
 [dir="rtl"] .customer-layout .sidebar { border-right: 0; border-left: 1px solid #e5e7eb; }
 [dir="rtl"] .customer-layout .mobile-header { direction: rtl; }
+
+/* Business Dashboard RTL Styles */
+[dir="rtl"] .business-dashboard {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header .header-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-header .header-subtitle {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions .action-button {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .dashboard-actions .action-button .action-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .stats-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-dashboard .stat-card {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-value {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change .change-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .stat-card .stat-change .change-text {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-title {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-title .title-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .quick-award-section .section-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .analytics-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .analytics-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .period-selector {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .analytics-section .period-button {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-list {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-details {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .activity-item .activity-time {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-title {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .empty-state .empty-description {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .view-all-link {
+  flex-direction: row-reverse;
+  text-align: center;
+}
+
+[dir="rtl"] .business-dashboard .activity-section .view-all-link .link-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .scanner-message {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .modal-footer {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .qr-scanner-modal .close-button-footer {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .close-button {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .business-dashboard .program-builder-modal .modal-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-text {
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-title {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link .link-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-link .link-text {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Responsive RTL adjustments for business dashboard */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-dashboard .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .business-dashboard .dashboard-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .business-dashboard .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .business-dashboard .analytics-section .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .business-dashboard .analytics-section .period-selector {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  [dir="rtl"] .business-dashboard .qr-scanner-modal .modal-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .business-dashboard .program-builder-modal .modal-header {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .business-dashboard .incomplete-profile-alert .alert-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Business Programs Page RTL Styles */
+[dir="rtl"] .programs-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .programs-page .programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .create-program-btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .programs-loading {
+  justify-content: center;
+}
+
+[dir="rtl"] .programs-page .programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .programs-page .program-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-content {
+  padding: 1.5rem;
+}
+
+[dir="rtl"] .programs-page .program-card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-card-info {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-card-icon {
+  margin-right: 0;
+  margin-left: 1rem;
+}
+
+[dir="rtl"] .programs-page .program-card-details {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-name {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-description {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-status {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .program-card-stats {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+}
+
+[dir="rtl"] .programs-page .program-stat {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-stat .w-4 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .programs-page .program-reward-tiers {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tiers-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tiers-list {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-tier-item {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-card-actions {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .programs-page .program-delete-btn {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .program-edit-btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-edit-btn .w-4 {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .programs-page .programs-empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-icon {
+  margin: 0 auto;
+}
+
+[dir="rtl"] .programs-page .programs-empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-description {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .programs-empty-btn {
+  flex-direction: row-reverse;
+  margin: 0 auto;
+}
+
+[dir="rtl"] .programs-page .programs-empty-btn .w-5 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .programs-page .program-builder-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-builder-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .program-builder-title {
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .program-builder-close {
+  text-align: center;
+}
+
+[dir="rtl"] .programs-page .error-alert {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .programs-page .error-alert .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .programs-page .error-alert .ml-3 {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+/* Responsive RTL adjustments for programs page */
+@media (max-width: 768px) {
+  [dir="rtl"] .programs-page .programs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-info {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-stats {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  [dir="rtl"] .programs-page .program-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+}
+
+/* Business Analytics Page RTL Styles */
+[dir="rtl"] .analytics-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .analytics-page .analytics-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-period-selector {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-period-buttons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-loading {
+  justify-content: center;
+}
+
+[dir="rtl"] .analytics-page .analytics-stats-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-stat-icon {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+[dir="rtl"] .analytics-page .analytics-charts-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-chart-header .mr-1 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-header .mr-1 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .analytics-page .analytics-rewards-list .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-program-card .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insights-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .analytics-page .analytics-insight-card .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-section {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-title {
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tips-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .analytics-page .analytics-tip-card {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .analytics-page .analytics-tip-card .text-right {
+  text-align: left;
+}
+
+/* Responsive RTL adjustments for analytics page */
+@media (max-width: 768px) {
+  [dir="rtl"] .analytics-page .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-period-selector {
+    flex-direction: row-reverse;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-rewards-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-programs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-insights-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  [dir="rtl"] .analytics-page .analytics-tips-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Business Customers Page RTL Styles */
+[dir="rtl"] .customers-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .customers-page .customers-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .customers-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-main-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-main-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .customers-count {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .customers-page .customers-search {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .customers-search input {
+  text-align: right;
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .customers-page .customers-search .absolute {
+  left: auto;
+  right: 0.75rem;
+}
+
+[dir="rtl"] .customers-page .customers-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .customers-page .customers-list-container {
+  order: 2;
+}
+
+[dir="rtl"] .customers-page .customer-details-container {
+  order: 1;
+}
+
+[dir="rtl"] .customers-page .customers-list-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-list-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-list-title svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customers-page .customers-filter-btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customers-filter-btn svg {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .customers-page .customer-item-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customer-info {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .customers-page .customer-name-row {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customer-stats-row {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customer-program-info {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .customers-empty-state {
+  text-align: center;
+}
+
+/* Customer Details RTL Styles */
+[dir="rtl"] .customers-page .customer-details-container .bg-gradient-to-r {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .customer-details-container .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customers-page .customer-details-container .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .customers-page .customer-details-container .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .customers-page .customer-details-container .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customers-page .customer-details-container .flex.items-center svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* Modal RTL Styles */
+[dir="rtl"] .customers-page .fixed.inset-0 .bg-white {
+  text-align: right;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .flex.justify-end {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .space-x-3 > * + * {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .grid.grid-cols-2 {
+  direction: rtl;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .text-center {
+  text-align: center;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .customers-page .fixed.inset-0 .text-left {
+  text-align: right;
+}
+
+/* Responsive RTL Adjustments */
+@media (max-width: 1024px) {
+  [dir="rtl"] .customers-page .customers-grid {
+    flex-direction: column;
+  }
+  
+  [dir="rtl"] .customers-page .customers-list-container {
+    order: 1;
+  }
+  
+  [dir="rtl"] .customers-page .customer-details-container {
+    order: 2;
+  }
+}
+
+/* Business QR Scanner Page RTL Styles */
+[dir="rtl"] .qr-scanner-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header h1 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-header h1 svg {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-tabs {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-nav button svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress-header svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .bg-indigo-100 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .qr-scanner-progress .bg-indigo-100 svg {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Settings RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Main Content RTL */
+[dir="rtl"] .qr-scanner-page .grid.lg\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .lg\\:col-span-2 {
+  order: 2;
+}
+
+[dir="rtl"] .qr-scanner-page .lg\\:row-start-1.lg\\:row-span-2.lg\\:col-start-3 {
+  order: 1;
+}
+
+/* QR Scanner Details Panel RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-blue-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.justify-between svg {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Data Display RTL */
+[dir="rtl"] .qr-scanner-page .flex.items-center.space-x-2 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.space-x-2 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .font-mono {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .font-mono span {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+/* QR Scanner Recent Scans RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-indigo-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .grid.sm\\:grid-cols-2.lg\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .flex.items-center.justify-between svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Guide RTL */
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .bg-gradient-to-r.from-gray-50.to-purple-50 svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .grid.md\\:grid-cols-3 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .p-5.rounded-xl .flex svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* QR Scanner Manual Entry RTL */
+[dir="rtl"] .qr-scanner-page .space-y-5 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex.items-start {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .flex.items-start svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .list-disc {
+  padding-left: 0;
+  padding-right: 1.25rem;
+}
+
+[dir="rtl"] .qr-scanner-page .space-y-5 .list-disc li {
+  text-align: right;
+}
+
+/* QR Scanner Input RTL */
+[dir="rtl"] .qr-scanner-page input {
+  text-align: right;
+  padding-left: 1rem;
+  padding-right: 3rem;
+}
+
+[dir="rtl"] .qr-scanner-page .relative button {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .qr-scanner-page .relative button svg {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+/* QR Scanner Modal RTL */
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .bg-white {
+  text-align: right;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .flex.justify-end {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .space-x-3 > * + * {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .grid.grid-cols-2 {
+  direction: rtl;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-center {
+  text-align: center;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .qr-scanner-page .fixed.inset-0 .text-left {
+  text-align: right;
+}
+
+/* Responsive RTL Adjustments for QR Scanner */
+@media (max-width: 1024px) {
+  [dir="rtl"] .qr-scanner-page .grid.lg\\:grid-cols-3 {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .qr-scanner-page .lg\\:col-span-2 {
+    order: 1;
+  }
+
+  [dir="rtl"] .qr-scanner-page .lg\\:row-start-1.lg\\:row-span-2.lg\\:col-start-3 {
+    order: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  [dir="rtl"] .qr-scanner-page .qr-scanner-header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav button {
+    flex-direction: row;
+  }
+
+  [dir="rtl"] .qr-scanner-page .qr-scanner-nav button svg {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+}
+
+/* Business Settings Page RTL Styles */
+[dir="rtl"] .business-settings-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header h1 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-settings-header p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .settings-tabs button svg {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-settings-page .settings-content {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .settings-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .settings-section h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-section h3 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .settings-section p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .form-group label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group input,
+[dir="rtl"] .business-settings-page .form-group textarea,
+[dir="rtl"] .business-settings-page .form-group select {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .form-group .form-help {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-info-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item .info-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-info-item .info-value {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .day-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-inputs {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-inputs input {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .time-separator {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .business-hours-item .status-badge {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-label {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-description {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-input {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loyalty-settings-item .setting-unit {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .points-calculator .calculator-example {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-channels .channel-item .channel-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-types {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .notification-types .type-item .type-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info h4 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header .integration-info p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-status {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .help-section {
+  text-align: right;
+}
+
+[dir="rtl"] .business-settings-page .help-section h3 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .help-section p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .help-section .help-button {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .action-buttons {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-settings-page .action-buttons button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .loading-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .loading-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .error-state h3 {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .error-state button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state {
+  text-align: center;
+}
+
+[dir="rtl"] .business-settings-page .empty-state h3 {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state p {
+  text-align: center;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-settings-page .empty-state button {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* Responsive adjustments for business settings page */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-settings-page .settings-tabs {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .settings-tabs button {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .settings-tabs button svg {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+
+  [dir="rtl"] .business-settings-page .business-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-item {
+    flex-direction: column;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .business-hours-item .time-inputs {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  [dir="rtl"] .business-settings-page .loyalty-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-channels {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-channels .channel-item {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-types {
+    flex-direction: column;
+  }
+
+  [dir="rtl"] .business-settings-page .notification-types .type-item {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .integrations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [dir="rtl"] .business-settings-page .integrations-grid .integration-item .integration-header {
+    flex-direction: column;
+    text-align: right;
+  }
+
+  [dir="rtl"] .business-settings-page .action-buttons {
+    flex-direction: column;
+  }
+}
+
+/* Customer Cards Page RTL Styles */
+[dir="rtl"] .customer-cards-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .customer-cards-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-cards-page .card-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-content {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-stats {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-label {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-value {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-activity {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-info {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-actions {
+  direction: rtl;
+  text-align: left;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-actions button {
+  direction: rtl;
+  text-align: center;
+}
+
+/* Business Layout RTL Styles */
+[dir="rtl"] .business-layout {
+  direction: rtl;
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-sidebar {
+  border-right: none;
+  border-left: 1px solid #e5e7eb;
+  order: 2;
+}
+
+[dir="rtl"] .business-main-content {
+  order: 1;
+}
+
+[dir="rtl"] .business-sidebar .p-6 {
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar .p-6 h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .p-6 p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .flex.items-center.space-x-2 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-sidebar nav .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar nav .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .border-t .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar .border-t .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-main-content header h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center .mr-2:last-child {
+  margin-left: 0;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center button {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center button span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* Floating QR Scanner Button RTL */
+[dir="rtl"] .fixed.bottom-6.right-6 {
+  right: auto;
+  left: 1.5rem;
+}
+
+/* Responsive adjustments for business layout */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-layout {
+    flex-direction: column;
+  }
+  
+  [dir="rtl"] .business-sidebar {
+    order: 1;
+  }
+  
+  [dir="rtl"] .business-main-content {
+    order: 2;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center.justify-between {
+    flex-direction: row;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center {
+    flex-direction: row;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center .mr-2 {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+  
+  [dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center {
+    flex-direction: row;
+    text-align: left;
+  }
+  
+  [dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center span {
+    margin-left: 0.75rem;
+    margin-right: 0;
+  }
+}
+
+/* Business Programs Page RTL Styles */
+[dir="rtl"] .business-programs-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .business-programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-programs-header h1 {
+  text-align: right;
+  margin-right: 0;
+  margin-left: auto;
+}
+
+[dir="rtl"] .business-programs-header button {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+[dir="rtl"] .business-programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .program-card-content {
+  text-align: right;
+}
+
+[dir="rtl"] .program-card-content .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .ml-auto {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .program-card-content .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .program-card-content .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-title {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-close {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+/* Program Builder Steps RTL */
+[dir="rtl"] .program-builder-modal .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-1,
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-2,
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-3 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-1,
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-2,
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-3 {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .program-builder-modal .text-center {
+  text-align: center;
+}
+
+[dir="rtl"] .program-builder-modal .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-modal .text-right {
+  text-align: left;
+}
+
+/* Program Builder Form Fields RTL */
+[dir="rtl"] .program-builder-modal input[type="text"],
+[dir="rtl"] .program-builder-modal input[type="number"],
+[dir="rtl"] .program-builder-modal textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center input[type="number"] {
+  text-align: center;
+}
+
+/* Program Builder Grid RTL */
+[dir="rtl"] .program-builder-modal .grid.grid-cols-1.md\\:grid-cols-2 {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-builder-modal .grid.grid-cols-1.md\\:grid-cols-3 {
+  direction: rtl;
+}
+
+/* Program Builder Buttons RTL */
+[dir="rtl"] .program-builder-modal .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.justify-end {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.justify-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.space-x-3 > * + * {
+  margin-right: 0.75rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .program-builder-modal .flex.space-x-4 > * + * {
+  margin-right: 1rem;
+  margin-left: 0;
+}
+
+/* Program Delete Modal RTL */
+[dir="rtl"] .program-delete-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .program-delete-modal .flex.justify-end {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.space-x-3 > * + * {
+  margin-right: 0.75rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .program-delete-modal input[type="text"] {
+  text-align: center;
+  direction: ltr; /* Keep confirmation text in LTR */
+}
+
+[dir="rtl"] .program-delete-modal .font-mono {
+  direction: ltr; /* Keep confirmation text in LTR */
+  text-align: center;
+}
+
+/* Mobile Responsive RTL for Programs */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-programs-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  [dir="rtl"] .business-programs-header h1 {
+    margin-right: 0;
+    margin-left: 0;
+    margin-bottom: 1rem;
+  }
+  
+  [dir="rtl"] .business-programs-header button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  [dir="rtl"] .program-card-content .flex.justify-between {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .program-card-content .flex.justify-between .ml-auto {
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 1rem;
+  }
+}
+
+/* Customer Promotions Page RTL Styles */
+[dir="rtl"] .customer-promotions-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-promotions-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-title .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customer-promotions-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-search {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-search-input {
+  text-align: right;
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .customer-promotions-search-icon {
+  left: auto;
+  right: 0.75rem;
+}
+
+[dir="rtl"] .customer-promotions-error {
+  border-left: none;
+  border-right: 4px solid #ef4444;
+}
+
+[dir="rtl"] .customer-promotions-error .ml-3 {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .customer-promotions-filters {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-filter-tab {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-filter-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .customer-promotions-featured-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-featured-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customer-promotions-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-promotions-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-type-badge {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-type-icon {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .customer-promotions-business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-code-section {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-code {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+[dir="rtl"] .customer-promotions-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-usage {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-empty {
+  text-align: center;
+}
+
+[dir="rtl"] .customer-promotions-empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .customer-promotions-empty-description {
+  text-align: center;
+}
+
+/* Mobile RTL adjustments for promotions */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-promotions-header {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-title {
+    justify-content: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-subtitle {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-search {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-filters {
+    justify-content: center;
+  }
+}
+
+/* Customer QR Card RTL Styles */
+[dir="rtl"] .customer-qrcard-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-success {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-success-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-success-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-error {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-error-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-error-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-container {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-content {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-actions-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-action-button {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-action-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-programs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-loading {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-name {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-tier {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-points {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-joined {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-programs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-promos-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-discount {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-details {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claim {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claimed {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claimed .mr-1 {
+  margin-right: 0.25rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .customer-qrcard-security-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-security-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-security-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-security-description {
+  text-align: right;
+}
+
+/* Mobile responsive adjustments for QR Card RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-qrcard-page {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-title {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-subtitle {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-actions-grid {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-programs-grid {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-promos-grid {
+    text-align: right;
+  }
+}
+
+/* Customer Settings RTL Styles */
+[dir="rtl"] .customer-settings-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-tabs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-tab {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-content {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-section-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-help {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-settings-help-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-button {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-settings-help-button-icon {
+  margin-left: 0.375rem;
+  margin-right: 0;
+}
+
+/* Mobile responsive adjustments for Customer Settings RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-settings-page {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-subtitle {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-tabs {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-settings-content {
+    text-align: right;
+  }
+}
