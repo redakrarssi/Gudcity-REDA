@@ -4562,3 +4562,157 @@
     margin-top: 1rem;
   }
 }
+
+/* Customer Promotions Page RTL Styles */
+[dir="rtl"] .customer-promotions-page {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-promotions-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-title .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customer-promotions-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-search {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-search-input {
+  text-align: right;
+  padding-left: 2.5rem;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .customer-promotions-search-icon {
+  left: auto;
+  right: 0.75rem;
+}
+
+[dir="rtl"] .customer-promotions-error {
+  border-left: none;
+  border-right: 4px solid #ef4444;
+}
+
+[dir="rtl"] .customer-promotions-error .ml-3 {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+[dir="rtl"] .customer-promotions-filters {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-filter-tab {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-filter-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .customer-promotions-featured-title {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-featured-icon {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .customer-promotions-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-promotions-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-card-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-type-badge {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-type-icon {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .customer-promotions-business-name {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-code-section {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-code {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+[dir="rtl"] .customer-promotions-details {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .customer-promotions-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-usage {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-promotions-empty {
+  text-align: center;
+}
+
+[dir="rtl"] .customer-promotions-empty-title {
+  text-align: center;
+}
+
+[dir="rtl"] .customer-promotions-empty-description {
+  text-align: center;
+}
+
+/* Mobile RTL adjustments for promotions */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-promotions-header {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-title {
+    justify-content: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-subtitle {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-search {
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-promotions-filters {
+    justify-content: center;
+  }
+}
