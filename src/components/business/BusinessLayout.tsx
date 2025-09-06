@@ -94,9 +94,9 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
 
   return (
     <>
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen bg-gray-50 business-layout">
         {/* Sidebar */}
-        <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200">
+        <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 business-sidebar">
           <div className="p-6 flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold text-blue-600">Vcarda</h2>
@@ -143,7 +143,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
         </aside>
 
         {/* Mobile header */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden business-main-content">
           <header className="bg-white border-b border-gray-200 md:hidden">
             <div className="flex items-center justify-between p-4">
               <h2 className="text-xl font-bold text-blue-600">Vcarda</h2>

@@ -4108,3 +4108,148 @@
     flex-direction: column;
   }
 }
+
+/* Business Layout RTL Styles */
+[dir="rtl"] .business-layout {
+  direction: rtl;
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-sidebar {
+  border-right: none;
+  border-left: 1px solid #e5e7eb;
+  order: 2;
+}
+
+[dir="rtl"] .business-main-content {
+  order: 1;
+}
+
+[dir="rtl"] .business-sidebar .p-6 {
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar .p-6 h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .p-6 p {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .flex.items-center.space-x-2 {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-sidebar nav .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar nav .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-sidebar .border-t .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-sidebar .border-t .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-main-content header h2 {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .business-main-content header .flex.items-center .mr-2:last-child {
+  margin-left: 0;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center button {
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+[dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center button span {
+  margin-left: 0;
+  margin-right: 0.75rem;
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', 'Arial', sans-serif;
+}
+
+/* Floating QR Scanner Button RTL */
+[dir="rtl"] .fixed.bottom-6.right-6 {
+  right: auto;
+  left: 1.5rem;
+}
+
+/* Responsive adjustments for business layout */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-layout {
+    flex-direction: column;
+  }
+  
+  [dir="rtl"] .business-sidebar {
+    order: 1;
+  }
+  
+  [dir="rtl"] .business-main-content {
+    order: 2;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center.justify-between {
+    flex-direction: row;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center {
+    flex-direction: row;
+  }
+  
+  [dir="rtl"] .business-main-content header .flex.items-center .mr-2 {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+  
+  [dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center {
+    flex-direction: row;
+    text-align: left;
+  }
+  
+  [dir="rtl"] .business-main-content .bg-white.border-b .px-4 .flex.items-center span {
+    margin-left: 0.75rem;
+    margin-right: 0;
+  }
+}
