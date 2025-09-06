@@ -287,6 +287,39 @@ const resources = {
         gift: 'GIFT'
       },
       
+      // QR Card Page
+      qrCard: {
+        pleaseSignInToView: 'Please sign in to view your QR card.',
+        yourLoyaltyCard: 'Your Loyalty Card',
+        useThisCardToCollect: 'Use this card to collect and redeem points at participating businesses',
+        copied: 'Copied!',
+        copyCardNumber: 'Copy Card Number',
+        shareCard: 'Share Card',
+        printCard: 'Print Card',
+        myPrograms: 'My Programs',
+        points: 'Points',
+        joined: 'Joined',
+        youHaveNotJoinedAnyPrograms: 'You have not joined any programs yet',
+        showYourQrCardToJoin: 'Show your QR card at participating businesses to join their loyalty programs',
+        availablePromos: 'Available Promos',
+        expires: 'Expires',
+        claim: 'Claim',
+        claimed: 'Claimed',
+        noPromoCodesAvailable: 'No promo codes available at the moment',
+        showYourQrCardToReceive: 'Show your QR card at participating businesses to receive special offers',
+        securityInformation: 'Security Information',
+        yourQrCodeIsUnique: 'Your QR code is unique to you and securely signed. It updates automatically to protect your account.',
+        failedToLoadLoyaltyCard: 'Failed to load loyalty card. Please try again.',
+        successfullyJoinedProgram: 'Successfully joined the program!',
+        failedToJoinProgram: 'Failed to join program. Please try again.',
+        successfullyClaimedPromo: 'Successfully claimed promo code!',
+        failedToClaimPromo: 'Failed to claim promo code. Please try again.',
+        myLoyaltyCard: 'My Loyalty Card',
+        scanMyLoyaltyCard: 'Scan my loyalty card: {{cardNumber}}',
+        customer: 'Customer',
+        specialDiscountOffer: 'Special discount offer'
+      },
+      
       // Business Dashboard
       business: {
         dashboard: 'Business Dashboard',

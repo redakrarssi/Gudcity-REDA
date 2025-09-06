@@ -4716,3 +4716,235 @@
     justify-content: center;
   }
 }
+
+/* Customer QR Card RTL Styles */
+[dir="rtl"] .customer-qrcard-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-subtitle {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-success {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-success-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-success-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-error {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-error-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-error-text {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-container {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-content {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-actions {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-actions-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-action-button {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-action-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-programs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-loading {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-programs-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-name {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-tier {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-points {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-program-joined {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-programs {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-empty-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promos-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-promos-grid {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-card {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-header {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-code {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-discount {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-description {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-details {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-expiry {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claim {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claimed {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-promo-claimed .mr-1 {
+  margin-right: 0.25rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .customer-qrcard-security-section {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-security-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+[dir="rtl"] .customer-qrcard-security-title {
+  text-align: right;
+}
+
+[dir="rtl"] .customer-qrcard-security-description {
+  text-align: right;
+}
+
+/* Mobile responsive adjustments for QR Card RTL */
+@media (max-width: 768px) {
+  [dir="rtl"] .customer-qrcard-page {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-header {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-title {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-subtitle {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-actions-grid {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-programs-grid {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-qrcard-promos-grid {
+    text-align: right;
+  }
+}
