@@ -4253,3 +4253,242 @@
     margin-right: 0;
   }
 }
+
+/* Business Programs Page RTL Styles */
+[dir="rtl"] .business-programs-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .business-programs-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .business-programs-header h1 {
+  text-align: right;
+  margin-right: 0;
+  margin-left: auto;
+}
+
+[dir="rtl"] .business-programs-header button {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+[dir="rtl"] .business-programs-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-card {
+  text-align: right;
+}
+
+[dir="rtl"] .program-card-content {
+  text-align: right;
+}
+
+[dir="rtl"] .program-card-content .flex {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .program-card-content .flex.items-center .ml-auto {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .program-card-content .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .program-card-content .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-title {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-close {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+/* Program Builder Steps RTL */
+[dir="rtl"] .program-builder-modal .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-1,
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-2,
+[dir="rtl"] .program-builder-modal .flex.items-center .mr-3 {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-1,
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-2,
+[dir="rtl"] .program-builder-modal .flex.items-center .ml-3 {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+[dir="rtl"] .program-builder-modal .text-center {
+  text-align: center;
+}
+
+[dir="rtl"] .program-builder-modal .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .program-builder-modal .text-right {
+  text-align: left;
+}
+
+/* Program Builder Form Fields RTL */
+[dir="rtl"] .program-builder-modal input[type="text"],
+[dir="rtl"] .program-builder-modal input[type="number"],
+[dir="rtl"] .program-builder-modal textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .program-builder-modal .flex.items-center input[type="number"] {
+  text-align: center;
+}
+
+/* Program Builder Grid RTL */
+[dir="rtl"] .program-builder-modal .grid.grid-cols-1.md\\:grid-cols-2 {
+  direction: rtl;
+}
+
+[dir="rtl"] .program-builder-modal .grid.grid-cols-1.md\\:grid-cols-3 {
+  direction: rtl;
+}
+
+/* Program Builder Buttons RTL */
+[dir="rtl"] .program-builder-modal .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.justify-end {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.justify-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-builder-modal .flex.space-x-3 > * + * {
+  margin-right: 0.75rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .program-builder-modal .flex.space-x-4 > * + * {
+  margin-right: 1rem;
+  margin-left: 0;
+}
+
+/* Program Delete Modal RTL */
+[dir="rtl"] .program-delete-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center.justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center .mr-3 {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+[dir="rtl"] .program-delete-modal .flex.items-center .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .program-delete-modal .flex.justify-end {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .program-delete-modal .flex.space-x-3 > * + * {
+  margin-right: 0.75rem;
+  margin-left: 0;
+}
+
+[dir="rtl"] .program-delete-modal input[type="text"] {
+  text-align: center;
+  direction: ltr; /* Keep confirmation text in LTR */
+}
+
+[dir="rtl"] .program-delete-modal .font-mono {
+  direction: ltr; /* Keep confirmation text in LTR */
+  text-align: center;
+}
+
+/* Mobile Responsive RTL for Programs */
+@media (max-width: 768px) {
+  [dir="rtl"] .business-programs-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  [dir="rtl"] .business-programs-header h1 {
+    margin-right: 0;
+    margin-left: 0;
+    margin-bottom: 1rem;
+  }
+  
+  [dir="rtl"] .business-programs-header button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  [dir="rtl"] .program-card-content .flex.justify-between {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  [dir="rtl"] .program-card-content .flex.justify-between .ml-auto {
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 1rem;
+  }
+}

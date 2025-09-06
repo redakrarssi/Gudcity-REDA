@@ -226,7 +226,7 @@ const Programs = () => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6 programs-page">
+      <div className="space-y-6 programs-page business-programs-page">
         {error && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 error-alert">
             <div className="flex">
@@ -258,7 +258,7 @@ const Programs = () => {
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-center programs-header">
+            <div className="flex justify-between items-center programs-header business-programs-header">
               <h1 className="text-2xl font-semibold text-gray-800 programs-title">
                 {t('business.Loyalty Programs')}
               </h1>
@@ -280,7 +280,7 @@ const Programs = () => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-4 programs-grid">
+                <div className="grid grid-cols-1 gap-4 programs-grid business-programs-grid">
                   {programs.map((program) => (
                     <div
                       key={program.id}
