@@ -1273,6 +1273,7 @@
 /* Customer Layout Menu RTL enhancements */
 [dir="rtl"] .customer-layout {
   direction: rtl;
+  flex-direction: row-reverse;
 }
 
 [dir="rtl"] .customer-layout .sidebar {
@@ -4107,6 +4108,75 @@
   [dir="rtl"] .business-settings-page .action-buttons {
     flex-direction: column;
   }
+}
+
+/* Customer Cards Page RTL Styles */
+[dir="rtl"] .customer-cards-page {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .customer-cards-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-cards-page .card-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-content {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-stats {
+  direction: rtl;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-label {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .stat-value {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-activity {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-info {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-actions {
+  direction: rtl;
+  text-align: left;
+}
+
+[dir="rtl"] .customer-cards-page .card-item .card-rewards .reward-item .reward-actions button {
+  direction: rtl;
+  text-align: center;
 }
 
 /* Business Layout RTL Styles */

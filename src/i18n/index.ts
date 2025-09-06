@@ -206,7 +206,23 @@ const resources = {
         promoCodeCopied: 'Promo code copied to clipboard',
         failedToCopyPromoCode: 'Failed to copy promo code',
         redeemedPoints: 'Redeemed {{points}} points',
-        cardUsed: 'Card used'
+        cardUsed: 'Card used',
+        morePointsNeededForNextReward: 'More points needed for next reward',
+        needMorePoints: 'Need {{points}} more points',
+        redeem: 'Redeem',
+        programEnrollmentRequest: 'Program Enrollment Request',
+        invitesYouToJoin: 'invites you to join their',
+        loyaltyProgram: 'loyalty program',
+        joiningWillAllowYou: 'Joining will allow you to earn points and rewards when you visit.',
+        youHavePendingEnrollment: 'You have {{count}} pending enrollment {{count === 1 ? "request" : "requests"}}',
+        checkYourNotifications: 'Check your notifications to join new loyalty programs and get rewards!',
+        youAreCurrentlyEnrolled: 'You are currently enrolled in {{count}} program{{count !== 1 ? "s" : ""}}.',
+        yourUniquePromoCode: 'Your unique promo code for {{businessName}}:',
+        thisIsOneTimeUseCode: 'This is a one-time use code unique to your account. Share with friends to earn bonus points when they use it!',
+        yourPromoCode: 'Your Promo Code',
+        close: 'Close',
+        redeeming: 'Redeeming {{rewardName}}...',
+        yourLoyaltyProgram: 'your loyalty program'
       },
       
       // Nearby Page
@@ -1117,7 +1133,23 @@ const resources = {
         promoCodeCopied: 'تم نسخ رمز الخصم إلى الحافظة',
         failedToCopyPromoCode: 'فشل في نسخ رمز الخصم',
         redeemedPoints: 'تم استبدال {{points}} نقاط',
-        cardUsed: 'تم استخدام البطاقة'
+        cardUsed: 'تم استخدام البطاقة',
+        morePointsNeededForNextReward: 'نقاط إضافية مطلوبة للمكافأة التالية',
+        needMorePoints: 'تحتاج {{points}} نقاط إضافية',
+        redeem: 'استبدال',
+        programEnrollmentRequest: 'طلب انضمام للبرنامج',
+        invitesYouToJoin: 'يدعوك للانضمام إلى',
+        loyaltyProgram: 'برنامج الولاء',
+        joiningWillAllowYou: 'الانضمام سيمكنك من كسب النقاط والمكافآت عند زيارتك.',
+        youHavePendingEnrollment: 'لديك {{count}} طلب انضمام معلق {{count === 1 ? "للبرنامج" : "للبرامج"}}',
+        checkYourNotifications: 'تحقق من إشعاراتك للانضمام إلى برامج ولاء جديدة والحصول على مكافآت!',
+        youAreCurrentlyEnrolled: 'أنت مسجل حالياً في {{count}} برنامج{{count !== 1 ? "ات" : ""}}.',
+        yourUniquePromoCode: 'رمز الخصم الفريد الخاص بك لـ {{businessName}}:',
+        thisIsOneTimeUseCode: 'هذا رمز للاستخدام لمرة واحدة فريد لحسابك. شاركه مع الأصدقاء لكسب نقاط إضافية عند استخدامه!',
+        yourPromoCode: 'رمز الخصم الخاص بك',
+        close: 'إغلاق',
+        redeeming: 'جاري استبدال {{rewardName}}...',
+        yourLoyaltyProgram: 'برنامج الولاء الخاص بك'
       },
       
       // Nearby Page
@@ -2141,7 +2173,23 @@ const resources = {
         promoCodeCopied: 'Código promocional copiado al portapapeles',
         failedToCopyPromoCode: 'Error al copiar código promocional',
         redeemedPoints: '{{points}} puntos canjeados',
-        cardUsed: 'Tarjeta utilizada'
+        cardUsed: 'Tarjeta utilizada',
+        morePointsNeededForNextReward: 'Más puntos necesarios para la siguiente recompensa',
+        needMorePoints: 'Necesitas {{points}} puntos más',
+        redeem: 'Canjear',
+        programEnrollmentRequest: 'Solicitud de Inscripción al Programa',
+        invitesYouToJoin: 'te invita a unirte a su',
+        loyaltyProgram: 'programa de lealtad',
+        joiningWillAllowYou: 'Unirte te permitirá ganar puntos y recompensas cuando visites.',
+        youHavePendingEnrollment: 'Tienes {{count}} solicitud{{count !== 1 ? "es" : ""}} de inscripción pendiente{{count !== 1 ? "s" : ""}}',
+        checkYourNotifications: '¡Revisa tus notificaciones para unirte a nuevos programas de lealtad y obtener recompensas!',
+        youAreCurrentlyEnrolled: 'Actualmente estás inscrito en {{count}} programa{{count !== 1 ? "s" : ""}}.',
+        yourUniquePromoCode: 'Tu código promocional único para {{businessName}}:',
+        thisIsOneTimeUseCode: 'Este es un código de un solo uso único para tu cuenta. ¡Compártelo con amigos para ganar puntos bonus cuando lo usen!',
+        yourPromoCode: 'Tu Código Promocional',
+        close: 'Cerrar',
+        redeeming: 'Canjeando {{rewardName}}...',
+        yourLoyaltyProgram: 'tu programa de lealtad'
       },
       
       // Nearby Page
@@ -3165,7 +3213,23 @@ const resources = {
         promoCodeCopied: 'Code promotionnel copié dans le presse-papiers',
         failedToCopyPromoCode: 'Échec de la copie du code promotionnel',
         redeemedPoints: '{{points}} points échangés',
-        cardUsed: 'Carte utilisée'
+        cardUsed: 'Carte utilisée',
+        morePointsNeededForNextReward: 'Plus de points nécessaires pour la prochaine récompense',
+        needMorePoints: 'Besoin de {{points}} points de plus',
+        redeem: 'Échanger',
+        programEnrollmentRequest: 'Demande d\'Inscription au Programme',
+        invitesYouToJoin: 'vous invite à rejoindre son',
+        loyaltyProgram: 'programme de fidélité',
+        joiningWillAllowYou: 'Rejoindre vous permettra de gagner des points et des récompenses lors de vos visites.',
+        youHavePendingEnrollment: 'Vous avez {{count}} demande{{count !== 1 ? "s" : ""}} d\'inscription en attente{{count !== 1 ? "s" : ""}}',
+        checkYourNotifications: 'Vérifiez vos notifications pour rejoindre de nouveaux programmes de fidélité et obtenir des récompenses !',
+        youAreCurrentlyEnrolled: 'Vous êtes actuellement inscrit dans {{count}} programme{{count !== 1 ? "s" : ""}}.',
+        yourUniquePromoCode: 'Votre code promo unique pour {{businessName}} :',
+        thisIsOneTimeUseCode: 'Ceci est un code à usage unique unique à votre compte. Partagez-le avec des amis pour gagner des points bonus quand ils l\'utilisent !',
+        yourPromoCode: 'Votre Code Promo',
+        close: 'Fermer',
+        redeeming: 'Échange de {{rewardName}}...',
+        yourLoyaltyProgram: 'votre programme de fidélité'
       },
       
       // Nearby Page
