@@ -237,7 +237,7 @@ const CustomerCards = () => {
       if (user && detail.customerId === user.id.toString()) {
         if (detail.type === 'POINTS_ADDED') {
           // Show notification toast
-          addNotification('success', `You've received ${detail.points} points in ${detail.programName || 'your loyalty program'}`);
+          addNotification('success', `You've received ${detail.points} points in ${detail.programName || t('cards.yourLoyaltyProgram')}`);
           
           // Just do a simple refetch - no complex state management
           refetch();
@@ -370,7 +370,7 @@ const CustomerCards = () => {
             // Check if this is for the current user
             if (user && data.customerId === user.id.toString()) {
               // Show notification
-              addNotification('success', `You've received ${data.points} points in ${data.programName || 'your loyalty program'}`);
+              addNotification('success', `You've received ${data.points} points in ${data.programName || t('cards.yourLoyaltyProgram')}`);
               
               // Just do a simple refetch - no complex state management
               refetch();
@@ -850,7 +850,7 @@ const CustomerCards = () => {
   const handleRewardRedemption = async (cardId: string, rewardId: string, rewardName: string) => {
     try {
       setIsLoading(true);
-      addNotification('info', `Redeeming ${rewardName}...`);
+      addNotification('info', t('cards.redeeming', { rewardName }));
       
       console.log('🎯 REDEMPTION DEBUG:', {
         cardId,
@@ -971,7 +971,7 @@ const CustomerCards = () => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-xl font-semibold">Program Enrollment Request</h3>
+            <h3 className="text-xl font-semibold">{t('cards.programEnrollmentRequest')}</h3>
             <button 
               onClick={() => setEnrollmentRequestState(prev => ({ ...prev, isOpen: false }))}
               className="text-gray-400 hover:text-gray-600 focus:outline-none"
@@ -981,11 +981,11 @@ const CustomerCards = () => {
             </button>
           </div>
           <p className="mb-4">
-            <span className="font-medium">{enrollmentRequestState.businessName}</span> invites you to join their 
-            <span className="font-medium"> {enrollmentRequestState.programName}</span> loyalty program.
+            <span className="font-medium">{enrollmentRequestState.businessName}</span> {t('cards.invitesYouToJoin')}
+            <span className="font-medium"> {enrollmentRequestState.programName}</span> {t('cards.loyaltyProgram')}.
           </p>
           <p className="text-sm text-gray-600 mb-6">
-            Joining will allow you to earn points and rewards when you visit.
+            {t('cards.joiningWillAllowYou')}
           </p>
           
           <div className="flex justify-end space-x-3">
@@ -1024,7 +1024,7 @@ const CustomerCards = () => {
 
   return (
     <CustomerLayout>
-      <div className="p-4 md:p-6 lg:p-8 space-y-8 cards-page">
+      <div className="p-4 md:p-6 lg:p-8 space-y-8 cards-page customer-cards-page">
         {/* Total Enrollment Count */}
         <AnimatePresence>
           {!hideEnrollmentInfo && (
@@ -1038,7 +1038,7 @@ const CustomerCards = () => {
                 <div className="flex items-center">
                   <Info className="h-5 w-5 text-blue-500 mr-2" />
                   <p className="text-blue-700">
-                    You are currently enrolled in <span className="font-bold">{loyaltyCards.length}</span> program{loyaltyCards.length !== 1 ? 's' : ''}.
+                    {t('cards.youAreCurrentlyEnrolled', { count: loyaltyCards.length })}
                   </p>
                 </div>
                 <button 
@@ -1123,10 +1123,10 @@ const CustomerCards = () => {
                 </div>
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-blue-800">
-                    You have {pendingEnrollments.length} pending enrollment {pendingEnrollments.length === 1 ? 'request' : 'requests'}
+                    {t('cards.youHavePendingEnrollment', { count: pendingEnrollments.length })}
                   </h3>
                   <p className="mt-1 text-sm text-blue-600">
-                    Check your notifications to join new loyalty programs and get rewards!
+                    {t('cards.checkYourNotifications')}
                   </p>
                 </div>
               </div>
@@ -1134,7 +1134,7 @@ const CustomerCards = () => {
           )}
 
           {/* The rest of the component remains unchanged */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 cards-grid">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 cards-grid customer-cards-grid">
             {loyaltyCards.map(card => (
                 <motion.div 
                   key={card.id}
@@ -1236,7 +1236,7 @@ const CustomerCards = () => {
                           </div>
                           <div className="text-xs mt-1 opacity-80">
                             {/* Show placeholder values since these properties might not exist */}
-                            More points needed for next reward
+                            {t('cards.morePointsNeededForNextReward')}
                           </div>
                         </div>
                         
@@ -1377,7 +1377,7 @@ const CustomerCards = () => {
                                               </div>
                                               {!canRedeem && pointsNeeded > 0 && (
                                                 <span className="text-xs text-orange-600 ml-2">
-                                                  Need {pointsNeeded} more points
+                                                  {t('cards.needMorePoints', { points: pointsNeeded })}
                                                 </span>
                                               )}
                                             </div>
@@ -1389,7 +1389,7 @@ const CustomerCards = () => {
                                             onClick={() => handleRewardRedemption(card.id, reward.id, reward.name)}
                                             className="ml-3 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
                                           >
-                                            Redeem
+                                            {t('cards.redeem')}
                                           </button>
                                         )}
                                       </div>
@@ -1435,7 +1435,7 @@ const CustomerCards = () => {
               className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden"
             >
               <div className="border-b border-gray-200 px-5 py-4 flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-800">Your Promo Code</h3>
+                <h3 className="text-lg font-medium text-gray-800">{t('cards.yourPromoCode')}</h3>
                 <button 
                   onClick={closePromoCodeModal}
                   className="text-gray-400 hover:text-gray-500"
@@ -1446,7 +1446,7 @@ const CustomerCards = () => {
               <div className="p-5">
                 <div className="mb-5">
                   <p className="text-sm text-gray-600 mb-2">
-                    Your unique promo code for {promoCodeState.businessName}:
+                    {t('cards.yourUniquePromoCode', { businessName: promoCodeState.businessName })}
                   </p>
                   <div className="flex items-center">
                     <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 mr-2 font-mono text-lg text-center">
@@ -1462,7 +1462,7 @@ const CustomerCards = () => {
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex">
                   <Info className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                  <p>This is a one-time use code unique to your account. Share with friends to earn bonus points when they use it!</p>
+                  <p>{t('cards.thisIsOneTimeUseCode')}</p>
                 </div>
               </div>
               <div className="bg-gray-50 px-5 py-4">
@@ -1470,7 +1470,7 @@ const CustomerCards = () => {
                   onClick={closePromoCodeModal}
                   className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                 >
-                  Close
+                  {t('cards.close')}
                 </button>
               </div>
             </motion.div>

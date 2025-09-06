@@ -339,9 +339,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               
               <div className="relative hidden md:block">
                 <LanguageSelector 
-                  buttonClassName={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                  menuClassName={darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}
-                  itemClassName={darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}
+                  variant="default"
+                  showIcon={true}
+                  className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                 />
               </div>
               

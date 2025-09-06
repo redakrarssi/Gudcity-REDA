@@ -75,7 +75,7 @@ const Programs = () => {
         setPrograms(programsData);
       } catch (err) {
         console.error('Error loading loyalty programs:', err);
-        setError(t('Failed to load loyalty programs. Please try again.'));
+        setError(t('business.Failed to load loyalty programs. Please try again.'));
       } finally {
         setLoading(false);
       }
@@ -113,11 +113,11 @@ const Programs = () => {
         setShowDeleteModal(false);
         setProgramToDelete(null);
       } else {
-        setError(t('Failed to delete program. Please try again.'));
+        setError(t('business.Failed to delete program. Please try again.'));
       }
     } catch (err) {
       console.error('Error deleting program:', err);
-      setError(t('An error occurred while deleting the program.'));
+      setError(t('business.An error occurred while deleting the program.'));
     }
   };
 
@@ -150,7 +150,7 @@ const Programs = () => {
           setShowProgramBuilder(false);
           setSelectedProgram(null);
         } else {
-          setError(t('Failed to update program. Please try again.'));
+          setError(t('business.Failed to update program. Please try again.'));
         }
       } else {
         // Create new program
@@ -159,7 +159,7 @@ const Programs = () => {
         
         if (!businessId) {
           console.error('No business ID available for program creation');
-          setError(t('Could not create program: Missing business information'));
+          setError(t('business.Could not create program: Missing business information'));
           return;
         }
         
@@ -170,7 +170,7 @@ const Programs = () => {
         console.log('Database connection status:', isConnected);
         
         if (!isConnected) {
-          setError('Could not connect to database. Please try again later.');
+          setError(t('business.Could not connect to database. Please try again later.'));
           return;
         }
         
@@ -192,17 +192,17 @@ const Programs = () => {
             setSelectedProgram(null);
         } else {
             // Show a more specific error from the service layer
-            setError('Program creation failed - check console for details');
+            setError(t('business.Program creation failed - check console for details'));
           }
         } catch (createErr: any) {
           // Display the actual error message directly
           console.error('Detailed program creation error:', createErr);
-          setError(`Error creating program: ${createErr?.message || JSON.stringify(createErr)}`);
+          setError(t('business.Error creating program: {{error}}', { error: createErr?.message || JSON.stringify(createErr) }));
         }
       }
     } catch (err: any) {
       console.error('Error submitting program:', err);
-      setError(`${t('An error occurred')}: ${err?.message || JSON.stringify(err)}`);
+      setError(`${t('business.An error occurred')}: ${err?.message || JSON.stringify(err)}`);
     }
   };
 
@@ -226,9 +226,9 @@ const Programs = () => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 programs-page business-programs-page">
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 error-alert">
             <div className="flex">
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
@@ -238,14 +238,14 @@ const Programs = () => {
         )}
       
         {showProgramBuilder ? (
-          <div className="bg-white rounded-xl shadow-md">
-            <div className="p-6 pb-0 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">
-                {selectedProgram ? t('Edit Loyalty Program') : t('Create New Loyalty Program')}
+          <div className="bg-white rounded-xl shadow-md program-builder-modal">
+            <div className="p-6 pb-0 flex justify-between items-center program-builder-header">
+              <h2 className="text-xl font-bold text-gray-900 program-builder-title">
+                {selectedProgram ? t('business.Edit Loyalty Program') : t('business.Create New Loyalty Program')}
               </h2>
               <button
                 onClick={handleProgramCancel}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 program-builder-close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -258,51 +258,51 @@ const Programs = () => {
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-semibold text-gray-800">
-                {t('Loyalty Programs')}
+            <div className="flex justify-between items-center programs-header business-programs-header">
+              <h1 className="text-2xl font-semibold text-gray-800 programs-title">
+                {t('business.Loyalty Programs')}
               </h1>
               <button
                 onClick={() => {
                   setSelectedProgram(null);
                   setShowProgramBuilder(true);
                 }}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors create-program-btn"
               >
                 <Plus className="w-5 h-5" />
-                {t('Create Program')}
+                {t('business.Create Program')}
               </button>
             </div>
 
             {loading ? (
-              <div className="flex justify-center items-center h-64">
+              <div className="flex justify-center items-center h-64 programs-loading">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-4 programs-grid business-programs-grid">
                   {programs.map((program) => (
                     <div
                       key={program.id}
-                      className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow program-card"
                     >
-                      <div className="p-6">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center">
-                            <div className="mr-4 p-2 bg-gray-100 rounded-full">
+                      <div className="p-6 program-card-content">
+                        <div className="flex items-start justify-between program-card-header">
+                          <div className="flex items-center program-card-info">
+                            <div className="mr-4 p-2 bg-gray-100 rounded-full program-card-icon">
                               {getTypeIcon(program.type)}
                             </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-gray-900">
+                            <div className="program-card-details">
+                              <h3 className="text-lg font-semibold text-gray-900 program-card-name">
                                 {program.name}
                               </h3>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-sm text-gray-600 mt-1 program-card-description">
                                 {program.description}
                               </p>
                             </div>
                           </div>
                           <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium program-status ${
                               program.status === 'ACTIVE'
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
@@ -312,49 +312,49 @@ const Programs = () => {
                           </span>
                         </div>
 
-                        <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-4">
-                          <div className="text-sm text-gray-600 flex items-center">
+                        <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-4 program-card-stats">
+                          <div className="text-sm text-gray-600 flex items-center program-stat">
                             <Award className="w-4 h-4 mr-1 text-gray-400" />
                             <span>
                               {program.type === 'POINTS'
-                                ? t('{{value}} = 1 point', { value: formatAmount(program.pointValue) })
-                                : t('1 stamp per visit')}
+                                ? t('business.{{value}} = 1 point', { value: formatAmount(program.pointValue) })
+                                : t('business.1 stamp per visit')}
                             </span>
                           </div>
-                          <div className="text-sm text-gray-600 flex items-center">
+                          <div className="text-sm text-gray-600 flex items-center program-stat">
                             <Clock className="w-4 h-4 mr-1 text-gray-400" />
                             <span>
                               {program.expirationDays
-                                ? t('Points expire after {{days}} days', { days: program.expirationDays })
-                                : t('Never expires')}
+                                ? t('business.Points expire after {{days}} days', { days: program.expirationDays })
+                                : t('business.Never expires')}
                             </span>
                           </div>
                         </div>
 
-                        <div className="mt-4">
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">{t('Reward Tiers')}:</h4>
-                          <ul className="space-y-1">
+                        <div className="mt-4 program-reward-tiers">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2 program-tiers-title">{t('business.Reward Tiers')}:</h4>
+                          <ul className="space-y-1 program-tiers-list">
                             {program.rewardTiers.map((tier) => (
-                              <li key={tier.id} className="text-sm text-gray-600">
-                                • {tier.pointsRequired} {program.type === 'POINTS' ? t('points') : t('stamps')} ={' '}
+                              <li key={tier.id} className="text-sm text-gray-600 program-tier-item">
+                                • {tier.pointsRequired} {program.type === 'POINTS' ? t('business.points') : t('business.stamps')} ={' '}
                                 {tier.reward}
                               </li>
                             ))}
                           </ul>
                         </div>
 
-                        <div className="mt-6 flex justify-end space-x-3">
+                        <div className="mt-6 flex justify-end space-x-3 program-card-actions">
                           <button
                             onClick={() => handleProgramDeleteClick(program)}
-                            className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                            className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors program-delete-btn"
                           >
-                            {t('Delete')}
+                            {t('business.Delete')}
                           </button>
                           <button
                             onClick={() => handleProgramEdit(program)}
-                            className="text-sm flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            className="text-sm flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors program-edit-btn"
                           >
-                            {t('Edit')}
+                            {t('business.Edit')}
                             <ChevronRight className="w-4 h-4 ml-1" />
                           </button>
                         </div>
@@ -364,23 +364,23 @@ const Programs = () => {
                 </div>
 
                 {programs.length === 0 && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-                    <Award className="w-12 h-12 mx-auto text-gray-400" />
-                    <h3 className="mt-4 text-lg font-medium text-gray-900">
-                      {t('No Programs Found')}
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center programs-empty-state">
+                    <Award className="w-12 h-12 mx-auto text-gray-400 programs-empty-icon" />
+                    <h3 className="mt-4 text-lg font-medium text-gray-900 programs-empty-title">
+                      {t('business.No Programs Found')}
                     </h3>
-                    <p className="mt-2 text-sm text-gray-600 max-w-md mx-auto">
-                      {t('You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.')}
+                    <p className="mt-2 text-sm text-gray-600 max-w-md mx-auto programs-empty-description">
+                      {t('business.You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.')}
                     </p>
                     <button
                       onClick={() => {
                         setSelectedProgram(null);
                         setShowProgramBuilder(true);
                       }}
-                      className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto"
+                      className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto programs-empty-btn"
                     >
                       <Plus className="w-5 h-5" />
-                      {t('Create Program')}
+                      {t('business.Create Program')}
                     </button>
                   </div>
                 )}
