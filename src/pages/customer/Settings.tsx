@@ -428,17 +428,17 @@ const CustomerSettings = () => {
         
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
               {t('settings.language')}
             </label>
             <div className="mt-1">
               <LanguageSelector 
-                variant="settings"
+                variant="vertical"
                 showIcon={true}
                 className="w-full"
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-2">
               {t('settings.languageChangesApplied')}
             </p>
           </div>

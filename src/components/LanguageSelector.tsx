@@ -1,10 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe } from 'lucide-react';
+import { Globe, Check, ChevronDown } from 'lucide-react';
 
 interface LanguageSelectorProps {
   className?: string;
-  variant?: 'default' | 'footer' | 'settings';
+  variant?: 'default' | 'footer' | 'settings' | 'vertical';
   showIcon?: boolean;
 }
 
@@ -40,7 +40,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   variant = 'default',
   showIcon = true
 }) => {
-  const { i18n, t } = useTranslation();
+  const { i18n } = useTranslation();
 
   const handleLanguageChange = (languageCode: string) => {
     i18n.changeLanguage(languageCode);
@@ -78,9 +78,17 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       case 'settings':
         return {
           container: 'relative',
-          button: 'flex items-center justify-between w-full px-3 py-2 text-left bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:bg-gray-100 transition-colors',
-          dropdown: 'absolute z-50 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto',
-          item: 'cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-50 transition-colors'
+          button: 'flex items-center justify-between w-full px-4 py-3 text-left bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:from-gray-100 hover:to-gray-200 transition-all duration-200',
+          dropdown: 'absolute z-50 mt-2 w-full bg-white shadow-xl max-h-60 rounded-lg py-2 text-base ring-1 ring-black ring-opacity-5 overflow-auto border border-gray-200',
+          item: 'cursor-pointer select-none relative py-3 px-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200'
+        };
+      
+      case 'vertical':
+        return {
+          container: 'w-full',
+          button: 'flex items-center justify-between w-full px-4 py-3 text-left bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:from-blue-100 hover:to-indigo-100 transition-all duration-200',
+          dropdown: 'mt-2 w-full bg-white shadow-xl rounded-lg py-2 text-base ring-1 ring-black ring-opacity-5 overflow-auto border border-gray-200',
+          item: 'cursor-pointer select-none relative py-3 px-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200'
         };
       
       default:
@@ -120,24 +128,21 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        {showIcon && <Globe className="w-4 h-4 mr-2" />}
-        <span className="flex items-center">
-          <span className="mr-2">{currentLanguage.flag}</span>
-          <span>{variant === 'settings' ? currentLanguage.nativeName : currentLanguage.name}</span>
-        </span>
-        <svg
-          className={`ml-2 -mr-1 h-5 w-5 transition-transform duration-200 ${isOpen ? 'transform rotate-180' : ''}`}
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <div className="flex items-center">
+          {showIcon && <Globe className="w-5 h-5 mr-3 text-blue-600" />}
+          <span className="text-2xl mr-3">{currentLanguage.flag}</span>
+          <div className="text-left">
+            <div className="font-semibold text-gray-900">
+              {variant === 'settings' || variant === 'vertical' ? currentLanguage.nativeName : currentLanguage.name}
+            </div>
+            {variant === 'settings' || variant === 'vertical' ? (
+              <div className="text-sm text-gray-500">{currentLanguage.name}</div>
+            ) : null}
+          </div>
+        </div>
+        <ChevronDown 
+          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isOpen ? 'transform rotate-180' : ''}`}
+        />
       </button>
 
       {isOpen && (
@@ -147,7 +152,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
               <button
                 key={language.code}
                 className={`${styles.item} ${
-                  language.code === i18n.language ? 'bg-blue-50 text-blue-600' : ''
+                  language.code === i18n.language ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-l-4 border-blue-500' : 'text-gray-700'
                 }`}
                 role="menuitem"
                 onClick={() => {
@@ -156,24 +161,13 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 }}
               >
                 <div className="flex items-center">
-                  <span className="mr-2">{language.flag}</span>
-                  <div>
-                    <div className="font-medium">{language.name}</div>
-                    <div className="text-xs text-gray-500">{language.nativeName}</div>
+                  <span className="text-2xl mr-4">{language.flag}</span>
+                  <div className="flex-1">
+                    <div className="font-semibold text-base">{language.name}</div>
+                    <div className="text-sm text-gray-500">{language.nativeName}</div>
                   </div>
                   {language.code === i18n.language && (
-                    <svg
-                      className="ml-auto h-5 w-5 text-blue-600"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <Check className="w-5 h-5 text-blue-600" />
                   )}
                 </div>
               </button>
