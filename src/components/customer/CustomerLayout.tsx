@@ -74,56 +74,9 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
   return (
     <NotificationProvider>
       <div dir={isArabic ? 'rtl' : 'ltr'} lang={isArabic ? 'ar' : i18n?.language} className={`flex h-screen bg-gray-50 customer-layout ${isArabic ? 'arabic-text' : ''}`}>
-        {/* Sidebar */}
-        <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 sidebar">
-          <div className="p-6 flex justify-between items-center">
-            <div className="brand-section">
-              <h2 className="text-2xl font-bold text-blue-600 brand-title">Vcarda</h2>
-              <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('menu.rewards')}</p>
-            </div>
-            <div className="flex items-center space-x-2 header-controls">
-              <NotificationIndicator />
-              <ThemeToggle variant="icon" />
-            </div>
-          </div>
-
-          <nav className="flex-1 px-4 pb-4 space-y-1 navigation">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center px-4 py-3 rounded-lg transition-colors nav-item ${
-                  isActive(item.path)
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span className="ml-3 nav-text">{item.name}</span>
-              </Link>
-            ))}
-          </nav>
-
-          <div className="border-t border-gray-200 p-4 footer-section">
-            <Link
-              to="/settings"
-              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg footer-item"
-            >
-              <Settings className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.settings')}</span>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left footer-item"
-            >
-              <LogOut className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.logout')}</span>
-            </button>
-          </div>
-        </aside>
-
-        {/* Mobile header */}
+        {/* Main Content Area */}
         <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Mobile header */}
           <header className="bg-white border-b border-gray-200 md:hidden mobile-header">
             <div className="flex items-center justify-between p-4">
               <h2 className="text-xl font-bold text-blue-600 mobile-brand">Vcarda</h2>
@@ -195,6 +148,54 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
           <GlobalNotificationCenter />
           <NotificationPopup />
         </div>
+
+        {/* Right Sidebar */}
+        <aside className="hidden md:flex md:flex-col w-64 bg-white border-l border-gray-200 sidebar">
+          <div className="p-6 flex justify-between items-center">
+            <div className="brand-section">
+              <h2 className="text-2xl font-bold text-blue-600 brand-title">Vcarda</h2>
+              <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('menu.rewards')}</p>
+            </div>
+            <div className="flex items-center space-x-2 header-controls">
+              <NotificationIndicator />
+              <ThemeToggle variant="icon" />
+            </div>
+          </div>
+
+          <nav className="flex-1 px-4 pb-4 space-y-1 navigation">
+            {menuItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center px-4 py-3 rounded-lg transition-colors nav-item ${
+                  isActive(item.path)
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="ml-3 nav-text">{item.name}</span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="border-t border-gray-200 p-4 footer-section">
+            <Link
+              to="/settings"
+              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg footer-item"
+            >
+              <Settings className="w-5 h-5 footer-icon" />
+              <span className="ml-3">{t('menu.settings')}</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left footer-item"
+            >
+              <LogOut className="w-5 h-5 footer-icon" />
+              <span className="ml-3">{t('menu.logout')}</span>
+            </button>
+          </div>
+        </aside>
       </div>
     </NotificationProvider>
   );

@@ -512,11 +512,11 @@ const BusinessSettings = () => {
   if (loading && !businessData) {
     return (
       <BusinessLayout>
-        <div className="flex flex-col items-center justify-center h-64 loading-state">
+        <div className="flex flex-col items-center justify-center h-64">
           <div className="flex items-center justify-center mb-4">
             <Loader className="w-8 h-8 text-blue-500 animate-spin" />
           </div>
-          <span className="text-lg text-gray-600">{t('business.Loading business settings...')}</span>
+          <span className="text-lg text-gray-600">{t('Loading business settings...')}</span>
         </div>
       </BusinessLayout>
     );
@@ -527,17 +527,17 @@ const BusinessSettings = () => {
     return (
       <BusinessLayout>
         <div className="max-w-5xl mx-auto mt-10">
-          <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700 error-state">
+          <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <h2 className="text-lg font-semibold flex items-center mb-2">
               <AlertCircle className="w-5 h-5 mr-2" />
-              {t('business.Error Loading Settings')}
+              {t('Error Loading Settings')}
             </h2>
             <p>{t(error)}</p>
             <button 
               onClick={() => loadBusinessSettings()} 
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              {t('business.Try Again')}
+              {t('Try Again')}
             </button>
           </div>
         </div>
@@ -549,13 +549,13 @@ const BusinessSettings = () => {
   if (!businessData || !formData) {
     return (
       <BusinessLayout>
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 empty-state">
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
               <AlertCircle className="h-5 w-5 text-yellow-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm text-yellow-700">{t('business.No business settings found')}</p>
+              <p className="text-sm text-yellow-700">No business settings found</p>
             </div>
           </div>
         </div>
@@ -567,12 +567,12 @@ const BusinessSettings = () => {
     if (!formData || !businessData) return null;
     
     return (
-      <div className="space-y-6 settings-section">
+      <div className="space-y-6">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
               <Building2 className="w-5 h-5 text-blue-500 mr-2" />
-              {t('business.Business Information')}
+              {t('Business Information')}
             </h2>
             {!editMode ? (
               <button
@@ -580,16 +580,16 @@ const BusinessSettings = () => {
                 className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 <Edit3 className="w-4 h-4 mr-1.5" />
-                {t('business.Edit')}
+                {t('Edit')}
               </button>
             ) : (
-              <div className="flex gap-2 action-buttons">
+              <div className="flex gap-2">
                 <button
                   onClick={handleCancelEdit}
                   className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
                 >
                   <X className="w-4 h-4 mr-1.5" />
-                  {t('business.Cancel')}
+                  {t('Cancel')}
                 </button>
                 <button
                   onClick={handleSaveSettings}
@@ -601,7 +601,7 @@ const BusinessSettings = () => {
                   ) : (
                     <Save className="w-4 h-4 mr-1.5" />
                   )}
-                  {t('business.Save')}
+                  {t('Save')}
                 </button>
               </div>
             )}
@@ -610,7 +610,7 @@ const BusinessSettings = () => {
           {saveSuccess && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
               <Check className="w-5 h-5 mr-2" />
-              {t('business.Your business settings have been successfully updated')}
+              {t('Your business settings have been successfully updated')}
             </div>
           )}
           
@@ -618,7 +618,7 @@ const BusinessSettings = () => {
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               <div className="flex items-center mb-1">
                 <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                <span className="font-medium">{t('business.Error Updating Settings')}</span>
+                <span className="font-medium">{t('Error Updating Settings')}</span>
               </div>
               <p className="ml-7">{t(errorMessage)}</p>
               <div className="ml-7 mt-2">
@@ -626,22 +626,22 @@ const BusinessSettings = () => {
                   onClick={() => setSaveError(false)}
                   className="text-xs text-red-700 underline hover:text-red-900 mr-4"
                 >
-                  {t('business.Dismiss')}
+                  {t('Dismiss')}
                 </button>
                 <button
                   onClick={handleSaveSettings}
                   className="text-xs text-blue-600 underline hover:text-blue-800"
                 >
-                  {t('business.Try Again')}
+                  {t('Try Again')}
                 </button>
               </div>
             </div>
           )}
           
-          <div className="grid gap-6 md:grid-cols-2 business-info-grid">
-            <div className="form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Business Name')}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Name')}
               </label>
               {editMode ? (
                 <input
@@ -652,20 +652,20 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 info-value">{businessData.businessName}</p>
+                <p className="text-gray-800">{businessData.businessName}</p>
               )}
             </div>
             
-            <div className="form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Business Email')}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Email')}
               </label>
-              <p className="text-gray-800 info-value">{businessData.email}</p>
+              <p className="text-gray-800">{businessData.email}</p>
             </div>
             
-            <div className="form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Phone Number')}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Phone Number')}
               </label>
               {editMode ? (
                 <input
@@ -676,13 +676,13 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 info-value">{businessData.phone}</p>
+                <p className="text-gray-800">{businessData.phone}</p>
               )}
             </div>
             
-            <div className="form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Website')}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Website')}
               </label>
               {editMode ? (
                 <input
@@ -694,21 +694,21 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 info-value">
+                <p className="text-gray-800">
                   {businessData.website ? (
                     <a href={businessData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
                       {businessData.website} <Link className="w-3 h-3 ml-1" />
                     </a>
                   ) : (
-                    t('business.Not specified')
+                    'Not specified'
                   )}
                 </p>
               )}
             </div>
             
-            <div className="md:col-span-2 form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Business Description')}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Description')}
               </label>
               {editMode ? (
                 <textarea
@@ -719,13 +719,13 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 info-value">{businessData.description || t('business.No description provided')}</p>
+                <p className="text-gray-800">{businessData.description || 'No description provided'}</p>
               )}
             </div>
             
-            <div className="md:col-span-2 form-group business-info-item">
-              <label className="block text-sm font-medium text-gray-700 mb-1 info-label">
-                {t('business.Business Address')}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('Business Address')}
               </label>
               {editMode ? (
                 <input
@@ -736,13 +736,13 @@ const BusinessSettings = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               ) : (
-                <p className="text-gray-800 whitespace-pre-line info-value">{businessData.address || t('business.No address provided')}</p>
+                <p className="text-gray-800 whitespace-pre-line">{businessData.address || 'No address provided'}</p>
               )}
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('business.Country')}
+                {t('Country')}
               </label>
               {editMode ? (
                 <select
@@ -751,15 +751,15 @@ const BusinessSettings = () => {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">{t('business.Select a country')}</option>
-                  <optgroup label={t('business.MENA Region')}>
+                  <option value="">{t('Select a country')}</option>
+                  <optgroup label={t('MENA Region')}>
                     {COUNTRIES.slice(0, 16).map(country => (
                       <option key={country.code} value={country.name}>
                         {country.name}
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label={t('business.Europe')}>
+                  <optgroup label={t('Europe')}>
                     {COUNTRIES.slice(16).map(country => (
                       <option key={country.code} value={country.name}>
                         {country.name}
@@ -774,7 +774,7 @@ const BusinessSettings = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('business.Currency')}
+                {t('Currency')}
               </label>
               {editMode ? (
                 <select
@@ -783,21 +783,21 @@ const BusinessSettings = () => {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <optgroup label={t('business.MENA Currencies')}>
+                  <optgroup label={t('MENA Currencies')}>
                     {CURRENCIES.slice(0, 16).map(currency => (
                       <option key={currency.code} value={currency.code}>
                         {currency.code} - {currency.name}
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label={t('business.European Currencies')}>
+                  <optgroup label={t('European Currencies')}>
                     {CURRENCIES.slice(16, 27).map(currency => (
                       <option key={currency.code} value={currency.code}>
                         {currency.code} - {currency.name}
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label={t('business.International')}>
+                  <optgroup label={t('International')}>
                     {CURRENCIES.slice(27).map(currency => (
                       <option key={currency.code} value={currency.code}>
                         {currency.code} - {currency.name}
@@ -817,24 +817,24 @@ const BusinessSettings = () => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('business.settings.language')}
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                {t('settings.language')}
               </label>
               <div className="mt-1">
                 <LanguageSelector 
-                  variant="settings"
+                  variant="vertical"
                   showIcon={true}
                   className="w-full"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {t('business.Language changes will be applied immediately')}
+              <p className="text-xs text-gray-500 mt-2">
+                {t('Language changes will be applied immediately')}
               </p>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('business.Member Since')}
+                {t('Member Since')}
               </label>
               <p className="text-gray-800">{new Date(businessData.joinDate).toLocaleDateString()}</p>
             </div>
@@ -849,7 +849,7 @@ const BusinessSettings = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center">
           <Clock className="w-5 h-5 text-blue-500 mr-2" />
-          {t('business.Business Hours')}
+          {t('Business Hours')}
         </h2>
         {!editMode ? (
           <button
@@ -857,7 +857,7 @@ const BusinessSettings = () => {
             className="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
             <Edit3 className="w-4 h-4 mr-1.5" />
-            {t('business.Edit')}
+            {t('Edit')}
           </button>
         ) : (
           <div className="flex gap-2">
@@ -866,14 +866,14 @@ const BusinessSettings = () => {
               className="flex items-center text-sm text-gray-600 hover:text-gray-800 font-medium"
             >
               <X className="w-4 h-4 mr-1.5" />
-              {t('business.Cancel')}
+              {t('Cancel')}
             </button>
             <button
               onClick={handleSaveSettings}
               className="flex items-center text-sm text-green-600 hover:text-green-800 font-medium"
             >
               <Save className="w-4 h-4 mr-1.5" />
-              {t('business.Save')}
+              {t('Save')}
             </button>
           </div>
         )}
@@ -882,7 +882,7 @@ const BusinessSettings = () => {
       {saveSuccess && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
           <Check className="w-5 h-5 mr-2" />
-          {t('business.Your business hours have been successfully updated')}
+          {t('Your business hours have been successfully updated')}
         </div>
       )}
       
@@ -890,7 +890,7 @@ const BusinessSettings = () => {
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
           <div className="flex items-center mb-1">
             <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-            <span className="font-medium">{t('business.Error Updating Settings')}</span>
+            <span className="font-medium">{t('Error Updating Settings')}</span>
           </div>
           <p className="ml-7">{t(errorMessage)}</p>
           <div className="ml-7 mt-2">
@@ -898,13 +898,13 @@ const BusinessSettings = () => {
               onClick={() => setSaveError(false)}
               className="text-xs text-red-700 underline hover:text-red-900 mr-4"
             >
-              {t('business.Dismiss')}
+              {t('Dismiss')}
             </button>
             <button
               onClick={handleSaveSettings}
               className="text-xs text-blue-600 underline hover:text-blue-800"
             >
-              {t('business.Try Again')}
+              {t('Try Again')}
             </button>
           </div>
         </div>
@@ -918,7 +918,7 @@ const BusinessSettings = () => {
           return (
             <div key={day} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium text-gray-700 capitalize">{t(`business.${day}`)}</h3>
+                <h3 className="font-medium text-gray-700 capitalize">{t(day)}</h3>
                 
                 {editMode ? (
                   <div className="flex items-center">
@@ -931,7 +931,7 @@ const BusinessSettings = () => {
                         onChange={() => handleBusinessHoursChange(day, 'isClosed', 'false')}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                       />
-                      <span className="ml-2 text-sm text-gray-600">{t('business.Open')}</span>
+                      <span className="ml-2 text-sm text-gray-600">{t('Open')}</span>
                     </label>
                     <label className="inline-flex items-center">
                       <input
@@ -942,12 +942,12 @@ const BusinessSettings = () => {
                         onChange={() => handleBusinessHoursChange(day, 'isClosed', 'true')}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                       />
-                      <span className="ml-2 text-sm text-gray-600">{t('business.Closed')}</span>
+                      <span className="ml-2 text-sm text-gray-600">{t('Closed')}</span>
                     </label>
                   </div>
                 ) : (
                   <span className={`text-sm font-medium px-2 py-1 rounded-full ${dayData?.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>
-                    {dayData?.isClosed ? t('business.Closed') : t('business.Open')}
+                    {dayData?.isClosed ? t('Closed') : t('Open')}
                   </span>
                 )}
               </div>
@@ -955,7 +955,7 @@ const BusinessSettings = () => {
               {!dayData?.isClosed && (
                 <div className="flex items-center gap-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('business.Open')}</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('Open')}</label>
                     {editMode ? (
                       <input
                         type="time"
@@ -971,7 +971,7 @@ const BusinessSettings = () => {
                   </div>
                   <div className="text-gray-400">—</div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('business.Close')}</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('Close')}</label>
                     {editMode ? (
                       <input
                         type="time"
@@ -999,7 +999,7 @@ const BusinessSettings = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 flex items-center">
           <DollarSign className="w-5 h-5 text-blue-500 mr-2" />
-          {t('business.Loyalty Program Settings')}
+          {t('Loyalty Program Settings')}
         </h2>
         {!editMode ? (
           <button
@@ -1007,7 +1007,7 @@ const BusinessSettings = () => {
             className="text-blue-600 hover:text-blue-800 flex items-center text-sm font-medium"
           >
             <Edit3 className="w-4 h-4 mr-1" />
-            {t('business.Edit')}
+            {t('Edit')}
           </button>
         ) : (
           <div className="flex space-x-2">
@@ -1021,14 +1021,14 @@ const BusinessSettings = () => {
               ) : (
                 <Save className="w-4 h-4 mr-1" />
               )}
-              {t('business.Save')}
+              {t('Save')}
             </button>
             <button
               onClick={handleCancelEdit}
               className="text-gray-500 hover:text-gray-700 px-3 py-1 rounded border border-gray-300 flex items-center text-sm"
             >
               <X className="w-4 h-4 mr-1" />
-              {t('business.Cancel')}
+              {t('Cancel')}
             </button>
           </div>
         )}
@@ -1042,7 +1042,7 @@ const BusinessSettings = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-green-700">
-                {t('business.Your loyalty program settings have been updated successfully.')}
+                {t('Your loyalty program settings have been updated successfully.')}
               </p>
             </div>
           </div>
@@ -1065,7 +1065,7 @@ const BusinessSettings = () => {
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('business.Points per Unit Spent')}
+            {t('Points per Unit Spent')}
           </label>
           <div className="relative">
             <input
@@ -1092,17 +1092,17 @@ const BusinessSettings = () => {
               step="0.1"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <span className="text-gray-500">{t('business.points')}</span>
+              <span className="text-gray-500">{t('points')}</span>
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {t('business.How many points customers earn for each unit spent at your business')}
+            {t('How many points customers earn for each unit spent at your business')}
           </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('business.Points Expiration')}
+            {t('Points Expiration')}
           </label>
           <div className="relative">
             <input
@@ -1128,17 +1128,17 @@ const BusinessSettings = () => {
               min="0"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <span className="text-gray-500">{t('business.days')}</span>
+              <span className="text-gray-500">{t('days')}</span>
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {t('business.Number of days until points expire (0 = never expire)')}
+            {t('Number of days until points expire (0 = never expire)')}
           </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('business.Minimum Points for Redemption')}
+            {t('Minimum Points for Redemption')}
           </label>
           <div className="relative">
             <input
@@ -1164,17 +1164,17 @@ const BusinessSettings = () => {
               min="0"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <span className="text-gray-500">{t('business.points')}</span>
+              <span className="text-gray-500">{t('points')}</span>
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {t('business.Minimum number of points required for customers to redeem rewards')}
+            {t('Minimum number of points required for customers to redeem rewards')}
           </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('business.Welcome Bonus')}
+            {t('Welcome Bonus')}
           </label>
           <div className="relative">
             <input
@@ -1200,20 +1200,20 @@ const BusinessSettings = () => {
               min="0"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <span className="text-gray-500">{t('business.points')}</span>
+              <span className="text-gray-500">{t('points')}</span>
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {t('business.Bonus points awarded to new customers when they join your loyalty program')}
+            {t('Bonus points awarded to new customers when they join your loyalty program')}
           </p>
         </div>
         
         <div className="pt-4 border-t border-gray-200">
-          <h3 className="font-medium text-gray-800 mb-2">{t('business.Points Value Calculator')}</h3>
+          <h3 className="font-medium text-gray-800 mb-2">{t('Points Value Calculator')}</h3>
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">{t('business.Customer spends')}</p>
+                <p className="text-sm text-gray-600 mb-1">{t('Customer spends')}</p>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
                     $
@@ -1227,12 +1227,12 @@ const BusinessSettings = () => {
                 </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600 mb-1">{t('business.Customer earns')}</p>
+                <p className="text-sm text-gray-600 mb-1">{t('Customer earns')}</p>
                 <div className="relative">
                   <input
                     type="text"
                     className="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-blue-50 text-blue-700 font-medium"
-                    value={`${(10 * (formData?.loyaltySettings.pointsPerDollar || 0)).toFixed(0)} ${t('business.points')}`}
+                    value={`${(10 * (formData?.loyaltySettings.pointsPerDollar || 0)).toFixed(0)} ${t('points')}`}
                     disabled
                   />
                 </div>
@@ -1248,20 +1248,20 @@ const BusinessSettings = () => {
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
       <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
         <Bell className="w-5 h-5 text-blue-500 mr-2" />
-        {t('business.Notification Preferences')}
+        {t('Notification Preferences')}
       </h2>
       
       {saveSuccess && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center">
           <Check className="w-5 h-5 mr-2" />
-          {t('business.Your notification settings have been successfully updated')}
+          {t('Your notification settings have been successfully updated')}
         </div>
       )}
       
       <div className="space-y-6">
         <div>
           <h3 className="text-md font-medium text-gray-700 mb-3">
-            {t('business.Notification Channels')}
+            {t('Notification Channels')}
           </h3>
           <div className="space-y-3">
             <div className="flex items-center">
@@ -1274,7 +1274,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="email-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('business.Email Notifications')}
+                {t('Email Notifications')}
               </label>
             </div>
             
@@ -1288,7 +1288,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="push-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('business.Push Notifications')}
+                {t('Push Notifications')}
               </label>
             </div>
             
@@ -1302,7 +1302,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="sms-notifications" className="ml-2 block text-sm text-gray-700">
-                {t('business.SMS Notifications')}
+                {t('SMS Notifications')}
               </label>
             </div>
           </div>
@@ -1310,7 +1310,7 @@ const BusinessSettings = () => {
         
         <div>
           <h3 className="text-md font-medium text-gray-700 mb-3">
-            {t('business.Notification Types')}
+            {t('Notification Types')}
           </h3>
           <div className="space-y-3">
             <div className="flex items-center">
@@ -1323,7 +1323,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="customer-activity" className="ml-2 block text-sm text-gray-700">
-                {t('business.Customer Activity (new sign-ups, redemptions)')}
+                {t('Customer Activity (new sign-ups, redemptions)')}
               </label>
             </div>
             
@@ -1337,7 +1337,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="promotion-stats" className="ml-2 block text-sm text-gray-700">
-                {t('business.Promotion Statistics and Reports')}
+                {t('Promotion Statistics and Reports')}
               </label>
             </div>
             
@@ -1351,7 +1351,7 @@ const BusinessSettings = () => {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label htmlFor="system-updates" className="ml-2 block text-sm text-gray-700">
-                {t('business.System Updates and Announcements')}
+                {t('System Updates and Announcements')}
               </label>
             </div>
           </div>
@@ -1363,7 +1363,7 @@ const BusinessSettings = () => {
           onClick={handleSaveSettings}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          {t('business.Save Preferences')}
+          {t('Save Preferences')}
         </button>
       </div>
     </div>
@@ -1373,7 +1373,7 @@ const BusinessSettings = () => {
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
       <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
         <Store className="w-5 h-5 text-blue-500 mr-2" />
-        {t('business.Third-Party Integrations')}
+        {t('Third-Party Integrations')}
       </h2>
       
       <div className="space-y-6">
@@ -1381,15 +1381,15 @@ const BusinessSettings = () => {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-medium text-gray-800">
-                {t('business.Point of Sale (POS) System')}
+                {t('Point of Sale (POS) System')}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {t('business.Connect your POS system to automatically award points on purchases')}
+                {t('Connect your POS system to automatically award points on purchases')}
               </p>
             </div>
             <div className="flex items-center">
               <span className={`mr-3 text-sm font-medium ${formData.integrations.pos ? 'text-green-600' : 'text-gray-500'}`}>
-                {formData.integrations.pos ? t('business.Connected') : t('business.Not Connected')}
+                {formData.integrations.pos ? t('Connected') : t('Not Connected')}
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -1409,15 +1409,15 @@ const BusinessSettings = () => {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-medium text-gray-800">
-                {t('business.Accounting Software')}
+                {t('Accounting Software')}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {t('business.Connect your accounting software to track loyalty program expenses')}
+                {t('Connect your accounting software to track loyalty program expenses')}
               </p>
             </div>
             <div className="flex items-center">
               <span className={`mr-3 text-sm font-medium ${formData.integrations.accounting ? 'text-green-600' : 'text-gray-500'}`}>
-                {formData.integrations.accounting ? t('business.Connected') : t('business.Not Connected')}
+                {formData.integrations.accounting ? t('Connected') : t('Not Connected')}
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -1437,15 +1437,15 @@ const BusinessSettings = () => {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-medium text-gray-800">
-                {t('business.Marketing Platform')}
+                {t('Marketing Platform')}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {t('business.Connect your marketing tools to send targeted promotions')}
+                {t('Connect your marketing tools to send targeted promotions')}
               </p>
             </div>
             <div className="flex items-center">
               <span className={`mr-3 text-sm font-medium ${formData.integrations.marketing ? 'text-green-600' : 'text-gray-500'}`}>
-                {formData.integrations.marketing ? t('business.Connected') : t('business.Not Connected')}
+                {formData.integrations.marketing ? t('Connected') : t('Not Connected')}
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -1465,15 +1465,15 @@ const BusinessSettings = () => {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-medium text-gray-800">
-                {t('business.CRM System')}
+                {t('CRM System')}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {t('business.Connect your CRM to sync customer data across platforms')}
+                {t('Connect your CRM to sync customer data across platforms')}
               </p>
             </div>
             <div className="flex items-center">
               <span className={`mr-3 text-sm font-medium ${formData.integrations.crm ? 'text-green-600' : 'text-gray-500'}`}>
-                {formData.integrations.crm ? t('business.Connected') : t('business.Not Connected')}
+                {formData.integrations.crm ? t('Connected') : t('Not Connected')}
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -1495,7 +1495,7 @@ const BusinessSettings = () => {
           onClick={handleSaveSettings}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          {t('business.Save Integration Settings')}
+          {t('Save Integration Settings')}
         </button>
       </div>
     </div>
@@ -1503,23 +1503,23 @@ const BusinessSettings = () => {
 
   return (
     <BusinessLayout>
-      <div className="space-y-6 pb-10 max-w-5xl mx-auto business-settings-page">
+      <div className="space-y-6 pb-10 max-w-5xl mx-auto">
         {/* Header */}
-        <div className={`transition-all duration-500 ease-out transform business-settings-header ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
                 <SettingsIcon className="w-6 h-6 text-blue-500 mr-2" />
-                {t('business.Business Settings')}
+                {t('Business Settings')}
               </h1>
-              <p className="text-gray-500 mt-1">{t('business.Manage your business profile, preferences and loyalty program settings')}</p>
+              <p className="text-gray-500 mt-1">{t('Manage your business profile, preferences and loyalty program settings')}</p>
             </div>
           </div>
         </div>
 
         {/* Settings Tabs */}
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-500 ease-out transform delay-100 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex border-b border-gray-200 overflow-x-auto settings-tabs">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
             <button
               onClick={() => setActiveTab('business')}
               className={`px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
@@ -1528,7 +1528,7 @@ const BusinessSettings = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('business.Business Profile')}
+              {t('Business Profile')}
             </button>
             <button
               onClick={() => setActiveTab('hours')}
@@ -1538,7 +1538,7 @@ const BusinessSettings = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('business.Business Hours')}
+              {t('Business Hours')}
             </button>
             <button
               onClick={() => setActiveTab('loyalty')}
@@ -1548,7 +1548,7 @@ const BusinessSettings = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('business.Loyalty Program')}
+              {t('Loyalty Program')}
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
@@ -1558,7 +1558,7 @@ const BusinessSettings = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('business.Notifications')}
+              {t('Notifications')}
             </button>
             <button
               onClick={() => setActiveTab('integrations')}
@@ -1568,13 +1568,13 @@ const BusinessSettings = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              {t('business.Integrations')}
+              {t('Integrations')}
             </button>
           </div>
         </div>
 
         {/* Settings Content */}
-        <div className={`transition-all duration-500 ease-out transform delay-200 settings-content ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`transition-all duration-500 ease-out transform delay-200 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           {activeTab === 'business' && renderBusinessSettings()}
           {activeTab === 'hours' && renderBusinessHours()}
           {activeTab === 'loyalty' && renderLoyaltySettings()}
@@ -1583,19 +1583,19 @@ const BusinessSettings = () => {
         </div>
         
         {/* Help Section */}
-        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 help-section ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 transition-all duration-500 ease-out transform delay-300 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <h2 className="text-lg font-medium text-gray-800 flex items-center mb-2">
             <HelpCircle className="w-5 h-5 text-indigo-500 mr-2" />
-            {t('business.Need Help?')}
+            {t('Need Help?')}
           </h2>
           <p className="text-gray-600 text-sm mb-4">
-            {t('business.If you have any questions about your business settings or loyalty program configuration, our support team is here to help.')}
+            {t('If you have any questions about your business settings or loyalty program configuration, our support team is here to help.')}
           </p>
           <button
-            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium help-button"
+            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
           >
             <Send className="w-4 h-4 mr-1.5" />
-            {t('business.Contact Business Support')}
+            {t('Contact Business Support')}
           </button>
         </div>
       </div>

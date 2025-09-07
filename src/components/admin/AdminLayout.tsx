@@ -341,7 +341,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 <LanguageSelector 
                   variant="default"
                   showIcon={true}
+<<<<<<< Current (Your changes)
                   className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+=======
+                  className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}
+>>>>>>> Incoming (Background Agent changes)
                 />
               </div>
               
