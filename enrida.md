@@ -44,7 +44,6 @@ Customer Dashboard → Notification Center → Accept/Decline → Automatic Proc
 Enrollment Approval → Database Transaction → Card Creation → Real-time Sync
 ```
 
-<<<<<<< Current (Your changes)
 ### Critical Code Paths
 1. `src/utils/db.ts`: Signature-aware procedure creation
 2. `src/services/customerNotificationService.ts`: Integer-safe ID handling
@@ -61,7 +60,7 @@ For issues or questions about this fix:
 ## Contributors
 - Claude (Implementation)
 - User feedback and testing
-=======
+
 **Features**:
 - Atomic database transactions
 - Automatic loyalty card generation
@@ -262,4 +261,3 @@ The enrollment system is now the foundation for a comprehensive loyalty program 
 *Last Updated: December 2024*
 *System Version: 2.0 - Enrollment Complete*
 *Status: PRODUCTION READY*
->>>>>>> Incoming (Background Agent changes)
