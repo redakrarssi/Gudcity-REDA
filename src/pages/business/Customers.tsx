@@ -429,13 +429,13 @@ const CustomersPage = () => {
 
   return (
     <BusinessLayout>
-      <div className="px-4 py-6 customers-page">
-        <div className="flex justify-between items-center mb-6 customers-header">
+      <div className="px-3 sm:px-4 py-4 sm:py-6 customers-page">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6 customers-header">
           <h1 className="text-2xl font-bold text-gray-900 customers-title">{t('business.Customers')}</h1>
-          <div className="flex space-x-3 customers-actions">
+          <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 customers-actions w-full sm:w-auto">
             <button
               onClick={handleRefreshCustomers}
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
+              className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center w-full sm:w-auto"
               disabled={loading}
             >
               {loading ? (
@@ -452,7 +452,7 @@ const CustomersPage = () => {
             </button>
             <button
               onClick={() => setShowLinkCustomers(true)}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
+              className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center w-full sm:w-auto"
             >
               <UserPlus className="w-5 h-5 mr-2" />
               {t('business.Link Customers')}
@@ -471,51 +471,51 @@ const CustomersPage = () => {
           </div>
         )}
         
-        <div className="flex justify-between items-center customers-main-header">
-          <h1 className="text-2xl font-semibold text-gray-800 customers-main-title">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between customers-main-header gap-3">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 customers-main-title">
             {t('business.Customer Friends')} 
-            <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full customers-count">
+            <span className="ml-2 text-xs sm:text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full customers-count">
               {filteredCustomers.length} {t('business.awesome people')}
             </span>
           </h1>
           
-          <div className="relative customers-search">
+          <div className="relative customers-search w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               placeholder={t('business.Find a customer friend...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 customers-grid">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 customers-grid">
           {/* Customers List */}
           <div className="lg:col-span-1 customers-list-container">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden customers-list-card">
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center customers-list-header">
+              <div className="p-3 sm:p-4 border-b border-gray-100 flex justify-between items-center customers-list-header">
                 <h2 className="font-medium text-gray-700 flex items-center customers-list-title">
                   <Users className="w-5 h-5 mr-2 text-blue-500" />
                   {t('business.Your Customer Squad')}
                 </h2>
-                <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center customers-filter-btn">
+                <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 flex items-center customers-filter-btn">
                   <Filter className="h-4 w-4 mr-1" />
                   {t('business.Filter')}
                 </button>
               </div>
               {loading ? (
-                <div className="flex justify-center items-center p-10 customers-loading">
+                <div className="flex justify-center items-center p-8 sm:p-10 customers-loading">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                 </div>
               ) : (
-                <div className="divide-y max-h-[600px] overflow-y-auto customers-list">
+                <div className="divide-y max-h-[60vh] overflow-y-auto customers-list">
                   {filteredCustomers.length > 0 ? filteredCustomers.map(customer => (
                     <div 
                       key={customer.id}
                       onClick={() => handleSelectCustomer(customer)}
-                      className={`p-4 cursor-pointer transition-colors hover:bg-blue-50 customer-item ${selectedCustomer?.id === customer.id ? 'bg-blue-50' : ''}`}
+                      className={`p-3 sm:p-4 cursor-pointer transition-colors hover:bg-blue-50 customer-item ${selectedCustomer?.id === customer.id ? 'bg-blue-50' : ''}`}
                     >
                       <div className="flex items-center customer-item-content">
                         <div className="flex-shrink-0 customer-avatar">
@@ -542,7 +542,7 @@ const CustomersPage = () => {
                       </div>
                     </div>
                   )) : (
-                    <div className="p-6 text-center text-gray-500 customers-empty-state">
+                    <div className="p-4 sm:p-6 text-center text-gray-500 customers-empty-state">
                       {searchTerm ? t('business.No customers match your search') : t('business.No customers found')}
                     </div>
                   )}
@@ -555,7 +555,7 @@ const CustomersPage = () => {
           <div className="lg:col-span-2 customer-details-container">
             {selectedCustomer ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className={`p-6 bg-gradient-to-r ${getTierColorClass(selectedCustomer.tier)}`}>
+                <div className={`p-4 sm:p-6 bg-gradient-to-r ${getTierColorClass(selectedCustomer.tier)}`}>
                   <div className="flex justify-between items-start">
                     <div>
                       <h2 className="text-2xl font-bold text-white mb-1">{selectedCustomer.name}</h2>
@@ -573,7 +573,7 @@ const CustomersPage = () => {
                   </div>
                 </div>
 
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-6">
                     <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 flex items-center justify-between">
                       <div>
@@ -610,7 +610,7 @@ const CustomersPage = () => {
                   </div>
 
                   <div className="space-y-6">
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
                       <h3 className="font-medium text-gray-700 mb-2 flex items-center">
                         <CreditCard className="w-4 h-4 mr-2" />
                         {t('business.Enrolled Programs')}
@@ -674,7 +674,7 @@ const CustomersPage = () => {
                   </div>
                 </div>
 
-                <div className="p-6 pt-0 flex gap-2 justify-end">
+                <div className="p-4 sm:p-6 pt-0 flex flex-col sm:flex-row gap-2 justify-end">
                   <button 
                     onClick={() => setShowSendPromoCode(true)}
                     className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105"

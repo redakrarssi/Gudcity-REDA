@@ -25,13 +25,14 @@ interface BusinessLayoutProps {
 }
 
 export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const { logout, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { businessUnreadCount } = useNotifications();
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const hasNotifications = businessUnreadCount > 0;
+  const isArabic = (i18n?.language || '').startsWith('ar');
 
   const menuItems = [
     { 
@@ -94,7 +95,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
 
   return (
     <>
-      <div className="flex h-screen bg-gray-50 business-layout">
+      <div dir={isArabic ? 'rtl' : 'ltr'} lang={isArabic ? 'ar' : i18n?.language} className={`flex h-screen bg-gray-50 business-layout ${isArabic ? 'arabic-text' : ''}`}>
         {/* Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 business-sidebar">
           <div className="p-6 flex justify-between items-center">

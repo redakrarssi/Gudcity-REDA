@@ -294,7 +294,7 @@ const PromotionsPage = () => {
             </div>
           </div>
         )}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 flex items-center">
               <Sparkles className="w-6 h-6 text-purple-500 mr-2" />
@@ -305,10 +305,10 @@ const PromotionsPage = () => {
             </p>
           </div>
           
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 w-full sm:w-auto">
             <button
               onClick={() => setShowPromoIdeas(!showPromoIdeas)}
-              className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition-colors border border-purple-100"
+              className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-100 transition-colors border border-purple-100 w-full sm:w-auto"
             >
               <Rocket className="w-5 h-5" />
               {t('business.Promo Ideas')}
@@ -316,7 +316,7 @@ const PromotionsPage = () => {
             
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm w-full sm:w-auto"
             >
               <Plus className="w-5 h-5" />
               {t('business.Create Promotion')}
@@ -326,7 +326,7 @@ const PromotionsPage = () => {
 
         {/* Stats Cards */}
         {stats && (
-          <div className={`grid grid-cols-1 md:grid-cols-4 gap-5 ${animationStyles.fadeIn}`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5 ${animationStyles.fadeIn}`}>
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 transform transition-transform hover:scale-105 duration-300">
               <div className="flex items-center justify-between">
                 <div>
@@ -454,10 +454,10 @@ const PromotionsPage = () => {
 
         {/* Promotions List */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          <div className="flex border-b border-gray-100 overflow-x-auto">
             <button
               onClick={() => setActiveTab('active')}
-              className={`px-4 py-3 text-sm font-medium ${
+              className={`px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium ${
                 activeTab === 'active'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -467,7 +467,7 @@ const PromotionsPage = () => {
             </button>
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-4 py-3 text-sm font-medium ${
+              className={`px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium ${
                 activeTab === 'all'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -482,22 +482,22 @@ const PromotionsPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Code')}
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Type')}
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Value')}
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Usage')}
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Status')}
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 sm:px-6 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('business.Actions')}
                     </th>
                   </tr>
@@ -509,22 +509,22 @@ const PromotionsPage = () => {
                       className={`hover:bg-gray-50 ${animationStyles.fadeIn}`}
                       style={{ animationDelay: `${index * 50}ms` }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{code.code}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getTypeColor(code.type)}`}>
                           {getTypeIcon(code.type)}
                           <span className="ml-1">{code.type}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                         {code.type === 'POINTS' 
                           ? `${code.value} ${t('business.points')}`
                           : formatAmount(code.value)
                         }
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex items-center">
                           <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2 max-w-[100px]">
                             <div 
@@ -541,12 +541,12 @@ const PromotionsPage = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(code.status)}`}>
                           {code.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right text-sm">
                         <div className="flex justify-end space-x-2">
                           <button
                             onClick={() => handleShowQRCode(code.code)}

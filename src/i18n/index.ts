@@ -10,9 +10,73 @@ const resources = {
       register: 'Register',
       dashboard: 'Dashboard',
       home: 'Home',
-      settings: 'Settings',
       logout: 'Logout',
       profile: 'Profile',
+      
+
+      // Settings page translations
+      settings: {
+        title: 'Settings',
+        manageAccountSettings: 'Manage your account settings',
+        loadingSettings: 'Loading settings...',
+        errorLoadingSettings: 'Error loading settings',
+        couldNotLoadSettings: 'Could not load your settings. Please try again.',
+
+        // Sections
+        personalSettings: 'Personal',
+        notifications: 'Notifications',
+        account: 'Account',
+
+        // Personal information
+        personalInformation: 'Personal Information',
+        fullName: 'Full Name',
+        emailAddress: 'Email Address',
+        phoneNumber: 'Phone Number',
+        memberSince: 'Member Since',
+        notSpecified: 'Not specified',
+        edit: 'Edit',
+        cancel: 'Cancel',
+        save: 'Save',
+        saving: 'Saving...',
+        settingsUpdatedSuccessfully: 'Your settings have been updated successfully',
+        errorUpdatingSettings: 'Error updating settings. Please try again.',
+
+        // Regional settings
+        regionalSettings: 'Regional Settings',
+        language: 'Language',
+        languageChangesApplied: 'Language changes will be applied immediately',
+        preferredCurrency: 'Preferred Currency',
+
+        // Notification settings
+        notificationSettings: 'Notification Settings',
+        communicationChannels: 'Communication Channels',
+        emailNotifications: 'Email Notifications',
+        pushNotifications: 'Push Notifications',
+        smsNotifications: 'SMS Notifications',
+        notificationTypes: 'Notification Types',
+        promotionsAndOffers: 'Promotions and Offers',
+        rewardsAndPointsUpdates: 'Rewards and Points Updates',
+        systemNotifications: 'System Notifications',
+        savePreferences: 'Save Preferences',
+
+        // Security & account
+        securitySettings: 'Security Settings',
+        changePassword: 'Change Password',
+        updateYourPassword: 'Update your password regularly to keep your account secure',
+        loginNotifications: 'Login Notifications',
+        getNotifiedOfNewLogins: 'Get notified of new logins to your account',
+        enabled: 'Enabled',
+        connectedAccounts: 'Connected Accounts',
+        deleteAccount: 'Delete Account',
+        permanentlyDeleteAccount: 'Permanently delete your account and all associated data',
+
+        // Help
+        needHelp: 'Need Help?',
+        supportTeamHelp: 'Our support team is here to help with your account settings.',
+        contactSupport: 'Contact Support'
+      },
+
+      
       
       // QR & Cards
       myQRCard: 'My QR Card',
@@ -29,6 +93,16 @@ const resources = {
       customers: 'Customers',
       programs: 'Programs',
       analytics: 'Analytics',
+      
+      // Business Menu Options
+      'Dashboard': 'Dashboard',
+      'Programs': 'Programs',
+      'Analytics': 'Analytics',
+      'Customers': 'Customers',
+      'Promotions': 'Promotions',
+      'QR Scanner': 'QR Scanner',
+      'Settings': 'Settings',
+      'Business Portal': 'Business Portal',
       
       // Common Actions
       save: 'Save',
@@ -387,6 +461,41 @@ const resources = {
         'No Programs Found': 'No Programs Found',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.',
         '{{value}} = 1 point': '{{value}} = 1 point',
+        
+        // Program Builder Translations
+        'Program Basics': 'Program Basics',
+        'Name and describe your loyalty program': 'Name and describe your loyalty program',
+        'Program Type': 'Program Type',
+        'Choose how customers earn rewards': 'Choose how customers earn rewards',
+        'Create Rewards': 'Create Rewards',
+        'Define what customers can redeem': 'Define what customers can redeem',
+        'Review & Launch': 'Review & Launch',
+        'Ready to launch your program?': 'Ready to launch your program?',
+        required: 'required',
+        mustBePositive: 'must be positive',
+        allRewardsRequired: 'all rewards are required',
+        'Create Your Loyalty Program': 'Create Your Loyalty Program',
+        'Give your program a memorable name and clear description to attract customers': 'Give your program a memorable name and clear description to attract customers',
+        'Program Name': 'Program Name',
+        exampleProgramName: 'e.g. Coffee Lovers Club',
+        'Program Description': 'Program Description',
+        programDescriptionPlaceholder: 'Describe what makes your loyalty program special...',
+        'Create Exciting Rewards': 'Create Exciting Rewards',
+        'Design rewards that will delight your customers and keep them coming back': 'Design rewards that will delight your customers and keep them coming back',
+        'Reward Tier': 'Reward Tier',
+        'Points Required': 'Points Required',
+        'Stamps Required': 'Stamps Required',
+        'Reward Description': 'Reward Description',
+        exampleReward: 'e.g. Free Coffee',
+        'Add Another Reward Tier': 'Add Another Reward Tier',
+        'Ready to Launch!': 'Ready to Launch!',
+        'Review your program details before launching it to your customers': 'Review your program details before launching it to your customers',
+        'Program Status': 'Program Status',
+        'Launch as Active': 'Launch as Active',
+        'Save as Draft': 'Save as Draft',
+        'Previous': 'Previous',
+        'Launch Program': 'Launch Program',
+        'Continue': 'Continue',
         
         // Activity types
         'POINTS_AWARDED': 'Points Awarded',
@@ -988,6 +1097,16 @@ const resources = {
       customers: 'العملاء',
       programs: 'البرامج',
       analytics: 'التحليلات',
+      
+      // Business Menu Options
+      'Dashboard': 'لوحة التحكم',
+      'Programs': 'البرامج',
+      'Analytics': 'التحليلات',
+      'Customers': 'العملاء',
+      'Promotions': 'العروض',
+      'QR Scanner': 'ماسح QR',
+      'Settings': 'الإعدادات',
+      'Business Portal': 'بوابة الأعمال',
       
       // Common Actions
       save: 'حفظ',
@@ -1998,6 +2117,16 @@ const resources = {
       programs: 'Programas',
       analytics: 'Análisis',
       
+      // Business Menu Options
+      'Dashboard': 'Panel de Control',
+      'Programs': 'Programas',
+      'Analytics': 'Análisis',
+      'Customers': 'Clientes',
+      'Promotions': 'Promociones',
+      'QR Scanner': 'Escáner QR',
+      'Settings': 'Configuración',
+      'Business Portal': 'Portal de Negocios',
+      
       // Common Actions
       save: 'Guardar',
       cancel: 'Cancelar',
@@ -3006,6 +3135,16 @@ const resources = {
       customers: 'Clients',
       programs: 'Programmes',
       analytics: 'Analyses',
+      
+      // Business Menu Options
+      'Dashboard': 'Tableau de Bord',
+      'Programs': 'Programmes',
+      'Analytics': 'Analyses',
+      'Customers': 'Clients',
+      'Promotions': 'Promotions',
+      'QR Scanner': 'Scanner QR',
+      'Settings': 'Paramètres',
+      'Business Portal': 'Portail Business',
       
       // Common Actions
       save: 'Enregistrer',

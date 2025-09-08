@@ -318,8 +318,8 @@ const BusinessDashboard = () => {
             <p className="header-subtitle text-gray-600 mt-1">{businessName}</p>
           </div>
           <div className="dashboard-actions mt-4 md:mt-0 flex flex-wrap gap-2">
-            <button
-              onClick={() => setShowScanner(true)}
+            <Link
+              to="/business/qr-scanner"
               className="action-button px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors"
             >
               <div className="flex items-center">
@@ -331,7 +331,7 @@ const BusinessDashboard = () => {
                   </div>
                 )}
               </div>
-            </button>
+            </Link>
             <button
               onClick={() => { setShowProgramBuilder(true); setSelectedProgram(null); }}
               className="action-button px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700 transition-colors"

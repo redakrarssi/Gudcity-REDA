@@ -142,7 +142,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 value={program.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg"
-                placeholder={t('business.e.g. Coffee Lovers Club')}
+                placeholder={t('business.exampleProgramName')}
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
             </div>
@@ -154,7 +154,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 rows={3}
                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder={t('business.Describe what makes your loyalty program special...')}
+                placeholder={t('business.programDescriptionPlaceholder')}
               />
               {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
             </div>
@@ -298,7 +298,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                             value={tier.reward}
                             onChange={(e) => handleRewardTierChange(index, 'reward', e.target.value)}
                             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder={t('business.e.g. Free Coffee')}
+                            placeholder={t('business.exampleReward')}
                           />
                         </div>
                       </div>
