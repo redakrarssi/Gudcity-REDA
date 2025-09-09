@@ -110,10 +110,10 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
                         )}
                         <div className="flex-1">
                           <h4 className="text-sm font-medium text-gray-900">
-                            {isEnrollment ? '👥' : '🎉'} {notification.customerName} {isEnrollment ? 'enrolled in' : `redeemed ${notification.points} points for`} <strong>{notification.reward}</strong>
+                            {isEnrollment ? '👥' : '🎉'} {notification.customerName} {isEnrollment ? t('notificationMessages.enrolledIn') : t('notificationMessages.redeemedPointsFor', { points: notification.points })} <strong>{notification.reward}</strong>
                           </h4>
                           <p className="text-sm text-gray-600 mt-1">
-                            Program: {notification.programName}
+                            {t('notificationMessages.program')}: {notification.programName}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             {formatRelative(notification.createdAt)}
@@ -126,11 +126,11 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
                               className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-md transition-colors duration-200 font-medium"
                             >
                               <Check className="h-3 w-3 inline mr-1" />
-                              Delivered
+                              {t('notificationMessages.delivered')}
                             </button>
                           ) : (
                             <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-md">
-                              Delivered
+                              {t('notificationMessages.delivered')}
                             </span>
                           )}
                         </div>

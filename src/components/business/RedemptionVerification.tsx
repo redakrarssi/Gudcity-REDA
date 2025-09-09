@@ -186,7 +186,7 @@ export const RedemptionVerification: React.FC<RedemptionVerificationProps> = ({ 
                   ? 'bg-green-100 text-green-800'
                   : 'bg-orange-100 text-orange-800'
               }`}>
-                {redemption.status === 'DELIVERED' ? '✅ Delivered' : '⏳ Pending'}
+                {redemption.status === 'DELIVERED' ? `✅ ${t('notificationMessages.delivered')}` : '⏳ Pending'}
               </span>
             </div>
 
@@ -232,7 +232,7 @@ export const RedemptionVerification: React.FC<RedemptionVerificationProps> = ({ 
                 <div className="flex items-center gap-3">
                   <Clock className="w-4 h-4 text-green-500" />
                   <div>
-                    <p className="text-xs text-green-600">{t('Delivered At')}</p>
+                    <p className="text-xs text-green-600">{t('notificationMessages.deliveredAt')}</p>
                     <p className="text-sm font-medium text-green-800">{formatDate(redemption.delivered_at)}</p>
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export const RedemptionVerification: React.FC<RedemptionVerificationProps> = ({ 
                   ) : (
                     <Check className="w-5 h-5" />
                   )}
-                  {t('Mark as Delivered')}
+                  {t('notificationMessages.markAsDelivered')}
                 </button>
                 <p className="text-xs text-gray-500 text-center mt-2">
                   {t('Click this button once you have delivered the reward to the customer')}
@@ -271,7 +271,7 @@ export const RedemptionVerification: React.FC<RedemptionVerificationProps> = ({ 
             <li>• {t('Customer shows you their 6-digit tracking code')}</li>
             <li>• {t('Enter the code above and click Verify')}</li>
             <li>• {t('Review the redemption details')}</li>
-            <li>• {t('Deliver the reward and click "Mark as Delivered"')}</li>
+            <li>• {t('notificationMessages.deliverTheRewardAndClick')}</li>
           </ul>
         </div>
       )}

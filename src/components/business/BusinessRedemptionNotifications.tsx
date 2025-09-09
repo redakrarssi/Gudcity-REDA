@@ -37,14 +37,14 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
       const diffMs = now.getTime() - date.getTime();
       const diffMinutes = Math.floor(diffMs / 60000);
       
-      if (diffMinutes < 1) return 'Just now';
-      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      if (diffMinutes < 1) return t('notificationMessages.justNow');
+      if (diffMinutes < 60) return t('notificationMessages.minutesAgo', { minutes: diffMinutes });
       const diffHours = Math.floor(diffMinutes / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffHours < 24) return t('notificationMessages.hoursAgo', { hours: diffHours });
       const diffDays = Math.floor(diffHours / 24);
-      return `${diffDays}d ago`;
+      return t('notificationMessages.daysAgo', { days: diffDays });
     } catch {
-      return 'Recently';
+      return t('notificationMessages.recently');
     }
   };
 
@@ -116,10 +116,10 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-semibold text-gray-900">
-                            {isEnrollment ? '👥' : '🎉'} {notification.customerName} {isEnrollment ? 'enrolled in' : `redeemed ${notification.points} points for`} <strong>{notification.reward}</strong>
+                            {isEnrollment ? '👥' : '🎉'} {notification.customerName} {isEnrollment ? t('notificationMessages.enrolledIn') : t('notificationMessages.redeemedPointsFor', { points: notification.points })} <strong>{notification.reward}</strong>
                           </h4>
                           <p className="text-xs text-gray-600 mt-1">
-                            Program: {notification.programName}
+                            {t('notificationMessages.program')}: {notification.programName}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             {formatTimeAgo(notification.createdAt)}
@@ -132,11 +132,11 @@ export const BusinessRedemptionNotifications: React.FC<BusinessRedemptionNotific
                               className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-md transition-colors duration-200 font-medium"
                             >
                               <Check className="h-3 w-3 inline mr-1" />
-                              Delivered
+                              {t('notificationMessages.delivered')}
                             </button>
                           ) : (
                             <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-md">
-                              Delivered
+                              {t('notificationMessages.delivered')}
                             </span>
                           )}
                         </div>

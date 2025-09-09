@@ -1122,7 +1122,23 @@ const resources = {
         rewardDelivered: 'Reward Delivered',
         businessDeliveredYourReward: '{{businessName}} has delivered your reward: {{rewardName}}',
         deliveryConfirmed: 'Delivery Confirmed',
-        yourRewardHasBeenDelivered: 'Your reward has been delivered by {{businessName}}. Enjoy your {{rewardName}}!'
+        yourRewardHasBeenDelivered: 'Your reward has been delivered by {{businessName}}. Enjoy your {{rewardName}}!',
+        
+        // Business Notifications
+        enrolledIn: 'enrolled in',
+        redeemedPointsFor: 'redeemed {{points}} points for',
+        program: 'Program',
+        delivered: 'Delivered',
+        markAsDelivered: 'Mark as Delivered',
+        deliverTheRewardAndClick: 'Deliver the reward and click "Mark as Delivered"',
+        
+        // Time Formatting
+        justNow: 'Just now',
+        minutesAgo: '{{minutes}}m ago',
+        hoursAgo: '{{hours}}h ago',
+        daysAgo: '{{days}}d ago',
+        recently: 'Recently',
+        deliveredAt: 'Delivered At'
       }
     },
   },
@@ -2197,7 +2213,23 @@ const resources = {
         rewardDelivered: 'تم تسليم المكافأة',
         businessDeliveredYourReward: '{{businessName}} قام بتسليم مكافأتك: {{rewardName}}',
         deliveryConfirmed: 'تم تأكيد التسليم',
-        yourRewardHasBeenDelivered: 'تم تسليم مكافأتك من قبل {{businessName}}. استمتع بـ {{rewardName}}!'
+        yourRewardHasBeenDelivered: 'تم تسليم مكافأتك من قبل {{businessName}}. استمتع بـ {{rewardName}}!',
+        
+        // إشعارات الأعمال
+        enrolledIn: 'انضم إلى',
+        redeemedPointsFor: 'استبدل {{points}} نقطة مقابل',
+        program: 'البرنامج',
+        delivered: 'تم التسليم',
+        markAsDelivered: 'تحديد كمُسلم',
+        deliverTheRewardAndClick: 'سلم المكافأة واضغط على "تحديد كمُسلم"',
+        
+        // تنسيق الوقت
+        justNow: 'الآن',
+        minutesAgo: 'منذ {{minutes}} دقيقة',
+        hoursAgo: 'منذ {{hours}} ساعة',
+        daysAgo: 'منذ {{days}} يوم',
+        recently: 'مؤخراً',
+        deliveredAt: 'تم التسليم في'
       }
     },
   },
@@ -3272,7 +3304,23 @@ const resources = {
         rewardDelivered: 'Recompensa Entregada',
         businessDeliveredYourReward: '{{businessName}} ha entregado tu recompensa: {{rewardName}}',
         deliveryConfirmed: 'Entrega Confirmada',
-        yourRewardHasBeenDelivered: 'Tu recompensa ha sido entregada por {{businessName}}. ¡Disfruta tu {{rewardName}}!'
+        yourRewardHasBeenDelivered: 'Tu recompensa ha sido entregada por {{businessName}}. ¡Disfruta tu {{rewardName}}!',
+        
+        // Notificaciones de Negocio
+        enrolledIn: 'se inscribió en',
+        redeemedPointsFor: 'canjeó {{points}} puntos por',
+        program: 'Programa',
+        delivered: 'Entregado',
+        markAsDelivered: 'Marcar como Entregado',
+        deliverTheRewardAndClick: 'Entrega la recompensa y haz clic en "Marcar como Entregado"',
+        
+        // Formato de Tiempo
+        justNow: 'Ahora mismo',
+        minutesAgo: 'hace {{minutes}}m',
+        hoursAgo: 'hace {{hours}}h',
+        daysAgo: 'hace {{days}}d',
+        recently: 'Recientemente',
+        deliveredAt: 'Entregado el'
       }
     },
   },
@@ -4347,7 +4395,23 @@ const resources = {
         rewardDelivered: 'Récompense Livrée',
         businessDeliveredYourReward: '{{businessName}} a livré votre récompense: {{rewardName}}',
         deliveryConfirmed: 'Livraison Confirmée',
-        yourRewardHasBeenDelivered: 'Votre récompense a été livrée par {{businessName}}. Profitez de votre {{rewardName}}!'
+        yourRewardHasBeenDelivered: 'Votre récompense a été livrée par {{businessName}}. Profitez de votre {{rewardName}}!',
+        
+        // Notifications d'Entreprise
+        enrolledIn: 's\'est inscrit dans',
+        redeemedPointsFor: 'a échangé {{points}} points contre',
+        program: 'Programme',
+        delivered: 'Livré',
+        markAsDelivered: 'Marquer comme Livré',
+        deliverTheRewardAndClick: 'Livrez la récompense et cliquez sur "Marquer comme Livré"',
+        
+        // Format de Temps
+        justNow: 'À l\'instant',
+        minutesAgo: 'il y a {{minutes}}m',
+        hoursAgo: 'il y a {{hours}}h',
+        daysAgo: 'il y a {{days}}j',
+        recently: 'Récemment',
+        deliveredAt: 'Livré le'
       }
     },
   },
