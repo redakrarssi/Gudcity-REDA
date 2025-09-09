@@ -332,6 +332,64 @@ export const QrCodeDb = {
       // Don't throw - rate limit failures should not stop processing
       console.error('Failed to increment rate limit:', error);
     }
+  },
+  
+  /**
+   * Get rate limit record by key
+   */
+  async getRateLimitRecord(key: string): Promise<any | null> {
+    try {
+      const result = await withRetryableQuery(() => sql`
+        SELECT * FROM rate_limits 
+        WHERE key = ${key} 
+        AND expires_at > NOW()
+        LIMIT 1
+      `);
+      
+      return result.length > 0 ? {
+        key: result[0].key,
+        attempts: result[0].attempts,
+        maxAttempts: result[0].max_attempts,
+        windowStart: new Date(result[0].created_at).getTime(),
+        windowSeconds: Math.floor((new Date(result[0].expires_at).getTime() - new Date(result[0].created_at).getTime()) / 1000),
+        blockUntil: result[0].block_until ? new Date(result[0].block_until).getTime() : undefined,
+        createdAt: new Date(result[0].created_at).getTime(),
+        updatedAt: new Date(result[0].updated_at).getTime()
+      } : null;
+    } catch (error) {
+      console.error('Failed to get rate limit record:', error);
+      return null;
+    }
+  },
+  
+  /**
+   * Upsert rate limit record
+   */
+  async upsertRateLimitRecord(record: any): Promise<void> {
+    try {
+      await withRetryableTransaction(async () => {
+        await sql`
+          INSERT INTO rate_limits (
+            key, attempts, max_attempts, expires_at, block_until, 
+            created_at, updated_at
+          ) VALUES (
+            ${record.key}, ${record.attempts}, ${record.maxAttempts},
+            ${new Date(record.windowStart + (record.windowSeconds * 1000))},
+            ${record.blockUntil ? new Date(record.blockUntil) : null},
+            ${new Date(record.createdAt)}, ${new Date(record.updatedAt)}
+          )
+          ON CONFLICT (key) DO UPDATE SET
+            attempts = EXCLUDED.attempts,
+            max_attempts = EXCLUDED.max_attempts,
+            expires_at = EXCLUDED.expires_at,
+            block_until = EXCLUDED.block_until,
+            updated_at = EXCLUDED.updated_at
+        `;
+      });
+    } catch (error) {
+      console.error('Failed to upsert rate limit record:', error);
+      // Don't throw - this is background persistence
+    }
   }
 };
 
