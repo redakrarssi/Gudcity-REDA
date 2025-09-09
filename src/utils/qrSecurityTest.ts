@@ -226,12 +226,12 @@ export class QrSecurityTest {
       const parsedSecureData = JSON.parse(secureQrString);
       
       // Test valid integrity
-      const validCheck = SecureQrGenerator.verifyQrCodeSecurity(parsedSecureData);
+      const validCheck = await SecureQrGenerator.verifyQrCodeSecurity(parsedSecureData);
       
       // Test tampered data
       const tamperedData = { ...parsedSecureData };
       tamperedData.customerName = 'Hacker';
-      const tamperedCheck = SecureQrGenerator.verifyQrCodeSecurity(tamperedData);
+      const tamperedCheck = await SecureQrGenerator.verifyQrCodeSecurity(tamperedData);
       
       return {
         testName: 'Integrity Verification',
@@ -368,7 +368,7 @@ export class QrSecurityTest {
       };
       
       const isExpired = SecureQrGenerator.isExpired(expiredData);
-      const securityCheck = SecureQrGenerator.verifyQrCodeSecurity(expiredData);
+      const securityCheck = await SecureQrGenerator.verifyQrCodeSecurity(expiredData);
       
       return {
         testName: 'Expired QR Code Handling',

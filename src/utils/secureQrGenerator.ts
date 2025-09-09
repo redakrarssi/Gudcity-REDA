@@ -92,12 +92,12 @@ export class SecureQrGenerator {
    * @param qrData - QR code data to verify
    * @returns Verification result
    */
-  static verifyQrCodeSecurity(qrData: any): {
+  static async verifyQrCodeSecurity(qrData: any): Promise<{
     isValid: boolean;
     errors: string[];
     warnings: string[];
     data?: any;
-  } {
+  }> {
     const errors: string[] = [];
     const warnings: string[] = [];
     

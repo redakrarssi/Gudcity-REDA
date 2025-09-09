@@ -370,7 +370,7 @@ const convertToScanData = (data: StandardQrCodeData | null | undefined): ScanDat
  * @param text - The raw text from the QR code
  * @returns The parsed QR code data or null if invalid
  */
-const parseQrCodeData = (text: string): QrCodeData | null => {
+const parseQrCodeData = async (text: string): Promise<QrCodeData | null> => {
   try {
     // SECURITY: Use secure parser with sanitization
     let parsedData: unknown;
@@ -384,7 +384,7 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
     
     // SECURITY: Verify integrity if present
     if (parsedData && typeof parsedData === 'object' && 'integrity' in parsedData) {
-      const securityCheck = SecureQrGenerator.verifyQrCodeSecurity(parsedData);
+      const securityCheck = await SecureQrGenerator.verifyQrCodeSecurity(parsedData);
       if (!securityCheck.isValid) {
         debugLog('QR code security check failed:', securityCheck.errors);
         extendedQrScanMonitor.recordFailedScan('QR code security validation failed', text);
@@ -1114,7 +1114,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
       // If not handled by the enhanced customer validation, continue with standard flow
       // Use the enhanced parseQrCodeData with runtime validation
-      const qrCodeData = parseQrCodeData(decodedText);
+      const qrCodeData = await parseQrCodeData(decodedText);
       
       if (!qrCodeData) {
         setErrorState('Invalid QR code format');
