@@ -2,7 +2,7 @@ import { QrCodeStorageService, QrCodeCreationParams } from './qrCodeStorageServi
 import { createStandardCustomerQRCode, StandardQrCodeData } from '../utils/standardQrCodeGenerator';
 import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
+import { createHmac } from '../utils/cryptoUtils';
 import sql from '../utils/db';
 import db from '../utils/databaseConnector';
 import { logger } from '../utils/logger';
@@ -56,7 +56,7 @@ export class UserQrCodeService {
     
     try {
       // Generate a unique token and ID for security
-      const uniqueToken = this.generateUniqueToken(user.id);
+      const uniqueToken = await this.generateUniqueToken(user.id);
       const qrUniqueId = uuidv4();
 
       // Convert user ID to string for consistency
@@ -328,10 +328,10 @@ export class UserQrCodeService {
   /**
    * Generate a unique token for the user based on their ID
    */
-  private static generateUniqueToken(userId: string | number): string {
-    const hmac = crypto.createHmac('sha256', this.SECRET_KEY);
-    hmac.update(userId.toString());
-    return hmac.digest('hex');
+  private static async generateUniqueToken(userId: string | number): Promise<string> {
+    const hmac = await createHmac('sha256', this.SECRET_KEY);
+    const token = await hmac.update(userId.toString()).digest('hex');
+    return token as string;
   }
 
   /**
@@ -706,7 +706,7 @@ export class UserQrCodeService {
       }
       
       // Generate a unique token for this loyalty card
-      const uniqueToken = this.generateUniqueToken(`${customerIdNum}-${businessIdNum}-${programIdNum}-${cardIdNum}`);
+      const uniqueToken = await this.generateUniqueToken(`${customerIdNum}-${businessIdNum}-${programIdNum}-${cardIdNum}`);
       const qrUniqueId = uuidv4();
 
       // Create QR code data
@@ -824,7 +824,7 @@ export class UserQrCodeService {
       }
 
       // Validate the signature - this now uses our enhanced verification
-      if (!QrCodeStorageService.validateQrCode(qrCode)) {
+      if (!(await QrCodeStorageService.validateQrCode(qrCode))) {
         return {
           isValid: false,
           message: 'QR code signature validation failed'
@@ -849,7 +849,7 @@ export class UserQrCodeService {
       // Verify the uniqueToken if present
       if (qrCode.qr_data?.uniqueToken) {
         try {
-          const expectedToken = this.generateUniqueToken(
+          const expectedToken = await this.generateUniqueToken(
             qrCode.qr_data.type === 'LOYALTY_CARD' 
               ? `${qrCode.customer_id}-${qrCode.business_id}-${qrCode.qr_data.programId}-${qrCode.qr_data.cardId}`
               : qrCode.customer_id

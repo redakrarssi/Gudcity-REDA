@@ -5,8 +5,7 @@
  * and cryptographic signatures to prevent tampering and replay attacks.
  */
 
-import crypto from 'crypto';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual, hexToUint8Array, generateRandomBytes } from './cryptoUtils';
 import { QrCodeData } from '../types/qrCode';
 import env from './env';
 
@@ -51,7 +50,7 @@ export class SecureQrGenerator {
       }
       
       // SECURITY: Generate cryptographically secure nonce
-      const nonce = crypto.randomBytes(this.NONCE_LENGTH).toString('hex');
+      const nonce = generateRandomBytes(this.NONCE_LENGTH);
       const timestamp = Date.now();
       const version = options.version || this.DEFAULT_VERSION;
       
@@ -72,13 +71,13 @@ export class SecureQrGenerator {
       
       // SECURITY: Calculate integrity check
       if (options.includeIntegrityCheck !== false) {
-        const integrity = this.calculateIntegrity(secureData);
+        const integrity = await this.calculateIntegrity(secureData);
         secureData.integrity = integrity;
       }
       
       // SECURITY: Add tamper protection signature
       if (options.includeTamperProtection !== false) {
-        const signature = this.createTamperProtectionSignature(secureData);
+        const signature = await this.createTamperProtectionSignature(secureData);
         secureData.signature = signature;
       }
       
@@ -140,7 +139,7 @@ export class SecureQrGenerator {
       
       // Verify integrity check if present
       if (qrData.integrity) {
-        const isIntegrityValid = this.verifyIntegrity(qrData);
+        const isIntegrityValid = await this.verifyIntegrity(qrData);
         if (!isIntegrityValid) {
           errors.push('Integrity check failed - data may have been modified');
         }
@@ -150,7 +149,7 @@ export class SecureQrGenerator {
       
       // Verify tamper protection signature if present
       if (qrData.signature) {
-        const isSignatureValid = this.verifyTamperProtectionSignature(qrData);
+        const isSignatureValid = await this.verifyTamperProtectionSignature(qrData);
         if (!isSignatureValid) {
           errors.push('Tamper protection signature invalid');
         }
@@ -181,15 +180,15 @@ export class SecureQrGenerator {
    * @param data - Data to calculate integrity for
    * @returns Integrity hash
    */
-  private static calculateIntegrity(data: any): string {
+  private static async calculateIntegrity(data: any): Promise<string> {
     try {
       // Create data without integrity field for calculation
       const { integrity, signature, ...dataForIntegrity } = data;
       
-      const hmac = createHmac('sha256', env.QR_SECRET_KEY);
-      hmac.update(JSON.stringify(dataForIntegrity));
+      const hmac = await createHmac('sha256', env.QR_SECRET_KEY);
+      const hash = await hmac.update(JSON.stringify(dataForIntegrity)).digest('hex');
       
-      return hmac.digest('hex');
+      return hash as string;
     } catch (error) {
       throw new Error('Failed to calculate integrity check');
     }
@@ -200,18 +199,18 @@ export class SecureQrGenerator {
    * @param qrData - QR code data with integrity field
    * @returns True if integrity is valid
    */
-  static verifyIntegrity(qrData: any): boolean {
+  static async verifyIntegrity(qrData: any): Promise<boolean> {
     try {
       if (!qrData.integrity) {
         return false;
       }
       
-      const expectedIntegrity = this.calculateIntegrity(qrData);
+      const expectedIntegrity = await this.calculateIntegrity(qrData);
       
       // SECURITY: Use timing-safe comparison to prevent timing attacks
-      return crypto.timingSafeEqual(
-        Buffer.from(qrData.integrity, 'hex'),
-        Buffer.from(expectedIntegrity, 'hex')
+      return timingSafeEqual(
+        hexToUint8Array(qrData.integrity),
+        hexToUint8Array(expectedIntegrity)
       );
     } catch (error) {
       console.error('Integrity verification failed:', error);
@@ -224,7 +223,7 @@ export class SecureQrGenerator {
    * @param data - Data to sign
    * @returns Signature
    */
-  private static createTamperProtectionSignature(data: any): string {
+  private static async createTamperProtectionSignature(data: any): Promise<string> {
     try {
       // Create data without signature field for signing
       const { signature, ...dataForSigning } = data;
@@ -233,10 +232,10 @@ export class SecureQrGenerator {
       const dataString = this.createCanonicalString(dataForSigning);
       
       // Create HMAC signature
-      const hmac = createHmac('sha256', env.QR_SECRET_KEY);
-      hmac.update(dataString);
+      const hmac = await createHmac('sha256', env.QR_SECRET_KEY);
+      const sig = await hmac.update(dataString).digest('hex');
       
-      return hmac.digest('hex');
+      return sig as string;
     } catch (error) {
       throw new Error('Failed to create tamper protection signature');
     }
@@ -247,18 +246,18 @@ export class SecureQrGenerator {
    * @param qrData - QR code data with signature
    * @returns True if signature is valid
    */
-  private static verifyTamperProtectionSignature(qrData: any): boolean {
+  private static async verifyTamperProtectionSignature(qrData: any): Promise<boolean> {
     try {
       if (!qrData.signature) {
         return false;
       }
       
-      const expectedSignature = this.createTamperProtectionSignature(qrData);
+      const expectedSignature = await this.createTamperProtectionSignature(qrData);
       
       // SECURITY: Use timing-safe comparison
-      return crypto.timingSafeEqual(
-        Buffer.from(qrData.signature, 'hex'),
-        Buffer.from(expectedSignature, 'hex')
+      return timingSafeEqual(
+        hexToUint8Array(qrData.signature),
+        hexToUint8Array(expectedSignature)
       );
     } catch (error) {
       console.error('Signature verification failed:', error);
@@ -386,7 +385,7 @@ export class SecureQrGenerator {
    * @returns Hex-encoded nonce
    */
   static generateNonce(length: number = this.NONCE_LENGTH): string {
-    return crypto.randomBytes(length).toString('hex');
+    return generateRandomBytes(length);
   }
   
   /**

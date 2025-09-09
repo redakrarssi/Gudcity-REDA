@@ -3,7 +3,6 @@ import { createStandardCustomerQRCode, createStandardPromoQRCode, createStandard
 import { QrCodeStorageService } from './qrCodeStorageService';
 import env from '../utils/env';
 import rateLimiter from '../utils/rateLimiter';
-import crypto from 'crypto';
 
 // Import the new validation and error handling utilities
 import { validateQrCodeData, safeValidateQrCode } from '../utils/qrCodeValidator';

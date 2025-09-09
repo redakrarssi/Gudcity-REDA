@@ -1,7 +1,6 @@
 import sql from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual, hexToUint8Array, generateRandomBytes } from '../utils/cryptoUtils';
 
 /**
  * Interface for QR Code data stored in the database
@@ -90,7 +89,7 @@ export class QrCodeStorageService {
         const verificationCode = this.generateVerificationCode();
         
         // Create a digital signature for added security
-        const signature = this.createDigitalSignature(params.data);
+        const signature = await this.createDigitalSignature(params.data);
         
         // Validate inputs before inserting
         if (!customerId || customerId <= 0) {
@@ -213,15 +212,14 @@ export class QrCodeStorageService {
   /**
    * Create a digital signature for QR code data validation
    */
-  private static createDigitalSignature(data: any): string {
+  private static async createDigitalSignature(data: any): Promise<string> {
     try {
       const dataString = typeof data === 'string' ? data : JSON.stringify(data);
       const timestamp = Math.floor(Date.now() / 1000);
       
-      // SECURE: Create HMAC with SHA-256
-      const hmac = createHmac('sha256', this.SECRET_KEY);
-      hmac.update(`${dataString}|${timestamp}`);
-      const signature = hmac.digest('hex');
+      // SECURE: Create HMAC with SHA-256 using Web Crypto API
+      const hmac = await createHmac('sha256', this.SECRET_KEY);
+      const signature = await hmac.update(`${dataString}|${timestamp}`).digest('hex');
       
       return `${signature}.${timestamp}`;
     } catch (error) {
@@ -233,7 +231,7 @@ export class QrCodeStorageService {
   /**
    * Validate QR code data using its digital signature
    */
-  static validateQrCode(qrCode: CustomerQrCode): boolean {
+  static async validateQrCode(qrCode: CustomerQrCode): Promise<boolean> {
     if (!qrCode || !qrCode.qr_data || !qrCode.digital_signature) {
       return false;
     }
@@ -254,16 +252,15 @@ export class QrCodeStorageService {
         return false;
       }
       
-      // SECURITY: Recreate HMAC signature
+      // SECURITY: Recreate HMAC signature using Web Crypto API
       const dataString = typeof qrCode.qr_data === 'string' ? qrCode.qr_data : JSON.stringify(qrCode.qr_data);
-      const hmac = createHmac('sha256', this.SECRET_KEY);
-      hmac.update(`${dataString}|${timestamp}`);
-      const computedSignature = hmac.digest('hex');
+      const hmac = await createHmac('sha256', this.SECRET_KEY);
+      const computedSignature = await hmac.update(`${dataString}|${timestamp}`).digest('hex');
       
-      // SECURITY: Use timing-safe comparison
-      return crypto.timingSafeEqual(
-        Buffer.from(expectedSignature, 'hex'),
-        Buffer.from(computedSignature, 'hex')
+      // SECURITY: Use timing-safe comparison with Web Crypto API
+      return timingSafeEqual(
+        hexToUint8Array(expectedSignature),
+        hexToUint8Array(computedSignature as string)
       );
     } catch (error) {
       console.error('Error validating QR code signature:', error);
@@ -608,7 +605,7 @@ export class QrCodeStorageService {
         // Create the new QR code with the transaction already started
         const newQrUniqueId = uuidv4();
         const verificationCode = this.generateVerificationCode();
-        const signature = this.createDigitalSignature(newQrCodeParams.data);
+        const signature = await this.createDigitalSignature(newQrCodeParams.data);
         
         // Convert IDs for the new QR code
         const customerId = typeof newQrCodeParams.customerId === 'string' 
