@@ -7,6 +7,7 @@ export type CustomerNotificationType =
   | 'POINTS_DEDUCTED'  // When points are deducted from customer account
   | 'PROMO_CODE'  // When a promo code is granted to customer
   | 'REWARD_AVAILABLE'  // When customer has enough points for a reward
+  | 'REWARD_DELIVERED'  // When business confirms delivery of a redeemed reward
   | 'CARD_EXPIRING'  // When loyalty card is about to expire
   | 'MILESTONE_REACHED'  // When customer reaches a milestone
   | 'PROGRAM_DELETED'  // When a program the customer is enrolled in gets deleted

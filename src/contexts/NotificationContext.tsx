@@ -302,10 +302,46 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Listen for custom redemption events
     window.addEventListener('redemption-notification', handleBusinessNotification as EventListener);
     
+    // Handle delivery confirmation notifications (for customers)
+    const handleDeliveryConfirmation = (event: CustomEvent) => {
+      console.log('📦 Delivery confirmation received:', event.detail);
+      
+      if (user.role === 'customer' && event.detail.customerId === user.id.toString()) {
+        const deliveryNotif = {
+          id: Date.now().toString(),
+          customerId: event.detail.customerId,
+          businessId: event.detail.businessId,
+          type: 'REWARD_DELIVERED',
+          title: 'Reward Delivered',
+          message: `${event.detail.businessName} has delivered your reward: ${event.detail.rewardName}`,
+          data: event.detail,
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          createdAt: event.detail.timestamp || new Date().toISOString(),
+          businessName: event.detail.businessName
+        };
+        
+        // Add to customer notifications
+        setNotifications(prev => [deliveryNotif, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        
+        // Show customer popup
+        setLatestNotification(deliveryNotif);
+        setShowPopup(true);
+        
+        console.log('✅ Delivery confirmation added to customer notifications:', deliveryNotif);
+      }
+    };
+    
+    // Listen for delivery confirmation events
+    window.addEventListener('delivery-confirmation', handleDeliveryConfirmation as EventListener);
+    
     return () => {
       notificationCleanup();
       approvalCleanup();
       window.removeEventListener('redemption-notification', handleBusinessNotification as EventListener);
+      window.removeEventListener('delivery-confirmation', handleDeliveryConfirmation as EventListener);
     };
   }, [user?.id, queryClient]);
 

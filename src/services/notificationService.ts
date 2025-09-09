@@ -892,7 +892,7 @@ export class NotificationService {
   }
 
   /**
-   * Complete a redemption notification (alias for updateRedemptionStatus with COMPLETED)
+   * Complete a redemption notification and send delivery confirmation to customer
    * @param notificationId ID of the notification
    * @returns Success status
    */
@@ -900,11 +900,98 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      // First, get the redemption notification details
+      const redemptionDetails = await sql`
+        SELECT 
+          rn.id,
+          rn.customer_id,
+          COALESCE(u.name, 'Customer') as customer_name,
+          rn.business_id,
+          COALESCE(b.name, 'Business') as business_name,
+          rn.program_id,
+          COALESCE(lp.name, 'Loyalty Program') as program_name,
+          rn.points,
+          rn.reward,
+          rn.reward_id,
+          rn.status
+        FROM redemption_notifications rn
+        LEFT JOIN users u ON CAST(rn.customer_id AS INTEGER) = u.id
+        LEFT JOIN users b ON CAST(rn.business_id AS INTEGER) = b.id
+        LEFT JOIN loyalty_programs lp ON CAST(rn.program_id AS INTEGER) = lp.id
+        WHERE rn.id = ${notificationId}
+      `;
+
+      if (redemptionDetails.length === 0) {
+        return {
+          success: false,
+          error: 'Redemption notification not found'
+        };
+      }
+
+      const redemption = redemptionDetails[0];
+
+      // Update the redemption notification status
       await sql`
         UPDATE redemption_notifications
         SET status = 'COMPLETED', is_read = TRUE, updated_at = NOW()
         WHERE id = ${notificationId}
       `;
+
+      // Send delivery confirmation notification to customer
+      try {
+        const { CustomerNotificationService } = await import('./customerNotificationService');
+        
+        await CustomerNotificationService.createNotification({
+          customerId: redemption.customer_id,
+          businessId: redemption.business_id,
+          type: 'REWARD_DELIVERED',
+          title: 'Reward Delivered',
+          message: `${redemption.business_name} has delivered your reward: ${redemption.reward}`,
+          data: {
+            businessName: redemption.business_name,
+            rewardName: redemption.reward,
+            programName: redemption.program_name,
+            points: redemption.points,
+            rewardId: redemption.reward_id,
+            originalNotificationId: notificationId,
+            deliveredAt: new Date().toISOString()
+          },
+          requiresAction: false,
+          actionTaken: false,
+          isRead: false,
+          priority: 'HIGH',
+          style: 'success'
+        });
+
+        console.log('✅ Delivery confirmation sent to customer:', {
+          customerId: redemption.customer_id,
+          customerName: redemption.customer_name,
+          businessName: redemption.business_name,
+          reward: redemption.reward
+        });
+
+        // Dispatch real-time event for customer dashboard
+        if (typeof window !== 'undefined') {
+          const customerEvent = new CustomEvent('delivery-confirmation', {
+            detail: {
+              type: 'REWARD_DELIVERED',
+              customerId: redemption.customer_id,
+              businessId: redemption.business_id,
+              businessName: redemption.business_name,
+              rewardName: redemption.reward,
+              programName: redemption.program_name,
+              points: redemption.points,
+              timestamp: new Date().toISOString()
+            }
+          });
+          window.dispatchEvent(customerEvent);
+          console.log('📡 Real-time delivery confirmation event dispatched');
+        }
+
+      } catch (customerNotificationError) {
+        console.error('⚠️ Failed to send delivery confirmation to customer:', customerNotificationError);
+        // Don't fail the entire operation if customer notification fails
+      }
       
       return { success: true };
     } catch (error) {

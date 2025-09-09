@@ -15,6 +15,7 @@ export type CustomerNotificationType =
   | 'POINTS_ADDED'
   | 'POINTS_DEDUCTED'
   | 'REWARD_AVAILABLE'
+  | 'REWARD_DELIVERED'
   | 'CARD_CREATED'
   | 'PROMO_CODE'
   | 'PROGRAM_DELETED'

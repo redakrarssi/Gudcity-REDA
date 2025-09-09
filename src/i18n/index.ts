@@ -1067,6 +1067,62 @@ const resources = {
           pricing: 'Pricing',
           comments: 'Comments'
         }
+      },
+      
+      // Notification Messages
+      notificationMessages: {
+        // Points and Rewards
+        youEarnedPoints: 'You earned {{points}} points!',
+        youEarnedPointsAt: 'You\'ve earned {{points}} points at {{businessName}} for the {{programName}} program.',
+        youRedeemedReward: 'You redeemed a reward!',
+        youRedeemedRewardFor: 'You\'ve redeemed {{rewardName}} for {{points}} points at {{businessName}}.',
+        rewardRedeemed: 'Reward Redeemed',
+        youSuccessfullyRedeemed: 'You successfully redeemed your reward: {{rewardName}}',
+        
+        // QR Code Scanning
+        qrCodeScannedSuccessfully: 'QR Code Scanned Successfully',
+        youEarnedPointsAtBusiness: 'You earned {{points}} points at {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'Your QR code was successfully scanned at {{businessName}}',
+        qrCodeScanFailed: 'QR Code Scan Failed',
+        qrCodeScanProblem: 'There was a problem scanning your QR code at {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'QR Code Scanned',
+        qrCodeScannedBy: 'Your QR code was scanned by {{businessName}}',
+        
+        // Enrollment and Programs
+        programEnrollmentRequest: 'Program Enrollment Request',
+        loyaltyCardCreated: 'Loyalty Card Created',
+        yourLoyaltyCardReady: 'Your loyalty card for {{programName}} at {{businessName}} is ready',
+        businessWantsToEnroll: '{{businessName}} would like to enroll you in their {{programName}} loyalty program. Would you like to join?',
+        programDiscontinued: 'Program Discontinued',
+        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}}. Your points and rewards from this program are no longer available.',
+        
+        // Promo Codes
+        newPromoCodeFrom: 'New Promo Code from {{businessName}}',
+        youReceivedPromoCode: 'You\'ve received a new promo code: {{promoCode}}',
+        
+        // General
+        newEnrollmentIn: 'New enrollment in {{programName}}',
+        aReward: 'a reward',
+        noNotifications: 'No notifications yet',
+        
+        // Actions
+        accept: 'Accept',
+        decline: 'Decline',
+        markAsRead: 'Mark as read',
+        deleteNotification: 'Delete notification',
+        
+        // Status
+        processing: 'Processing...',
+        accepted: 'Accepted',
+        declined: 'Declined',
+        failed: 'Failed',
+        success: 'Success',
+        
+        // Delivery Confirmation
+        rewardDelivered: 'Reward Delivered',
+        businessDeliveredYourReward: '{{businessName}} has delivered your reward: {{rewardName}}',
+        deliveryConfirmed: 'Delivery Confirmed',
+        yourRewardHasBeenDelivered: 'Your reward has been delivered by {{businessName}}. Enjoy your {{rewardName}}!'
       }
     },
   },
@@ -2086,6 +2142,62 @@ const resources = {
           pricing: 'التسعير',
           comments: 'التعليقات'
         }
+      },
+      
+      // رسائل الإشعارات
+      notificationMessages: {
+        // النقاط والمكافآت
+        youEarnedPoints: 'لقد حصلت على {{points}} نقطة!',
+        youEarnedPointsAt: 'لقد حصلت على {{points}} نقطة في {{businessName}} لبرنامج {{programName}}.',
+        youRedeemedReward: 'لقد استبدلت مكافأة!',
+        youRedeemedRewardFor: 'لقد استبدلت {{rewardName}} مقابل {{points}} نقطة في {{businessName}}.',
+        rewardRedeemed: 'تم استبدال المكافأة',
+        youSuccessfullyRedeemed: 'لقد استبدلت مكافأتك بنجاح: {{rewardName}}',
+        
+        // مسح رمز الاستجابة السريعة
+        qrCodeScannedSuccessfully: 'تم مسح رمز QR بنجاح',
+        youEarnedPointsAtBusiness: 'لقد حصلت على {{points}} نقطة في {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'تم مسح رمز QR الخاص بك بنجاح في {{businessName}}',
+        qrCodeScanFailed: 'فشل مسح رمز QR',
+        qrCodeScanProblem: 'حدثت مشكلة في مسح رمز QR الخاص بك في {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'تم مسح رمز QR',
+        qrCodeScannedBy: 'تم مسح رمز QR الخاص بك بواسطة {{businessName}}',
+        
+        // التسجيل والبرامج
+        programEnrollmentRequest: 'طلب انضمام للبرنامج',
+        loyaltyCardCreated: 'تم إنشاء بطاقة الولاء',
+        yourLoyaltyCardReady: 'بطاقة الولاء الخاصة بك لبرنامج {{programName}} في {{businessName}} جاهزة',
+        businessWantsToEnroll: '{{businessName}} يود تسجيلك في برنامج الولاء {{programName}}. هل تود الانضمام؟',
+        programDiscontinued: 'تم إيقاف البرنامج',
+        programDiscontinuedMessage: 'تم إيقاف برنامج الولاء "{{programName}}" من قبل {{businessName}}. نقاطك ومكافآتك من هذا البرنامج لم تعد متاحة.',
+        
+        // رموز الخصم
+        newPromoCodeFrom: 'رمز خصم جديد من {{businessName}}',
+        youReceivedPromoCode: 'لقد تلقيت رمز خصم جديد: {{promoCode}}',
+        
+        // عام
+        newEnrollmentIn: 'انضمام جديد في {{programName}}',
+        aReward: 'مكافأة',
+        noNotifications: 'لا توجد إشعارات بعد',
+        
+        // الإجراءات
+        accept: 'قبول',
+        decline: 'رفض',
+        markAsRead: 'تحديد كمقروء',
+        deleteNotification: 'حذف الإشعار',
+        
+        // الحالة
+        processing: 'جاري المعالجة...',
+        accepted: 'مقبول',
+        declined: 'مرفوض',
+        failed: 'فشل',
+        success: 'نجح',
+        
+        // تأكيد التسليم
+        rewardDelivered: 'تم تسليم المكافأة',
+        businessDeliveredYourReward: '{{businessName}} قام بتسليم مكافأتك: {{rewardName}}',
+        deliveryConfirmed: 'تم تأكيد التسليم',
+        yourRewardHasBeenDelivered: 'تم تسليم مكافأتك من قبل {{businessName}}. استمتع بـ {{rewardName}}!'
       }
     },
   },
@@ -3105,6 +3217,62 @@ const resources = {
           pricing: 'Precios',
           comments: 'Comentarios'
         }
+      },
+      
+      // Mensajes de Notificaciones
+      notificationMessages: {
+        // Puntos y Recompensas
+        youEarnedPoints: '¡Has ganado {{points}} puntos!',
+        youEarnedPointsAt: 'Has ganado {{points}} puntos en {{businessName}} para el programa {{programName}}.',
+        youRedeemedReward: '¡Has canjeado una recompensa!',
+        youRedeemedRewardFor: 'Has canjeado {{rewardName}} por {{points}} puntos en {{businessName}}.',
+        rewardRedeemed: 'Recompensa Canjeada',
+        youSuccessfullyRedeemed: 'Has canjeado exitosamente tu recompensa: {{rewardName}}',
+        
+        // Escaneo de Código QR
+        qrCodeScannedSuccessfully: 'Código QR Escaneado Exitosamente',
+        youEarnedPointsAtBusiness: '¡Has ganado {{points}} puntos en {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'Tu código QR fue escaneado exitosamente en {{businessName}}',
+        qrCodeScanFailed: 'Falló el Escaneo del Código QR',
+        qrCodeScanProblem: 'Hubo un problema escaneando tu código QR en {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'Código QR Escaneado',
+        qrCodeScannedBy: 'Tu código QR fue escaneado por {{businessName}}',
+        
+        // Inscripción y Programas
+        programEnrollmentRequest: 'Solicitud de Inscripción al Programa',
+        loyaltyCardCreated: 'Tarjeta de Lealtad Creada',
+        yourLoyaltyCardReady: 'Tu tarjeta de lealtad para {{programName}} en {{businessName}} está lista',
+        businessWantsToEnroll: '{{businessName}} quiere inscribirte en su programa de lealtad {{programName}}. ¿Te gustaría unirte?',
+        programDiscontinued: 'Programa Descontinuado',
+        programDiscontinuedMessage: 'El programa de lealtad "{{programName}}" ha sido descontinuado por {{businessName}}. Tus puntos y recompensas de este programa ya no están disponibles.',
+        
+        // Códigos Promocionales
+        newPromoCodeFrom: 'Nuevo Código Promocional de {{businessName}}',
+        youReceivedPromoCode: 'Has recibido un nuevo código promocional: {{promoCode}}',
+        
+        // General
+        newEnrollmentIn: 'Nueva inscripción en {{programName}}',
+        aReward: 'una recompensa',
+        noNotifications: 'No hay notificaciones aún',
+        
+        // Acciones
+        accept: 'Aceptar',
+        decline: 'Rechazar',
+        markAsRead: 'Marcar como leído',
+        deleteNotification: 'Eliminar notificación',
+        
+        // Estado
+        processing: 'Procesando...',
+        accepted: 'Aceptado',
+        declined: 'Rechazado',
+        failed: 'Falló',
+        success: 'Éxito',
+        
+        // Confirmación de Entrega
+        rewardDelivered: 'Recompensa Entregada',
+        businessDeliveredYourReward: '{{businessName}} ha entregado tu recompensa: {{rewardName}}',
+        deliveryConfirmed: 'Entrega Confirmada',
+        yourRewardHasBeenDelivered: 'Tu recompensa ha sido entregada por {{businessName}}. ¡Disfruta tu {{rewardName}}!'
       }
     },
   },
@@ -4124,6 +4292,62 @@ const resources = {
           pricing: 'Tarifs',
           comments: 'Commentaires'
         }
+      },
+      
+      // Messages de Notifications
+      notificationMessages: {
+        // Points et Récompenses
+        youEarnedPoints: 'Vous avez gagné {{points}} points!',
+        youEarnedPointsAt: 'Vous avez gagné {{points}} points chez {{businessName}} pour le programme {{programName}}.',
+        youRedeemedReward: 'Vous avez échangé une récompense!',
+        youRedeemedRewardFor: 'Vous avez échangé {{rewardName}} contre {{points}} points chez {{businessName}}.',
+        rewardRedeemed: 'Récompense Échangée',
+        youSuccessfullyRedeemed: 'Vous avez échangé avec succès votre récompense: {{rewardName}}',
+        
+        // Scanner Code QR
+        qrCodeScannedSuccessfully: 'Code QR Scanné avec Succès',
+        youEarnedPointsAtBusiness: 'Vous avez gagné {{points}} points chez {{businessName}}!',
+        qrCodeSuccessfullyScanned: 'Votre code QR a été scanné avec succès chez {{businessName}}',
+        qrCodeScanFailed: 'Échec du Scan du Code QR',
+        qrCodeScanProblem: 'Il y a eu un problème lors du scan de votre code QR chez {{businessName}}. {{errorMessage}}',
+        qrCodeScanned: 'Code QR Scanné',
+        qrCodeScannedBy: 'Votre code QR a été scanné par {{businessName}}',
+        
+        // Inscription et Programmes
+        programEnrollmentRequest: 'Demande d\'Inscription au Programme',
+        loyaltyCardCreated: 'Carte de Fidélité Créée',
+        yourLoyaltyCardReady: 'Votre carte de fidélité pour {{programName}} chez {{businessName}} est prête',
+        businessWantsToEnroll: '{{businessName}} souhaite vous inscrire à leur programme de fidélité {{programName}}. Souhaitez-vous rejoindre?',
+        programDiscontinued: 'Programme Interrompu',
+        programDiscontinuedMessage: 'Le programme de fidélité "{{programName}}" a été interrompu par {{businessName}}. Vos points et récompenses de ce programme ne sont plus disponibles.',
+        
+        // Codes Promotionnels
+        newPromoCodeFrom: 'Nouveau Code Promo de {{businessName}}',
+        youReceivedPromoCode: 'Vous avez reçu un nouveau code promo: {{promoCode}}',
+        
+        // Général
+        newEnrollmentIn: 'Nouvelle inscription dans {{programName}}',
+        aReward: 'une récompense',
+        noNotifications: 'Aucune notification pour le moment',
+        
+        // Actions
+        accept: 'Accepter',
+        decline: 'Refuser',
+        markAsRead: 'Marquer comme lu',
+        deleteNotification: 'Supprimer la notification',
+        
+        // Statut
+        processing: 'Traitement en cours...',
+        accepted: 'Accepté',
+        declined: 'Refusé',
+        failed: 'Échec',
+        success: 'Succès',
+        
+        // Confirmation de Livraison
+        rewardDelivered: 'Récompense Livrée',
+        businessDeliveredYourReward: '{{businessName}} a livré votre récompense: {{rewardName}}',
+        deliveryConfirmed: 'Livraison Confirmée',
+        yourRewardHasBeenDelivered: 'Votre récompense a été livrée par {{businessName}}. Profitez de votre {{rewardName}}!'
       }
     },
   },

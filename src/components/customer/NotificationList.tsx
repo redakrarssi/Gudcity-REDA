@@ -37,6 +37,7 @@ enum CustomerNotificationType {
   POINTS_DEDUCTED = 'POINTS_DEDUCTED',
   PROMO_CODE = 'PROMO_CODE',
   PROGRAM_DELETED = 'PROGRAM_DELETED',
+  REWARD_DELIVERED = 'REWARD_DELIVERED',
   QR_SCANNED = 'QR_SCANNED'
 }
 
@@ -616,6 +617,8 @@ function getNotificationIcon(type: string) {
       return <Gift className="h-5 w-5 text-purple-600" />;
     case 'PROGRAM_DELETED':
       return <AlertTriangle className="h-5 w-5 text-red-600" />;
+    case 'REWARD_DELIVERED':
+      return <ThumbsUp className="h-5 w-5 text-green-600" />;
     case 'CARD_CREATED':
       return <Gift className="h-5 w-5 text-green-600" />;
     case 'QR_SCANNED':
