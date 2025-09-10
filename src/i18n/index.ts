@@ -1208,6 +1208,8 @@ const resources = {
       enrolledPrograms: 'البرامج المسجلة',
       browsePrograms: 'تصفح البرامج',
       transactions: 'المعاملات',
+      browse: 'تصفح',
+      history: 'السجل',
       
       // Program Messages
       noPrograms: 'لا توجد برامج مسجلة',

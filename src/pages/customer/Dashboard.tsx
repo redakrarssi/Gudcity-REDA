@@ -39,7 +39,7 @@ const CustomerDashboard = () => {
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [upcomingRewards, setUpcomingRewards] = useState<UpcomingReward[]>([]);
   const [rewardsLoading, setRewardsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // const [error, setError] = useState<string | null>(null);
   
   // Use authenticated user data - ensure we're using the full name from the database
   const userData = {
@@ -240,7 +240,7 @@ const CustomerDashboard = () => {
     console.log('Enrolling in program:', programId);
     
     if (!user?.id) {
-      setError('You must be logged in to enroll in a program');
+      // setError('You must be logged in to enroll in a program');
       return;
     }
     
@@ -291,7 +291,7 @@ const CustomerDashboard = () => {
     console.log('Redeeming reward:', rewardId, 'from program:', programId);
     
     if (!user?.id) {
-      setError('You must be logged in to redeem rewards');
+      // setError('You must be logged in to redeem rewards');
       return;
     }
     
@@ -331,7 +331,7 @@ const CustomerDashboard = () => {
       }
       
       const cardId = String(cards[0].id);
-      const rewardIdNum = parseInt(rewardId, 10);
+      // const rewardIdNum = parseInt(rewardId, 10);
       
       // Use the loyalty card service to redeem the reward with cardId and rewardId
       // This uses the correct reward_tiers table and proper database transaction
@@ -342,7 +342,7 @@ const CustomerDashboard = () => {
           userId,
           'REWARD_AVAILABLE',
           'Reward redeemed',
-          `You have successfully redeemed ${rewardName}`
+          `You have successfully redeemed the reward`
         );
       } else {
         await NotificationService.createNotification(
@@ -383,9 +383,9 @@ const CustomerDashboard = () => {
 
   return (
     <CustomerLayout>
-      <div className="space-y-8 customer-dashboard dashboard-container">
+      <div className="space-y-6 sm:space-y-8 customer-dashboard dashboard-container">
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-0">
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
               <Sparkles className="w-6 h-6 text-blue-500 mr-2" />
               {t('customerDashboard.title', 'Customer Dashboard')}
@@ -400,17 +400,17 @@ const CustomerDashboard = () => {
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-8 mb-8 relative overflow-hidden group">
+          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-sm opacity-30"></div>
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
             <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
             
-            <div className="relative flex flex-col md:flex-row justify-between items-center">
-              <div className="text-white mb-6 md:mb-0">
+            <div className="relative flex flex-col lg:flex-row justify-between items-center">
+              <div className="text-white mb-6 lg:mb-0">
                 <h2 className="text-2xl font-bold">{t('welcomeBack')}, {userData.name}!</h2>
                 <p className="opacity-80 mt-2 text-blue-100">{t('scanQRCode')}</p>
                 
-                <div className="flex items-center mt-4 text-sm space-x-4">
+                <div className="flex flex-wrap items-center mt-4 text-sm gap-2 sm:gap-4">
                   {!pointsLoading && (
                     <>
                       <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
@@ -427,7 +427,7 @@ const CustomerDashboard = () => {
                   )}
                 </div>
               </div>
-              <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20 qr-card-container">
+              <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-3 sm:p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20 qr-card-container">
                 <QRCard userId={userData.id} displayName={userData.name} />
                 <div className="mt-2 text-center text-xs text-white/80">{t('tapToEnlarge')}</div>
               </div>
@@ -437,35 +437,38 @@ const CustomerDashboard = () => {
 
         <div className={`bg-white rounded-xl shadow-xl border border-gray-100 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ transitionDelay: '200ms' }}>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="border-b px-6 pt-5 pb-2">
-              <div className="bg-gray-100/70 p-1 rounded-lg inline-flex">
-                <TabsList>
+            <div className="border-b px-4 sm:px-6 pt-4 sm:pt-5 pb-2">
+              <div className="bg-gray-100/70 p-1 rounded-lg inline-flex w-full sm:w-auto">
+                <TabsList className="grid w-full grid-cols-3 sm:flex sm:w-auto">
                   <TabsTrigger 
                     value="enrolled" 
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
+                    className="flex items-center justify-center py-2 sm:py-2.5 px-2 sm:px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all text-xs sm:text-sm"
                   >
-                    <BadgeCheck className="w-4 h-4 mr-2" />
-                    {t('enrolledPrograms')}
+                    <BadgeCheck className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">{t('enrolledPrograms')}</span>
+                    <span className="sm:hidden">{t('enrolled')}</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="browse"
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
+                    className="flex items-center justify-center py-2 sm:py-2.5 px-2 sm:px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all text-xs sm:text-sm"
                   >
-                    <Search className="w-4 h-4 mr-2" />
-                    {t('browsePrograms')}
+                    <Search className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">{t('browsePrograms')}</span>
+                    <span className="sm:hidden">{t('browse')}</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="transactions"
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
+                    className="flex items-center justify-center py-2 sm:py-2.5 px-2 sm:px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all text-xs sm:text-sm"
                   >
-                    <Receipt className="w-4 h-4 mr-2" />
-                    {t('transactions')}
+                    <Receipt className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">{t('transactions')}</span>
+                    <span className="sm:hidden">{t('history')}</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <TabsContent value="enrolled">
                 <EnrolledPrograms onRedeem={handleRedeem} />
               </TabsContent>
@@ -481,8 +484,8 @@ const CustomerDashboard = () => {
           </Tabs>
         </div>
         
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ transitionDelay: '400ms' }}>
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ transitionDelay: '400ms' }}>
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg border border-gray-100 p-4 sm:p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Activity className="w-4 h-4 text-blue-500 mr-1.5" />
@@ -530,7 +533,7 @@ const CustomerDashboard = () => {
             )}
           </div>
           
-          <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-blue-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
+          <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Gift className="w-4 h-4 text-blue-500 mr-1.5" />
@@ -582,7 +585,7 @@ const CustomerDashboard = () => {
             )}
           </div>
           
-          <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-lg border border-purple-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1">
+          <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-lg border border-purple-100 p-4 sm:p-6 hover:shadow-xl transition-all hover:-translate-y-1">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-gray-800 flex items-center">
                 <Sparkles className="w-4 h-4 text-purple-500 mr-1.5" />
