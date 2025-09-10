@@ -78,7 +78,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Mobile header */}
           <header className="bg-white border-b border-gray-200 md:hidden mobile-header">
-            <div className="flex items-center justify-between p-4">
+            <div className="flex items-center justify-between p-3 sm:p-4">
               <h2 className="text-xl font-bold text-blue-600 mobile-brand">Vcarda</h2>
               <div className="flex items-center mobile-controls">
                 <ThemeToggle variant="icon" className="mr-2 mobile-control" />
@@ -99,7 +99,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
             {/* Mobile Menu */}
             {mobileMenuOpen && (
               <div className="bg-white border-b border-gray-200 py-2 mobile-menu">
-                <nav className="px-4 space-y-1 mobile-nav">
+                <nav className="px-3 sm:px-4 space-y-1 mobile-nav">
                   {menuItems.map((item) => (
                     <Link
                       key={item.path}
@@ -138,7 +138,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
             )}
           </header>
 
-          <main className="flex-1 overflow-auto bg-gray-50 p-4">
+          <main className="flex-1 overflow-auto bg-gray-50 p-2 sm:p-4">
             <div className="max-w-7xl mx-auto">
               {children}
             </div>

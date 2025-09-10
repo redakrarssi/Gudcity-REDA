@@ -5317,3 +5317,118 @@
     text-align: right;
   }
 }
+
+/* Enhanced mobile RTL support for customer dashboard */
+@media (max-width: 640px) {
+  [dir="rtl"] .customer-dashboard .dashboard-container {
+    padding: 0.5rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .dashboard-container .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .flex.flex-col.sm\\:flex-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .bg-gradient-to-r {
+    padding: 1rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .flex.flex-col.lg\\:flex-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-dashboard .flex.flex-wrap.items-center {
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .qr-card-container {
+    margin-top: 1rem;
+    width: 100%;
+    max-width: 200px;
+  }
+  
+  [dir="rtl"] .customer-dashboard .tabs-list {
+    width: 100%;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  
+  [dir="rtl"] .customer-dashboard .tabs-trigger {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .tabs-trigger .lucide {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  [dir="rtl"] .customer-dashboard .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  [dir="rtl"] .customer-dashboard .flex.flex-col.lg\\:flex-row {
+    flex-direction: row;
+    align-items: center;
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-dashboard .qr-card-container {
+    margin-top: 0;
+    margin-right: 1rem;
+  }
+}
+
+/* Mobile RTL improvements for activity cards */
+@media (max-width: 640px) {
+  [dir="rtl"] .customer-dashboard .activity-card {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+  
+  [dir="rtl"] .customer-dashboard .activity-card .lucide {
+    margin-left: 0.75rem;
+    margin-right: 0;
+  }
+  
+  [dir="rtl"] .customer-dashboard .reward-progress {
+    direction: ltr; /* Keep progress bars LTR for visual consistency */
+  }
+  
+  [dir="rtl"] .customer-dashboard .trending-rewards .lucide {
+    margin-left: 0.5rem;
+    margin-right: 0;
+  }
+}
+
+/* Mobile RTL improvements for tabs */
+@media (max-width: 640px) {
+  [dir="rtl"] .customer-dashboard .tabs-list {
+    direction: rtl;
+  }
+  
+  [dir="rtl"] .customer-dashboard .tabs-trigger {
+    direction: rtl;
+    text-align: center;
+  }
+  
+  [dir="rtl"] .customer-dashboard .tabs-trigger .lucide {
+    margin-left: 0.25rem;
+    margin-right: 0;
+  }
+}
