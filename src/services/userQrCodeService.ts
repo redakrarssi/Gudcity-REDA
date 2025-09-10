@@ -6,6 +6,7 @@ import { createHmac } from '../utils/cryptoUtils';
 import sql from '../utils/db';
 import db from '../utils/databaseConnector';
 import { logger } from '../utils/logger';
+import QrDataManager from '../utils/qrDataManager';
 import { Customer } from '../types/customer';
 import { QRCodeData } from '../types/qrCode';
 
@@ -135,11 +136,15 @@ export class UserQrCodeService {
           cardType
         };
         
+        // 🔒 Apply encryption to protect sensitive customer data (customerName)
+        // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
+        const encryptedQrData = await QrDataManager.prepareForGeneration(qrData);
+        
         // Try to store the QR code
         const params: QrCodeCreationParams = {
           customerId: userId,
           qrType: 'CUSTOMER_CARD',
-          data: JSON.stringify(qrData),
+          data: encryptedQrData,
           imageUrl: qrImageUrl,
           isPrimary: true,
           expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 365 days (1 year)

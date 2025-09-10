@@ -21,6 +21,7 @@ import {
 import { SecureJsonParser } from '../utils/secureJsonParser';
 import { XssProtection } from '../utils/xssProtection';
 import { SecureQrGenerator } from '../utils/secureQrGenerator';
+import QrDataManager from '../utils/qrDataManager';
 import { validateQrCodeData, isQrCodeData, isCustomerQrCodeData, isLoyaltyCardQrCodeData, isPromoCodeQrCodeData, monitorTypeViolation } from '../utils/runtimeTypeValidator';
 import type { NotificationType } from '../types/notification';
 import { CustomerNotificationService } from '../services/customerNotificationService';
@@ -1058,6 +1059,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         setErrorState('Invalid QR code format (not valid JSON)');
         playSound('error');
         return;
+      }
+
+      // 🔓 Decrypt data if it's encrypted (business dashboard can see customer details)
+      try {
+        const decryptedData = await QrDataManager.prepareForBusiness(decodedText);
+        if (decryptedData && typeof decryptedData === 'object') {
+          parsedData = decryptedData;
+          debugLog('🔓 QR data decrypted for business dashboard', QrDataManager.getSafePreview(decryptedData));
+        }
+      } catch (decryptError) {
+        // If decryption fails, continue with original parsed data (backward compatibility)
+        debugLog('Decryption failed, using original data:', decryptError);
       }
 
       // Enhanced validation for customer type
