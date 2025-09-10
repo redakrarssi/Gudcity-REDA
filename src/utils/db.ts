@@ -127,6 +127,27 @@ class DbConnectionManager {
   }
 
   public getInstance(): any {
+    // Lazy initialize if the instance is missing
+    if (!this.neonInstance) {
+      if (!hasDbUrl) {
+        throw new Error('Database URL not configured (VITE_DATABASE_URL)');
+      }
+      this.initConnection();
+    }
+
+    // Ensure we return a callable query function
+    if (typeof this.neonInstance !== 'function') {
+      try {
+        this.neonInstance = neon(DATABASE_URL);
+      } catch (err) {
+        console.error('Failed to create Neon client instance:', err);
+      }
+    }
+
+    if (typeof this.neonInstance !== 'function') {
+      throw new Error('Database client not initialized correctly');
+    }
+
     return this.neonInstance;
   }
   
