@@ -265,16 +265,16 @@ const Programs = () => {
                 {t('business.Loyalty Programs')}
               </h1>
               <PermissionGate permission={PERMISSIONS.PROGRAMS_CREATE}>
-                <button
-                  onClick={() => {
-                    setSelectedProgram(null);
-                    setShowProgramBuilder(true);
-                  }}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors create-program-btn"
-                >
-                  <Plus className="w-5 h-5" />
-                  {t('business.Create Program')}
-                </button>
+              <button
+                onClick={() => {
+                  setSelectedProgram(null);
+                  setShowProgramBuilder(true);
+                }}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors create-program-btn"
+              >
+                <Plus className="w-5 h-5" />
+                {t('business.Create Program')}
+              </button>
               </PermissionGate>
             </div>
 

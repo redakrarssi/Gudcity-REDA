@@ -356,7 +356,7 @@ function App() {
 
                       <Route path="settings" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.profile.view" blockRestricted>
+                          <ProtectedRoute requiredPermission="business.settings.access" blockRestricted>
                             <BusinessSettings />
                           </ProtectedRoute>
                         </ErrorBoundary>
