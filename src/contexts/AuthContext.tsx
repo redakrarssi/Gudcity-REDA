@@ -84,6 +84,8 @@ interface User {
   business_name?: string;
   business_phone?: string;
   status?: 'active' | 'banned' | 'restricted';
+  permissions?: any; // Staff permissions from userService
+  business_owner_id?: number; // For staff users
 }
 
 /**
@@ -185,7 +187,9 @@ function convertDbUserToUser(dbUser: DbUser): User {
     user_type: (dbUser.user_type as UserType) || 'customer',
     business_name: dbUser.business_name || undefined,
     business_phone: dbUser.business_phone || undefined,
-    status: dbUser.status as 'active' | 'banned' | 'restricted' || 'active'
+    status: dbUser.status as 'active' | 'banned' | 'restricted' || 'active',
+    permissions: dbUser.permissions,
+    business_owner_id: dbUser.business_owner_id
   };
 }
 
