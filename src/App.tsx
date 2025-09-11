@@ -326,7 +326,7 @@ function App() {
                       } />
                       <Route path="staff" element={
                         <ErrorBoundary>
-                          <ProtectedRoute requiredPermission="business.staff.manage" blockRestricted>
+                          <ProtectedRoute blockRestricted>
                             <BusinessStaff />
                           </ProtectedRoute>
                         </ErrorBoundary>

@@ -90,13 +90,26 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
 
   // Filter menu items based on user permissions
   const menuItems = allMenuItems.filter(item => {
+    // Debug logging
+    console.log(`DEBUG BusinessLayout: Checking access for ${item.path}`, {
+      user: user,
+      requiresOwner: item.requiresOwner,
+      isBusinessOwner: isBusinessOwner(user),
+      canAccess: canAccessNavigation(user, item.path)
+    });
+    
     // Check if item requires owner permissions
     if (item.requiresOwner && !isBusinessOwner(user)) {
+      console.log(`DEBUG BusinessLayout: ${item.path} blocked - requires owner`);
       return false;
     }
     
     // Check general navigation access permissions
-    return canAccessNavigation(user, item.path);
+    const hasAccess = canAccessNavigation(user, item.path);
+    if (!hasAccess) {
+      console.log(`DEBUG BusinessLayout: ${item.path} blocked - no navigation access`);
+    }
+    return hasAccess;
   });
 
   const isActive = (path: string) => {
