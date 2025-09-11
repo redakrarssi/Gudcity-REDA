@@ -11,6 +11,9 @@ declare global {
         email: string;
         role: string;
         status?: string;
+        user_type?: string;
+        business_owner_id?: number;
+        permissions?: any;
       };
     }
   }
@@ -100,12 +103,15 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
       console.warn('AUTH WARNING: Restricted user accessing protected resource');
     }
     
-    // Add user data to request object including current status
+    // Add user data to request object including current status and permissions
     req.user = {
       id: payload.userId,
       email: payload.email,
-      role: payload.role,
-      status: currentUser.status
+      role: payload.role || currentUser.role,
+      status: currentUser.status,
+      user_type: currentUser.user_type,
+      business_owner_id: currentUser.business_owner_id,
+      permissions: currentUser.permissions
     };
     
     console.log('AUTH SUCCESS: User authentication successful');

@@ -19,6 +19,7 @@ import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { canAccessNavigation, isBusinessOwner } from '../../utils/permissions';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -34,7 +35,8 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   const hasNotifications = businessUnreadCount > 0;
   const isArabic = (i18n?.language || '').startsWith('ar');
 
-  const menuItems = [
+  // Define all possible menu items
+  const allMenuItems = [
     { 
       name: t('Dashboard'), 
       icon: <Home className="w-5 h-5" />, 
@@ -56,6 +58,12 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       path: '/business/customers' 
     },
     { 
+      name: t('Staff'), 
+      icon: <Users className="w-5 h-5" />, 
+      path: '/business/staff',
+      requiresOwner: true // Only business owners can access staff management
+    },
+    { 
       name: t('Promotions'), 
       icon: <Gift className="w-5 h-5" />, 
       path: '/business/promotions' 
@@ -72,13 +80,24 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       ), 
       path: '/business/qr-scanner' 
     },
-
     { 
       name: t('Settings'), 
       icon: <Settings className="w-5 h-5" />, 
-      path: '/business/settings' 
+      path: '/business/settings',
+      requiresOwner: true // Only business owners can access settings
     }
   ];
+
+  // Filter menu items based on user permissions
+  const menuItems = allMenuItems.filter(item => {
+    // Check if item requires owner permissions
+    if (item.requiresOwner && !isBusinessOwner(user)) {
+      return false;
+    }
+    
+    // Check general navigation access permissions
+    return canAccessNavigation(user, item.path);
+  });
 
   const isActive = (path: string) => {
     return location.pathname === path;

@@ -8,6 +8,8 @@ import type { LoyaltyProgram } from '../../types/loyalty';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
+import { DeleteButton, PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
+import { PERMISSIONS, isBusinessOwner } from '../../utils/permissions';
 import sql, { verifyConnection } from '../../utils/db';
 
 const Programs = () => {
@@ -262,17 +264,27 @@ const Programs = () => {
               <h1 className="text-2xl font-semibold text-gray-800 programs-title">
                 {t('business.Loyalty Programs')}
               </h1>
-              <button
-                onClick={() => {
-                  setSelectedProgram(null);
-                  setShowProgramBuilder(true);
-                }}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors create-program-btn"
-              >
-                <Plus className="w-5 h-5" />
-                {t('business.Create Program')}
-              </button>
+              <PermissionGate permission={PERMISSIONS.PROGRAMS_CREATE}>
+                <button
+                  onClick={() => {
+                    setSelectedProgram(null);
+                    setShowProgramBuilder(true);
+                  }}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors create-program-btn"
+                >
+                  <Plus className="w-5 h-5" />
+                  {t('business.Create Program')}
+                </button>
+              </PermissionGate>
             </div>
+
+            {/* Staff restrictions notice */}
+            {user && !isBusinessOwner(user) && (
+              <RestrictedFeatureNotice 
+                featureName={t('business.Program deletion')}
+                className="mb-4"
+              />
+            )}
 
             {loading ? (
               <div className="flex justify-center items-center h-64 programs-loading">
@@ -344,12 +356,13 @@ const Programs = () => {
                         </div>
 
                         <div className="mt-6 flex justify-end space-x-3 program-card-actions">
-                          <button
-                            onClick={() => handleProgramDeleteClick(program)}
+                          <DeleteButton
+                            permission={PERMISSIONS.PROGRAMS_DELETE}
+                            onDelete={() => handleProgramDeleteClick(program)}
                             className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors program-delete-btn"
                           >
                             {t('business.Delete')}
-                          </button>
+                          </DeleteButton>
                           <button
                             onClick={() => handleProgramEdit(program)}
                             className="text-sm flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors program-edit-btn"

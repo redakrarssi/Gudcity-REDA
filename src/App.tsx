@@ -21,6 +21,7 @@ import BusinessDashboard from './pages/business/Dashboard';
 import BusinessPrograms from './pages/business/Programs';
 import BusinessAnalytics from './pages/business/Analytics';
 import BusinessCustomers from './pages/business/Customers';
+import BusinessStaff from './pages/business/Staff';
 import BusinessPromotions from './pages/business/Promotions';
 import BusinessQrScanner from './pages/business/QrScanner';
 
@@ -320,6 +321,13 @@ function App() {
                         <ErrorBoundary>
                           <ProtectedRoute requiredPermission="business.customers.view" blockRestricted>
                             <BusinessCustomers />
+                          </ProtectedRoute>
+                        </ErrorBoundary>
+                      } />
+                      <Route path="staff" element={
+                        <ErrorBoundary>
+                          <ProtectedRoute requiredPermission="business.staff.manage" blockRestricted>
+                            <BusinessStaff />
                           </ProtectedRoute>
                         </ErrorBoundary>
                       } />
