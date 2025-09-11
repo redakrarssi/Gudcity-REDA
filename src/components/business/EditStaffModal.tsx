@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, UserEdit, Save, AlertCircle, Info, Eye, EyeOff } from 'lucide-react';
+import { X, Edit3, Save, AlertCircle, Info, Eye, EyeOff } from 'lucide-react';
 import type { User, StaffPermissions } from '../../services/userService';
 
 interface EditStaffModalProps {
@@ -183,7 +183,7 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <UserEdit className="w-5 h-5 text-blue-500 mr-2" />
+            <Edit3 className="w-5 h-5 text-blue-500 mr-2" />
             {t('Edit Staff Member')}
           </h2>
           <button
