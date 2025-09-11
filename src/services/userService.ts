@@ -18,10 +18,29 @@ export interface User {
   last_login?: Date;
   created_at?: Date;
   status?: 'active' | 'banned' | 'restricted';
+  // Staff management fields
+  business_owner_id?: number; // For staff users - references the business owner
+  permissions?: StaffPermissions; // Staff-specific permissions
+  created_by?: number; // Who created this user (for staff tracking)
 }
 
-export type UserType = 'customer' | 'business';
-export type UserRole = 'admin' | 'customer' | 'business';
+export interface StaffPermissions {
+  canCreatePrograms: boolean;
+  canEditPrograms: boolean;
+  canDeletePrograms: boolean;
+  canCreatePromotions: boolean;
+  canEditPromotions: boolean;
+  canDeletePromotions: boolean;
+  canAccessSettings: boolean;
+  canManageStaff: boolean;
+  canViewCustomers: boolean;
+  canViewReports: boolean;
+  canScanQR: boolean;
+  canAwardPoints: boolean;
+}
+
+export type UserType = 'customer' | 'business' | 'staff';
+export type UserRole = 'admin' | 'customer' | 'business' | 'staff' | 'owner';
 
 // Hash password using bcrypt for better security
 async function hashPassword(password: string): Promise<string> {
@@ -95,7 +114,7 @@ export async function getUserById(id: number): Promise<User | null> {
     }
     
     const result = await sql`
-      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
       FROM users WHERE id = ${id}
     `;
     
@@ -140,7 +159,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     
     // If we have a database connection, query it
     const result = await sql`
-      SELECT id, name, email, password, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+      SELECT id, name, email, password, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
       FROM users WHERE LOWER(email) = LOWER(${email})
     `;
     
@@ -204,7 +223,10 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
           user_type, 
           business_name, 
           business_phone, 
-          avatar_url
+          avatar_url,
+          business_owner_id,
+          permissions,
+          created_by
         )
         VALUES (
           ${user.name}, 
@@ -214,9 +236,12 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
           ${user.user_type || 'customer'}, 
           ${user.business_name || null}, 
           ${user.business_phone || null}, 
-          ${user.avatar_url || null}
+          ${user.avatar_url || null},
+          ${user.business_owner_id || null},
+          ${user.permissions ? JSON.stringify(user.permissions) : null},
+          ${user.created_by || null}
         )
-        RETURNING id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at
+        RETURNING id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at
       `;
       
       console.log('INSERT query successful, result:', result);
@@ -479,6 +504,139 @@ export async function activateUser(id: number, options?: { performedById?: numbe
   return updateUserStatus(id, 'active', options);
 }
 
+// Create default staff permissions (limited access as per requirements)
+export function createDefaultStaffPermissions(): StaffPermissions {
+  return {
+    canCreatePrograms: true,
+    canEditPrograms: true,
+    canDeletePrograms: false, // Staff cannot delete programs
+    canCreatePromotions: true,
+    canEditPromotions: true,
+    canDeletePromotions: false, // Staff cannot delete promotions
+    canAccessSettings: false, // Staff cannot access settings
+    canManageStaff: false, // Only owners can manage staff
+    canViewCustomers: true,
+    canViewReports: true,
+    canScanQR: true,
+    canAwardPoints: true
+  };
+}
+
+// Create staff user for a business owner
+export async function createStaffUser(
+  ownerId: number,
+  staffData: Omit<User, 'id' | 'created_at' | 'business_owner_id' | 'permissions' | 'created_by'>
+): Promise<User | null> {
+  try {
+    console.log('Creating staff user for owner:', ownerId);
+    
+    // Verify the owner exists and is a business user
+    const owner = await getUserById(ownerId);
+    if (!owner || (owner.role !== 'business' && owner.role !== 'owner')) {
+      console.error('Invalid owner or owner is not a business user');
+      return null;
+    }
+    
+    // Set staff-specific properties
+    const staffUser = {
+      ...staffData,
+      role: 'staff',
+      user_type: 'staff',
+      business_owner_id: ownerId,
+      permissions: createDefaultStaffPermissions(),
+      created_by: ownerId
+    };
+    
+    // Create the staff user
+    return await createUser(staffUser);
+  } catch (error) {
+    console.error('Error creating staff user:', error);
+    return null;
+  }
+}
+
+// Get staff users for a business owner
+export async function getStaffUsers(ownerId: number): Promise<User[]> {
+  try {
+    console.log('Fetching staff users for owner:', ownerId);
+    
+    if (!env.DATABASE_URL) {
+      console.log('No database connection - cannot fetch staff users');
+      return [];
+    }
+    
+    const staffUsers = await sql`
+      SELECT id, name, email, role, user_type, business_owner_id, permissions, created_by, created_at, last_login, status
+      FROM users
+      WHERE business_owner_id = ${ownerId} AND role = 'staff'
+      ORDER BY created_at DESC
+    `;
+    
+    console.log(`Found ${staffUsers.length} staff users for owner ${ownerId}`);
+    return staffUsers as User[];
+  } catch (error) {
+    console.error('Error fetching staff users:', error);
+    return [];
+  }
+}
+
+// Update staff permissions
+export async function updateStaffPermissions(
+  staffId: number,
+  ownerId: number,
+  permissions: Partial<StaffPermissions>
+): Promise<boolean> {
+  try {
+    console.log('Updating staff permissions for staff:', staffId, 'by owner:', ownerId);
+    
+    // Verify the staff user belongs to this owner
+    const staffUser = await getUserById(staffId);
+    if (!staffUser || staffUser.business_owner_id !== ownerId) {
+      console.error('Staff user not found or does not belong to this owner');
+      return false;
+    }
+    
+    // Get current permissions and merge with updates
+    const currentPermissions = staffUser.permissions || createDefaultStaffPermissions();
+    const updatedPermissions = { ...currentPermissions, ...permissions };
+    
+    await sql`
+      UPDATE users 
+      SET permissions = ${JSON.stringify(updatedPermissions)}
+      WHERE id = ${staffId}
+    `;
+    
+    console.log('Staff permissions updated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error updating staff permissions:', error);
+    return false;
+  }
+}
+
+// Delete staff user (only by owner)
+export async function deleteStaffUser(staffId: number, ownerId: number): Promise<boolean> {
+  try {
+    console.log('Deleting staff user:', staffId, 'by owner:', ownerId);
+    
+    // Verify the staff user belongs to this owner
+    const staffUser = await getUserById(staffId);
+    if (!staffUser || staffUser.business_owner_id !== ownerId || staffUser.role !== 'staff') {
+      console.error('Staff user not found, does not belong to this owner, or is not a staff user');
+      return false;
+    }
+    
+    // Delete the staff user
+    await sql`DELETE FROM users WHERE id = ${staffId}`;
+    
+    console.log('Staff user deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('Error deleting staff user:', error);
+    return false;
+  }
+}
+
 // Get users by type (for filtering in admin tables)
 export async function getUsersByType(userType: UserType | 'all' | 'staff'): Promise<User[]> {
   try {
@@ -509,20 +667,20 @@ export async function getUsersByType(userType: UserType | 'all' | 'staff'): Prom
     
     if (userType === 'all') {
       query = sql`
-        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
         FROM users
         ORDER BY created_at DESC
       `;
     } else if (userType === 'staff') {
       query = sql`
-        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
         FROM users
-        WHERE role IN ('admin', 'moderator')
+        WHERE role = 'staff' OR role IN ('admin', 'moderator')
         ORDER BY created_at DESC
       `;
     } else {
       query = sql`
-        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 
+        SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
         FROM users
         WHERE user_type = ${userType}
         ORDER BY created_at DESC
@@ -598,6 +756,53 @@ export async function ensureUserTableExists(): Promise<void> {
       console.log('Ensured updated_at column exists');
     } catch (alterError2) {
       console.error('Error ensuring updated_at column exists:', alterError2);
+    }
+    
+    // Add staff management columns
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS business_owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+      `;
+      console.log('Ensured business_owner_id column exists');
+    } catch (alterError3) {
+      console.error('Error ensuring business_owner_id column exists:', alterError3);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT NULL
+      `;
+      console.log('Ensured permissions column exists');
+    } catch (alterError4) {
+      console.error('Error ensuring permissions column exists:', alterError4);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+      `;
+      console.log('Ensured created_by column exists');
+    } catch (alterError5) {
+      console.error('Error ensuring created_by column exists:', alterError5);
+    }
+    
+    // Create indexes for staff management
+    try {
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_users_business_owner_id ON users(business_owner_id)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_users_permissions ON users USING GIN (permissions)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_users_created_by ON users(created_by)
+      `;
+      console.log('Created staff management indexes');
+    } catch (indexError) {
+      console.error('Error creating staff management indexes:', indexError);
     }
     
   } catch (error) {
