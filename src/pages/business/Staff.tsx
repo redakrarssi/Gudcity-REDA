@@ -28,6 +28,7 @@ import {
   createDefaultStaffPermissions
 } from '../../services/userService';
 import { CreateStaffModal } from '../../components/business/CreateStaffModal';
+import { UserRoleDebug } from '../../components/debug/UserRoleDebug';
 
 interface StaffMember extends User {
   permissions: StaffPermissions;
@@ -168,6 +169,9 @@ const Staff: React.FC = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6">
+        {/* Debug Info - Remove in production */}
+        <UserRoleDebug />
+        
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
