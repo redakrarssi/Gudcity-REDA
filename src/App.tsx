@@ -70,10 +70,18 @@ const UserTypeRedirect = () => {
     return <Navigate to="/login" />;
   }
   
-  if (user.user_type === 'business' || user.role === 'business') {
+  // Business owners and staff users go to business dashboard
+  if (user.user_type === 'business' || user.role === 'business' || 
+      user.role === 'owner' || user.role === 'staff') {
     return <Navigate to="/business/dashboard" />;
   }
   
+  // Admin users go to admin dashboard
+  if (user.role === 'admin') {
+    return <Navigate to="/admin" />;
+  }
+  
+  // Default: customers go to customer dashboard
   return <Navigate to="/dashboard" />;
 };
 

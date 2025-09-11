@@ -6,6 +6,7 @@ import {
   Users, 
   Plus, 
   UserPlus, 
+  UserEdit,
   Shield, 
   Settings, 
   Trash2, 
@@ -22,13 +23,14 @@ import {
   getStaffUsers, 
   createStaffUser, 
   deleteStaffUser, 
+  updateStaffUser,
   updateStaffPermissions,
   type User,
   type StaffPermissions,
   createDefaultStaffPermissions
 } from '../../services/userService';
 import { CreateStaffModal } from '../../components/business/CreateStaffModal';
-import { UserRoleDebug } from '../../components/debug/UserRoleDebug';
+import { EditStaffModal } from '../../components/business/EditStaffModal';
 
 interface StaffMember extends User {
   permissions: StaffPermissions;
@@ -44,6 +46,7 @@ const Staff: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +144,36 @@ const Staff: React.FC = () => {
     }
   };
 
+  // Handle edit staff
+  const handleEditStaff = (staff: StaffMember) => {
+    setSelectedStaff(staff);
+    setShowEditModal(true);
+  };
+
+  // Handle staff update
+  const handleUpdateStaff = async (staffId: number, updatedData: {
+    name?: string;
+    email?: string;
+    password?: string;
+    permissions?: StaffPermissions;
+  }) => {
+    if (!user?.id) return;
+
+    try {
+      const success = await updateStaffUser(staffId, user.id, updatedData);
+      if (success) {
+        await loadStaffMembers(); // Reload the list
+        setShowEditModal(false);
+        setSelectedStaff(null);
+      } else {
+        setError('Failed to update staff user. Email may already be in use.');
+      }
+    } catch (err) {
+      console.error('Error updating staff user:', err);
+      setError('Failed to update staff user. Please try again.');
+    }
+  };
+
   // Filter staff members based on search and status
   const filteredStaffMembers = staffMembers.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -169,9 +202,6 @@ const Staff: React.FC = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6">
-        {/* Debug Info - Remove in production */}
-        <UserRoleDebug />
-        
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
@@ -359,6 +389,13 @@ const Staff: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
                           <button
+                            onClick={() => handleEditStaff(member)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title={t('Edit staff info')}
+                          >
+                            <UserEdit className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => {
                               setSelectedStaff(member);
                               setShowPermissionsModal(true);
@@ -366,7 +403,7 @@ const Staff: React.FC = () => {
                             className="text-gray-600 hover:text-gray-900"
                             title={t('Edit permissions')}
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Settings className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setShowDeleteConfirm(member.id!)}
@@ -393,6 +430,17 @@ const Staff: React.FC = () => {
             onSubmit={handleCreateStaff}
           />
         )}
+
+        {/* Edit Staff Modal */}
+        <EditStaffModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedStaff(null);
+          }}
+          onSubmit={handleUpdateStaff}
+          staffMember={selectedStaff}
+        />
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (

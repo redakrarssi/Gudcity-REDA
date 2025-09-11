@@ -614,6 +614,86 @@ export async function updateStaffPermissions(
   }
 }
 
+// Update staff user information (only by owner)
+export async function updateStaffUser(
+  staffId: number,
+  ownerId: number,
+  updatedData: {
+    name?: string;
+    email?: string;
+    password?: string;
+    permissions?: StaffPermissions;
+  }
+): Promise<boolean> {
+  try {
+    console.log('Updating staff user:', staffId, 'by owner:', ownerId);
+    
+    // Verify the staff user belongs to this owner
+    const staffUser = await getUserById(staffId);
+    if (!staffUser || staffUser.business_owner_id !== ownerId || staffUser.role !== 'staff') {
+      console.error('Staff user not found, does not belong to this owner, or is not a staff user');
+      return false;
+    }
+    
+    // Build update query dynamically based on provided data
+    const updateFields: string[] = [];
+    const updateValues: any[] = [];
+    let paramIndex = 1;
+    
+    if (updatedData.name) {
+      updateFields.push(`name = $${paramIndex++}`);
+      updateValues.push(updatedData.name);
+    }
+    
+    if (updatedData.email) {
+      // Check if email is already taken by another user
+      const existingUser = await sql`
+        SELECT id FROM users 
+        WHERE LOWER(email) = LOWER(${updatedData.email}) AND id != ${staffId}
+      `;
+      
+      if (existingUser.length > 0) {
+        console.error('Email already exists for another user');
+        return false;
+      }
+      
+      updateFields.push(`email = $${paramIndex++}`);
+      updateValues.push(updatedData.email.toLowerCase());
+    }
+    
+    if (updatedData.password) {
+      const hashedPassword = await hashPassword(updatedData.password);
+      updateFields.push(`password = $${paramIndex++}`);
+      updateValues.push(hashedPassword);
+    }
+    
+    if (updatedData.permissions) {
+      updateFields.push(`permissions = $${paramIndex++}`);
+      updateValues.push(JSON.stringify(updatedData.permissions));
+    }
+    
+    if (updateFields.length === 0) {
+      console.log('No fields to update');
+      return true;
+    }
+    
+    // Add updated_at field
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    // Execute update query
+    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`;
+    updateValues.push(staffId);
+    
+    await sql.unsafe(query, updateValues);
+    
+    console.log('Staff user updated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error updating staff user:', error);
+    return false;
+  }
+}
+
 // Delete staff user (only by owner)
 export async function deleteStaffUser(staffId: number, ownerId: number): Promise<boolean> {
   try {
