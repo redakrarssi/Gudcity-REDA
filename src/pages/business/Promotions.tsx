@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getBusinessIdString } from '../../utils/businessContext';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { 
   Sparkles, Gift, Ticket, QrCode, Calendar, Download, 
@@ -85,7 +86,7 @@ const PromotionsPage = () => {
     setError(null);
     
     try {
-      const businessId = user.id.toString();
+      const businessId = getBusinessIdString(user);
       
       const { codes, error: codesError } = await PromoService.getBusinessCodes(businessId);
       if (codesError) {
@@ -124,8 +125,9 @@ const PromotionsPage = () => {
         expiresAt = new Date(formData.expiresAt).toISOString();
       }
       
+      const businessId = getBusinessIdString(user);
       const { code, error } = await PromoService.generateCode(
-        user.id.toString(),
+        businessId,
         formData.type,
         parseFloat(formData.value),
         currency,
@@ -183,7 +185,7 @@ const PromotionsPage = () => {
     if (!user || !code) return;
     
     try {
-      const businessId = user.id.toString();
+      const businessId = getBusinessIdString(user);
       downloadQRCode(
         { type: 'promo_code', code, businessId },
         `promo-${code}.png`,
@@ -204,7 +206,7 @@ const PromotionsPage = () => {
         value={JSON.stringify({
           type: 'promo_code',
           code: showQRModal,
-          businessId: user.id.toString()
+          businessId: getBusinessIdString(user)
         })}
         size={200}
         bgColor="#ffffff"
@@ -222,7 +224,8 @@ const PromotionsPage = () => {
     useEffect(() => {
       const generateQR = async () => {
         try {
-          const dataUrl = await createPromoQRCode(value, user.id.toString());
+          const businessId = getBusinessIdString(user);
+          const dataUrl = await createPromoQRCode(value, businessId);
           
           // Draw the QR code to the canvas
           const canvas = document.getElementById(id) as HTMLCanvasElement;

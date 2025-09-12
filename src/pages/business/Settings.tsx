@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getBusinessId } from '../../utils/businessContext';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { 
   Settings as SettingsIcon, 
@@ -274,7 +275,8 @@ const BusinessSettings = () => {
       setLoading(true);
       setError(null);
       
-      const settings = await BusinessSettingsService.getBusinessSettings(user.id);
+      const businessId = getBusinessId(user);
+      const settings = await BusinessSettingsService.getBusinessSettings(businessId!);
       console.log('Loaded business settings:', settings);
       
       if (settings) {
@@ -438,8 +440,9 @@ const BusinessSettings = () => {
       console.log('Sending business settings to service:', businessSettings);
       
       // Call service to update settings
+      const businessId = getBusinessId(user);
       const updatedSettings = await BusinessSettingsService.updateBusinessSettings(
-        user.id,
+        businessId!,
         businessSettings
       );
       

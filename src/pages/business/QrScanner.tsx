@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
+import { getBusinessIdString, getBusinessId } from '../../utils/businessContext';
 import { QRScanner } from '../../components/QRScanner';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -119,7 +120,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
       if (user?.id) {
         setIsLoading(true);
         try {
-          const businessId = ensureId(user.id);
+          const businessId = getBusinessIdString(user);
           const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
           setPrograms(businessPrograms);
           
@@ -707,7 +708,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                       {user?.id && selectedProgramId && (
                         <QRScanner
                           onScan={handleScan}
-                          businessId={user.id}
+                          businessId={getBusinessId(user)}
                           programId={selectedProgramId}
                           pointsToAward={pointsToAward}
                         />
@@ -975,7 +976,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             isOpen={showRedeemModal}
             onClose={() => setShowRedeemModal(false)}
             customerId={String(selectedResult.data.customerId || '')}
-            businessId={user?.id ? String(user.id) : ''}
+            businessId={getBusinessIdString(user)}
             customerName={selectedResult.data.name || 'Customer'}
           />
 
@@ -984,7 +985,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             isOpen={showProgramModal}
             onClose={() => setShowProgramModal(false)}
             customerId={String(selectedResult.data.customerId || '')}
-            businessId={user?.id ? String(user.id) : ''}
+            businessId={getBusinessIdString(user)}
             customerName={selectedResult.data.name || 'Customer'}
           />
 
@@ -993,7 +994,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             isOpen={showRewardModal}
             onClose={() => setShowRewardModal(false)}
             customerId={String(selectedResult.data.customerId || '')}
-            businessId={user?.id ? String(user.id) : ''}
+            businessId={getBusinessIdString(user)}
             customerName={selectedResult.data.name || 'Customer'}
           />
 
@@ -1002,7 +1003,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             isOpen={showCustomerDetailsModal}
             onClose={() => setShowCustomerDetailsModal(false)}
             customerId={String(selectedResult.data.customerId || '')}
-            businessId={user?.id ? String(user.id) : ''}
+            businessId={getBusinessIdString(user)}
             initialData={selectedCustomerData}
           />
 
@@ -1011,7 +1012,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             <PointsAwardingModal
               onClose={() => setShowPointsAwardingModal(false)}
               scanData={selectedQrCodeData}
-              businessId={user?.id ? String(user.id) : ''}
+              businessId={getBusinessIdString(user)}
               onSuccess={(points) => {
                 // Invalidate queries to refresh data
                 // The PointsAwardingModal handles success notifications internally

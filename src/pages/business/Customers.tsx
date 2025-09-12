@@ -9,6 +9,7 @@ import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { CustomerBusinessLinker } from '../../components/business/CustomerBusinessLinker';
 import { subscribeToSync } from '../../utils/realTimeSync';
 import type { PromoCode } from '../../types/promo';
+import { getBusinessIdString } from '../../utils/businessContext';
 
 // Mock customer data
 const mockCustomers = [
@@ -191,9 +192,8 @@ const CustomersPage = () => {
   
   // Subscribe to real-time sync events for program enrollments and customer relationships
   useEffect(() => {
-    if (!user?.id) return;
-    
-    const businessId = user.id.toString();
+    const businessId = getBusinessIdString(user);
+    if (!businessId) return;
     
     // Listen for program enrollment changes
     const unsubscribeEnrollments = subscribeToSync('program_enrollments', (event) => {
@@ -237,8 +237,9 @@ const CustomersPage = () => {
     setLoadingPrograms(true);
     
     try {
-      if (user?.id) {
-        const programs = await CustomerService.getCustomerPrograms(customer.id, user.id.toString());
+      const businessId = getBusinessIdString(user);
+      if (businessId) {
+        const programs = await CustomerService.getCustomerPrograms(customer.id, businessId);
         setCustomerPrograms(programs);
       }
     } catch (err) {
@@ -253,9 +254,10 @@ const CustomersPage = () => {
 
     try {
       // Record the birthday wish interaction in the database
+      const businessId = getBusinessIdString(user);
       const success = await CustomerService.recordCustomerInteraction(
         selectedCustomer.id,
-        user.id.toString(),
+        businessId,
         'BIRTHDAY_WISH',
         t('business.Birthday wish sent')
       );
@@ -282,9 +284,10 @@ const CustomersPage = () => {
 
     try {
       // Record the gift interaction in the database
+      const businessId = getBusinessIdString(user);
       const success = await CustomerService.recordCustomerInteraction(
         selectedCustomer.id,
-        user.id.toString(),
+        businessId,
         'GIFT',
         t('business.Gift sent: {{giftType}}', { giftType })
       );
@@ -302,9 +305,10 @@ const CustomersPage = () => {
 
     try {
       // Record the message interaction in the database
+      const businessId = getBusinessIdString(user);
       const success = await CustomerService.recordCustomerInteraction(
         selectedCustomer.id,
-        user.id.toString(),
+        businessId,
         'MESSAGE',
         message
       );
@@ -351,9 +355,10 @@ const CustomersPage = () => {
 
       if (response.ok) {
         // Record the interaction in the database
+        const businessId = getBusinessIdString(user);
         await CustomerService.recordCustomerInteraction(
           customer.id,
-          user.id.toString(),
+          businessId,
           'PROMO_CODE',
           t('business.Promotion code sent: {{promoCode}} ({{discount}} discount)', { promoCode, discount })
         );
@@ -385,7 +390,8 @@ const CustomersPage = () => {
     
     setLoadingPromoCodes(true);
     try {
-      const { codes, error } = await PromoService.getBusinessCodes(user.id.toString());
+      const businessId = getBusinessIdString(user);
+      const { codes, error } = await PromoService.getBusinessCodes(businessId);
       if (error) {
         console.error('Error loading promo codes:', error);
         return;
@@ -405,9 +411,10 @@ const CustomersPage = () => {
     if (!selectedCustomer || !user?.id) return;
     
     try {
+      const businessId = getBusinessIdString(user);
       const result = await CustomerService.sendPromoCodeToCustomer(
         selectedCustomer.id,
-        user.id.toString(),
+        businessId,
         promoCodeId
       );
       

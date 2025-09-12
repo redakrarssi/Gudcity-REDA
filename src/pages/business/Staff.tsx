@@ -28,6 +28,7 @@ import {
   type StaffPermissions,
   createDefaultStaffPermissions
 } from '../../services/userService';
+import { getBusinessId } from '../../utils/businessContext';
 import { CreateStaffModal } from '../../components/business/CreateStaffModal';
 import { EditStaffModal } from '../../components/business/EditStaffModal';
 
@@ -64,7 +65,8 @@ const Staff: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const staff = await getStaffUsers(user.id);
+      const businessId = getBusinessId(user);
+      const staff = await getStaffUsers(businessId!);
       const staffWithPermissions = staff.map(member => ({
         ...member,
         permissions: member.permissions || createDefaultStaffPermissions()
@@ -88,7 +90,8 @@ const Staff: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const newStaff = await createStaffUser(user.id, {
+      const businessId = getBusinessId(user);
+      const newStaff = await createStaffUser(businessId!, {
         name: staffData.name,
         email: staffData.email,
         password: staffData.password
@@ -111,7 +114,8 @@ const Staff: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const success = await deleteStaffUser(staffId, user.id);
+      const businessId = getBusinessId(user);
+      const success = await deleteStaffUser(staffId, businessId!);
       if (success) {
         await loadStaffMembers(); // Reload the list
         setShowDeleteConfirm(null);
@@ -129,7 +133,8 @@ const Staff: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const success = await updateStaffPermissions(staffId, user.id, permissions);
+      const businessId = getBusinessId(user);
+      const success = await updateStaffPermissions(staffId, businessId!, permissions);
       if (success) {
         await loadStaffMembers(); // Reload the list
         setShowPermissionsModal(false);
@@ -159,7 +164,8 @@ const Staff: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const success = await updateStaffUser(staffId, user.id, updatedData);
+      const businessId = getBusinessId(user);
+      const success = await updateStaffUser(staffId, businessId!, updatedData);
       if (success) {
         await loadStaffMembers(); // Reload the list
         setShowEditModal(false);
