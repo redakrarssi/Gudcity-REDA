@@ -13,6 +13,7 @@ export function getBusinessId(user: User | null): number | null {
 
   // If user is staff, return the business owner's ID
   if (user.role === 'staff' && user.business_owner_id) {
+    console.log('🔍 BusinessContext: Staff user accessing business owner data:', user.business_owner_id);
     return user.business_owner_id;
   }
 

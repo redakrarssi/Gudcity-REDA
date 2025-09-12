@@ -47,6 +47,45 @@ export interface CustomerInteraction {
  */
 export class CustomerService {
   /**
+   * Debug method: Check if there are any customers and programs in the system
+   */
+  static async debugDatabaseState(businessId: string): Promise<void> {
+    try {
+      const businessIdInt = parseInt(businessId, 10);
+      console.log(`🔍 DEBUG DATABASE STATE for business ${businessId} (${businessIdInt}):`);
+      
+      // Check if there are any customers at all
+      const allCustomers = await sql`
+        SELECT COUNT(*) as count FROM users WHERE user_type = 'customer' AND status = 'active'
+      `;
+      console.log(`📊 Total active customers in system: ${allCustomers[0]?.count || 0}`);
+      
+      // Check if there are programs for this business
+      const businessPrograms = await sql`
+        SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = ${businessIdInt}
+      `;
+      console.log(`📊 Programs for business ${businessIdInt}: ${businessPrograms[0]?.count || 0}`);
+      
+      // Check if there are any program enrollments
+      const enrollments = await sql`
+        SELECT COUNT(*) as count FROM program_enrollments pe
+        JOIN loyalty_programs lp ON pe.program_id = lp.id
+        WHERE lp.business_id = ${businessIdInt}
+      `;
+      console.log(`📊 Program enrollments for business ${businessIdInt}: ${enrollments[0]?.count || 0}`);
+      
+      // Check if there are any loyalty transactions
+      const transactions = await sql`
+        SELECT COUNT(*) as count FROM loyalty_transactions WHERE business_id = ${businessIdInt}
+      `;
+      console.log(`📊 Loyalty transactions for business ${businessIdInt}: ${transactions[0]?.count || 0}`);
+      
+    } catch (error) {
+      console.error('❌ Error in debugDatabaseState:', error);
+    }
+  }
+
+  /**
    * Get customers enrolled in AT LEAST ONE program of this business (BIG RULE)
    * Shows customer name and the programs they're enrolled in that belong to this business
    */
@@ -125,6 +164,13 @@ export class CustomerService {
       }));
       
       console.log(`🔍 DEBUG: Returning ${formattedCustomers.length} formatted customers`);
+      
+      // If no customers found with program enrollments, try fallback method
+      if (formattedCustomers.length === 0) {
+        console.log(`⚠️ WARNING: No customers found with program enrollments, trying fallback method...`);
+        return await this.getBusinessCustomersFallback(businessId);
+      }
+      
       return formattedCustomers;
     } catch (error) {
       console.error('❌ ERROR: Error fetching business customers:', error);
@@ -133,6 +179,74 @@ export class CustomerService {
         console.error('❌ ERROR: Error message:', error.message);
         console.error('❌ ERROR: Error stack:', error.stack);
       }
+      // Try fallback method on error
+      console.log(`⚠️ WARNING: Primary method failed, trying fallback method...`);
+      return await this.getBusinessCustomersFallback(businessId);
+    }
+  }
+
+  /**
+   * Fallback method: Get customers who have interacted with business (even without program enrollment)
+   */
+  static async getBusinessCustomersFallback(businessId: string): Promise<Customer[]> {
+    try {
+      console.log(`🔍 FALLBACK: Fetching customers who interacted with business ${businessId}`);
+      const businessIdInt = parseInt(businessId, 10);
+      
+      if (isNaN(businessIdInt)) {
+        console.error('❌ FALLBACK ERROR: Invalid business ID:', businessId);
+        return [];
+      }
+      
+      // Get customers who have had any transactions with this business
+      const customers = await sql`
+        SELECT DISTINCT
+          c.id,
+          c.name,
+          c.email,
+          c.status,
+          c.created_at as joined_at,
+          COALESCE(SUM(lt.amount), 0) as total_spent,
+          COUNT(lt.id) as transaction_count,
+          MAX(lt.transaction_date) as last_visit
+        FROM users c
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
+        WHERE c.user_type = 'customer' 
+          AND c.status = 'active'
+          AND (lt.business_id = ${businessIdInt} OR c.created_at IS NOT NULL)
+        GROUP BY c.id, c.name, c.email, c.status, c.created_at
+        ORDER BY c.name ASC
+        LIMIT 50
+      `;
+      
+      console.log(`🔍 FALLBACK: Found ${customers.length} customers with business interactions`);
+      
+      const formattedCustomers = customers.map(customer => ({
+        id: customer.id.toString(),
+        name: customer.name || 'Unknown Customer',
+        email: customer.email || '',
+        phone: '',
+        tier: 'Bronze',
+        loyaltyPoints: 0, // No program enrollment yet
+        points: 0,
+        visits: parseInt(customer.transaction_count) || 0,
+        totalSpent: parseFloat(customer.total_spent) || 0,
+        lastVisit: customer.last_visit ? new Date(customer.last_visit).toISOString() : undefined,
+        favoriteItems: [],
+        birthday: undefined,
+        joinedAt: customer.joined_at ? new Date(customer.joined_at).toISOString() : undefined,
+        notes: '',
+        status: customer.status || 'active',
+        programName: 'Not Enrolled', // Indicate no program enrollment
+        programId: '',
+        programCount: 0,
+        totalLoyaltyPoints: 0
+      }));
+      
+      console.log(`🔍 FALLBACK: Returning ${formattedCustomers.length} formatted customers`);
+      return formattedCustomers;
+    } catch (error) {
+      console.error('❌ FALLBACK ERROR:', error);
       return [];
     }
   }
