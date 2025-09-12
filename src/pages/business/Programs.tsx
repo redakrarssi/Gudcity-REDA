@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { DeleteButton, PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
 import { PERMISSIONS, isBusinessOwner } from '../../utils/permissions';
+import { getBusinessIdString } from '../../utils/businessContext';
 import sql, { verifyConnection } from '../../utils/db';
 
 const Programs = () => {
@@ -71,8 +72,8 @@ const Programs = () => {
       setError(null);
       
       try {
-        // Use the business ID from the logged-in user
-        const businessId = user?.id.toString() || '';
+        // Use the business ID from the logged-in user (or their business owner if staff)
+        const businessId = getBusinessIdString(user);
         const programsData = await LoyaltyProgramService.getBusinessPrograms(businessId);
         setPrograms(programsData);
       } catch (err) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getBusinessId, getBusinessIdString } from '../../utils/businessContext';
 import { Users, QrCode, BarChart, Plus, ArrowUp, ArrowDown, TrendingUp, DollarSign, Gift, Coffee, CreditCard, Award, AlertTriangle, AlertCircle, Settings, ChevronRight, Send } from 'lucide-react';
 import type { LoyaltyProgram } from '../../types/loyalty';
 import type { CurrencyCode } from '../../types/currency';
@@ -62,9 +63,10 @@ const BusinessDashboard = () => {
   useEffect(() => {
     // Check for pending redemption notifications
     const checkNotifications = async () => {
-      if (user?.id) {
+      const businessId = getBusinessIdString(user);
+      if (businessId) {
         try {
-          const result = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          const result = await NotificationService.getBusinessRedemptionNotifications(businessId);
           if (result.success) {
             // Check if there are any pending notifications
             const pendingNotifications = result.notifications.filter(n => n.status === 'PENDING');
@@ -102,10 +104,11 @@ const BusinessDashboard = () => {
         setIsLoading(true);
         setError(null);
 
-        console.log(`Loading analytics data for business user ID: ${user.id}`);
+        const businessId = getBusinessIdString(user);
+        console.log(`Loading analytics data for business ID: ${businessId}`);
         
         // Get analytics data
-        const analytics = await AnalyticsService.getBusinessAnalytics(user.id.toString(), currency as CurrencyCode, period);
+        const analytics = await AnalyticsService.getBusinessAnalytics(businessId, currency as CurrencyCode, period);
         
         if (!analytics) {
           setError('Could not retrieve analytics data. Please try again later.');
@@ -118,7 +121,8 @@ const BusinessDashboard = () => {
         setBusinessData(analytics as unknown as BusinessAnalyticsData);
         
         // Load business profile for settings completeness check
-        const businessProfile = await BusinessSettingsService.getBusinessSettings(user.id);
+        const businessOwnerId = getBusinessId(user);
+        const businessProfile = await BusinessSettingsService.getBusinessSettings(businessOwnerId!);
         
         // Mock program data (will be replaced with real data later)
         setPrograms([
@@ -202,9 +206,10 @@ const BusinessDashboard = () => {
       }
       
       // Process the QR code scan
+      const businessId = getBusinessIdString(user);
       const scanResult = await QrCodeService.processQrCodeScan(
         result.data as any,
-        String(user.id),
+        businessId,
         10 // Default points to award
       );
       
@@ -214,7 +219,7 @@ const BusinessDashboard = () => {
         
         // Send notification to business owner
         await NotificationService.createNotification(
-          user.id.toString(),
+          businessId,
           'POINTS_EARNED',
           t('business.Successful Scan'),
           `You successfully scanned a customer QR code and awarded ${scanResult.pointsAwarded || 0} points.`
@@ -225,7 +230,7 @@ const BusinessDashboard = () => {
         
         // Send notification about failed scan
         await NotificationService.createNotification(
-          user.id.toString(),
+          businessId,
           'SYSTEM_ALERT',
           t('business.Scan Failed'),
           scanResult.message || t('business.Failed to process QR code scan')
@@ -236,9 +241,10 @@ const BusinessDashboard = () => {
       setScannerMessage(`Error: ${error instanceof Error ? error.message : t('business.Unknown error')}`);
       
       // Send error notification
-      if (user?.id) {
+      const businessIdForError = getBusinessIdString(user);
+      if (businessIdForError) {
         await NotificationService.createNotification(
-          user.id.toString(),
+          businessIdForError,
           'SYSTEM_ALERT',
           t('business.Scan Error'),
           t('business.An error occurred while processing the QR code')
@@ -640,9 +646,9 @@ const BusinessDashboard = () => {
       )}
       
       {/* Business Management Tools */}
-      {user?.id && (
+      {getBusinessIdString(user) && (
         <div className="space-y-6">
-          <BusinessEnrollmentNotifications businessId={String(user.id)} />
+          <BusinessEnrollmentNotifications businessId={getBusinessIdString(user)} />
           <BusinessRedemptionNotifications />
           <RedemptionVerification />
         </div>
