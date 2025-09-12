@@ -33,10 +33,10 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
   
   // Permission state
   const [permissions, setPermissions] = useState<StaffPermissions>({
-    canCreatePrograms: true,
+    canCreatePrograms: false,
     canEditPrograms: true,
     canDeletePrograms: false,
-    canCreatePromotions: true,
+    canCreatePromotions: false,
     canEditPromotions: true,
     canDeletePromotions: false,
     canAccessSettings: false,
@@ -375,14 +375,14 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-3">{t('Programs')}</h4>
                   <div className="space-y-2">
-                    <label className="flex items-center">
+                    <label className="flex items-center opacity-50">
                       <input
                         type="checkbox"
-                        checked={permissions.canCreatePrograms}
-                        onChange={() => handlePermissionChange('canCreatePrograms')}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        checked={false}
+                        disabled
+                        className="h-4 w-4 text-gray-400 border-gray-300 rounded cursor-not-allowed"
                       />
-                      <span className="ml-2 text-sm text-gray-700">{t('Can create programs')}</span>
+                      <span className="ml-2 text-sm text-gray-500">{t('Can create programs')} ({t('Owner only')})</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -409,14 +409,14 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-3">{t('Promotions')}</h4>
                   <div className="space-y-2">
-                    <label className="flex items-center">
+                    <label className="flex items-center opacity-50">
                       <input
                         type="checkbox"
-                        checked={permissions.canCreatePromotions}
-                        onChange={() => handlePermissionChange('canCreatePromotions')}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        checked={false}
+                        disabled
+                        className="h-4 w-4 text-gray-400 border-gray-300 rounded cursor-not-allowed"
                       />
-                      <span className="ml-2 text-sm text-gray-700">{t('Can create promotions')}</span>
+                      <span className="ml-2 text-sm text-gray-500">{t('Can create promotions')} ({t('Owner only')})</span>
                     </label>
                     <label className="flex items-center">
                       <input

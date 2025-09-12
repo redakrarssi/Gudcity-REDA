@@ -12,14 +12,16 @@ import {
   QrCode,
   X,
   Menu,
-  Bell
+  Bell,
+  User
 } from 'lucide-react';
 import { IconBell } from '../icons/IconBell';
 import { BusinessNotificationCenter } from './BusinessNotificationCenter';
+import { StaffSettingsModal } from './StaffSettingsModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { canAccessNavigation, isBusinessOwner } from '../../utils/permissions';
+import { canAccessNavigation, isBusinessOwner, isStaffMember } from '../../utils/permissions';
 import { LanguageSelector } from '../LanguageSelector';
 
 interface BusinessLayoutProps {
@@ -33,6 +35,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { businessUnreadCount } = useNotifications();
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+  const [showStaffSettings, setShowStaffSettings] = useState(false);
   const hasNotifications = businessUnreadCount > 0;
   const isArabic = (i18n?.language || '').startsWith('ar');
 
@@ -86,6 +89,13 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       icon: <Settings className="w-5 h-5" />, 
       path: '/business/settings',
       requiresOwner: true // Only business owners can access settings
+    },
+    { 
+      name: t('My Settings'), 
+      icon: <User className="w-5 h-5" />, 
+      path: '/business/my-settings',
+      requiresStaff: true, // Only staff users can access this
+      isModal: true // This opens a modal instead of navigating
     }
   ];
 
@@ -93,6 +103,11 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
   const menuItems = allMenuItems.filter(item => {
     // Check if item requires owner permissions
     if (item.requiresOwner && !isBusinessOwner(user)) {
+      return false;
+    }
+    
+    // Check if item requires staff permissions
+    if (item.requiresStaff && !isStaffMember(user)) {
       return false;
     }
     
@@ -137,20 +152,35 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
           </div>
 
           <nav className="flex-1 px-4 pb-4 space-y-1">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                  isActive(item.path)
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {item.icon}
-                <span className="ml-3">{item.name}</span>
-              </Link>
-            ))}
+            {menuItems.map((item) => {
+              if (item.isModal) {
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => setShowStaffSettings(true)}
+                    className="flex items-center px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 w-full text-left"
+                  >
+                    {item.icon}
+                    <span className="ml-3">{item.name}</span>
+                  </button>
+                );
+              }
+              
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                    isActive(item.path)
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="ml-3">{item.name}</span>
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="border-t border-gray-200 p-4">
@@ -196,21 +226,39 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
             {mobileMenuOpen && (
               <div className="bg-white border-b border-gray-200 py-2">
                 <nav className="px-4 space-y-1">
-                  {menuItems.map((item) => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                        isActive(item.path)
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {item.icon}
-                      <span className="ml-3">{item.name}</span>
-                    </Link>
-                  ))}
+                  {menuItems.map((item) => {
+                    if (item.isModal) {
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => {
+                            setShowStaffSettings(true);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="flex items-center px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 w-full text-left"
+                        >
+                          {item.icon}
+                          <span className="ml-3">{item.name}</span>
+                        </button>
+                      );
+                    }
+                    
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                          isActive(item.path)
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {item.icon}
+                        <span className="ml-3">{item.name}</span>
+                      </Link>
+                    );
+                  })}
                   <button
                     onClick={(e) => {
                       handleLogout(e);
@@ -239,6 +287,12 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
           />
         </div>
       </div>
+
+      {/* Staff Settings Modal */}
+      <StaffSettingsModal
+        isOpen={showStaffSettings}
+        onClose={() => setShowStaffSettings(false)}
+      />
 
       {/* Floating QR Scanner Button */}
       <Link 

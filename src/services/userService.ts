@@ -507,10 +507,10 @@ export async function activateUser(id: number, options?: { performedById?: numbe
 // Create default staff permissions (limited access as per requirements)
 export function createDefaultStaffPermissions(): StaffPermissions {
   return {
-    canCreatePrograms: true,
+    canCreatePrograms: false, // Staff cannot create programs
     canEditPrograms: true,
     canDeletePrograms: false, // Staff cannot delete programs
-    canCreatePromotions: true,
+    canCreatePromotions: false, // Staff cannot create promotions
     canEditPromotions: true,
     canDeletePromotions: false, // Staff cannot delete promotions
     canAccessSettings: false, // Staff cannot access settings

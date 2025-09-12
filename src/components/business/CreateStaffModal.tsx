@@ -145,10 +145,10 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
               <div className="text-sm text-blue-700">
                 <p className="font-medium mb-1">{t('Staff Account Permissions')}</p>
                 <ul className="space-y-1 text-xs">
-                  <li>• {t('Can create and edit programs and promotions')}</li>
+                  <li>• {t('Can edit existing programs and promotions')}</li>
                   <li>• {t('Can view customers and generate reports')}</li>
                   <li>• {t('Can scan QR codes and award points')}</li>
-                  <li>• {t('Cannot delete programs or promotions')}</li>
+                  <li>• {t('Cannot create or delete programs or promotions')}</li>
                   <li>• {t('Cannot access business settings')}</li>
                   <li>• {t('Cannot manage other staff accounts')}</li>
                 </ul>
