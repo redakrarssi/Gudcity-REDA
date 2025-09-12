@@ -13,6 +13,8 @@ import type { CurrencyCode } from '../../types/currency';
 import { createPromoQRCode, downloadQRCode } from '../../utils/qrCodeGenerator';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
+import { PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
+import { PERMISSIONS, isBusinessOwner } from '../../utils/permissions';
 
 // Sample promotion ideas for inspiration
 const PROMO_IDEAS = [
@@ -317,15 +319,25 @@ const PromotionsPage = () => {
               {t('business.Promo Ideas')}
             </button>
             
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm w-full sm:w-auto"
-            >
-              <Plus className="w-5 h-5" />
-              {t('business.Create Promotion')}
-            </button>
+            <PermissionGate permission={PERMISSIONS.PROMOTIONS_CREATE}>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-sm w-full sm:w-auto"
+              >
+                <Plus className="w-5 h-5" />
+                {t('business.Create Promotion')}
+              </button>
+            </PermissionGate>
           </div>
         </div>
+
+        {/* Staff restrictions notice */}
+        {user && !isBusinessOwner(user) && (
+          <RestrictedFeatureNotice 
+            featureName={t('business.Promotion creation and deletion')}
+            className="mb-4"
+          />
+        )}
 
         {/* Stats Cards */}
         {stats && (
@@ -559,13 +571,15 @@ const PromotionsPage = () => {
                             <QrCode className="h-5 w-5" />
                           </button>
                           {code.status === 'ACTIVE' && (
-                            <button
-                              onClick={() => handleCancelCode(code.id)}
-                              className="text-red-600 hover:text-red-800"
-                              title={t('business.Cancel Promotion')}
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
+                            <PermissionGate permission={PERMISSIONS.PROMOTIONS_DELETE}>
+                              <button
+                                onClick={() => handleCancelCode(code.id)}
+                                className="text-red-600 hover:text-red-800"
+                                title={t('business.Cancel Promotion')}
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            </PermissionGate>
                           )}
                         </div>
                       </td>
@@ -579,13 +593,15 @@ const PromotionsPage = () => {
               <Gift className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-500">{t('business.No promotions found')}</h3>
               <p className="text-gray-400 text-sm mt-2 mb-4">{t('business.Create your first promotion to start attracting customers')}</p>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                {t('business.Create Your First Promotion')}
-              </button>
+              <PermissionGate permission={PERMISSIONS.PROMOTIONS_CREATE}>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  {t('business.Create Your First Promotion')}
+                </button>
+              </PermissionGate>
             </div>
           )}
         </div>
