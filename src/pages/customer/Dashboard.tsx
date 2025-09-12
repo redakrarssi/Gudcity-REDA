@@ -1,611 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCard } from '../../components/QRCard';
-import { ProgramBrowser } from '../../components/customer/ProgramBrowser';
-import { EnrolledPrograms } from '../../components/customer/EnrolledPrograms';
-import { TransactionHistory } from '../../components/customer/TransactionHistory';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { BadgeCheck, Search, TrendingUp, Sparkles, Star, Gift, Activity, Coffee, Receipt, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { TransactionService } from '../../services/transactionService';
-import sql from '../../utils/db';
-import type { Transaction } from '../../types/loyalty';
-import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
-import { NotificationService } from '../../services/notificationService';
-import { LoyaltyCardService } from '../../services/loyaltyCardService';
-
-// Define upcomingReward type
-interface UpcomingReward {
-  programId: number;
-  programName: string;
-  businessName: string;
-  currentPoints: number;
-  rewardId: number;
-  pointsRequired: number;
-  reward: string;
-  pointsNeeded: number;
-  progress: number;
-}
+import { useEnrolledPrograms } from '../../hooks/useEnrolledPrograms';
+import { PromoService } from '../../services/promoService';
+import type { PromoCode } from '../../types/promo';
+import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('enrolled');
   const [animateIn, setAnimateIn] = useState(false);
-  const [totalPoints, setTotalPoints] = useState(0);
-  const [pointsLoading, setPointsLoading] = useState(true);
-  const [recentActivity, setRecentActivity] = useState<Transaction[]>([]);
-  const [activitiesLoading, setActivitiesLoading] = useState(true);
-  const [upcomingRewards, setUpcomingRewards] = useState<UpcomingReward[]>([]);
-  const [rewardsLoading, setRewardsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Use authenticated user data - ensure we're using the full name from the database
+  const [promos, setPromos] = useState<PromoCode[]>([]);
+
+  // Authenticated user data
   const userData = {
     id: user?.id?.toString() || '',
     name: user?.name || t('customerDashboard.defaultName', 'Customer')
   };
 
-  // Debug user data
-  console.log('User data from auth context:', user);
-  console.log('Using name for display:', userData.name);
+  // Enrolled programs (top 3)
+  const enrolledProgramsQuery = useEnrolledPrograms();
+  const topPrograms = (enrolledProgramsQuery.data || []).slice(0, 3);
+
+  // Load promotions (top 3)
+  useEffect(() => {
+    const loadPromotions = async () => {
+      try {
+        const { promotions } = await PromoService.getAvailablePromotions();
+        setPromos((promotions || []).slice(0, 3));
+      } catch (e) {
+        setPromos([]);
+      }
+    };
+    loadPromotions();
+  }, []);
 
   useEffect(() => {
-    // Trigger animation after a short delay
-    const timer = setTimeout(() => {
-      setAnimateIn(true);
-    }, 300);
-    
+    const timer = setTimeout(() => setAnimateIn(true), 250);
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch total points from all programs
-  useEffect(() => {
-    const fetchTotalPoints = async () => {
-      if (!user?.id) return;
-      
-      setPointsLoading(true);
-      try {
-        const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
-        const result = await sql`
-          SELECT SUM(current_points) as total_points
-          FROM customer_programs
-          WHERE customer_id = ${userId}
-        `;
-        
-        // Safely handle potential null/undefined result or non-numeric value
-        const points = result[0]?.total_points;
-        setTotalPoints(points ? Number(points) : 0);
-      } catch (error) {
-        console.error('Error fetching total points:', error);
-      } finally {
-        setPointsLoading(false);
-      }
-    };
-    
-    fetchTotalPoints();
-  }, [user?.id]);
-
-  // Fetch recent activities
-  useEffect(() => {
-    const fetchRecentActivities = async () => {
-      if (!user?.id) return;
-      
-      setActivitiesLoading(true);
-      try {
-        const result = await TransactionService.getTransactionHistory(
-          user.id.toString(),
-          undefined // No specific program
-        );
-        
-        if (result.transactions) {
-          // Limit to the 3 most recent transactions
-          setRecentActivity(result.transactions.slice(0, 3));
-        }
-      } catch (error) {
-        console.error('Error fetching recent activities:', error);
-      } finally {
-        setActivitiesLoading(false);
-      }
-    };
-    
-    fetchRecentActivities();
-  }, [user?.id]);
-
-  // Fetch upcoming rewards
-  useEffect(() => {
-    const fetchUpcomingRewards = async () => {
-      try {
-        setRewardsLoading(true);
-        
-        if (!user?.id) {
-          setUpcomingRewards([]);
-          return;
-        }
-        
-        const userId = Number(user.id);
-        
-        // Get enrolled programs with current points
-        const enrolledPrograms = await sql`
-          SELECT 
-            cp.program_id, 
-            cp.current_points,
-            lp.name as program_name,
-            b.name as business_name
-          FROM customer_programs cp
-          JOIN loyalty_programs lp ON cp.program_id = lp.id
-          JOIN businesses b ON lp.business_id = b.id
-          WHERE cp.customer_id = ${userId}
-          AND lp.status = 'ACTIVE'
-        `;
-        
-        if (!enrolledPrograms || enrolledPrograms.length === 0) {
-          setUpcomingRewards([]);
-          return;
-        }
-        
-        // For each program, find the next reward
-        const nextRewards: UpcomingReward[] = [];
-        
-        for (const program of enrolledPrograms) {
-          // Ensure we have valid values
-          const programId = program.program_id;
-          const currentPoints = Number(program.current_points || 0);
-          
-          if (!programId) continue;
-          
-          try {
-            const rewardTiers = await sql`
-              SELECT 
-                id, 
-                points_required,
-                reward
-              FROM reward_tiers
-              WHERE program_id = ${programId}
-              AND points_required > ${currentPoints}
-              ORDER BY points_required ASC
-              LIMIT 1
-            `;
-            
-            if (rewardTiers.length > 0) {
-              const tier = rewardTiers[0];
-              const pointsRequired = Number(tier.points_required || 0);
-              
-              if (pointsRequired > 0) {
-                nextRewards.push({
-                  programId,
-                  programName: program.program_name || '',
-                  businessName: program.business_name || '',
-                  currentPoints,
-                  rewardId: tier.id,
-                  pointsRequired,
-                  reward: tier.reward || '',
-                  pointsNeeded: Math.max(0, pointsRequired - currentPoints),
-                  progress: Math.round((currentPoints / pointsRequired) * 100)
-                });
-              }
-            }
-          } catch (tierError) {
-            console.error(`Error fetching reward tiers for program ${programId}:`, tierError);
-            // Skip this program and continue with others
-          }
-        }
-        
-        // Sort by progress (highest first)
-        nextRewards.sort((a, b) => b.progress - a.progress);
-        setUpcomingRewards(nextRewards.slice(0, 3)); // Take top 3
-        
-      } catch (error) {
-        console.error('Error fetching upcoming rewards:', error);
-        
-        // Provide mock data if database query fails
-        if (user?.id) {
-          const mockRewards: UpcomingReward[] = [
-            {
-              programId: 101,
-              programName: "Coffee Rewards",
-              businessName: "City Cafe",
-              currentPoints: 250,
-              rewardId: 302,
-              pointsRequired: 300,
-              reward: "Free Pastry",
-              pointsNeeded: 50,
-              progress: 83
-            },
-            {
-              programId: 102,
-              programName: "Fitness Rewards",
-              businessName: "Power Gym",
-              currentPoints: 75,
-              rewardId: 305,
-              pointsRequired: 100,
-              reward: "Personal Training Session",
-              pointsNeeded: 25,
-              progress: 75
-            }
-          ];
-          setUpcomingRewards(mockRewards);
-        }
-      } finally {
-        setRewardsLoading(false);
-      }
-    };
-    
-    fetchUpcomingRewards();
-  }, [user?.id]);
-
-  const handleEnroll = async (programId: string) => {
-    // TODO: Implement enrollment API call
-    console.log('Enrolling in program:', programId);
-    
-    if (!user?.id) {
-      setError('You must be logged in to enroll in a program');
-      return;
-    }
-    
-    try {
-      const result = await LoyaltyProgramService.enrollCustomer(
-        user.id.toString(),
-        programId
-      );
-      
-      if (result.success) {
-        // Show success notification
-        await NotificationService.createNotification(
-          user.id.toString(),
-          'PROGRAM_ENROLLED',
-          'Successfully enrolled',
-          'You have been enrolled in the program'
-        );
-        
-        // Refresh enrolled programs list
-        if (activeTab === 'browse') {
-          setActiveTab('enrolled');
-        }
-      } else {
-        // Show error notification
-        await NotificationService.createNotification(
-          user.id.toString(),
-          'SYSTEM_ALERT',
-          'Enrollment failed',
-          result.error || 'Failed to enroll in the program'
-        );
-      }
-    } catch (error) {
-      console.error('Error enrolling in program:', error);
-      
-      // Show error notification
-      if (user?.id) {
-        await NotificationService.createNotification(
-          user.id.toString(),
-          'SYSTEM_ALERT',
-          'Enrollment error',
-          'An error occurred while enrolling in the program'
-        );
-      }
-    }
-  };
-
-  const handleRedeem = async (programId: string, rewardId: string) => {
-    console.log('Redeeming reward:', rewardId, 'from program:', programId);
-    
-    if (!user?.id) {
-      setError('You must be logged in to redeem rewards');
-      return;
-    }
-    
-    const userId = user.id.toString();
-    
-    try {
-      // Get the card for this program
-      const userIdNum = parseInt(userId, 10);
-      const programIdNum = parseInt(programId, 10);
-      
-      const cards = await sql`
-        SELECT id FROM loyalty_cards
-        WHERE customer_id = ${userIdNum}
-        AND program_id = ${programIdNum}
-        AND is_active = true
-      `;
-      
-      if (!cards || cards.length === 0) {
-        await NotificationService.createNotification(
-          userId,
-          'SYSTEM_ALERT',
-          'Redemption failed',
-          'You do not have an active card for this program'
-        );
-        return;
-      }
-      
-      // Ensure card id exists and convert to string
-      if (!cards[0] || !cards[0].id) {
-        await NotificationService.createNotification(
-          userId,
-          'SYSTEM_ALERT',
-          'Redemption failed',
-          'Invalid card data'
-        );
-        return;
-      }
-      
-      const cardId = String(cards[0].id);
-      const rewardIdNum = parseInt(rewardId, 10);
-      
-      // Use the loyalty card service to redeem the reward with cardId and rewardId
-      // This uses the correct reward_tiers table and proper database transaction
-      const result = await LoyaltyCardService.redeemReward(cardId, rewardId);
-      
-      if (result.success) {
-        await NotificationService.createNotification(
-          userId,
-          'REWARD_AVAILABLE',
-          'Reward redeemed',
-          `You have successfully redeemed ${rewardName}`
-        );
-      } else {
-        await NotificationService.createNotification(
-          userId,
-          'SYSTEM_ALERT',
-          'Redemption failed',
-          result.message || 'Failed to redeem reward'
-        );
-      }
-    } catch (error) {
-      console.error('Error redeeming reward:', error);
-      
-      await NotificationService.createNotification(
-        userId,
-        'SYSTEM_ALERT',
-        'Redemption error',
-        'An error occurred while redeeming the reward'
-      );
-    }
-  };
-
-  // Format date for activity display
-  const formatActivityDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return t('today');
-    } else if (diffDays === 1) {
-      return t('yesterday');
-    } else if (diffDays < 7) {
-      return t('daysAgo', { days: diffDays });
-    } else {
-      return date.toLocaleDateString();
-    }
-  };
-
   return (
     <CustomerLayout>
-      <div className="space-y-8 customer-dashboard dashboard-container">
-        <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
-              <Sparkles className="w-6 h-6 text-blue-500 mr-2" />
+      <div className="space-y-6 customer-dashboard dashboard-container">
+        {/* QR only hero */}
+        <div className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-6 relative overflow-hidden ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}> 
+          <div className="relative flex flex-col items-center dashboard-hero">
+            <h1 className="text-white text-xl font-semibold flex items-center mb-4">
+              <Sparkles className="w-5 h-5 text-blue-100 mr-2" />
               {t('customerDashboard.title', 'Customer Dashboard')}
             </h1>
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2 rounded-full text-white text-sm font-medium flex items-center shadow-md">
-              {pointsLoading ? (
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-              ) : (
-                <TrendingUp className="w-4 h-4 mr-1.5" />
-              )}
-              {pointsLoading ? t('loading') : `${totalPoints} ${t('points')}`}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-8 mb-8 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-sm opacity-30"></div>
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-            
-            <div className="relative flex flex-col md:flex-row justify-between items-center dashboard-hero">
-              <div className="text-white mb-6 md:mb-0">
-                <h2 className="text-2xl font-bold">{t('welcomeBack')}, {userData.name}!</h2>
-                <p className="opacity-80 mt-2 text-blue-100">{t('scanQRCode')}</p>
-                
-                <div className="flex items-center mt-4 text-sm space-x-4">
-                  {!pointsLoading && (
-                    <>
-                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                        <BadgeCheck className="w-4 h-4 text-blue-200 mr-1.5" />
-                        <span className="text-blue-100">{upcomingRewards.length} {t('programs')}</span>
-                      </div>
-                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                        <Gift className="w-4 h-4 text-blue-200 mr-1.5" />
-                        <span className="text-blue-100">
-                          {upcomingRewards.filter(r => r.progress >= 90).length} {t('rewardsReady')}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1 border border-white/20 qr-card-container">
-                <QRCard userId={userData.id} displayName={userData.name} />
-                <div className="mt-2 text-center text-xs text-white/80">{t('tapToEnlarge')}</div>
-              </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container">
+              <QRCard userId={userData.id} displayName={userData.name} />
             </div>
           </div>
         </div>
 
-        <div className={`bg-white rounded-xl shadow-xl border border-gray-100 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ transitionDelay: '200ms' }}>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="border-b px-6 pt-5 pb-2">
-              <div className="bg-gray-100/70 p-1 rounded-lg inline-flex">
-                <TabsList>
-                  <TabsTrigger 
-                    value="enrolled" 
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
-                  >
-                    <BadgeCheck className="w-4 h-4 mr-2" />
-                    {t('enrolledPrograms')}
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="browse"
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
-                  >
-                    <Search className="w-4 h-4 mr-2" />
-                    {t('browsePrograms')}
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="transactions"
-                    className="flex items-center justify-center py-2.5 px-5 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-md rounded-md transition-all"
-                  >
-                    <Receipt className="w-4 h-4 mr-2" />
-                    {t('transactions')}
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <TabsContent value="enrolled">
-                <EnrolledPrograms onRedeem={handleRedeem} />
-              </TabsContent>
-
-              <TabsContent value="browse">
-                <ProgramBrowser onEnroll={handleEnroll} />
-              </TabsContent>
-
-              <TabsContent value="transactions">
-                <TransactionHistory customerId={userData.id} />
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
-        
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ transitionDelay: '400ms' }}>
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
-            <div className="flex items-center justify-between mb-4">
+        {/* Mini sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Top Programs (3) */}
+          <div className="bg-white rounded-xl shadow border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-gray-800 flex items-center">
-                <Activity className="w-4 h-4 text-blue-500 mr-1.5" />
-                {t('recentActivity')}
+                <BadgeCheck className="w-4 h-4 text-blue-500 mr-1.5" />
+                {t('myPrograms', 'My Programs')}
               </h3>
-              <span className="text-xs bg-blue-50 px-2 py-1 rounded-full text-blue-700">{t('last7Days')}</span>
+              <span className="text-xs text-gray-500">{(enrolledProgramsQuery.data || []).length} {t('active', 'active')}</span>
             </div>
-            
-            {activitiesLoading ? (
-              <div className="flex justify-center items-center py-6">
-                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+            {enrolledProgramsQuery.isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="h-20 bg-gray-100 rounded animate-pulse" />
+                <div className="h-20 bg-gray-100 rounded animate-pulse" />
+                <div className="h-20 bg-gray-100 rounded animate-pulse" />
               </div>
-            ) : recentActivity.length === 0 ? (
-              <div className="text-center py-6 text-gray-500">
-                <p>{t('noRecentActivity')}</p>
-              </div>
+            ) : topPrograms.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-6">{t('noPrograms', 'No enrolled programs yet')}</div>
             ) : (
-              <div className="space-y-3">
-                {recentActivity.map(activity => (
-                  <div key={activity.id} className="flex items-center p-3 rounded-lg bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-colors border border-transparent hover:border-blue-100 activity-card">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform ${
-                      activity.type === 'EARN' ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-indigo-600'
-                    }`}>
-                      {activity.type === 'EARN' ? (
-                        <Star className="w-5 h-5 text-white" />
-                      ) : (
-                        <Gift className="w-5 h-5 text-white" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-700">
-                        {activity.type === 'EARN' ? (
-                          t('earnedPoints', { points: activity.points })
-                        ) : (
-                          t('redeemedPoints', { points: activity.points })
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {activity.businessName || 'Business'} • {formatActivityDate(activity.createdAt)}
-                      </p>
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {topPrograms.map(program => (
+                  <div key={program.id} className="p-3 rounded-lg border border-gray-200">
+                    <div className="text-sm font-medium text-gray-800 truncate">{program.program.name}</div>
+                    <div className="text-xs text-gray-500 truncate">{program.business.name}</div>
+                    <div className="mt-2 text-xs"><span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{program.currentPoints} {t('points')}</span></div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          
-          <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-blue-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1 group">
-            <div className="flex items-center justify-between mb-4">
+
+          {/* Fire Promotions (3) */}
+          <div className="bg-white rounded-xl shadow border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-gray-800 flex items-center">
-                <Gift className="w-4 h-4 text-blue-500 mr-1.5" />
-                {t('nextRewards')}
+                <Flame className="w-4 h-4 text-amber-500 mr-1.5" />
+                {t('hotPromotions', 'Hot Promotions')}
               </h3>
-              <span className="text-xs text-blue-600 cursor-pointer hover:underline">{t('viewAll')}</span>
+              <span className="text-xs text-gray-500">{promos.length} {t('available', 'available')}</span>
             </div>
-            
-            {rewardsLoading ? (
-              <div className="flex justify-center items-center py-6">
-                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-              </div>
-            ) : upcomingRewards.length === 0 ? (
-              <div className="text-center py-6 text-gray-500">
-                <p>{t('noUpcomingRewards')}</p>
-              </div>
+            {promos.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-6">{t('promotions.none', 'No promotions right now')}</div>
             ) : (
-              <div className="space-y-3">
-                {upcomingRewards.map((reward, index) => (
-                  <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm group-hover:shadow transition-shadow">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-2 shadow-sm">
-                          <Coffee className="w-4 h-4 text-white" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-800">{reward.reward}</p>
-                      </div>
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
-                        {reward.pointsNeeded} {t('pointsMore')}
-                      </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {promos.map(promo => (
+                  <div key={promo.id} className="p-3 rounded-lg border border-amber-200 bg-amber-50/40">
+                    <div className="text-sm font-medium text-gray-800 truncate">{promo.businessName}</div>
+                    <div className="text-xs text-gray-600 flex items-center mt-1">
+                      <Ticket className="w-3 h-3 mr-1 text-amber-600" />
+                      <span className="font-mono">{promo.code}</span>
                     </div>
-                    <div className="w-full bg-white/80 rounded-full h-2.5 shadow-inner overflow-hidden reward-progress">
-                      <div 
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full" 
-                        style={{ width: `${reward.progress}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between mt-2">
-                      <span className="text-xs text-gray-500">
-                        {reward.currentPoints}/{reward.pointsRequired} points
-                      </span>
-                      <span className="text-xs text-blue-700 font-medium">
-                        {reward.progress}% {t('complete')}
-                      </span>
-                    </div>
+                    <div className="mt-2 text-xs text-amber-700">{promo.type}</div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-          
-          <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-lg border border-purple-100 p-6 hover:shadow-xl transition-all hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-gray-800 flex items-center">
-                <Sparkles className="w-4 h-4 text-purple-500 mr-1.5" />
-                {t('trendingRewards')}
-              </h3>
-              <span className="text-xs bg-purple-50 px-2 py-1 rounded-full text-purple-700">{t('popularNow')}</span>
-            </div>
-            <div className="space-y-3 trending-rewards">
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 shadow-sm hover:shadow-md transition-shadow transform hover:-translate-y-0.5">
-                <p className="text-sm font-medium text-purple-800 flex items-center">
-                  <span className="w-6 h-6 flex items-center justify-center bg-purple-100 rounded-full text-purple-800 mr-2 text-xs font-bold">1</span>
-                  20% Off at Fashion Store
-                </p>
-                <p className="text-xs text-purple-600 mt-2 ml-8">{t('limitedTimeOffer')} • 230 {t('redeemed')}</p>
-              </div>
-              <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200 shadow-sm hover:shadow-md transition-shadow transform hover:-translate-y-0.5">
-                <p className="text-sm font-medium text-amber-800 flex items-center">
-                  <span className="w-6 h-6 flex items-center justify-center bg-amber-100 rounded-full text-amber-800 mr-2 text-xs font-bold">2</span>
-                  Free Dessert at Local Restaurant
-                </p>
-                <p className="text-xs text-amber-600 mt-2 ml-8">{t('withAnyMealPurchase')} • 178 {t('redeemed')}</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
