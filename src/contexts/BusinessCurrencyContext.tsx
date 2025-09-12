@@ -85,7 +85,15 @@ export const BusinessCurrencyProvider: React.FC<BusinessCurrencyProviderProps> =
 
     try {
       console.log('🔄 Loading business currency for user ID:', user.id);
-      const businessSettings = await BusinessSettingsService.getBusinessSettings(user.id);
+      
+      // For staff users, get currency from their business owner
+      let businessId = user.id;
+      if (user.role === 'staff' && user.business_owner_id) {
+        console.log('👥 Staff user detected, using business owner ID:', user.business_owner_id);
+        businessId = user.business_owner_id;
+      }
+      
+      const businessSettings = await BusinessSettingsService.getBusinessSettings(businessId);
       
       if (businessSettings?.currency) {
         console.log('💰 Setting currency from business settings:', businessSettings.currency);
@@ -105,6 +113,11 @@ export const BusinessCurrencyProvider: React.FC<BusinessCurrencyProviderProps> =
   const updateCurrency = async (newCurrency: string) => {
     if (!user?.id) {
       throw new Error('No user ID available');
+    }
+
+    // Staff users cannot change currency - it's inherited from business owner
+    if (user.role === 'staff') {
+      throw new Error('Staff users cannot change business currency. Currency is inherited from the business owner.');
     }
 
     try {
