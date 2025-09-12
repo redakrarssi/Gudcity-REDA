@@ -157,11 +157,13 @@ const CustomersPage = () => {
       console.log('🔍 DEBUG: Current user object:', user);
       console.log('🔍 DEBUG: User ID:', user?.id);
       console.log('🔍 DEBUG: User type:', user?.user_type);
+      console.log('🔍 DEBUG: User role:', user?.role);
       console.log('🔍 DEBUG: User name:', user?.name);
       console.log('🔍 DEBUG: User email:', user?.email);
+      console.log('🔍 DEBUG: User business_owner_id:', user?.business_owner_id);
       
-      // Use the business ID from the logged-in user
-      const businessId = user?.id.toString() || '';
+      // Use the business ID from the logged-in user (or their business owner if staff)
+      const businessId = getBusinessIdString(user);
       console.log('🔍 DEBUG: Using business ID for query:', businessId);
       
       if (!businessId) {
@@ -169,6 +171,9 @@ const CustomersPage = () => {
         setError(t('business.Please log in to view customers'));
         return;
       }
+      
+      // Debug database state before fetching customers
+      await CustomerService.debugDatabaseState(businessId);
       
       const customersData = await CustomerService.getBusinessCustomers(businessId);
       console.log('🔍 DEBUG: Received customers data:', customersData);
