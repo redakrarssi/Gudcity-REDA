@@ -213,6 +213,22 @@
   margin-right: 0.5rem;
 }
 
+/* Arabic customer dashboard hero responsiveness */
+@media (max-width: 768px) {
+  [dir="rtl"] .dashboard-hero {
+    flex-direction: column !important;
+    align-items: center;
+  }
+  [dir="rtl"] .dashboard-hero .text-white {
+    text-align: center;
+  }
+  [dir="rtl"] .qr-card-container {
+    width: 100%;
+    max-width: 280px;
+    margin-inline: auto;
+  }
+}
+
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;

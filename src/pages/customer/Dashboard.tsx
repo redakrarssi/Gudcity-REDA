@@ -405,7 +405,7 @@ const CustomerDashboard = () => {
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
             <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
             
-            <div className="relative flex flex-col md:flex-row justify-between items-center">
+            <div className="relative flex flex-col md:flex-row justify-between items-center dashboard-hero">
               <div className="text-white mb-6 md:mb-0">
                 <h2 className="text-2xl font-bold">{t('welcomeBack')}, {userData.name}!</h2>
                 <p className="opacity-80 mt-2 text-blue-100">{t('scanQRCode')}</p>
