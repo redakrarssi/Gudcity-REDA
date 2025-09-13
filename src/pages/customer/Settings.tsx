@@ -729,29 +729,7 @@ const CustomerSettings = () => {
         </div>
       </div>
       
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
-          <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-          {t('settings.accountActions')}
-        </h2>
-        
-        <div className="space-y-4">
-          <button
-            className="w-full flex justify-between items-center p-3 text-left bg-red-50 hover:bg-red-100 rounded-lg transition-colors text-red-700"
-          >
-            <div className="flex items-center">
-              <div className="bg-red-100 p-2 rounded-full mr-3">
-                <LogOut className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-medium">{t('settings.deleteAccount')}</h3>
-                <p className="text-sm opacity-80">{t('settings.permanentlyDeleteAccount')}</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+      {/* Account actions (Delete account) removed */}
     </div>
   );
 
@@ -784,16 +762,7 @@ const CustomerSettings = () => {
             >
               {t('settings.personalSettings')}
             </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`px-4 py-3 text-sm font-medium transition-colors settings-tab customer-settings-tab ${
-                activeTab === 'notifications'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              {t('settings.notifications')}
-            </button>
+            {/* Notifications tab removed */}
             <button
               onClick={() => setActiveTab('account')}
               className={`px-4 py-3 text-sm font-medium transition-colors settings-tab customer-settings-tab ${
@@ -810,7 +779,7 @@ const CustomerSettings = () => {
         {/* Settings Content */}
         <div className={`transition-all duration-500 ease-out transform delay-200 ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           {activeTab === 'personal' && renderPersonalSettings()}
-          {activeTab === 'notifications' && renderNotificationSettings()}
+          {/* Notifications content removed */}
           {activeTab === 'account' && renderAccountSettings()}
         </div>
         
