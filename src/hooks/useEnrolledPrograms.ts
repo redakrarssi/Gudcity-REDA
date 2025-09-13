@@ -61,9 +61,9 @@ export function useEnrolledPrograms() {
             '' AS "business_state", -- Default empty string for potentially missing column
             '' AS "business_country" -- Default empty string for potentially missing column
           FROM program_enrollments cp
-          JOIN loyalty_programs lp ON cp.program_id = lp.id::text
+          JOIN loyalty_programs lp ON (cp.program_id::int = lp.id)
           JOIN users b ON lp.business_id = b.id
-          WHERE cp.customer_id = ${userIdNumber}
+          WHERE (cp.customer_id::int = ${userIdNumber})
           AND cp.status = 'ACTIVE'
           AND lp.status = 'ACTIVE'
           ORDER BY cp.current_points DESC
