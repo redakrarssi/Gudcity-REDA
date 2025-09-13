@@ -213,6 +213,51 @@
   margin-right: 0.5rem;
 }
 
+/* Arabic customer dashboard hero responsiveness */
+@media (max-width: 768px) {
+  [dir="rtl"] .dashboard-hero {
+    flex-direction: column !important;
+    align-items: center;
+  }
+  [dir="rtl"] .dashboard-hero .text-white {
+    text-align: center;
+  }
+  [dir="rtl"] .qr-card-container {
+    width: 100%;
+    max-width: 280px;
+    margin-inline: auto;
+  }
+}
+
+<<<<<<< Current (Your changes)
+=======
+/* Desktop layout: keep QR card on the right visually while supporting RTL text */
+@media (min-width: 769px) {
+  .dashboard-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dashboard-hero .qr-on-right {
+    margin-left: 1.5rem;
+  }
+  [dir="rtl"] .dashboard-hero {
+    flex-direction: row; /* greeting left, QR right */
+  }
+  [dir="rtl"] .dashboard-hero .qr-on-right {
+    margin-left: 0;
+    margin-right: 1.5rem;
+  }
+}
+
+/* Align hero info pills consistently */
+.align-pill {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+>>>>>>> Incoming (Background Agent changes)
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;
