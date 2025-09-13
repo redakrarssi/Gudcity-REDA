@@ -45,23 +45,25 @@ const CustomerDashboard = () => {
   return (
     <CustomerLayout>
       <div className="space-y-6 customer-dashboard dashboard-container">
+        {/* Page Title */}
+        <div className={`${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+            {t('customerDashboard.title', 'Customer Dashboard')}
+          </h1>
+        </div>
+
         {/* QR only hero */}
         <div className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-6 relative overflow-hidden ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}> 
           <div className="relative flex flex-col md:flex-row items-center md:items-center justify-between dashboard-hero">
             <div className="text-white md:max-w-xl md:pr-6 text-center md:text-left md:order-1">
-              <h1 className="text-2xl font-semibold flex items-center justify-center md:justify-start">
-                <Sparkles className="w-6 h-6 text-blue-100 mr-2" />
-                {t('customerDashboard.title', 'Customer Dashboard')}
-              </h1>
-              <p className="text-blue-100 mt-2">
-                {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
+              <h2 className="text-2xl md:text-3xl font-semibold drop-shadow-sm">
+                {t('welcomeBack', 'Welcome back')}, {userData.name}!
+              </h2>
+              <p className="text-blue-100 mt-2 text-base md:text-lg opacity-90">
+                {t('scanQRCode', 'Scan your QR code to earn rewards')}
               </p>
             </div>
             <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-center">
-              <div className="hidden md:flex items-center justify-center text-white text-xl font-semibold mb-2">
-                <QrCode className="w-5 h-5 text-blue-100 mr-2" />
-                {t('yourVcarda', 'Your Vcarda')}
-              </div>
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right">
                 <QRCard userId={userData.id} displayName={userData.name} />
               </div>
