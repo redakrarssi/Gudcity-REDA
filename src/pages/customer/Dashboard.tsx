@@ -52,6 +52,9 @@ const CustomerDashboard = () => {
               <Sparkles className="w-5 h-5 text-blue-100 mr-2" />
               {t('customerDashboard.title', 'Customer Dashboard')}
             </h1>
+            <p className="text-blue-100 mb-4 text-center">
+              {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
+            </p>
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container">
               <QRCard userId={userData.id} displayName={userData.name} />
             </div>
