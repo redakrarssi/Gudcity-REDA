@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCard } from '../../components/QRCard';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
@@ -69,34 +69,6 @@ const CustomerDashboard = () => {
           </h1>
         </div>
 
-<<<<<<< Current (Your changes)
-          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-8 mb-8 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-full bg-white/5 backdrop-blur-sm opacity-30"></div>
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-            
-            <div className="relative flex flex-col md:flex-row justify-between items-center dashboard-hero">
-              <div className="text-white mb-6 md:mb-0">
-                <h2 className="text-2xl font-bold">{t('welcomeBack')}, {userData.name}!</h2>
-                <p className="opacity-80 mt-2 text-blue-100">{t('scanQRCode')}</p>
-                
-                <div className="flex items-center mt-4 text-sm space-x-4">
-                  {!pointsLoading && (
-                    <>
-                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                        <BadgeCheck className="w-4 h-4 text-blue-200 mr-1.5" />
-                        <span className="text-blue-100">{upcomingRewards.length} {t('programs')}</span>
-                      </div>
-                      <div className="flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                        <Gift className="w-4 h-4 text-blue-200 mr-1.5" />
-                        <span className="text-blue-100">
-                          {upcomingRewards.filter(r => r.progress >= 90).length} {t('rewardsReady')}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-=======
         {/* QR only hero */}
         <div className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-6 relative overflow-hidden ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}> 
           <div className="relative flex flex-col md:flex-row items-center md:items-center justify-between dashboard-hero">
@@ -119,7 +91,6 @@ const CustomerDashboard = () => {
                 <span className="text-blue-50 text-sm">
                   {unreadCount} {t('notifications.notifications', 'notifications')}
                 </span>
->>>>>>> Incoming (Background Agent changes)
               </div>
             </div>
             <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-center">
