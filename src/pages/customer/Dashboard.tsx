@@ -47,15 +47,17 @@ const CustomerDashboard = () => {
       <div className="space-y-6 customer-dashboard dashboard-container">
         {/* QR only hero */}
         <div className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-6 relative overflow-hidden ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}> 
-          <div className="relative flex flex-col items-center dashboard-hero">
-            <h1 className="text-white text-xl font-semibold flex items-center mb-4">
-              <Sparkles className="w-5 h-5 text-blue-100 mr-2" />
-              {t('customerDashboard.title', 'Customer Dashboard')}
-            </h1>
-            <p className="text-blue-100 mb-4 text-center">
-              {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
-            </p>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container">
+          <div className="relative flex flex-col md:flex-row items-center md:items-center justify-between dashboard-hero">
+            <div className="text-white md:max-w-xl md:pr-6 text-center md:text-left md:order-1">
+              <h1 className="text-2xl font-semibold flex items-center justify-center md:justify-start">
+                <Sparkles className="w-6 h-6 text-blue-100 mr-2" />
+                {t('customerDashboard.title', 'Customer Dashboard')}
+              </h1>
+              <p className="text-blue-100 mt-2">
+                {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
+              </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right md:order-2 md:ml-6">
               <QRCard userId={userData.id} displayName={userData.name} />
             </div>
           </div>

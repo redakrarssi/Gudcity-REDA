@@ -229,6 +229,25 @@
   }
 }
 
+/* Desktop layout: keep QR card on the right visually while supporting RTL text */
+@media (min-width: 769px) {
+  .dashboard-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dashboard-hero .qr-on-right {
+    margin-left: 1.5rem;
+  }
+  [dir="rtl"] .dashboard-hero {
+    flex-direction: row; /* greeting left, QR right */
+  }
+  [dir="rtl"] .dashboard-hero .qr-on-right {
+    margin-left: 0;
+    margin-right: 1.5rem;
+  }
+}
+
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;
