@@ -58,6 +58,9 @@ const CustomerDashboard = () => {
               </p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right md:order-2 md:ml-6">
+              <div className="hidden md:block text-white/90 text-sm font-medium mb-2 tracking-wide uppercase">
+                {t('yourQrCard', 'Your QR Card')}
+              </div>
               <QRCard userId={userData.id} displayName={userData.name} />
             </div>
           </div>
