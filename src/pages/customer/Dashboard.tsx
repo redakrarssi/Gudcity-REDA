@@ -89,7 +89,7 @@ const CustomerDashboard = () => {
               <div className="mt-2 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 ml-2">
                 <span className="w-2 h-2 bg-amber-300 rounded-full mr-2"></span>
                 <span className="text-blue-50 text-sm">
-                  {unreadCount} {t('notifications', 'notifications')}
+                  {unreadCount} {t('notifications.notifications', 'notifications')}
                 </span>
               </div>
             </div>
