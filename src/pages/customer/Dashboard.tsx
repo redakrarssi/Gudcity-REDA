@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useEnrolledPrograms } from '../../hooks/useEnrolledPrograms';
 import { PromoService } from '../../services/promoService';
 import type { PromoCode } from '../../types/promo';
-import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
+import { BadgeCheck, Flame, Ticket, Sparkles, QrCode } from 'lucide-react';
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
@@ -57,11 +57,14 @@ const CustomerDashboard = () => {
                 {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right md:order-2 md:ml-6">
-              <div className="hidden md:block text-white/90 text-sm font-medium mb-2 tracking-wide uppercase">
+            <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-end">
+              <div className="hidden md:flex items-center text-white text-2xl font-semibold mb-2">
+                <QrCode className="w-6 h-6 text-blue-100 mr-2" />
                 {t('yourQrCard', 'Your QR Card')}
               </div>
-              <QRCard userId={userData.id} displayName={userData.name} />
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right">
+                <QRCard userId={userData.id} displayName={userData.name} />
+              </div>
             </div>
           </div>
         </div>
