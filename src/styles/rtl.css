@@ -248,6 +248,13 @@
   }
 }
 
+/* Align hero info pills consistently */
+.align-pill {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;

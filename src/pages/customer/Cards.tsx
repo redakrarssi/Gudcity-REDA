@@ -1038,7 +1038,7 @@ const CustomerCards = () => {
                 <div className="flex items-center">
                   <Info className="h-5 w-5 text-blue-500 mr-2" />
                   <p className="text-blue-700">
-                    {t('cards.youAreCurrentlyEnrolled', { count: loyaltyCards.length })}
+                    {`You are currently enrolled in ${loyaltyCards.length} program`}
                   </p>
                 </div>
                 <button 

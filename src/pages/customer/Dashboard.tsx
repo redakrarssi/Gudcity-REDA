@@ -80,13 +80,13 @@ const CustomerDashboard = () => {
               <p className="text-blue-100 mt-1 text-sm md:text-base opacity-90">
                 {t('scanQRCode', 'Scan your QR code to earn rewards')}
               </p>
-              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20">
+              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 align-pill">
                 <BadgeCheck className="w-4 h-4 text-blue-100 mr-1.5" />
                 <span className="text-blue-50 text-sm">
                   {(enrolledProgramsQuery.data || []).length} {t('programs', 'programs')}
                 </span>
               </div>
-              <div className="mt-2 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 ml-2">
+              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 ml-2 align-pill">
                 <span className="w-2 h-2 bg-amber-300 rounded-full mr-2"></span>
                 <span className="text-blue-50 text-sm">
                   {unreadCount} {t('notifications.notifications', 'notifications')}
