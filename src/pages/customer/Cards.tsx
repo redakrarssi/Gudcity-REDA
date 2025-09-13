@@ -10,7 +10,6 @@ import { subscribeToEvents, Event } from '../../utils/telemetry';
 import { subscribeToSync, SyncEvent } from '../../utils/realTimeSync';
 import { queryClient } from '../../utils/queryClient';
 import { LOYALTY_EVENT } from '../../utils/loyaltyEvents';
-import NotificationList from '../../components/customer/NotificationList';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import { useEnrollmentNotifications } from '../../hooks/useEnrollmentNotifications';
 import { triggerCardRefresh } from '../../utils/notificationHandler';
@@ -1077,8 +1076,7 @@ const CustomerCards = () => {
           ))}
         </AnimatePresence>
 
-        {/* Customer Notifications and Approvals */}
-        <NotificationList />
+        {/* Notifications removed as requested */}
 
         {/* Loyalty Cards Section with Refresh Button */}
         <div>
