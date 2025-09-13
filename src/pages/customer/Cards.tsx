@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw, Sparkles } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1081,8 +1081,8 @@ const CustomerCards = () => {
         {/* Loyalty Cards Section with Refresh Button */}
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center">
-              <CreditCard className="mr-3 text-indigo-500" />
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white tracking-tight flex items-center">
+              <Sparkles className="w-5 h-5 text-blue-600 mr-2" />
               {t('cards.myCards')}
               
               {/* Notification badge for pending enrollment requests */}
