@@ -57,10 +57,10 @@ const CustomerDashboard = () => {
                 {t('welcomeBack', 'Welcome back')}, {userData.name}! {t('scanQRCode', 'Show this card to collect points')}.
               </p>
             </div>
-            <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-end">
-              <div className="hidden md:flex items-center text-white text-2xl font-semibold mb-2">
-                <QrCode className="w-6 h-6 text-blue-100 mr-2" />
-                {t('yourQrCard', 'Your QR Card')}
+            <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-center">
+              <div className="hidden md:flex items-center justify-center text-white text-xl font-semibold mb-2">
+                <QrCode className="w-5 h-5 text-blue-100 mr-2" />
+                {t('yourVcarda', 'Your Vcarda')}
               </div>
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right">
                 <QRCard userId={userData.id} displayName={userData.name} />
