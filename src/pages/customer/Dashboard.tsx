@@ -5,6 +5,7 @@ import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEnrolledPrograms } from '../../hooks/useEnrolledPrograms';
 import { PromoService } from '../../services/promoService';
+import { CustomerNotificationService } from '../../services/customerNotificationService';
 import type { PromoCode } from '../../types/promo';
 import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
 
@@ -13,6 +14,7 @@ const CustomerDashboard = () => {
   const { user } = useAuth();
   const [animateIn, setAnimateIn] = useState(false);
   const [promos, setPromos] = useState<PromoCode[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Authenticated user data
   const userData = {
@@ -36,6 +38,20 @@ const CustomerDashboard = () => {
     };
     loadPromotions();
   }, []);
+
+  // Load unread notifications (excluding deleted ones)
+  useEffect(() => {
+    const loadUnread = async () => {
+      try {
+        if (!userData.id) return;
+        const items = await CustomerNotificationService.getUnreadNotifications(userData.id);
+        setUnreadCount(Array.isArray(items) ? items.length : 0);
+      } catch (e) {
+        setUnreadCount(0);
+      }
+    };
+    loadUnread();
+  }, [userData.id]);
 
   useEffect(() => {
     const timer = setTimeout(() => setAnimateIn(true), 250);
@@ -68,6 +84,12 @@ const CustomerDashboard = () => {
                 <BadgeCheck className="w-4 h-4 text-blue-100 mr-1.5" />
                 <span className="text-blue-50 text-sm">
                   {(enrolledProgramsQuery.data || []).length} {t('programs', 'programs')}
+                </span>
+              </div>
+              <div className="mt-2 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 ml-2">
+                <span className="w-2 h-2 bg-amber-300 rounded-full mr-2"></span>
+                <span className="text-blue-50 text-sm">
+                  {unreadCount} {t('notifications', 'notifications')}
                 </span>
               </div>
             </div>
