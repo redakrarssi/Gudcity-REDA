@@ -64,6 +64,12 @@ const CustomerDashboard = () => {
               <p className="text-blue-100 mt-1 text-sm md:text-base opacity-90">
                 {t('scanQRCode', 'Scan your QR code to earn rewards')}
               </p>
+              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20">
+                <BadgeCheck className="w-4 h-4 text-blue-100 mr-1.5" />
+                <span className="text-blue-50 text-sm">
+                  {(enrolledProgramsQuery.data || []).length} {t('programs', 'programs')}
+                </span>
+              </div>
             </div>
             <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-center">
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right">
