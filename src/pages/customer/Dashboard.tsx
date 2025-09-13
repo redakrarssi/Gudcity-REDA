@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useEnrolledPrograms } from '../../hooks/useEnrolledPrograms';
 import { PromoService } from '../../services/promoService';
 import type { PromoCode } from '../../types/promo';
-import { BadgeCheck, Flame, Ticket, Sparkles, QrCode } from 'lucide-react';
+import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
@@ -47,7 +47,7 @@ const CustomerDashboard = () => {
       <div className="space-y-6 customer-dashboard dashboard-container">
         {/* Page Title */}
         <div className={`${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
             {t('customerDashboard.title', 'Customer Dashboard')}
           </h1>
         </div>
@@ -56,10 +56,11 @@ const CustomerDashboard = () => {
         <div className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl shadow-xl p-6 relative overflow-hidden ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}> 
           <div className="relative flex flex-col md:flex-row items-center md:items-center justify-between dashboard-hero">
             <div className="text-white md:max-w-xl md:pr-6 text-center md:text-left md:order-1">
-              <h2 className="text-2xl md:text-3xl font-semibold drop-shadow-sm">
+              <h2 className="text-xl md:text-2xl font-semibold drop-shadow-sm flex items-center justify-center md:justify-start">
+                <Sparkles className="w-5 h-5 text-blue-100 mr-2" />
                 {t('welcomeBack', 'Welcome back')}, {userData.name}!
               </h2>
-              <p className="text-blue-100 mt-2 text-base md:text-lg opacity-90">
+              <p className="text-blue-100 mt-1 text-sm md:text-base opacity-90">
                 {t('scanQRCode', 'Scan your QR code to earn rewards')}
               </p>
             </div>
