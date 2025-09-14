@@ -391,6 +391,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Store user in state
         setUser(appUser);
         
+        // Log successful login
+        try {
+          const { default: SecurityAuditService } = await import('../services/securityAuditService');
+          await SecurityAuditService.logSuccessfulLogin(
+            appUser.id.toString(),
+            normalizedEmail,
+            undefined, // IP will be handled server-side
+            navigator.userAgent
+          );
+        } catch (error) {
+          console.error('Error logging successful login:', error);
+          // Don't fail login if logging fails
+        }
+        
         // Generate JWT token
         try {
           // Create a user object that matches what generateTokens expects
