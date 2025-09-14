@@ -102,16 +102,16 @@ const Login = () => {
       }
       
       // Attempt login
-      const success = await login(formattedEmail, password);
+      const result = await login(formattedEmail, password);
       
-      if (success) {
+      if (result && result.success) {
         // Reset failed login attempts on successful login
         await FailedLoginService.resetFailedAttempts(formattedEmail);
         navigate(from, { replace: true });
       } else {
         // Record failed login attempt
         const userAgent = navigator.userAgent;
-        const failedAttempts = await FailedLoginService.recordFailedAttempt(
+        await FailedLoginService.recordFailedAttempt(
           formattedEmail,
           undefined, // IP will be handled server-side
           userAgent,
@@ -129,11 +129,7 @@ const Login = () => {
           setLockoutCountdown(updatedInfo.lockoutRemainingMinutes || 0);
         } else {
           const remainingAttempts = updatedInfo.remainingAttempts;
-          if (remainingAttempts <= 2) {
-            setError(t('auth.Invalid credentials. Warning: {{remaining}} attempts remaining before account lockout.', { remaining: remainingAttempts }));
-          } else {
-            setError(t('auth.Invalid email or password. {{remaining}} attempts remaining.', { remaining: remainingAttempts }));
-          }
+          setError(`Email or password is incorrect. ${remainingAttempts} attempts remaining.`);
         }
       }
     } catch (err) {
@@ -185,18 +181,13 @@ const Login = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
-                  {!securityInfo?.isAccountLocked && (
-                    <p className="text-xs text-red-600 mt-1">
-                      {t('auth.If you continue to experience issues, try using one of the demo accounts above.')}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
           )}
 
           {/* Security Warning Display */}
-          {showSecurityWarning && securityInfo && (
+          {!error && showSecurityWarning && securityInfo && (
             <div className={`border-l-4 p-4 ${
               securityInfo.isAccountLocked 
                 ? 'bg-red-50 border-red-400' 
