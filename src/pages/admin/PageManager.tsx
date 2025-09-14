@@ -899,9 +899,9 @@ const PageManager = () => {
       </div>
       
       {/* Modals */}
-      <EditModal />
-      <PreviewModal />
-      <DeleteModal />
+      {EditModal()}
+      {PreviewModal()}
+      {DeleteModal()}
     </AdminLayout>
   );
 };

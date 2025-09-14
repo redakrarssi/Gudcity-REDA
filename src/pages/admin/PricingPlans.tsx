@@ -600,8 +600,8 @@ const PricingPlans = () => {
       </div>
       
       {/* Modals */}
-      <EditModal />
-      <DeleteModal />
+      {EditModal()}
+      {DeleteModal()}
     </AdminLayout>
   );
 };
