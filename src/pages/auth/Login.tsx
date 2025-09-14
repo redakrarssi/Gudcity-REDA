@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Eye, EyeOff, Shield, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../../components/LanguageSelector';
+import FailedLoginService, { LoginSecurityInfo } from '../../services/failedLoginService';
 
 const Login = () => {
   const { t } = useTranslation();
@@ -18,8 +19,63 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Failed login tracking state
+  const [securityInfo, setSecurityInfo] = useState<LoginSecurityInfo | null>(null);
+  const [showSecurityWarning, setShowSecurityWarning] = useState(false);
+  const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
+  
   // Get the redirect path from location state or default
   const from = location.state?.from?.pathname || '/account'; // Changed to use /account redirect
+
+  // Check security info when email changes
+  useEffect(() => {
+    const checkSecurityInfo = async () => {
+      if (email && email.includes('@')) {
+        try {
+          const info = await FailedLoginService.getLoginSecurityInfo(email);
+          setSecurityInfo(info);
+          setShowSecurityWarning(info.failedAttempts > 0 || info.isAccountLocked);
+          
+          if (info.isAccountLocked && info.lockoutRemainingMinutes) {
+            setLockoutCountdown(info.lockoutRemainingMinutes);
+          }
+        } catch (error) {
+          console.error('Error checking security info:', error);
+        }
+      } else {
+        setSecurityInfo(null);
+        setShowSecurityWarning(false);
+        setLockoutCountdown(0);
+      }
+    };
+
+    // Debounce the security check
+    const timeoutId = setTimeout(checkSecurityInfo, 500);
+    return () => clearTimeout(timeoutId);
+  }, [email]);
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    if (lockoutCountdown > 0) {
+      const interval = setInterval(() => {
+        setLockoutCountdown(prev => {
+          if (prev <= 1) {
+            // Refresh security info when lockout expires
+            if (email && email.includes('@')) {
+              FailedLoginService.getLoginSecurityInfo(email).then(info => {
+                setSecurityInfo(info);
+                setShowSecurityWarning(info.failedAttempts > 0 || info.isAccountLocked);
+              });
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 60000); // Update every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [lockoutCountdown, email]);
   
   // Handle login form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,12 +92,49 @@ const Login = () => {
     try {
       // Normalize the email to avoid case-sensitivity issues
       const formattedEmail = email.trim().toLowerCase();
+      
+      // Check if account is locked before attempting login
+      const canAttempt = await FailedLoginService.canAttemptLogin(formattedEmail);
+      if (!canAttempt.allowed) {
+        setError(canAttempt.message || t('auth.Account is temporarily locked due to too many failed attempts'));
+        setIsLoading(false);
+        return;
+      }
+      
+      // Attempt login
       const success = await login(formattedEmail, password);
       
       if (success) {
+        // Reset failed login attempts on successful login
+        await FailedLoginService.resetFailedAttempts(formattedEmail);
         navigate(from, { replace: true });
       } else {
-        setError(t('auth.Invalid email or password. Please check your credentials and try again.'));
+        // Record failed login attempt
+        const userAgent = navigator.userAgent;
+        const failedAttempts = await FailedLoginService.recordFailedAttempt(
+          formattedEmail,
+          undefined, // IP will be handled server-side
+          userAgent,
+          'invalid_credentials'
+        );
+        
+        // Update security info
+        const updatedInfo = await FailedLoginService.getLoginSecurityInfo(formattedEmail);
+        setSecurityInfo(updatedInfo);
+        setShowSecurityWarning(true);
+        
+        // Set appropriate error message based on failed attempts
+        if (updatedInfo.isAccountLocked) {
+          setError(t('auth.Account locked due to too many failed attempts. Please try again later.'));
+          setLockoutCountdown(updatedInfo.lockoutRemainingMinutes || 0);
+        } else {
+          const remainingAttempts = updatedInfo.remainingAttempts;
+          if (remainingAttempts <= 2) {
+            setError(t('auth.Invalid credentials. Warning: {{remaining}} attempts remaining before account lockout.', { remaining: remainingAttempts }));
+          } else {
+            setError(t('auth.Invalid email or password. {{remaining}} attempts remaining.', { remaining: remainingAttempts }));
+          }
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -92,8 +185,77 @@ const Login = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
-                  <p className="text-xs text-red-600 mt-1">
-                    {t('auth.If you continue to experience issues, try using one of the demo accounts above.')}
+                  {!securityInfo?.isAccountLocked && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {t('auth.If you continue to experience issues, try using one of the demo accounts above.')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Security Warning Display */}
+          {showSecurityWarning && securityInfo && (
+            <div className={`border-l-4 p-4 ${
+              securityInfo.isAccountLocked 
+                ? 'bg-red-50 border-red-400' 
+                : 'bg-orange-50 border-orange-400'
+            }`}>
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  {securityInfo.isAccountLocked ? (
+                    <Shield className="h-5 w-5 text-red-400" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-orange-400" />
+                  )}
+                </div>
+                <div className="ml-3">
+                  {securityInfo.isAccountLocked ? (
+                    <div>
+                      <p className="text-sm font-medium text-red-800">
+                        {t('auth.Account Temporarily Locked')}
+                      </p>
+                      <p className="text-sm text-red-700 mt-1">
+                        {t('auth.Your account has been locked due to multiple failed login attempts.')}
+                      </p>
+                      {lockoutCountdown > 0 && (
+                        <div className="flex items-center mt-2 text-sm text-red-600">
+                          <Clock className="h-4 w-4 mr-1" />
+                          <span>
+                            {t('auth.Try again in {{minutes}} minutes', { minutes: lockoutCountdown })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">
+                        {t('auth.Security Warning')}
+                      </p>
+                      <p className="text-sm text-orange-700">
+                        {t('auth.{{failed}} failed login attempts. {{remaining}} attempts remaining before account lockout.', {
+                          failed: securityInfo.failedAttempts,
+                          remaining: securityInfo.remainingAttempts
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Account Status Indicator */}
+          {securityInfo && email && email.includes('@') && !securityInfo.isAccountLocked && securityInfo.failedAttempts === 0 && (
+            <div className="bg-green-50 border-l-4 border-green-400 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Shield className="h-5 w-5 text-green-400" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-green-700">
+                    {t('auth.Account status: Good standing')}
                   </p>
                 </div>
               </div>
@@ -178,8 +340,12 @@ const Login = () => {
           <div>
             <button
               type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              disabled={isLoading || (securityInfo?.isAccountLocked && lockoutCountdown > 0)}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 ${
+                securityInfo?.isAccountLocked 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               {isLoading ? (
                 <>
@@ -189,6 +355,11 @@ const Login = () => {
                   </svg>
                   {t('auth.Signing in...')}
                 </>
+              ) : securityInfo?.isAccountLocked && lockoutCountdown > 0 ? (
+                <div className="flex items-center">
+                  <Shield className="h-4 w-4 mr-2" />
+                  {t('auth.Account Locked')}
+                </div>
               ) : (
                 t('auth.Sign in')
               )}
