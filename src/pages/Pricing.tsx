@@ -1,12 +1,53 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import Layout from '../components/layout/Layout';
 import PricingPlans from '../components/pricing/PricingPlans';
 import { Shield, Users, Award, ThumbsUp, Clock, Gift } from 'lucide-react';
+import { getPageBySlug, Page } from '../services/pageService';
+
+function sanitizeHtml(unsafeHtml: string): string {
+  try {
+    const DOMPurify: any = (window as any).DOMPurify;
+    if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
+      return DOMPurify.sanitize(unsafeHtml);
+    }
+  } catch {}
+  const div = document.createElement('div');
+  div.textContent = unsafeHtml || '';
+  return div.innerHTML;
+}
+
+function extractSeo(content: string): { title?: string; description?: string } {
+  const startToken = '<!-- SEO:';
+  const endToken = '-->';
+  try {
+    const start = content.indexOf(startToken);
+    const end = content.indexOf(endToken, start + 1);
+    if (start !== -1 && end !== -1) {
+      const jsonText = content.substring(start + startToken.length, end).trim();
+      const meta = JSON.parse(jsonText) as { title?: string; description?: string };
+      return meta;
+    }
+  } catch {}
+  return {};
+}
 
 const Pricing = () => {
   const { t } = useTranslation();
+  const [dbPage, setDbPage] = useState<Page | null>(null);
+  const seoMeta = useMemo(() => extractSeo(dbPage?.content || ''), [dbPage]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const page = await getPageBySlug('/pricing');
+        setDbPage(page);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   const benefits = [
     {
@@ -71,21 +112,31 @@ const Pricing = () => {
   return (
     <Layout>
       <Helmet>
-        <title>{t('Pricing Plans')} | Vcarda</title>
-        <meta name="description" content={t('Choose from our flexible pricing plans designed to fit businesses of all sizes')} />
+        <title>{(seoMeta.title || t('Pricing Plans')) + ' | Vcarda'}</title>
+        <meta name="description" content={seoMeta.description || t('Choose from our flexible pricing plans designed to fit businesses of all sizes')} />
       </Helmet>
 
-      {/* Hero Section */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900">
-            {t('Simple, Transparent Pricing')}
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            {t('Choose the plan that works best for your business. No hidden fees or surprises.')}
-          </p>
-        </div>
-      </section>
+      {/* DB-managed content overrides hero if present */}
+      {dbPage && dbPage.status === 'published' ? (
+        <section className="py-8 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="prose max-w-none">
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(dbPage.content || '') }} />
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+          <div className="container mx-auto px-4 text-center">
+            <h1 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900">
+              {t('Simple, Transparent Pricing')}
+            </h1>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+              {t('Choose the plan that works best for your business. No hidden fees or surprises.')}
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Pricing Plans */}
       <PricingPlans />

@@ -1,73 +1,71 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Info } from 'lucide-react';
+import { getActivePlans, PricingPlan } from '../../services/pricingService';
 
-// Mock pricing data - in a real app this would come from an API
-const MOCK_PRICING_PLANS = [
-  {
-    id: 1,
-    name: 'Free',
-    description: 'Basic features for individuals',
-    price: 0,
-    features: [
-      'Create a basic business profile',
-      'Get listed in city directory',
-      'Access to community forums',
-      'Basic analytics',
-      'Email support'
-    ],
-    recommended: false,
-    color: 'gray'
-  },
-  {
-    id: 2,
-    name: 'Growth',
-    description: 'For small businesses looking to grow',
-    price: 29,
-    features: [
-      'All Free features',
-      'Premium business profile',
-      'Featured in city directory',
-      'Advanced analytics',
-      'Priority email support',
-      'Social media promotion',
-      '2 marketing campaigns per month'
-    ],
-    recommended: true,
-    color: 'blue'
-  },
-  {
-    id: 3,
-    name: 'Premium',
-    description: 'For established businesses',
-    price: 99,
-    features: [
-      'All Growth features',
-      'Custom profile design',
-      'Top placement in directory',
-      'Comprehensive analytics with reports',
-      'Dedicated account manager',
-      'Phone support',
-      'Unlimited marketing campaigns',
-      'Access to exclusive events'
-    ],
-    recommended: false,
-    color: 'purple'
-  }
-];
-
-// Billing toggle options
 type BillingPeriod = 'monthly' | 'yearly';
+type DisplayPlan = {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  billing_period: BillingPeriod;
+  currency: string;
+  features: { id: string; label: string }[];
+  recommended: boolean;
+  color: 'gray' | 'blue' | 'purple' | 'green';
+};
+
+function defaultPlanColor(name: string): 'gray' | 'blue' | 'purple' | 'green' {
+  const n = name.toLowerCase();
+  if (n.includes('pro') || n.includes('growth')) return 'blue';
+  if (n.includes('premium') || n.includes('enterprise')) return 'purple';
+  if (n.includes('free') || n.includes('basic')) return 'gray';
+  return 'green';
+}
 
 const PricingPlans: React.FC = () => {
   const { t } = useTranslation();
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Calculate yearly price (20% discount)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const dbPlans = await getActivePlans();
+        if (mounted) setPlans(dbPlans);
+      } catch (e: any) {
+        if (mounted) setError(e?.message || 'Failed to load pricing plans');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const displayedPlans: DisplayPlan[] = useMemo((): DisplayPlan[] => {
+    return plans.map((p: PricingPlan): DisplayPlan => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      billing_period: p.billing_period,
+      currency: p.currency,
+      features: (p.features || []).filter((f) => f.included).map((f) => ({
+        id: f.id,
+        label: f.limit ? `${f.name} (${f.limit})` : f.name
+      })),
+      recommended: !!p.is_popular,
+      color: defaultPlanColor(p.name)
+    }));
+  }, [plans]);
+
   const getPrice = (monthlyPrice: number): number => {
-    if (billingPeriod === 'yearly') {
-      return monthlyPrice * 12 * 0.8; // 20% yearly discount
-    }
+    if (billingPeriod === 'yearly') return monthlyPrice * 12 * 0.8;
     return monthlyPrice;
   };
 
@@ -107,8 +105,14 @@ const PricingPlans: React.FC = () => {
           </div>
         </div>
 
+        {loading && (
+          <div className="max-w-3xl mx-auto text-gray-600 text-center mb-6">{t('Loading...')}</div>
+        )}
+        {error && (
+          <div className="max-w-3xl mx-auto text-red-600 text-center mb-6">{error}</div>
+        )}
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {MOCK_PRICING_PLANS.map((plan) => (
+          {displayedPlans.map((plan) => (
             <div 
               key={plan.id}
               className={`
@@ -152,7 +156,7 @@ const PricingPlans: React.FC = () => {
                   {plan.features.map((feature, index) => (
                     <li key={index} className="flex items-start">
                       <Check className={`h-5 w-5 mr-2 flex-shrink-0 text-${plan.color}-500`} />
-                      <span className="text-gray-600">{feature}</span>
+                      <span className="text-gray-600">{feature.label}</span>
                     </li>
                   ))}
                 </ul>
