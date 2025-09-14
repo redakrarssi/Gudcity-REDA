@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import {
@@ -17,91 +17,19 @@ import {
   Zap,
   Copy
 } from 'lucide-react';
+import { getAllPlans, createPlan, updatePlan, deletePlan, PricingPlan as DbPlan, PricingFeature } from '../../services/pricingService';
 
-// Types for pricing plans
-interface Feature {
-  id: string;
-  name: string;
-  included: boolean;
-  limit?: number;
-}
-
-interface PricingPlan {
-  id: number;
+type PlanForm = {
   name: string;
   description: string;
   price: number;
-  billingPeriod: 'monthly' | 'yearly';
+  billing_period: 'monthly' | 'yearly';
   currency: string;
-  features: Feature[];
-  isPopular: boolean;
-  isActive: boolean;
-  sortOrder: number;
-}
-
-// Mock data for pricing plans
-const MOCK_PLANS: PricingPlan[] = [
-  {
-    id: 1,
-    name: 'Free',
-    description: 'Basic features for small businesses',
-    price: 0,
-    billingPeriod: 'monthly',
-    currency: 'USD',
-    features: [
-      { id: 'loyalty', name: 'Basic loyalty program', included: true },
-      { id: 'customers', name: 'Up to 100 customers', included: true, limit: 100 },
-      { id: 'analytics', name: 'Basic analytics', included: true },
-      { id: 'support', name: 'Email support', included: true },
-      { id: 'customization', name: 'Customization options', included: false },
-      { id: 'marketing', name: 'Marketing tools', included: false },
-      { id: 'api', name: 'API access', included: false }
-    ],
-    isPopular: false,
-    isActive: true,
-    sortOrder: 1
-  },
-  {
-    id: 2,
-    name: 'Pro',
-    description: 'Advanced features for growing businesses',
-    price: 49.99,
-    billingPeriod: 'monthly',
-    currency: 'USD',
-    features: [
-      { id: 'loyalty', name: 'Advanced loyalty program', included: true },
-      { id: 'customers', name: 'Up to 1,000 customers', included: true, limit: 1000 },
-      { id: 'analytics', name: 'Advanced analytics', included: true },
-      { id: 'support', name: 'Priority email support', included: true },
-      { id: 'customization', name: 'Customization options', included: true },
-      { id: 'marketing', name: 'Basic marketing tools', included: true },
-      { id: 'api', name: 'Limited API access', included: true }
-    ],
-    isPopular: true,
-    isActive: true,
-    sortOrder: 2
-  },
-  {
-    id: 3,
-    name: 'Enterprise',
-    description: 'Full featured solution for large businesses',
-    price: 199.99,
-    billingPeriod: 'monthly',
-    currency: 'USD',
-    features: [
-      { id: 'loyalty', name: 'Enterprise loyalty program', included: true },
-      { id: 'customers', name: 'Unlimited customers', included: true },
-      { id: 'analytics', name: 'Enterprise analytics', included: true },
-      { id: 'support', name: '24/7 phone & email support', included: true },
-      { id: 'customization', name: 'Full customization', included: true },
-      { id: 'marketing', name: 'Advanced marketing tools', included: true },
-      { id: 'api', name: 'Full API access', included: true }
-    ],
-    isPopular: false,
-    isActive: true,
-    sortOrder: 3
-  }
-];
+  features: PricingFeature[];
+  is_popular: boolean;
+  is_active: boolean;
+  sort_order: number;
+};
 
 // List of available features for plans
 const AVAILABLE_FEATURES = [
@@ -121,23 +49,40 @@ const PricingPlans = () => {
   const { t } = useTranslation();
   
   // State
-  const [plans, setPlans] = useState<PricingPlan[]>(MOCK_PLANS);
-  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  const [plans, setPlans] = useState<DbPlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<DbPlan | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Plan form state
-  const [planForm, setPlanForm] = useState<Partial<PricingPlan>>({
+  const [planForm, setPlanForm] = useState<Partial<PlanForm>>({
     name: '',
     description: '',
     price: 0,
-    billingPeriod: 'monthly',
+    billing_period: 'monthly',
     currency: 'USD',
     features: [],
-    isPopular: false,
-    isActive: true,
-    sortOrder: 0
+    is_popular: false,
+    is_active: true,
+    sort_order: 0
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const dbPlans = await getAllPlans();
+        setPlans(dbPlans);
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load pricing plans');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
   
   // Format currency
   const formatCurrency = (amount: number, currency: string) => {
@@ -148,11 +93,11 @@ const PricingPlans = () => {
   };
   
   // Handle plan selection for editing
-  const handleEditPlan = (plan: PricingPlan) => {
+  const handleEditPlan = (plan: DbPlan) => {
     setSelectedPlan(plan);
     setPlanForm({
       ...plan,
-      features: [...plan.features]
+      features: [...(plan.features || [])]
     });
     setIsEditModalOpen(true);
   };
@@ -164,71 +109,73 @@ const PricingPlans = () => {
       name: '',
       description: '',
       price: 0,
-      billingPeriod: 'monthly',
+      billing_period: 'monthly',
       currency: 'USD',
       features: AVAILABLE_FEATURES.map(feature => ({
         id: feature.id,
         name: feature.name,
         included: false
       })),
-      isPopular: false,
-      isActive: true,
-      sortOrder: plans.length + 1
+      is_popular: false,
+      is_active: true,
+      sort_order: plans.length + 1
     });
     setIsEditModalOpen(true);
   };
   
   // Handle plan save
-  const handleSavePlan = () => {
+  const handleSavePlan = async () => {
     if (!planForm.name || planForm.price === undefined) return;
     
+    try {
+      setError(null);
     if (selectedPlan) {
-      // Update existing plan
-      setPlans(prevPlans => 
-        prevPlans.map(plan => 
-          plan.id === selectedPlan.id
-            ? { 
-                ...plan,
-                name: planForm.name!,
-                description: planForm.description || '',
-                price: planForm.price!,
-                billingPeriod: planForm.billingPeriod as 'monthly' | 'yearly',
-                currency: planForm.currency || 'USD',
-                features: planForm.features || [],
-                isPopular: planForm.isPopular || false,
-                isActive: planForm.isActive || false,
-                sortOrder: planForm.sortOrder || plan.sortOrder
-              }
-            : plan
-        )
-      );
+        const updated = await updatePlan(selectedPlan.id, {
+          name: planForm.name,
+          description: planForm.description,
+          price: planForm.price,
+          billing_period: planForm.billing_period,
+          currency: planForm.currency,
+          features: planForm.features,
+          is_popular: planForm.is_popular,
+          is_active: planForm.is_active,
+          sort_order: planForm.sort_order
+        });
+        if (updated) {
+          setPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
+        }
     } else {
-      // Create new plan
-      const newPlan: PricingPlan = {
-        id: Math.max(...plans.map(p => p.id)) + 1,
+        const created = await createPlan({
         name: planForm.name!,
         description: planForm.description || '',
         price: planForm.price!,
-        billingPeriod: planForm.billingPeriod as 'monthly' | 'yearly',
+          billing_period: (planForm.billing_period || 'monthly'),
         currency: planForm.currency || 'USD',
         features: planForm.features || [],
-        isPopular: planForm.isPopular || false,
-        isActive: planForm.isActive || false,
-        sortOrder: planForm.sortOrder || plans.length + 1
-      };
-      setPlans([...plans, newPlan]);
+          is_popular: !!planForm.is_popular,
+          is_active: planForm.is_active !== false,
+          sort_order: planForm.sort_order || plans.length + 1,
+          created_at: '',
+          updated_at: ''
+        } as any);
+        if (created) setPlans(prev => [...prev, created]);
+      }
+      setIsEditModalOpen(false);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save plan');
     }
-    
-    setIsEditModalOpen(false);
   };
   
   // Handle plan deletion
-  const handleDeletePlan = () => {
+  const handleDeletePlan = async () => {
     if (!selectedPlan) return;
-    
-    setPlans(prevPlans => prevPlans.filter(plan => plan.id !== selectedPlan.id));
+    try {
+      const ok = await deletePlan(selectedPlan.id);
+      if (ok) setPlans(prev => prev.filter(p => p.id !== selectedPlan.id));
+    } finally {
     setIsDeleteModalOpen(false);
     setSelectedPlan(null);
+    }
   };
   
   // Handle feature toggle
@@ -262,7 +209,7 @@ const PricingPlans = () => {
   };
   
   // Sort plans by sort order
-  const sortedPlans = [...plans].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sortedPlans = [...plans].sort((a, b) => a.sort_order - b.sort_order);
   
   // Edit Modal Component
   const EditModal = () => {
@@ -306,8 +253,8 @@ const PricingPlans = () => {
                   <input
                     type="number"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={planForm.sortOrder || 0}
-                    onChange={e => setPlanForm({...planForm, sortOrder: parseInt(e.target.value)})}
+                    value={planForm.sort_order || 0}
+                    onChange={e => setPlanForm({...planForm, sort_order: parseInt(e.target.value)})}
                     min="1"
                     step="1"
                   />
@@ -375,8 +322,8 @@ const PricingPlans = () => {
                   </label>
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={planForm.billingPeriod}
-                    onChange={e => setPlanForm({...planForm, billingPeriod: e.target.value as 'monthly' | 'yearly'})}
+                    value={planForm.billing_period}
+                    onChange={e => setPlanForm({...planForm, billing_period: e.target.value as 'monthly' | 'yearly'})}
                   >
                     <option value="monthly">{t('Monthly')}</option>
                     <option value="yearly">{t('Yearly')}</option>
@@ -389,8 +336,8 @@ const PricingPlans = () => {
                   <input
                     type="checkbox"
                     id="plan-popular"
-                    checked={planForm.isPopular || false}
-                    onChange={e => setPlanForm({...planForm, isPopular: e.target.checked})}
+                    checked={planForm.is_popular || false}
+                    onChange={e => setPlanForm({...planForm, is_popular: e.target.checked})}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="plan-popular" className="ml-2 block text-sm text-gray-900">
@@ -402,8 +349,8 @@ const PricingPlans = () => {
                   <input
                     type="checkbox"
                     id="plan-active"
-                    checked={planForm.isActive || false}
-                    onChange={e => setPlanForm({...planForm, isActive: e.target.checked})}
+                    checked={planForm.is_active || false}
+                    onChange={e => setPlanForm({...planForm, is_active: e.target.checked})}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="plan-active" className="ml-2 block text-sm text-gray-900">
@@ -581,9 +528,9 @@ const PricingPlans = () => {
           {sortedPlans.map(plan => (
             <div 
               key={plan.id} 
-              className={`bg-white rounded-lg shadow border ${plan.isPopular ? 'border-blue-500' : 'border-gray-200'} overflow-hidden relative`}
+              className={`bg-white rounded-lg shadow border ${plan.is_popular ? 'border-blue-500' : 'border-gray-200'} overflow-hidden relative`}
             >
-              {plan.isPopular && (
+              {plan.is_popular && (
                 <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 text-xs font-bold uppercase">
                   {t('Popular')}
                 </div>
@@ -595,7 +542,7 @@ const PricingPlans = () => {
                     <h3 className="text-xl font-semibold text-gray-900">{plan.name}</h3>
                     <p className="text-gray-500 mt-1">{plan.description}</p>
                   </div>
-                  {!plan.isActive && (
+                  {!plan.is_active && (
                     <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
                       {t('Inactive')}
                     </span>
@@ -607,12 +554,12 @@ const PricingPlans = () => {
                     {formatCurrency(plan.price, plan.currency)}
                   </span>
                   <span className="ml-1 text-gray-500">
-                    /{plan.billingPeriod === 'monthly' ? t('mo') : t('yr')}
+                    /{plan.billing_period === 'monthly' ? t('mo') : t('yr')}
                   </span>
                 </div>
                 
                 <ul className="mt-6 space-y-3">
-                  {plan.features
+                  {(plan.features || [])
                     .filter(feature => feature.included)
                     .map(feature => (
                       <li key={feature.id} className="flex items-start">
@@ -653,8 +600,8 @@ const PricingPlans = () => {
       </div>
       
       {/* Modals */}
-      <EditModal />
-      <DeleteModal />
+      {EditModal()}
+      {DeleteModal()}
     </AdminLayout>
   );
 };
