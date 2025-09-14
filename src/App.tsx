@@ -40,6 +40,7 @@ import AdminPageManager from './pages/admin/PageManager';
 import AdminPricingPlans from './pages/admin/PricingPlans';
 import DatabaseDiagnosticsPage from './pages/admin/DatabaseDiagnostics';
 import Login from './pages/auth/Login';
+import DynamicDbPage from './pages/DynamicDbPage';
 import Register from './pages/auth/Register';
 import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
@@ -474,16 +475,10 @@ function App() {
                   </ErrorBoundary>
                 } />
 
-                {/* Catch-all route */}
+                {/* Catch-all route that first attempts to render a DB-managed page */}
                 <Route path="*" element={
                   <ErrorBoundary>
-                    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-                      <h1 className="text-4xl font-bold mb-4">{t('notFound.title', '404: Page Not Found')}</h1>
-                      <p className="mb-8">{t('notFound.message', 'The page you are looking for does not exist.')}</p>
-                      <a href="/" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                        {t('notFound.goHome', 'Go to Home')}
-                      </a>
-                    </div>
+                    <DynamicDbPage />
                   </ErrorBoundary>
                 } />
               </Routes>

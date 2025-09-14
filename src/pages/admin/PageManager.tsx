@@ -57,7 +57,8 @@ import {
   getPageById, 
   createPage, 
   updatePage, 
-  deletePage 
+  deletePage,
+  ensurePagesTableExists
 } from '../../services/pageService';
 import { logSystemActivity } from '../../services/dashboardService';
 
@@ -129,7 +130,14 @@ const PageManager = () => {
   
   // Load pages from database on component mount
   useEffect(() => {
-    fetchPages();
+    (async () => {
+      try {
+        await ensurePagesTableExists();
+      } catch (e) {
+        console.warn('Pages table ensure failed (continuing):', e);
+      }
+      fetchPages();
+    })();
   }, []);
   
   // Fetch pages from database
