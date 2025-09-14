@@ -338,16 +338,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Use fallback default values if initialization fails
-  if (!initialized && window.location.pathname === '/cards') {
-    // When directly accessing /cards, provide a fallback empty context until initialization completes
-    setInitialized(true);
-    setIsLoading(false);
-    // Redirect to login after a short delay
-    setTimeout(() => {
-      window.location.href = '/login';
-    }, 100);
-  }
+  // Removed forced redirect on '/cards' during initialization to prevent logout on refresh
 
   /**
    * Login function
