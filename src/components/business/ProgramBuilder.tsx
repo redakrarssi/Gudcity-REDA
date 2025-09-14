@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PlusCircle, MinusCircle, Award, Check, ChevronRight, ChevronLeft, Star, Gift, Zap } from 'lucide-react';
+import { PlusCircle, MinusCircle, Award, Check, ChevronRight, ChevronLeft, Star, Gift } from 'lucide-react';
 import type { LoyaltyProgram, ProgramType, RewardTier } from '../../types/loyalty';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
@@ -175,12 +175,6 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 title={t('business.Stamps')} 
                 description={t('business.Digital punch card: one stamp per visit or purchase, simple and effective')}
                 icon={<Check className="w-6 h-6 text-green-500" />}
-              />
-              <ProgramTypeCard 
-                type="CASHBACK" 
-                title={t('business.Cashback')} 
-                description={t('business.Customers earn a percentage back from each purchase to use on future orders')}
-                icon={<Zap className="w-6 h-6 text-yellow-500" />}
               />
             </div>
 
