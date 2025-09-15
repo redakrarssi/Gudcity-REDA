@@ -102,6 +102,8 @@ const resources = {
       'Promotions': 'Promotions',
       'QR Scanner': 'QR Scanner',
       'Settings': 'Settings',
+      'My Settings': 'My Settings',
+      'Logout': 'Logout',
       'Business Portal': 'Business Portal',
       
       // Common Actions
@@ -392,7 +394,6 @@ const resources = {
         customer: 'Customer',
         specialDiscountOffer: 'Special discount offer'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'Business Dashboard',
@@ -876,7 +877,6 @@ const resources = {
           passwordTooShort: 'Password must be at least 8 characters'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'Settings',
@@ -1219,6 +1219,8 @@ const resources = {
       'Promotions': 'العروض',
       'QR Scanner': 'ماسح QR',
       'Settings': 'الإعدادات',
+      'My Settings': 'إعداداتي',
+      'Logout': 'تسجيل الخروج',
       'Business Portal': 'بوابة الأعمال',
       
       // Common Actions
@@ -1547,6 +1549,7 @@ const resources = {
         promotions: 'العروض',
         qrCard: 'بطاقة QR',
         settings: 'الإعدادات',
+        mySettings: 'إعداداتي',
         logout: 'تسجيل الخروج',
         rewards: 'المكافآت'
       },
@@ -1609,7 +1612,6 @@ const resources = {
         newEnrollmentIn: 'انضمام جديد إلى {{programName}}',
         aReward: 'مكافأة'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'لوحة تحكم الأعمال',
@@ -2075,7 +2077,6 @@ const resources = {
           passwordTooShort: 'يجب أن تكون كلمة المرور 8 أحرف على الأقل'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'الإعدادات',
@@ -2571,7 +2572,6 @@ const resources = {
         redeeming: 'Canjeando {{rewardName}}...',
         yourLoyaltyProgram: 'tu programa de lealtad'
       },
-      
       // Nearby Page
       nearby: {
         comingSoon: 'PRÓXIMAMENTE',
@@ -3070,7 +3070,6 @@ const resources = {
         'Need Help?': '¿Necesita Ayuda?',
         'If you have any questions about your business settings or loyalty program configuration, our support team is here to help.': 'Si tiene alguna pregunta sobre la configuración de su negocio o configuración del programa de lealtad, nuestro equipo de soporte está aquí para ayudar.',
         'Contact Business Support': 'Contactar Soporte de Negocios',
-        
         // Business Promotions Page
         'Promotions & Special Offers': 'Promociones y Ofertas Especiales',
         'Create exciting promotions to attract and reward your customers': 'Crea promociones emocionantes para atraer y recompensar a tus clientes',
@@ -3504,6 +3503,8 @@ const resources = {
       'Promotions': 'Promotions',
       'QR Scanner': 'Scanner QR',
       'Settings': 'Paramètres',
+      'My Settings': 'Mes Paramètres',
+      'Logout': 'Déconnexion',
       'Business Portal': 'Portail Business',
       
       // Common Actions
@@ -3865,7 +3866,6 @@ const resources = {
         newEnrollmentIn: 'Nouvelle inscription à {{programName}}',
         aReward: 'une récompense'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'Tableau de Bord Entreprise',
@@ -4331,7 +4331,6 @@ const resources = {
           passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'Paramètres',
