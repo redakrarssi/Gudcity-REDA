@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine, Sparkles, Check } from 'lucide-react';
+import { Star, Award, Gift, Clipboard, ChevronRight, ChevronDown, Share2, QrCode, Tag, ScanLine, Sparkles, Check, BadgeCheck } from 'lucide-react';
 import { LoyaltyCard as LoyaltyCardType, Reward } from '../../services/loyaltyCardService';
 import { QrCodeService } from '../../services/qrCodeService';
 import { createStandardLoyaltyCardQRCode } from '../../utils/standardQrCodeGenerator';
@@ -139,6 +139,9 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   
   const getPointsLabel = () => {
     if (card.pointsToNext) {
+      if (isStampProgram) {
+        return t('{{points}} more stamps to next reward', { points: card.pointsToNext });
+      }
       return t('{{points}} more points to {{nextTier}}', { 
         points: card.pointsToNext,
         nextTier: getNextTier(card.tier)
@@ -147,7 +150,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
     
     return card.tier === 'PLATINUM' 
       ? t('Maximum tier reached') 
-      : t('Collect points for rewards');
+      : (isStampProgram ? t('Collect stamps for rewards') : t('Collect points for rewards'));
   };
   
   const getNextTier = (currentTier: string): string => {
@@ -167,7 +170,9 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
     if (reward.points > card.points) {
       return { 
         available: false, 
-        reason: t('Need {{points}} more points', { points: reward.points - card.points }) 
+        reason: isStampProgram 
+          ? t('Need {{points}} more stamps', { points: reward.points - card.points })
+          : t('Need {{points}} more points', { points: reward.points - card.points }) 
       };
     }
     
@@ -227,8 +232,12 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
         </div>
         <div className="flex items-center">
           <div className="bg-white bg-opacity-70 px-3 py-1 rounded-full flex items-center">
-            <Award className={`w-4 h-4 mr-1 ${tierColors.points}`} />
-            <span className={`font-bold ${tierColors.points}`}>{card.tier}</span>
+            {isStampProgram ? (
+              <BadgeCheck className={`w-4 h-4 mr-1 ${tierColors.points}`} />
+            ) : (
+              <Award className={`w-4 h-4 mr-1 ${tierColors.points}`} />
+            )}
+            <span className={`font-bold ${tierColors.points}`}>{isStampProgram ? t('Stamps') : card.tier}</span>
           </div>
         </div>
       </div>
@@ -313,9 +322,13 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
                           <h4 className="font-medium text-gray-800">{reward.name}</h4>
                           <p className="text-sm text-gray-600">{reward.description}</p>
                           <div className="flex items-center mt-1">
-                            <Star className="w-4 h-4 text-amber-500 mr-1" />
+                            {isStampProgram ? (
+                              <BadgeCheck className="w-4 h-4 text-green-600 mr-1" />
+                            ) : (
+                              <Star className="w-4 h-4 text-amber-500 mr-1" />
+                            )}
                             <span className="text-sm font-medium">
-                              {t('{{points}} points', { points: reward.points })}
+                              {isStampProgram ? t('{{points}} stamps', { points: reward.points }) : t('{{points}} points', { points: reward.points })}
                             </span>
                           </div>
                         </div>
