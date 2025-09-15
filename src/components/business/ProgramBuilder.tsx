@@ -126,18 +126,18 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
       onClick={() => handleInputChange('type', type)}
       className={`relative w-full text-left rounded-xl p-5 transition-all duration-200 border group overflow-hidden ${
         program.type === type
-          ? 'border-blue-500 shadow-[0_10px_30px_rgba(59,130,246,0.15)] bg-gradient-to-br from-blue-50 to-indigo-50 ring-2 ring-blue-500/40'
-          : 'border-gray-200 hover:border-gray-300 hover:shadow-md bg-white'
+          ? 'border-blue-600 shadow-[0_12px_32px_rgba(37,99,235,0.20)] bg-gradient-to-br from-blue-100 to-indigo-200 ring-2 ring-blue-400/60'
+          : 'border-gray-300 hover:border-gray-400 hover:shadow-lg bg-white hover:bg-gray-50'
       }`}
     >
-      <div className="absolute inset-0 pointer-events-none rounded-xl bg-gradient-to-br from-transparent via-white/40 to-white/10" />
+      <div className="absolute inset-0 pointer-events-none rounded-xl bg-gradient-to-br from-white/20 via-white/10 to-transparent" />
       <div className="flex items-center">
-        <div className={`p-3 rounded-lg mr-3 ${program.type === type ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
+        <div className={`p-3 rounded-lg mr-3 ${program.type === type ? 'bg-blue-200 text-blue-700' : 'bg-gray-50 text-gray-700'}`}>
           {icon}
         </div>
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-          <p className="text-sm text-gray-500 mt-1">{description}</p>
+          <p className={`text-sm mt-1 ${program.type === type ? 'text-gray-800' : 'text-gray-600'}`}>{description}</p>
         </div>
         {program.type === type && <Check className="ml-3 text-blue-500" size={20} />}
       </div>
@@ -471,7 +471,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
         <h2 className="text-xl font-bold text-gray-900 mb-1">
           {steps[step].title}
         </h2>
-        <p className="text-gray-600 mb-6">{steps[step].description}</p>
+        <p className={`${step === 1 ? 'text-gray-800' : 'text-gray-600'} mb-6`}>{steps[step].description}</p>
 
         {renderStepContent()}
 
