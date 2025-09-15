@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PlusCircle, MinusCircle, Award, Check, ChevronRight, ChevronLeft, Star, Gift } from 'lucide-react';
+import { PlusCircle, MinusCircle, Check, ChevronRight, ChevronLeft, Star, Gift } from 'lucide-react';
 import type { LoyaltyProgram, ProgramType, RewardTier } from '../../types/loyalty';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 
@@ -32,6 +32,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
   const [step, setStep] = useState(0);
   const [animation, setAnimation] = useState('');
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [stampSpendThreshold, setStampSpendThreshold] = useState<number>(initialProgram?.type === 'STAMPS' ? (initialProgram?.pointValue || 1) : 1);
 
   const steps = [
     { title: t('business.Program Basics'), description: t('business.Name and describe your loyalty program') },
@@ -80,7 +81,11 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
       if (!program.name) newErrors.name = t('business.required');
       if (!program.description) newErrors.description = t('business.required');
     } else if (step === 1) {
-      if (program.pointValue && program.pointValue <= 0) newErrors.pointValue = t('business.mustBePositive');
+      if (program.type === 'POINTS') {
+        if (program.pointValue && program.pointValue <= 0) newErrors.pointValue = t('business.mustBePositive');
+      } else if (program.type === 'STAMPS') {
+        if (!stampSpendThreshold || stampSpendThreshold <= 0) newErrors.pointValue = t('business.mustBePositive');
+      }
     } else if (step === 2) {
       const hasEmptyRewards = program.rewardTiers?.some(tier => !tier.reward);
       if (hasEmptyRewards) newErrors.rewardTiers = t('business.allRewardsRequired');
@@ -106,7 +111,11 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateStep()) {
-      onSubmit(program);
+      const payload = { ...program } as Partial<LoyaltyProgram>;
+      if (payload.type === 'STAMPS') {
+        payload.pointValue = stampSpendThreshold;
+      }
+      onSubmit(payload);
     }
   };
 
@@ -193,6 +202,26 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                     min="0.01"
                   />
                   <span className="ml-4 text-gray-600">{t('business.= 1 point')}</span>
+                </div>
+                {errors.pointValue && <p className="mt-1 text-sm text-red-600">{errors.pointValue}</p>}
+              </div>
+            )}
+
+            {program.type === 'STAMPS' && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6 animate-fadeIn">
+                <label className="block text-sm font-medium text-gray-700 mb-4">{t('business.Amount customer must pay to earn one stamp')}</label>
+                <div className="flex items-center">
+                  <span className="mr-4 text-xl">{currencySymbol}</span>
+                  <input
+                    type="number"
+                    value={stampSpendThreshold}
+                    onChange={(e) => setStampSpendThreshold(parseFloat(e.target.value))}
+                    className="w-24 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-center text-xl"
+                    placeholder="5.00"
+                    step="0.01"
+                    min="0.01"
+                  />
+                  <span className="ml-4 text-gray-600">{t('business.= 1 stamp')}</span>
                 </div>
                 {errors.pointValue && <p className="mt-1 text-sm text-red-600">{errors.pointValue}</p>}
               </div>
@@ -339,6 +368,9 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
                 <div className="mt-2 text-sm text-gray-600">
                   {program.type === 'POINTS' && (
                     <p>{t('business.Customers earn 1 point for every')} {currencySymbol}{program.pointValue} {t('business.spent')}</p>
+                  )}
+                  {program.type === 'STAMPS' && (
+                    <p>{t('business.Customers earn 1 stamp for every')} {currencySymbol}{stampSpendThreshold} {t('business.spent')}</p>
                   )}
                   {program.expirationDays 
                     ? t('business.Points expire after {{days}} days', { days: program.expirationDays })

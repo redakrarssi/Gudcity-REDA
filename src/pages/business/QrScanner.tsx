@@ -31,6 +31,7 @@ import { ProgramEnrollmentModal } from '../../components/business/ProgramEnrollm
 import { RewardModal } from '../../components/business/RewardModal';
 import { CustomerDetailsModal } from '../../components/business/CustomerDetailsModal';
 import { PointsAwardingModal } from '../../components/business/PointsAwardingModal';
+import { StampAwardingModal } from '../../components/business/StampAwardingModal';
 import { isCameraSupported, isQrScanningSupported, requiresHttpsForCamera } from '../../utils/browserSupport';
 
 // Define the interface for the component's scan result handling
@@ -63,6 +64,7 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showCustomerDetailsModal, setShowCustomerDetailsModal] = useState(false);
   const [showPointsAwardingModal, setShowPointsAwardingModal] = useState(false);
+  const [showStampAwardingModal, setShowStampAwardingModal] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerQrCodeData | null>(null);
   const [selectedQrCodeData, setSelectedQrCodeData] = useState<LoyaltyCardQrCodeData | CustomerQrCodeData | null>(null);
 
@@ -458,6 +460,17 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
               <Award className="w-5 h-5 mr-2" />
               {t('business.Award Points')}
             </button>
+
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as CustomerQrCodeData);
+                setShowStampAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('business.Award Stamp')}
+            </button>
             
             <button
               onClick={() => {
@@ -494,6 +507,17 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
             >
               <Award className="w-5 h-5 mr-2" />
               {t('business.Award Points')}
+            </button>
+
+            <button
+              onClick={() => {
+                setSelectedQrCodeData(result.data as LoyaltyCardQrCodeData);
+                setShowStampAwardingModal(true);
+              }}
+              className="flex items-center justify-center w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Award className="w-5 h-5 mr-2" />
+              {t('business.Award Stamp')}
             </button>
             
             <button
@@ -1018,6 +1042,16 @@ const QrScannerPage: React.FC<QrScannerPageProps> = ({ onScan }) => {
                 // The PointsAwardingModal handles success notifications internally
               }}
               programs={programs.map(p => ({ id: p.id, name: p.name }))}
+            />
+          )}
+
+          {/* Stamp Awarding Modal */}
+          {showStampAwardingModal && (
+            <StampAwardingModal
+              onClose={() => setShowStampAwardingModal(false)}
+              scanData={selectedQrCodeData}
+              businessId={getBusinessIdString(user)}
+              onSuccess={() => {}}
             />
           )}
         </>

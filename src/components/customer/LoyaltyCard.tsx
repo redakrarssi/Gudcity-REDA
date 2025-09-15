@@ -55,7 +55,10 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const [showRewards, setShowRewards] = useState(false);
   
-  const tierColors = CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
+  const isStampProgram = (card as any)?.programType === 'STAMPS' || (card.programName || '').toLowerCase().includes('stamp');
+  const tierColors = isStampProgram
+    ? { bg: 'bg-gradient-to-br from-green-50 to-green-200', border: 'border-green-300', text: 'text-green-900', points: 'text-green-700' }
+    : CardTierColorMap[card.tier] || CardTierColorMap.STANDARD;
   
   // Use programName as primary display, with businessName as secondary
   const programName = card.programName || t('Loyalty Program');
@@ -232,14 +235,14 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
       
       {/* Card Body */}
       <div className="bg-white p-4">
-        {/* Points */}
+        {/* Points/Stamps */}
         <div className="mb-4">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">{t('Your Points')}</span>
+            <span className="text-sm text-gray-600">{isStampProgram ? t('Your Stamps') : t('Your Points')}</span>
             <span className="text-sm text-gray-600">{card.tier !== 'PLATINUM' && `${getPointsLabel()}`}</span>
           </div>
           <div className="flex items-baseline mt-1">
-            <span className="text-3xl font-bold text-blue-600 mr-2">{card.points}</span>
+            <span className={`text-3xl font-bold ${isStampProgram ? 'text-green-700' : 'text-blue-600'} mr-2`}>{card.points}</span>
             {card.pointsMultiplier > 1 && (
               <span className="text-sm bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
                 {t('{{multiplier}}× multiplier', { multiplier: card.pointsMultiplier.toFixed(2) })}
@@ -253,7 +256,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
           <div className="mb-4">
             <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
               <div 
-                className="bg-blue-600 h-2.5 rounded-full" 
+                className={`${isStampProgram ? 'bg-green-600' : 'bg-blue-600'} h-2.5 rounded-full`} 
                 style={{ 
                   width: `${Math.min(100, (card.points / (card.points + card.pointsToNext)) * 100)}%` 
                 }}
