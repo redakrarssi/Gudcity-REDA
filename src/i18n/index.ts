@@ -102,6 +102,8 @@ const resources = {
       'Promotions': 'Promotions',
       'QR Scanner': 'QR Scanner',
       'Settings': 'Settings',
+      'My Settings': 'My Settings',
+      'Logout': 'Logout',
       'Business Portal': 'Business Portal',
       
       // Common Actions
@@ -392,7 +394,6 @@ const resources = {
         customer: 'Customer',
         specialDiscountOffer: 'Special discount offer'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'Business Dashboard',
@@ -424,6 +425,7 @@ const resources = {
         'Quick Award Points': 'Quick Award Points',
         'Send points directly to any customer in your programs': 'Send points directly to any customer in your programs',
         'Award Points': 'Award Points',
+        'Scan QR': 'Scan QR',
         'Business Analytics': 'Business Analytics',
         'Day': 'Day',
         'Week': 'Week',
@@ -454,6 +456,8 @@ const resources = {
         'Points expire after {{days}} days': 'Points expire after {{days}} days',
         'Never expires': 'Never expires',
         'Reward Tiers': 'Reward Tiers',
+        'Points': 'Points',
+        'Stamps': 'Stamps',
         'points': 'points',
         'stamps': 'stamps',
         'Delete': 'Delete',
@@ -461,6 +465,11 @@ const resources = {
         'No Programs Found': 'No Programs Found',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.',
         '{{value}} = 1 point': '{{value}} = 1 point',
+        '= 1 point': '= 1 point',
+        '= 1 stamp': '= 1 stamp',
+        'Customers earn 1 stamp for every': 'Customers earn 1 stamp for every',
+        'spent': 'spent',
+        'Amount customer must pay to earn one stamp': 'How much do customers need to spend to earn 1 stamp?',
         
         // Program Builder Translations
         'Program Basics': 'Program Basics',
@@ -488,6 +497,8 @@ const resources = {
         'Reward Description': 'Reward Description',
         exampleReward: 'e.g. Free Coffee',
         'Add Another Reward Tier': 'Add Another Reward Tier',
+        'points': 'points',
+        'stamps': 'stamps',
         'Ready to Launch!': 'Ready to Launch!',
         'Review your program details before launching it to your customers': 'Review your program details before launching it to your customers',
         'Program Status': 'Program Status',
@@ -515,6 +526,37 @@ const resources = {
         'Unknown error': 'Unknown error',
         'Scan Error': 'Scan Error',
         'An error occurred while processing the QR code': 'An error occurred while processing the QR code',
+
+        // Staff Page
+        'Staff Management': 'Staff Management',
+        'Manage your staff accounts and permissions': 'Manage your staff accounts and permissions',
+        'Add New Staff': 'Add New Staff',
+        'Search staff members...': 'Search staff members...',
+        'All Status': 'All Status',
+        'Active': 'Active',
+        'Inactive': 'Inactive',
+        'Staff Members': 'Staff Members',
+        'No staff members': 'No staff members',
+        'No matching staff members': 'No matching staff members',
+        'Get started by creating your first staff account.': 'Get started by creating your first staff account.',
+        'Try adjusting your search or filter criteria.': 'Try adjusting your search or filter criteria.',
+        'Add Staff Member': 'Add Staff Member',
+        'Staff Member': 'Staff Member',
+        'Role': 'Role',
+        'Status': 'Status',
+        'Last Active': 'Last Active',
+        'Permissions': 'Permissions',
+        'Actions': 'Actions',
+        'Staff': 'Staff',
+        'Never': 'Never',
+        'Manage': 'Manage',
+        'Edit staff info': 'Edit staff info',
+        'Edit permissions': 'Edit permissions',
+        'Delete staff member': 'Delete staff member',
+        'Delete Staff Member': 'Delete Staff Member',
+        'Are you sure you want to delete this staff member? This action cannot be undone.': 'Are you sure you want to delete this staff member? This action cannot be undone.',
+        'Cancel': 'Cancel',
+        'Delete': 'Delete',
         
         // Analytics Page
         'Total Points': 'Total Points',
@@ -835,7 +877,6 @@ const resources = {
           passwordTooShort: 'Password must be at least 8 characters'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'Settings',
@@ -1178,6 +1219,8 @@ const resources = {
       'Promotions': 'العروض',
       'QR Scanner': 'ماسح QR',
       'Settings': 'الإعدادات',
+      'My Settings': 'إعداداتي',
+      'Logout': 'تسجيل الخروج',
       'Business Portal': 'بوابة الأعمال',
       
       // Common Actions
@@ -1192,7 +1235,36 @@ const resources = {
       submit: 'إرسال',
       loading: 'جاري التحميل...',
       
-      // Customer Dashboard
+      // Staff Page
+      'Staff Management': 'إدارة الموظفين',
+      'Manage your staff accounts and permissions': 'إدارة حسابات الموظفين والصلاحيات',
+      'Add New Staff': 'إضافة موظف جديد',
+      'Search staff members...': 'ابحث عن أعضاء الفريق...',
+      'All Status': 'كل الحالات',
+      'Active': 'نشط',
+      'Inactive': 'غير نشط',
+      'Staff Members': 'أعضاء الفريق',
+      'No staff members': 'لا يوجد أعضاء فريق',
+      'No matching staff members': 'لا يوجد أعضاء مطابقون',
+      'Get started by creating your first staff account.': 'ابدأ بإنشاء أول حساب موظف.',
+      'Try adjusting your search or filter criteria.': 'حاول تعديل البحث أو معايير التصفية.',
+      'Add Staff Member': 'إضافة عضو فريق',
+      'Staff Member': 'عضو فريق',
+      'Role': 'الدور',
+      'Status': 'الحالة',
+      'Last Active': 'آخر نشاط',
+      'Permissions': 'الصلاحيات',
+      'Actions': 'الإجراءات',
+      'Staff': 'الموظفون',
+      'Never': 'أبداً',
+      'Manage': 'إدارة',
+      'Edit staff info': 'تعديل معلومات الموظف',
+      'Edit permissions': 'تعديل الصلاحيات',
+      'Delete staff member': 'حذف الموظف',
+      'Delete Staff Member': 'حذف عضو الفريق',
+      'Are you sure you want to delete this staff member? This action cannot be undone.': 'هل أنت متأكد من حذف هذا الموظف؟ هذا الإجراء لا يمكن التراجع عنه.',
+      'Cancel': 'إلغاء',
+      'Delete': 'حذف',
       customerDashboard: {
         title: 'لوحة تحكم العميل',
         defaultName: 'العميل',
@@ -1477,6 +1549,7 @@ const resources = {
         promotions: 'العروض',
         qrCard: 'بطاقة QR',
         settings: 'الإعدادات',
+        mySettings: 'إعداداتي',
         logout: 'تسجيل الخروج',
         rewards: 'المكافآت'
       },
@@ -1539,7 +1612,6 @@ const resources = {
         newEnrollmentIn: 'انضمام جديد إلى {{programName}}',
         aReward: 'مكافأة'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'لوحة تحكم الأعمال',
@@ -1571,6 +1643,7 @@ const resources = {
         'Quick Award Points': 'منح النقاط السريع',
         'Send points directly to any customer in your programs': 'أرسل النقاط مباشرة لأي عميل في برامجك',
         'Award Points': 'منح النقاط',
+        'Scan QR': 'مسح رمز QR',
         'Business Analytics': 'تحليلات الأعمال',
         'Day': 'يوم',
         'Week': 'أسبوع',
@@ -1601,6 +1674,8 @@ const resources = {
         'Points expire after {{days}} days': 'تنتهي النقاط بعد {{days}} يوم',
         'Never expires': 'لا تنتهي أبداً',
         'Reward Tiers': 'مستويات المكافآت',
+        'Points': 'النقاط',
+        'Stamps': 'الأختام',
         'points': 'نقاط',
         'stamps': 'أختام',
         'Delete': 'حذف',
@@ -1608,6 +1683,11 @@ const resources = {
         'No Programs Found': 'لم يتم العثور على برامج',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'لم تقم بإنشاء أي برامج ولاء بعد. أنشئ برنامجك الأول لبدء مكافأة عملائك.',
         '{{value}} = 1 point': '{{value}} = نقطة واحدة',
+        '= 1 point': '= نقطة واحدة',
+        '= 1 stamp': '= ختم واحد',
+        'Customers earn 1 stamp for every': 'يكسب العملاء ختمًا واحدًا لكل',
+        'spent': 'منفق',
+        'Amount customer must pay to earn one stamp': 'كم يحتاج العملاء للإنفاق لكسب ختم واحد؟',
         
         // Activity types
         'POINTS_AWARDED': 'تم منح النقاط',
@@ -1997,7 +2077,6 @@ const resources = {
           passwordTooShort: 'يجب أن تكون كلمة المرور 8 أحرف على الأقل'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'الإعدادات',
@@ -2261,7 +2340,36 @@ const resources = {
       programs: 'Programas',
       analytics: 'Análisis',
       
-      // Business Menu Options
+      // Staff Page
+      'Staff Management': 'Gestión de Personal',
+      'Manage your staff accounts and permissions': 'Administre las cuentas y permisos de su personal',
+      'Add New Staff': 'Agregar Nuevo Personal',
+      'Search staff members...': 'Buscar miembros del personal...',
+      'All Status': 'Todos los estados',
+      'Active': 'Activo',
+      'Inactive': 'Inactivo',
+      'Staff Members': 'Miembros del Personal',
+      'No staff members': 'No hay miembros del personal',
+      'No matching staff members': 'No hay miembros que coincidan',
+      'Get started by creating your first staff account.': 'Comience creando su primera cuenta de personal.',
+      'Try adjusting your search or filter criteria.': 'Intente ajustar su búsqueda o los filtros.',
+      'Add Staff Member': 'Agregar Miembro del Personal',
+      'Staff Member': 'Miembro del Personal',
+      'Role': 'Rol',
+      'Status': 'Estado',
+      'Last Active': 'Última actividad',
+      'Permissions': 'Permisos',
+      'Actions': 'Acciones',
+      'Staff': 'Personal',
+      'Never': 'Nunca',
+      'Manage': 'Administrar',
+      'Edit staff info': 'Editar información del personal',
+      'Edit permissions': 'Editar permisos',
+      'Delete staff member': 'Eliminar miembro del personal',
+      'Delete Staff Member': 'Eliminar Miembro del Personal',
+      'Are you sure you want to delete this staff member? This action cannot be undone.': '¿Está seguro de que desea eliminar a este miembro del personal? Esta acción no se puede deshacer.',
+      'Cancel': 'Cancelar',
+      'Delete': 'Eliminar',
       'Dashboard': 'Panel de Control',
       'Programs': 'Programas',
       'Analytics': 'Análisis',
@@ -2464,7 +2572,6 @@ const resources = {
         redeeming: 'Canjeando {{rewardName}}...',
         yourLoyaltyProgram: 'tu programa de lealtad'
       },
-      
       // Nearby Page
       nearby: {
         comingSoon: 'PRÓXIMAMENTE',
@@ -2662,6 +2769,7 @@ const resources = {
         'Quick Award Points': 'Otorgar Puntos Rápido',
         'Send points directly to any customer in your programs': 'Envíe puntos directamente a cualquier cliente en sus programas',
         'Award Points': 'Otorgar Puntos',
+        'Scan QR': 'Escanear QR',
         'Business Analytics': 'Análisis de Negocios',
         'Day': 'Día',
         'Week': 'Semana',
@@ -2692,6 +2800,8 @@ const resources = {
         'Points expire after {{days}} days': 'Los puntos expiran después de {{days}} días',
         'Never expires': 'Nunca expira',
         'Reward Tiers': 'Niveles de Recompensa',
+        'Points': 'Puntos',
+        'Stamps': 'Sellos',
         'points': 'puntos',
         'stamps': 'sellos',
         'Delete': 'Eliminar',
@@ -2699,6 +2809,11 @@ const resources = {
         'No Programs Found': 'No se Encontraron Programas',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'Aún no ha creado programas de lealtad. Cree su primer programa para comenzar a recompensar a sus clientes.',
         '{{value}} = 1 point': '{{value}} = 1 punto',
+        '= 1 point': '= 1 punto',
+        '= 1 stamp': '= 1 sello',
+        'Customers earn 1 stamp for every': 'Los clientes ganan 1 sello por cada',
+        'spent': 'gastado',
+        'Amount customer must pay to earn one stamp': '¿Cuánto necesitan gastar los clientes para ganar 1 sello?',
         
         // Activity types
         'POINTS_AWARDED': 'Puntos Otorgados',
@@ -2955,7 +3070,6 @@ const resources = {
         'Need Help?': '¿Necesita Ayuda?',
         'If you have any questions about your business settings or loyalty program configuration, our support team is here to help.': 'Si tiene alguna pregunta sobre la configuración de su negocio o configuración del programa de lealtad, nuestro equipo de soporte está aquí para ayudar.',
         'Contact Business Support': 'Contactar Soporte de Negocios',
-        
         // Business Promotions Page
         'Promotions & Special Offers': 'Promociones y Ofertas Especiales',
         'Create exciting promotions to attract and reward your customers': 'Crea promociones emocionantes para atraer y recompensar a tus clientes',
@@ -3344,7 +3458,36 @@ const resources = {
       'Scan QR': 'Scanner QR',
       'QR Code': 'Code QR',
       
-      // Business Terms
+      // Staff Page
+      'Staff Management': 'Gestion du Personnel',
+      'Manage your staff accounts and permissions': 'Gérez les comptes et les autorisations de votre personnel',
+      'Add New Staff': 'Ajouter un Nouveau Membre',
+      'Search staff members...': 'Rechercher des membres du personnel...',
+      'All Status': 'Tous les statuts',
+      'Active': 'Actif',
+      'Inactive': 'Inactif',
+      'Staff Members': 'Membres du Personnel',
+      'No staff members': 'Aucun membre du personnel',
+      'No matching staff members': 'Aucun membre correspondant',
+      'Get started by creating your first staff account.': 'Commencez par créer votre premier compte du personnel.',
+      'Try adjusting your search or filter criteria.': 'Essayez d\'ajuster votre recherche ou vos filtres.',
+      'Add Staff Member': 'Ajouter un Membre du Personnel',
+      'Staff Member': 'Membre du Personnel',
+      'Role': 'Rôle',
+      'Status': 'Statut',
+      'Last Active': 'Dernière activité',
+      'Permissions': 'Autorisations',
+      'Actions': 'Actions',
+      'Staff': 'Personnel',
+      'Never': 'Jamais',
+      'Manage': 'Gérer',
+      'Edit staff info': 'Modifier les informations du personnel',
+      'Edit permissions': 'Modifier les autorisations',
+      'Delete staff member': 'Supprimer le membre du personnel',
+      'Delete Staff Member': 'Supprimer le Membre du Personnel',
+      'Are you sure you want to delete this staff member? This action cannot be undone.': 'Êtes-vous sûr de vouloir supprimer ce membre du personnel ? Cette action est irréversible.',
+      'Cancel': 'Annuler',
+      'Delete': 'Supprimer',
       loyaltyProgram: 'Programme de Fidélité',
       points: 'Points',
       rewards: 'Récompenses',
@@ -3360,6 +3503,8 @@ const resources = {
       'Promotions': 'Promotions',
       'QR Scanner': 'Scanner QR',
       'Settings': 'Paramètres',
+      'My Settings': 'Mes Paramètres',
+      'Logout': 'Déconnexion',
       'Business Portal': 'Portail Business',
       
       // Common Actions
@@ -3721,7 +3866,6 @@ const resources = {
         newEnrollmentIn: 'Nouvelle inscription à {{programName}}',
         aReward: 'une récompense'
       },
-      
       // Business Dashboard
       business: {
         dashboard: 'Tableau de Bord Entreprise',
@@ -3753,6 +3897,7 @@ const resources = {
         'Quick Award Points': 'Attribuer des Points Rapidement',
         'Send points directly to any customer in your programs': 'Envoyez des points directement à tout client de vos programmes',
         'Award Points': 'Attribuer des Points',
+        'Scan QR': 'Scanner QR',
         'Business Analytics': 'Analyses d\'Entreprise',
         'Day': 'Jour',
         'Week': 'Semaine',
@@ -3783,6 +3928,8 @@ const resources = {
         'Points expire after {{days}} days': 'Les points expirent après {{days}} jours',
         'Never expires': 'N\'expire jamais',
         'Reward Tiers': 'Niveaux de Récompense',
+        'Points': 'Points',
+        'Stamps': 'Tampons',
         'points': 'points',
         'stamps': 'tampons',
         'Delete': 'Supprimer',
@@ -3790,6 +3937,11 @@ const resources = {
         'No Programs Found': 'Aucun Programme Trouvé',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'Vous n\'avez pas encore créé de programmes de fidélité. Créez votre premier programme pour commencer à récompenser vos clients.',
         '{{value}} = 1 point': '{{value}} = 1 point',
+        '= 1 point': '= 1 point',
+        '= 1 stamp': '= 1 tampon',
+        'Customers earn 1 stamp for every': 'Les clients gagnent 1 tampon pour chaque',
+        'spent': 'dépensé',
+        'Amount customer must pay to earn one stamp': 'Combien les clients doivent-ils dépenser pour gagner 1 tampon ?',
         
         // Activity types
         'POINTS_AWARDED': 'Points Attribués',
@@ -4179,7 +4331,6 @@ const resources = {
           passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères'
         }
       },
-      
       // Settings Page
       settingsPage: {
         title: 'Paramètres',

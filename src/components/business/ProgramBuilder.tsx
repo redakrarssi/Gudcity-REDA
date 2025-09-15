@@ -120,19 +120,28 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
   };
 
   const ProgramTypeCard = ({ type, title, description, icon }: { type: ProgramType, title: string, description: string, icon: React.ReactNode }) => (
-    <div 
-      className={`border rounded-lg p-6 cursor-pointer transition-all transform hover:scale-105 ${program.type === type ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 hover:border-blue-200'}`}
+    <button
+      type="button"
+      aria-pressed={program.type === type}
       onClick={() => handleInputChange('type', type)}
+      className={`relative w-full text-left rounded-xl p-5 transition-all duration-200 border group overflow-hidden ${
+        program.type === type
+          ? 'border-blue-600 shadow-[0_12px_32px_rgba(37,99,235,0.20)] bg-gradient-to-br from-blue-100 to-indigo-200 ring-2 ring-blue-400/60'
+          : 'border-gray-300 hover:border-gray-400 hover:shadow-lg bg-white hover:bg-gray-50'
+      }`}
     >
-      <div className="flex items-center mb-3">
-        <div className={`p-2 rounded-full mr-3 ${program.type === type ? 'bg-blue-100' : 'bg-gray-100'}`}>
+      <div className="absolute inset-0 pointer-events-none rounded-xl bg-gradient-to-br from-white/20 via-white/10 to-transparent" />
+      <div className="flex items-center">
+        <div className={`p-3 rounded-lg mr-3 ${program.type === type ? 'bg-blue-200 text-blue-700' : 'bg-gray-50 text-gray-700'}`}>
           {icon}
         </div>
-        <h3 className="text-lg font-medium">{title}</h3>
-        {program.type === type && <Check className="ml-auto text-blue-500" size={20} />}
+        <div className="flex-1">
+          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+          <p className={`text-sm mt-1 ${program.type === type ? 'text-gray-800' : 'text-gray-600'}`}>{description}</p>
+        </div>
+        {program.type === type && <Check className="ml-3 text-blue-500" size={20} />}
       </div>
-      <p className="text-gray-600 text-sm">{description}</p>
-    </div>
+    </button>
   );
 
   const renderStepContent = () => {
@@ -172,7 +181,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
       case 1:
         return (
           <div className="space-y-6 mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <ProgramTypeCard 
                 type="POINTS" 
                 title={t('business.Points')} 
@@ -462,7 +471,7 @@ export const ProgramBuilder: React.FC<ProgramBuilderProps> = ({ initialProgram, 
         <h2 className="text-xl font-bold text-gray-900 mb-1">
           {steps[step].title}
         </h2>
-        <p className="text-gray-600 mb-6">{steps[step].description}</p>
+        <p className={`${step === 1 ? 'text-gray-800' : 'text-gray-600'} mb-6`}>{steps[step].description}</p>
 
         {renderStepContent()}
 

@@ -52,7 +52,8 @@ const animationStyles = {
 };
 
 const PromotionsPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = (i18n?.language || '').startsWith('ar');
   const { user } = useAuth();
   const { currency, formatAmount } = useBusinessCurrency();
   const [codes, setCodes] = useState<PromoCode[]>([]);
@@ -452,13 +453,13 @@ const PromotionsPage = () => {
                     setShowPromoIdeas(false);
                   }}
                 >
-                  <div className="flex flex-col items-center text-center">
+                  <div className={`flex flex-col ${isArabic ? 'items-end text-right' : 'items-center text-center'}`}>
                     {idea.icon}
                     <h3 className="font-semibold mt-3">{idea.title}</h3>
                     <p className="text-sm mt-1">{idea.description}</p>
-                    <button className="mt-3 text-xs font-medium flex items-center">
+                    <button className={`mt-3 text-xs font-medium flex items-center ${isArabic ? 'justify-end' : ''}`}>
                       {t('business.Use this idea')}
-                      <ChevronRight className="w-3 h-3 ml-1" />
+                      <ChevronRight className={`w-3 h-3 ${isArabic ? 'mr-1' : 'ml-1'}`} />
                     </button>
                   </div>
                 </div>
@@ -589,8 +590,8 @@ const PromotionsPage = () => {
               </table>
             </div>
           ) : (
-            <div className="py-12 text-center">
-              <Gift className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <div className={`py-12 ${isArabic ? 'text-right pr-6' : 'text-center'}`}>
+              <Gift className={`h-12 w-12 text-gray-300 ${isArabic ? 'ml-auto' : 'mx-auto'} mb-4`} />
               <h3 className="text-lg font-medium text-gray-500">{t('business.No promotions found')}</h3>
               <p className="text-gray-400 text-sm mt-2 mb-4">{t('business.Create your first promotion to start attracting customers')}</p>
               <PermissionGate permission={PERMISSIONS.PROMOTIONS_CREATE}>
@@ -788,12 +789,12 @@ const PromotionsPage = () => {
                 </button>
               </div>
 
-              <div className="flex flex-col items-center space-y-4">
+              <div className={`flex flex-col ${isArabic ? 'items-end' : 'items-center'} space-y-4`}>
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   {renderQRCode()}
                 </div>
                 
-                <div className="text-center">
+                <div className={`${isArabic ? 'text-right' : 'text-center'}`}>
                   <p className="text-gray-500 text-sm mb-2">{t('business.Code')}: <span className="font-medium text-gray-800">{showQRModal}</span></p>
                   <p className="text-gray-500 text-sm">{t('business.Scan this code to apply the promotion')}</p>
                 </div>

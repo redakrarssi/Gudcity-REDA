@@ -140,7 +140,7 @@ const CustomersPage = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showBirthdayConfetti, setShowBirthdayConfetti] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
-  const [showLinkCustomers, setShowLinkCustomers] = useState(false);
+  // Removed Link Customers flow per request
   const [showSendPromoCode, setShowSendPromoCode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -443,7 +443,7 @@ const CustomersPage = () => {
     <BusinessLayout>
       <div className="px-3 sm:px-4 py-4 sm:py-6 customers-page">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6 customers-header">
-          <h1 className="text-2xl font-bold text-gray-900 customers-title">{t('business.Customers')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 customers-title">Customers</h1>
           <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 customers-actions w-full sm:w-auto">
             <button
               onClick={handleRefreshCustomers}
@@ -460,14 +460,7 @@ const CustomersPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {t('business.Refresh')}
-            </button>
-            <button
-              onClick={() => setShowLinkCustomers(true)}
-              className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center w-full sm:w-auto"
-            >
-              <UserPlus className="w-5 h-5 mr-2" />
-              {t('business.Link Customers')}
+              Refresh
             </button>
           </div>
         </div>
@@ -902,32 +895,7 @@ const CustomersPage = () => {
           </div>
         )}
 
-        {/* Customer Business Linker Modal */}
-        {showLinkCustomers && (
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-3xl sm:w-full">
-              <div className="absolute top-0 right-0 pt-4 pr-4">
-                <button
-                  onClick={() => setShowLinkCustomers(false)}
-                  className="text-gray-400 hover:text-gray-500 focus:outline-none"
-                >
-                  <span className="sr-only">{translate('Close')}</span>
-                  <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-4">
-                <CustomerBusinessLinker 
-                  onSuccess={() => {
-                    setShowLinkCustomers(false);
-                    handleRefreshCustomers();
-                  }} 
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Link Customers modal removed per request */}
       </div>
     </BusinessLayout>
   );
