@@ -166,9 +166,11 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
       const businessPrograms = await LoyaltyProgramService.getBusinessPrograms(businessId);
       console.log('CustomerDetailsModal: Programs loaded:', businessPrograms);
       
-      setPrograms(businessPrograms);
-      if (businessPrograms.length > 0) {
-        setSelectedProgramId(businessPrograms[0].id);
+      // Exclude STAMPS from award points selection
+      const pointPrograms = (businessPrograms || []).filter((p: any) => p.type === 'POINTS');
+      setPrograms(pointPrograms);
+      if (pointPrograms.length > 0) {
+        setSelectedProgramId(pointPrograms[0].id);
       }
     } catch (err) {
       console.error('Error loading programs:', err);

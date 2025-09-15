@@ -243,7 +243,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
           </div>
           <div className="flex items-baseline mt-1">
             <span className={`text-3xl font-bold ${isStampProgram ? 'text-green-700' : 'text-blue-600'} mr-2`}>{card.points}</span>
-            {card.pointsMultiplier > 1 && (
+            {!isStampProgram && card.pointsMultiplier > 1 && (
               <span className="text-sm bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
                 {t('{{multiplier}}× multiplier', { multiplier: card.pointsMultiplier.toFixed(2) })}
               </span>

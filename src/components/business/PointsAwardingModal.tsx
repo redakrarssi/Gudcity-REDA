@@ -91,23 +91,27 @@ export const PointsAwardingModal: React.FC<PointsAwardingModalProps> = ({
         );
         
         if (enrolledPrograms && enrolledPrograms.length > 0) {
-          const formattedPrograms = enrolledPrograms.map(program => ({
+          // CRITICAL: Only allow awarding points to POINTS programs (exclude STAMPS)
+          const pointsPrograms = (enrolledPrograms || []).filter((program: any) => program.type === 'POINTS');
+          const formattedPrograms = pointsPrograms.map(program => ({
             id: program.id,
             name: program.name
           }));
           setPrograms(formattedPrograms);
           
           // Select the first program by default
-          if (formattedPrograms.length > 0 && !selectedProgramId) {
-            setSelectedProgramId(formattedPrograms[0].id);
+          if (formattedPrograms.length > 0) {
+            if (!selectedProgramId || !formattedPrograms.find(p => p.id === selectedProgramId)) {
+              setSelectedProgramId(formattedPrograms[0].id);
+            }
           }
         } else {
           setPrograms([]);
-          setError("Customer is not enrolled in any loyalty programs for this business");
+          setError("Customer is not enrolled in any points programs for this business");
         }
       } catch (error) {
         console.error("Error fetching enrolled programs:", error);
-        setError("Failed to load loyalty programs");
+        setError("Failed to load points programs");
       } finally {
         setIsLoadingPrograms(false);
       }
