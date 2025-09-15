@@ -2,10 +2,11 @@ import { QrCodeStorageService, QrCodeCreationParams } from './qrCodeStorageServi
 import { createStandardCustomerQRCode, StandardQrCodeData } from '../utils/standardQrCodeGenerator';
 import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
+import { createHmac } from '../utils/cryptoUtils';
 import sql from '../utils/db';
 import db from '../utils/databaseConnector';
 import { logger } from '../utils/logger';
+import QrDataManager from '../utils/qrDataManager';
 import { Customer } from '../types/customer';
 import { QRCodeData } from '../types/qrCode';
 
@@ -56,7 +57,7 @@ export class UserQrCodeService {
     
     try {
       // Generate a unique token and ID for security
-      const uniqueToken = this.generateUniqueToken(user.id);
+      const uniqueToken = await this.generateUniqueToken(user.id);
       const qrUniqueId = uuidv4();
 
       // Convert user ID to string for consistency
@@ -135,11 +136,15 @@ export class UserQrCodeService {
           cardType
         };
         
+        // 🔒 Apply encryption to protect sensitive customer data (customerName)
+        // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
+        const encryptedQrData = await QrDataManager.prepareForGeneration(qrData);
+        
         // Try to store the QR code
         const params: QrCodeCreationParams = {
           customerId: userId,
           qrType: 'CUSTOMER_CARD',
-          data: JSON.stringify(qrData),
+          data: encryptedQrData,
           imageUrl: qrImageUrl,
           isPrimary: true,
           expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 365 days (1 year)
@@ -328,10 +333,10 @@ export class UserQrCodeService {
   /**
    * Generate a unique token for the user based on their ID
    */
-  private static generateUniqueToken(userId: string | number): string {
-    const hmac = crypto.createHmac('sha256', this.SECRET_KEY);
-    hmac.update(userId.toString());
-    return hmac.digest('hex');
+  private static async generateUniqueToken(userId: string | number): Promise<string> {
+    const hmac = await createHmac('sha256', this.SECRET_KEY);
+    const token = await hmac.update(userId.toString()).digest('hex');
+    return token as string;
   }
 
   /**
@@ -706,7 +711,7 @@ export class UserQrCodeService {
       }
       
       // Generate a unique token for this loyalty card
-      const uniqueToken = this.generateUniqueToken(`${customerIdNum}-${businessIdNum}-${programIdNum}-${cardIdNum}`);
+      const uniqueToken = await this.generateUniqueToken(`${customerIdNum}-${businessIdNum}-${programIdNum}-${cardIdNum}`);
       const qrUniqueId = uuidv4();
 
       // Create QR code data
@@ -824,7 +829,7 @@ export class UserQrCodeService {
       }
 
       // Validate the signature - this now uses our enhanced verification
-      if (!QrCodeStorageService.validateQrCode(qrCode)) {
+      if (!(await QrCodeStorageService.validateQrCode(qrCode))) {
         return {
           isValid: false,
           message: 'QR code signature validation failed'
@@ -849,7 +854,7 @@ export class UserQrCodeService {
       // Verify the uniqueToken if present
       if (qrCode.qr_data?.uniqueToken) {
         try {
-          const expectedToken = this.generateUniqueToken(
+          const expectedToken = await this.generateUniqueToken(
             qrCode.qr_data.type === 'LOYALTY_CARD' 
               ? `${qrCode.customer_id}-${qrCode.business_id}-${qrCode.qr_data.programId}-${qrCode.qr_data.cardId}`
               : qrCode.customer_id

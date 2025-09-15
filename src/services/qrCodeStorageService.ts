@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
+import { createHmac, timingSafeEqual, hexToUint8Array, generateRandomBytes } from '../utils/cryptoUtils';
 
 /**
  * Interface for QR Code data stored in the database
@@ -59,7 +60,7 @@ export interface QrCodeCreationParams {
  */
 export class QrCodeStorageService {
   private static readonly SECRET_KEY = process.env.QR_SECRET_KEY;
-  private static readonly SIGNATURE_EXPIRY_DAYS = 180; // Signatures are valid for 180 days by default
+  private static readonly SIGNATURE_EXPIRY_HOURS = 24; // Reduced from 180 days to 24 hours
 
   /**
    * Create a new QR code in the database
@@ -88,7 +89,7 @@ export class QrCodeStorageService {
         const verificationCode = this.generateVerificationCode();
         
         // Create a digital signature for added security
-        const signature = this.createDigitalSignature(params.data);
+        const signature = await this.createDigitalSignature(params.data);
         
         // Validate inputs before inserting
         if (!customerId || customerId <= 0) {
@@ -211,25 +212,16 @@ export class QrCodeStorageService {
   /**
    * Create a digital signature for QR code data validation
    */
-  private static createDigitalSignature(data: any): string {
+  private static async createDigitalSignature(data: any): Promise<string> {
     try {
-      // Convert data to string if it's not already
       const dataString = typeof data === 'string' ? data : JSON.stringify(data);
+      const timestamp = Math.floor(Date.now() / 1000);
       
-      // Combine with secret key and current timestamp
-      const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
-      const signaturePayload = `${dataString}|${this.SECRET_KEY}|${timestamp}`;
+      // SECURE: Create HMAC with SHA-256 using Web Crypto API
+      const hmac = await createHmac('sha256', this.SECRET_KEY);
+      const signature = await hmac.update(`${dataString}|${timestamp}`).digest('hex');
       
-      // Use a simpler hash for browser compatibility
-      let hash = 0;
-      for (let i = 0; i < signaturePayload.length; i++) {
-        const char = signaturePayload.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
-      }
-      
-      // Create a signature with the hash and timestamp for validation
-      return `${hash.toString(16)}.${timestamp}`;
+      return `${signature}.${timestamp}`;
     } catch (error) {
       console.error('Error creating digital signature:', error);
       return '';
@@ -239,45 +231,37 @@ export class QrCodeStorageService {
   /**
    * Validate QR code data using its digital signature
    */
-  static validateQrCode(qrCode: CustomerQrCode): boolean {
+  static async validateQrCode(qrCode: CustomerQrCode): Promise<boolean> {
     if (!qrCode || !qrCode.qr_data || !qrCode.digital_signature) {
       return false;
     }
     
     try {
-      // Extract timestamp from signature
       const parts = qrCode.digital_signature.split('.');
-      if (parts.length !== 2) {
-        return false;
-      }
+      if (parts.length !== 2) return false;
       
-      const timestamp = parseInt(parts[1]);
-      if (isNaN(timestamp)) {
-        return false;
-      }
+      const [expectedSignature, timestampStr] = parts;
+      const timestamp = parseInt(timestampStr);
       
-      // Check if signature has expired
+      if (isNaN(timestamp)) return false;
+      
+      // SECURITY: Check expiry (24 hours instead of 180 days)
       const now = Math.floor(Date.now() / 1000);
-      const expirySeconds = this.SIGNATURE_EXPIRY_DAYS * 24 * 60 * 60;
+      const expirySeconds = this.SIGNATURE_EXPIRY_HOURS * 60 * 60;
       if (now - timestamp > expirySeconds) {
-        console.log('QR code signature has expired');
         return false;
       }
       
-      // Recreate the signature for comparison
+      // SECURITY: Recreate HMAC signature using Web Crypto API
       const dataString = typeof qrCode.qr_data === 'string' ? qrCode.qr_data : JSON.stringify(qrCode.qr_data);
-      const signaturePayload = `${dataString}|${this.SECRET_KEY}|${timestamp}`;
+      const hmac = await createHmac('sha256', this.SECRET_KEY);
+      const computedSignature = await hmac.update(`${dataString}|${timestamp}`).digest('hex');
       
-      let hash = 0;
-      for (let i = 0; i < signaturePayload.length; i++) {
-        const char = signaturePayload.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      
-      const expectedSignature = `${hash.toString(16)}.${timestamp}`;
-      
-      return expectedSignature === qrCode.digital_signature;
+      // SECURITY: Use timing-safe comparison with Web Crypto API
+      return timingSafeEqual(
+        hexToUint8Array(expectedSignature),
+        hexToUint8Array(computedSignature as string)
+      );
     } catch (error) {
       console.error('Error validating QR code signature:', error);
       return false;
@@ -621,7 +605,7 @@ export class QrCodeStorageService {
         // Create the new QR code with the transaction already started
         const newQrUniqueId = uuidv4();
         const verificationCode = this.generateVerificationCode();
-        const signature = this.createDigitalSignature(newQrCodeParams.data);
+        const signature = await this.createDigitalSignature(newQrCodeParams.data);
         
         // Convert IDs for the new QR code
         const customerId = typeof newQrCodeParams.customerId === 'string' 

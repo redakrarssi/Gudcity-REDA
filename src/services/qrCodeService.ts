@@ -3,7 +3,6 @@ import { createStandardCustomerQRCode, createStandardPromoQRCode, createStandard
 import { QrCodeStorageService } from './qrCodeStorageService';
 import env from '../utils/env';
 import rateLimiter from '../utils/rateLimiter';
-import crypto from 'crypto';
 
 // Import the new validation and error handling utilities
 import { validateQrCodeData, safeValidateQrCode } from '../utils/qrCodeValidator';
@@ -18,6 +17,7 @@ import {
 } from '../utils/qrCodeErrorHandler';
 import { withRetryableQuery, withRetryableTransaction } from '../utils/dbRetry';
 import { NotificationService } from './notificationService';
+import QrDataManager from '../utils/qrDataManager';
 import {
   QrCodeType,
   QrCodeData,
@@ -182,7 +182,7 @@ export class QrCodeService {
   }
   
   /**
-   * Get customer QR code
+   * Get customer QR code with encrypted sensitive data
    */
   static async getCustomerQrCode(customerId: string): Promise<string | null> {
     const cacheKey = `customer-qr-${customerId}`;
@@ -213,7 +213,9 @@ export class QrCodeService {
         timestamp: Date.now()
       };
 
-      const qrCodeData = JSON.stringify(qrData);
+      // 🔒 Apply encryption to protect sensitive customer data (name, email)
+      // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
+      const qrCodeData = await QrDataManager.prepareForGeneration(qrData);
       
       // Cache the result
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });

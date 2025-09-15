@@ -18,6 +18,10 @@ import {
   safeValidateWithFallback,
   createFallbackCustomerQrCode
 } from '../utils/qrCodeValidator';
+import { SecureJsonParser } from '../utils/secureJsonParser';
+import { XssProtection } from '../utils/xssProtection';
+import { SecureQrGenerator } from '../utils/secureQrGenerator';
+import QrDataManager from '../utils/qrDataManager';
 import { validateQrCodeData, isQrCodeData, isCustomerQrCodeData, isLoyaltyCardQrCodeData, isPromoCodeQrCodeData, monitorTypeViolation } from '../utils/runtimeTypeValidator';
 import type { NotificationType } from '../types/notification';
 import { CustomerNotificationService } from '../services/customerNotificationService';
@@ -367,27 +371,41 @@ const convertToScanData = (data: StandardQrCodeData | null | undefined): ScanDat
  * @param text - The raw text from the QR code
  * @returns The parsed QR code data or null if invalid
  */
-const parseQrCodeData = (text: string): QrCodeData | null => {
+const parseQrCodeData = async (text: string): Promise<QrCodeData | null> => {
   try {
-    // First try to parse as JSON
+    // SECURITY: Use secure parser with sanitization
     let parsedData: unknown;
     try {
-      parsedData = JSON.parse(text);
+      parsedData = SecureJsonParser.parseQrCodeJson(text);
     } catch (e) {
-      debugLog('Failed to parse QR code as JSON', e);
-      extendedQrScanMonitor.recordFailedScan('Invalid JSON format', text);
+      debugLog('Failed to parse QR code securely', e);
+      extendedQrScanMonitor.recordFailedScan('Invalid or malicious JSON format', text);
       return null;
+    }
+    
+    // SECURITY: Verify integrity if present
+    if (parsedData && typeof parsedData === 'object' && 'integrity' in parsedData) {
+      const securityCheck = await SecureQrGenerator.verifyQrCodeSecurity(parsedData);
+      if (!securityCheck.isValid) {
+        debugLog('QR code security check failed:', securityCheck.errors);
+        extendedQrScanMonitor.recordFailedScan('QR code security validation failed', text);
+        return null;
+      }
+      // Use the sanitized data from security check
+      parsedData = securityCheck.data;
     }
 
     // Try the enhanced fallback validation first - more lenient with customer QR codes
     const fallbackValidatedData = safeValidateWithFallback(parsedData);
     if (fallbackValidatedData) {
+      // SECURITY: Sanitize data for display
+      const sanitizedData = XssProtection.sanitizeQrDisplayData(fallbackValidatedData);
       extendedQrScanMonitor.recordSuccessfulScan(
-        fallbackValidatedData.type, 
-        fallbackValidatedData as unknown as Record<string, unknown>
+        sanitizedData.type, 
+        sanitizedData as unknown as Record<string, unknown>
       );
-      debugLog('Validated with fallback mechanism', fallbackValidatedData);
-      return fallbackValidatedData;
+      debugLog('Validated with fallback mechanism', sanitizedData);
+      return sanitizedData as QrCodeData;
     }
 
     // Validate using runtime type validator (gracefully handle errors)
@@ -409,9 +427,11 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
         (validatedData as any).customerId = (validatedData as any).id;
       }
 
+      // SECURITY: Sanitize data for display
+      const sanitizedData = XssProtection.sanitizeQrDisplayData(validatedData);
       // Record successful scan with monitoring
-      extendedQrScanMonitor.recordSuccessfulScan(validatedData.type, ensureObjectData(validatedData));
-      return validatedData;
+      extendedQrScanMonitor.recordSuccessfulScan(sanitizedData.type, ensureObjectData(sanitizedData));
+      return sanitizedData as QrCodeData;
     }
     
     // Last attempt: try fallback for customer QR code with more relaxed rules
@@ -423,9 +443,11 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
       if (typeof typeValue === 'string' && typeValue.toLowerCase().includes('customer')) {
         const customerData = createFallbackCustomerQrCode(parsedData);
         if (customerData) {
-          debugLog('Created customer QR code from malformed data', customerData);
-          extendedQrScanMonitor.recordSuccessfulScan('customer', ensureObjectData(customerData as unknown as Record<string, unknown>));
-          return customerData;
+          // SECURITY: Sanitize fallback customer data
+          const sanitizedCustomerData = XssProtection.sanitizeQrDisplayData(customerData);
+          debugLog('Created customer QR code from malformed data', sanitizedCustomerData);
+          extendedQrScanMonitor.recordSuccessfulScan('customer', ensureObjectData(sanitizedCustomerData as unknown as Record<string, unknown>));
+          return sanitizedCustomerData as QrCodeData;
         }
       }
     }
@@ -438,10 +460,13 @@ const parseQrCodeData = (text: string): QrCodeData | null => {
       // Convert to our internal format
       const convertedData = convertToScanData(standardData);
       
+      // SECURITY: Sanitize converted data
+      const sanitizedConvertedData = XssProtection.sanitizeQrDisplayData(convertedData);
+      
       // Monitor the type conversion for analytics
       monitorTypeViolation('Legacy QR Format Conversion', true, standardData, qrType);
       
-      return convertedData;
+      return sanitizedConvertedData as QrCodeData;
     }
     
     // Record failed scan
@@ -1036,6 +1061,18 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         return;
       }
 
+      // 🔓 Decrypt data if it's encrypted (business dashboard can see customer details)
+      try {
+        const decryptedData = await QrDataManager.prepareForBusiness(decodedText);
+        if (decryptedData && typeof decryptedData === 'object') {
+          parsedData = decryptedData;
+          debugLog('🔓 QR data decrypted for business dashboard', QrDataManager.getSafePreview(decryptedData));
+        }
+      } catch (decryptError) {
+        // If decryption fails, continue with original parsed data (backward compatibility)
+        debugLog('Decryption failed, using original data:', decryptError);
+      }
+
       // Enhanced validation for customer type
       // Directly handle the case where type is "customer" even if structure isn't perfect
       if (typeof parsedData === 'object' && parsedData !== null && 'type' in parsedData) {
@@ -1090,7 +1127,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
       // If not handled by the enhanced customer validation, continue with standard flow
       // Use the enhanced parseQrCodeData with runtime validation
-      const qrCodeData = parseQrCodeData(decodedText);
+      const qrCodeData = await parseQrCodeData(decodedText);
       
       if (!qrCodeData) {
         setErrorState('Invalid QR code format');

@@ -233,7 +233,7 @@ export class QrCodeIntegrityService {
             
             // Verify signature if present
             if (qrCode.qr_data && qrCode.digital_signature) {
-              const isValid = QrCodeStorageService.validateQrCode(qrCode as CustomerQrCode);
+              const isValid = await QrCodeStorageService.validateQrCode(qrCode as CustomerQrCode);
               
               if (!isValid) {
                 result.failed++;

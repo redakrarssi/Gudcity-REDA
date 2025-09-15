@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
-import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw, Sparkles } from 'lucide-react';
+import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw, Sparkles, BadgeCheck } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -917,7 +917,14 @@ const CustomerCards = () => {
     }
   };
   
+  const isStampProgram = (card: LoyaltyCard) => {
+    return (card.programName || '').toLowerCase().includes('stamp');
+  };
+
   const getIconForCard = (card: LoyaltyCard) => {
+    if (isStampProgram(card)) {
+      return <BadgeCheck className="w-6 h-6" />;
+    }
     const businessName = card.businessName?.toLowerCase() || '';
     
     if (businessName.includes('coffee') || businessName.includes('cafe')) {
@@ -934,6 +941,9 @@ const CustomerCards = () => {
   };
   
   const getCardGradient = (card: LoyaltyCard) => {
+    if (isStampProgram(card)) {
+      return 'from-emerald-500 via-emerald-600 to-teal-700';
+    }
     const businessName = card.businessName?.toLowerCase() || '';
     const cardType = card.cardType?.toLowerCase() || '';
     
@@ -1230,11 +1240,11 @@ const CustomerCards = () => {
                                 }
                               </AnimatePresence>
                             </div>
-                            <div className="text-sm opacity-90">{t('points')}</div>
+                            <div className="text-sm opacity-90">{isStampProgram(card) ? 'Stamps' : t('points')}</div>
                           </div>
                           <div className="text-xs mt-1 opacity-80">
                             {/* Show placeholder values since these properties might not exist */}
-                            {t('cards.morePointsNeededForNextReward')}
+                            {isStampProgram(card) ? 'More stamps needed for next reward' : t('cards.morePointsNeededForNextReward')}
                           </div>
                         </div>
                         
@@ -1371,11 +1381,11 @@ const CustomerCards = () => {
                                                   ? 'bg-green-100 text-green-700' 
                                                   : 'bg-gray-100 text-gray-600'
                                               }`}>
-                                                {reward.points} {t('points')}
+                                                {reward.points} {isStampProgram(card) ? 'stamps' : t('points')}
                                               </div>
                                               {!canRedeem && pointsNeeded > 0 && (
                                                 <span className="text-xs text-orange-600 ml-2">
-                                                  {t('cards.needMorePoints', { points: pointsNeeded })}
+                                                  {isStampProgram(card) ? `${pointsNeeded} more stamps needed` : t('cards.needMorePoints', { points: pointsNeeded })}
                                                 </span>
                                               )}
                                             </div>
