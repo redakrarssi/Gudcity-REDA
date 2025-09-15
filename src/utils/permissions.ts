@@ -163,6 +163,9 @@ export function canAccessNavigation(
         return hasPermission(user, PERMISSIONS.PROMOTIONS_VIEW);
       case '/business/qr-scanner':
         return hasPermission(user, PERMISSIONS.QR_SCAN);
+      case '/business/my-settings':
+        // Staff personal settings modal entry
+        return true;
       case '/business/settings':
         return hasPermission(user, PERMISSIONS.SETTINGS_ACCESS);
       default:

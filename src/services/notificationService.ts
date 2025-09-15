@@ -398,6 +398,12 @@ export class NotificationService {
       // In a real implementation, you would send this HTML email
       console.log('Email template:', emailTemplate);
     }
+
+    // If the notification is a delivery confirmation, include staff name if present
+    if (data && data.rewardName && title === 'Reward Delivered') {
+      const staffSuffix = data.deliveredByName ? `\nDelivered by: ${data.deliveredByName}` : '';
+      console.log('Email (delivered) extra info:', staffSuffix.trim());
+    }
   }
 
   // SMS notification
@@ -841,7 +847,7 @@ export class NotificationService {
         points: redemptionData.points
       });
       
-      // Emit event for real-time updates
+      // Emit event for real-time updates (owner + staff of this business will listen)
       if (typeof window !== 'undefined') {
         const event = new CustomEvent('redemption-notification', {
           detail: {
@@ -897,7 +903,8 @@ export class NotificationService {
    * @returns Success status
    */
   static async completeRedemptionNotification(
-    notificationId: string
+    notificationId: string,
+    options?: { deliveredByUserId?: string; deliveredByName?: string }
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // First, get the redemption notification details
@@ -946,7 +953,7 @@ export class NotificationService {
           businessId: redemption.business_id,
           type: 'REWARD_DELIVERED',
           title: 'Reward Delivered',
-          message: `${redemption.business_name} has delivered your reward: ${redemption.reward}`,
+          message: `${redemption.business_name} has delivered your reward: ${redemption.reward}${options?.deliveredByName ? ` (by ${options.deliveredByName})` : ''}`,
           data: {
             businessName: redemption.business_name,
             rewardName: redemption.reward,
@@ -954,7 +961,9 @@ export class NotificationService {
             points: redemption.points,
             rewardId: redemption.reward_id,
             originalNotificationId: notificationId,
-            deliveredAt: new Date().toISOString()
+            deliveredAt: new Date().toISOString(),
+            deliveredByUserId: options?.deliveredByUserId,
+            deliveredByName: options?.deliveredByName
           },
           requiresAction: false,
           actionTaken: false,
@@ -970,7 +979,7 @@ export class NotificationService {
           reward: redemption.reward
         });
 
-        // Dispatch real-time event for customer dashboard
+        // Dispatch real-time event for customer dashboard and for owner+staff sync
         if (typeof window !== 'undefined') {
           const customerEvent = new CustomEvent('delivery-confirmation', {
             detail: {
@@ -981,11 +990,17 @@ export class NotificationService {
               rewardName: redemption.reward,
               programName: redemption.program_name,
               points: redemption.points,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              deliveredByUserId: options?.deliveredByUserId,
+              deliveredByName: options?.deliveredByName
             }
           });
           window.dispatchEvent(customerEvent);
           console.log('📡 Real-time delivery confirmation event dispatched');
+          const ownerStaffSyncEvent = new CustomEvent('business-notification-delivered', {
+            detail: { notificationId }
+          });
+          window.dispatchEvent(ownerStaffSyncEvent);
         }
 
       } catch (customerNotificationError) {

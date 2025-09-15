@@ -114,10 +114,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const unreadCount = notificationsData.filter(n => !n.isRead).length;
         setUnreadCount(unreadCount);
         
-        // Fetch business notifications if user is business
-        if (user.role === 'business') {
+        // Fetch business notifications if user is business owner or staff (scoped to the owner business)
+        if (user.role === 'business' || user.role === 'owner' || user.role === 'staff') {
+          // Determine the businessId to fetch for: owners use self id; staff use business_owner_id
+          const businessId = (user.role === 'staff' && user.business_owner_id)
+            ? user.business_owner_id.toString()
+            : user.id.toString();
           console.log('🔔 Fetching business notifications for:', user.id.toString());
-          const businessNotificationsResult = await NotificationService.getBusinessRedemptionNotifications(user.id.toString());
+          const businessNotificationsResult = await NotificationService.getBusinessRedemptionNotifications(businessId);
           if (businessNotificationsResult.success) {
             console.log('✅ Business notifications loaded:', businessNotificationsResult.notifications.length);
             setBusinessNotifications(businessNotificationsResult.notifications);
@@ -271,7 +275,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleBusinessNotification = (event: CustomEvent) => {
       console.log('🔔 Real-time business notification received:', event.detail);
       
-      if (user.role === 'business' && event.detail.businessId === user.id.toString()) {
+      const userBusinessId = (user.role === 'staff' && user.business_owner_id)
+        ? user.business_owner_id.toString()
+        : user.id.toString();
+      if ((user.role === 'business' || user.role === 'owner' || user.role === 'staff') && event.detail.businessId === userBusinessId) {
         const businessNotif = {
           id: event.detail.notificationId || Date.now().toString(),
           customerId: event.detail.customerId,
@@ -301,6 +308,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     // Listen for custom redemption events
     window.addEventListener('redemption-notification', handleBusinessNotification as EventListener);
+    
+    // Sync delivered state across owner and staff sessions
+    const handleBusinessDelivered = (event: CustomEvent) => {
+      try {
+        const deliveredId = event.detail?.notificationId as string | undefined;
+        if (!deliveredId) return;
+        setBusinessNotifications(prev => prev.map(n => n.id === deliveredId ? { ...n, status: 'COMPLETED', isRead: true } : n));
+        setBusinessUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (e) {
+        console.error('Error syncing delivered notification:', e);
+      }
+    };
+    window.addEventListener('business-notification-delivered', handleBusinessDelivered as EventListener);
     
     // Handle delivery confirmation notifications (for customers)
     const handleDeliveryConfirmation = (event: CustomEvent) => {
@@ -341,6 +361,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       notificationCleanup();
       approvalCleanup();
       window.removeEventListener('redemption-notification', handleBusinessNotification as EventListener);
+      window.removeEventListener('business-notification-delivered', handleBusinessDelivered as EventListener);
       window.removeEventListener('delivery-confirmation', handleDeliveryConfirmation as EventListener);
     };
   }, [user?.id, queryClient]);
@@ -624,13 +645,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const completeBusinessNotification = async (notificationId: string): Promise<void> => {
     try {
       console.log('🔔 Completing business notification:', notificationId);
-      const result = await NotificationService.completeRedemptionNotification(notificationId);
+      const result = await NotificationService.completeRedemptionNotification(notificationId, {
+        deliveredByUserId: user?.id?.toString(),
+        deliveredByName: user?.name || undefined
+      });
       if (result.success) {
         setBusinessNotifications(prev => 
           prev.map(n => n.id === notificationId ? { ...n, status: 'COMPLETED' } : n)
         );
         setBusinessUnreadCount(prev => Math.max(0, prev - 1));
         console.log('✅ Business notification completed successfully');
+        // Sync across owner and all staff UIs
+        if (typeof window !== 'undefined') {
+          const syncEvent = new CustomEvent('business-notification-delivered', {
+            detail: { notificationId }
+          });
+          window.dispatchEvent(syncEvent);
+        }
       } else {
         console.error('❌ Failed to complete business notification:', result.error);
       }

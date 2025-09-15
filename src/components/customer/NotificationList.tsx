@@ -590,6 +590,9 @@ const NotificationList: React.FC<NotificationListProps> = ({
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                     {notification.message}
+                    {notification.type === 'REWARD_DELIVERED' && notification.data?.deliveredByName ? (
+                      <span className="ml-1 text-gray-500">— Delivered by {notification.data.deliveredByName}</span>
+                    ) : null}
                   </p>
                 </div>
               </div>

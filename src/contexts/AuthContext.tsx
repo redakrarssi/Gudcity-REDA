@@ -51,7 +51,8 @@ const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'business.customers.view',
     'business.promotions.view', 'business.promotions.create', 'business.promotions.edit',
     'business.analytics.view',
-    'business.staff.manage', 'business.staff.create', 'business.staff.delete'
+    'business.staff.manage', 'business.staff.create', 'business.staff.delete',
+    'business.settings.access'
   ],
   owner: [
     'business.profile.view', 'business.profile.edit',
