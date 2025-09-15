@@ -556,7 +556,7 @@ const resources = {
         'Delete Staff Member': 'Delete Staff Member',
         'Are you sure you want to delete this staff member? This action cannot be undone.': 'Are you sure you want to delete this staff member? This action cannot be undone.',
         'Cancel': 'Cancel',
-        'Delete': 'Delete'
+        'Delete': 'Delete',
         
         // Analytics Page
         'Total Points': 'Total Points',
