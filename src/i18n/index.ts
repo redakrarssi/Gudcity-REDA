@@ -424,6 +424,7 @@ const resources = {
         'Quick Award Points': 'Quick Award Points',
         'Send points directly to any customer in your programs': 'Send points directly to any customer in your programs',
         'Award Points': 'Award Points',
+        'Scan QR': 'Scan QR',
         'Business Analytics': 'Business Analytics',
         'Day': 'Day',
         'Week': 'Week',
@@ -461,6 +462,11 @@ const resources = {
         'No Programs Found': 'No Programs Found',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.',
         '{{value}} = 1 point': '{{value}} = 1 point',
+        '= 1 point': '= 1 point',
+        '= 1 stamp': '= 1 stamp',
+        'Customers earn 1 stamp for every': 'Customers earn 1 stamp for every',
+        'spent': 'spent',
+        'Amount customer must pay to earn one stamp': 'How much do customers need to spend to earn 1 stamp?',
         
         // Program Builder Translations
         'Program Basics': 'Program Basics',
@@ -488,6 +494,8 @@ const resources = {
         'Reward Description': 'Reward Description',
         exampleReward: 'e.g. Free Coffee',
         'Add Another Reward Tier': 'Add Another Reward Tier',
+        'points': 'points',
+        'stamps': 'stamps',
         'Ready to Launch!': 'Ready to Launch!',
         'Review your program details before launching it to your customers': 'Review your program details before launching it to your customers',
         'Program Status': 'Program Status',
@@ -1571,6 +1579,7 @@ const resources = {
         'Quick Award Points': 'منح النقاط السريع',
         'Send points directly to any customer in your programs': 'أرسل النقاط مباشرة لأي عميل في برامجك',
         'Award Points': 'منح النقاط',
+        'Scan QR': 'مسح رمز QR',
         'Business Analytics': 'تحليلات الأعمال',
         'Day': 'يوم',
         'Week': 'أسبوع',
@@ -1608,6 +1617,11 @@ const resources = {
         'No Programs Found': 'لم يتم العثور على برامج',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'لم تقم بإنشاء أي برامج ولاء بعد. أنشئ برنامجك الأول لبدء مكافأة عملائك.',
         '{{value}} = 1 point': '{{value}} = نقطة واحدة',
+        '= 1 point': '= نقطة واحدة',
+        '= 1 stamp': '= ختم واحد',
+        'Customers earn 1 stamp for every': 'يكسب العملاء ختمًا واحدًا لكل',
+        'spent': 'منفق',
+        'Amount customer must pay to earn one stamp': 'كم يحتاج العملاء للإنفاق لكسب ختم واحد؟',
         
         // Activity types
         'POINTS_AWARDED': 'تم منح النقاط',
@@ -2662,6 +2676,7 @@ const resources = {
         'Quick Award Points': 'Otorgar Puntos Rápido',
         'Send points directly to any customer in your programs': 'Envíe puntos directamente a cualquier cliente en sus programas',
         'Award Points': 'Otorgar Puntos',
+        'Scan QR': 'Escanear QR',
         'Business Analytics': 'Análisis de Negocios',
         'Day': 'Día',
         'Week': 'Semana',
@@ -2699,6 +2714,11 @@ const resources = {
         'No Programs Found': 'No se Encontraron Programas',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'Aún no ha creado programas de lealtad. Cree su primer programa para comenzar a recompensar a sus clientes.',
         '{{value}} = 1 point': '{{value}} = 1 punto',
+        '= 1 point': '= 1 punto',
+        '= 1 stamp': '= 1 sello',
+        'Customers earn 1 stamp for every': 'Los clientes ganan 1 sello por cada',
+        'spent': 'gastado',
+        'Amount customer must pay to earn one stamp': '¿Cuánto necesitan gastar los clientes para ganar 1 sello?',
         
         // Activity types
         'POINTS_AWARDED': 'Puntos Otorgados',
@@ -3753,6 +3773,7 @@ const resources = {
         'Quick Award Points': 'Attribuer des Points Rapidement',
         'Send points directly to any customer in your programs': 'Envoyez des points directement à tout client de vos programmes',
         'Award Points': 'Attribuer des Points',
+        'Scan QR': 'Scanner QR',
         'Business Analytics': 'Analyses d\'Entreprise',
         'Day': 'Jour',
         'Week': 'Semaine',
@@ -3790,6 +3811,11 @@ const resources = {
         'No Programs Found': 'Aucun Programme Trouvé',
         'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'Vous n\'avez pas encore créé de programmes de fidélité. Créez votre premier programme pour commencer à récompenser vos clients.',
         '{{value}} = 1 point': '{{value}} = 1 point',
+        '= 1 point': '= 1 point',
+        '= 1 stamp': '= 1 tampon',
+        'Customers earn 1 stamp for every': 'Les clients gagnent 1 tampon pour chaque',
+        'spent': 'dépensé',
+        'Amount customer must pay to earn one stamp': 'Combien les clients doivent-ils dépenser pour gagner 1 tampon ?',
         
         // Activity types
         'POINTS_AWARDED': 'Points Attribués',
