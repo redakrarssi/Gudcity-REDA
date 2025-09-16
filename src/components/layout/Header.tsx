@@ -5,7 +5,6 @@ import { Menu, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { IconBell } from '../icons/IconBell';
 import { NotificationService } from '../../services/notificationService';
-import Logo from '../common/Logo';
 
 const Header: React.FC = () => {
   const { t } = useTranslation();
@@ -59,8 +58,8 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center py-4">
           {/* Logo */}
-          <Link to="/" className="flex items-center" aria-label="Go to home">
-            <Logo size={28} showText={true} />
+          <Link to="/" className="flex items-center">
+            <span className="text-xl font-bold text-blue-600">Vcarda</span>
           </Link>
 
           {/* Desktop Navigation */}

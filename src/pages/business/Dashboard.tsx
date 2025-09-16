@@ -319,18 +319,9 @@ const BusinessDashboard = () => {
       {/* Dashboard Header */}
       <div className="business-dashboard mb-6">
         <div className="dashboard-header flex flex-col md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center space-x-3">
-            <img
-              src="/assets/vcarda-logo.png"
-              alt="Vcarda logo"
-              className="h-10 w-auto rounded-xl shadow-sm"
-              loading="eager"
-              decoding="async"
-            />
-            <div>
-              <h1 className="header-title text-2xl md:text-3xl font-bold text-gray-900">{t('business.Welcome to your Dashboard')}</h1>
-              <p className="header-subtitle text-gray-600 mt-1">{businessName}</p>
-            </div>
+          <div>
+            <h1 className="header-title text-2xl md:text-3xl font-bold text-gray-900">{t('business.Welcome to your Dashboard')}</h1>
+            <p className="header-subtitle text-gray-600 mt-1">{businessName}</p>
           </div>
           <div className="dashboard-actions mt-4 md:mt-0 flex flex-wrap gap-2">
             <Link

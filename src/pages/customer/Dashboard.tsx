@@ -64,7 +64,7 @@ const CustomerDashboard = () => {
         {/* Page Title */}
         <div className={`${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}>
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900 tracking-tight flex items-center">
-            <img src="/assets/vcarda-logo.png" alt="Vcarda logo" className="h-8 w-auto rounded-lg mr-2" loading="eager" decoding="async" />
+            <Sparkles className="w-5 h-5 text-blue-600 mr-2" />
             {t('customerDashboard.title', 'Customer Dashboard')}
           </h1>
         </div>
