@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Facebook, Twitter, Instagram, Linkedin, Mail, MapPin, Phone } from 'lucide-react';
+import Logo from '../common/Logo';
 
 const Footer: React.FC = () => {
   const { t } = useTranslation();
@@ -42,8 +43,8 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Company Info */}
           <div className="lg:col-span-2">
-            <Link to="/" className="inline-block">
-              <span className="text-2xl font-bold text-white">Vcarda</span>
+            <Link to="/" className="inline-block" aria-label="Go to home">
+              <Logo size={28} showText={true} textClassName="text-white" />
             </Link>
             <p className="mt-4 text-gray-400 max-w-md">
               {t('Connecting businesses with their local community. Find the best services in your city.')}

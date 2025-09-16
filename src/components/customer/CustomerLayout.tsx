@@ -18,6 +18,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import NotificationIndicator from '../notifications/NotificationIndicator';
 import GlobalNotificationCenter from '../notifications/GlobalNotificationCenter';
 import NotificationPopup from '../notifications/NotificationPopup';
+import Logo from '../common/Logo';
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -79,7 +80,9 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
           {/* Mobile header */}
           <header className="bg-white border-b border-gray-200 md:hidden mobile-header">
             <div className="flex items-center justify-between p-4">
-              <h2 className="text-xl font-bold text-blue-600 mobile-brand">Vcarda</h2>
+              <Link to="/" className="mobile-brand" aria-label="Go to home">
+                <Logo size={24} showText={true} />
+              </Link>
               <div className="flex items-center mobile-controls">
                 <ThemeToggle variant="icon" className="mr-2 mobile-control" />
                 <NotificationIndicator className="mr-2 mobile-control" />
@@ -153,7 +156,9 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-l border-gray-200 sidebar">
           <div className="p-6 flex justify-between items-center">
             <div className="brand-section">
-              <h2 className="text-2xl font-bold text-blue-600 brand-title">Vcarda</h2>
+              <Link to="/" aria-label="Go to home" className="inline-flex items-center">
+                <Logo size={26} showText={true} />
+              </Link>
               <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('menu.rewards')}</p>
             </div>
             <div className="flex items-center space-x-2 header-controls">

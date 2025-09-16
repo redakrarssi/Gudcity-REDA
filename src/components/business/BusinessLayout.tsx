@@ -23,6 +23,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { canAccessNavigation, isBusinessOwner, isStaffMember } from '../../utils/permissions';
 import { LanguageSelector } from '../LanguageSelector';
+import Logo from '../common/Logo';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -135,7 +136,9 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 business-sidebar">
           <div className="p-6 flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold text-blue-600">Vcarda</h2>
+              <Link to="/" aria-label="Go to home" className="inline-flex items-center">
+                <Logo size={26} showText={true} />
+              </Link>
               <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
             </div>
             <div className="flex items-center space-x-2">
@@ -198,7 +201,9 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
         <div className="flex flex-col flex-1 overflow-hidden business-main-content">
           <header className="bg-white border-b border-gray-200 md:hidden">
             <div className="flex items-center justify-between p-4">
-              <h2 className="text-xl font-bold text-blue-600">Vcarda</h2>
+              <Link to="/" aria-label="Go to home" className="inline-flex items-center">
+                <Logo size={24} showText={true} />
+              </Link>
               <div className="flex items-center">
                 <LanguageSelector variant="compact" showIcon={false} className="mr-2" />
                 <ThemeToggle variant="icon" className="mr-2" />
