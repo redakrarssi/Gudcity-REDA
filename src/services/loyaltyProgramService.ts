@@ -4,6 +4,7 @@ import { CustomerService } from './customerService';
 import { v4 as uuidv4 } from 'uuid';
 import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
+import { NotificationTranslationService } from './notificationTranslationService';
 import * as serverFunctions from '../server';
 import { createEnrollmentSyncEvent, createNotificationSyncEvent, createCardSyncEvent } from '../utils/realTimeSync';
 import { logger } from '../utils/logger';
@@ -522,7 +523,8 @@ export class LoyaltyProgramService {
               programName: program.name,
               businessId,
               businessName
-            }
+            },
+            translate: true
           });
           
           if (!notification) {

@@ -9,6 +9,7 @@ import * as serverFunctions from '../server';
 import { CustomerNotificationService } from './customerNotificationService';
 import { NotificationService } from './notificationService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
+import { NotificationTranslationService } from './notificationTranslationService';
 import { formatPoints, validateCardData } from '../utils/validators';
 import { logger } from '../utils/logger';
 import { createCardSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
@@ -598,7 +599,8 @@ export class LoyaltyCardService {
           actionTaken: false,
           isRead: false,
           priority: 'HIGH',
-          style: 'success' // Green notification
+          style: 'success', // Green notification
+          translate: true
         });
       } catch (notificationError) {
         console.error('Error sending customer notification:', notificationError);
@@ -2475,7 +2477,8 @@ export class LoyaltyCardService {
                 programName: enrollment.program_name,
                 businessName: enrollment.business_name,
                 cardId
-              }
+              },
+              translate: true
             });
             
             if (notification) {

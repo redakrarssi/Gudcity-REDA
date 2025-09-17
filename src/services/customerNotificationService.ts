@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { createNotificationSyncEvent, createEnrollmentSyncEvent } from '../utils/realTimeSync';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';
 import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
+import { NotificationTranslationService } from './notificationTranslationService';
 
 /**
  * Service for managing customer notifications and approval requests
@@ -48,11 +49,33 @@ export class CustomerNotificationService {
     expiresAt?: string;
     priority?: 'LOW' | 'NORMAL' | 'HIGH';
     style?: 'default' | 'success' | 'warning' | 'error';
+    translate?: boolean; // Whether to translate the notification
   }): Promise<CustomerNotification | null> {
     try {
       // Normalize IDs to integers first
       const customerIdInt = normalizeCustomerId(notification.customerId);
       const businessIdInt = normalizeBusinessId(notification.businessId);
+
+      // Translate notification if requested
+      let finalTitle = notification.title;
+      let finalMessage = notification.message;
+      
+      if (notification.translate !== false) { // Default to true if not specified
+        try {
+          const translated = await NotificationTranslationService.translateNotification(
+            notification.title,
+            notification.message,
+            notification.customerId,
+            'customer',
+            notification.data
+          );
+          finalTitle = translated.title;
+          finalMessage = translated.message;
+        } catch (error) {
+          console.error('Error translating notification, using original:', error);
+          // Continue with original title and message
+        }
+      }
 
       // For POINTS_ADDED notifications, check if we already have a recent one from the same business
       if (notification.type === 'POINTS_ADDED' && notification.data?.programId) {
@@ -92,8 +115,8 @@ export class CustomerNotificationService {
           ${customerIdInt},
           ${businessIdInt},
           ${notification.type},
-          ${notification.title},
-          ${notification.message},
+          ${finalTitle},
+          ${finalMessage},
           ${notification.data ? JSON.stringify(notification.data) : null},
           ${notification.referenceId || null},
           ${notification.requiresAction},
@@ -296,6 +319,22 @@ export class CustomerNotificationService {
           notificationType = 'POINTS_DEDUCTED';
           title = 'Points Deduction Request';
           message = request.data?.message || 'A business is requesting to deduct points from your account';
+        }
+
+        // Translate the notification content
+        try {
+          const translated = await NotificationTranslationService.translateNotification(
+            title,
+            message,
+            String(customerId),
+            'customer',
+            request.data
+          );
+          title = translated.title;
+          message = translated.message;
+        } catch (error) {
+          console.error('Error translating approval request notification, using original:', error);
+          // Continue with original title and message
         }
         
         // Create the notification
@@ -534,7 +573,8 @@ export class CustomerNotificationService {
           programId: entityId,
           programName,
           businessName
-        }
+        },
+        translate: true
       });
 
       // Create notification for business
@@ -552,7 +592,8 @@ export class CustomerNotificationService {
           programName,
           customerId,
           approved
-        }
+        },
+        translate: true
       });
 
       // Emit real-time notifications
