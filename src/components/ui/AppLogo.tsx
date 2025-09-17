@@ -26,19 +26,14 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   return (
     <div className={`flex items-center ${className || ''}`.trim()}>
       <img
-        src={imageSrc || '/svg%20logo%20vcarda.svg'}
+        src={imageSrc || '/favicon.svg'}
         onError={(e) => {
           const img = e.currentTarget as HTMLImageElement;
           if (!img) return;
-          // Fallback chain: encoded filename -> public copy -> favicon
-          if (!img.dataset.fallback || img.dataset.fallback === 'encoded') {
-            img.dataset.fallback = 'public';
-            img.src = '/vcarda.svg';
-            return;
-          }
-          if (img.dataset.fallback === 'public') {
-            img.dataset.fallback = 'favicon';
-            img.src = '/favicon.svg';
+          // Fallback to the original SVG file if favicon fails
+          if (!img.dataset.fallback) {
+            img.dataset.fallback = 'original';
+            img.src = '/svg%20logo%20vcarda.svg';
             return;
           }
         }}

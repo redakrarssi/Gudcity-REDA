@@ -22,7 +22,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { canAccessNavigation, isBusinessOwner, isStaffMember } from '../../utils/permissions';
-import { LanguageSelector } from '../LanguageSelector';
 import { AppLogo } from '../ui/AppLogo';
 
 interface BusinessLayoutProps {
@@ -140,7 +139,6 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
               <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
             </div>
             <div className="flex items-center space-x-2">
-              <LanguageSelector variant="compact" showIcon={false} />
               <button
                 className="relative p-1"
                 onClick={() => setShowNotificationCenter(true)}
@@ -201,7 +199,6 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
             <div className="flex items-center justify-between p-4">
               <AppLogo size="md" />
               <div className="flex items-center">
-                <LanguageSelector variant="compact" showIcon={false} className="mr-2" />
                 <ThemeToggle variant="icon" className="mr-2" />
                 <button
                   className="p-1 mr-2 text-gray-600 relative"
