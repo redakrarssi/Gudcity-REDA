@@ -1,0 +1,11 @@
+/.gradle/
+/build/
+**/build/
+/local.properties
+**/local.properties
+/.cxx/
+/.caches/
+/.idea/
+*.iml
+
+
