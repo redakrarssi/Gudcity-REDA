@@ -42,7 +42,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({
         style={{ width: dimension, height: dimension }}
       />
       {showText && (
-        <span className={`ml-2 font-bold text-black ${textClassName || ''}`.trim()}>
+        <span className={`ms-2 font-bold text-black ${textClassName || ''}`.trim()}>
           Vcarda
         </span>
       )}

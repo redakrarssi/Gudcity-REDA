@@ -2731,6 +2731,11 @@
   direction: rtl;
 }
 
+/* Customer dashboard menu with Tajawal font */
+.customer-layout .arabic-text {
+  font-family: 'Tajawal', 'Cairo', 'Segoe UI', 'Arial', 'Helvetica Neue', sans-serif;
+}
+
 /* Prefer Arabic fonts across RTL for better readability */
 [dir="rtl"] body,
 [dir="rtl"] .customer-layout {

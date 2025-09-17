@@ -157,7 +157,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                     className="flex items-center px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 w-full text-left"
                   >
                     {item.icon}
-                    <span className="ml-3">{item.name}</span>
+                    <span className="ms-3">{item.name}</span>
                   </button>
                 );
               }
@@ -185,7 +185,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
               className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
             >
               <LogOut className="w-5 h-5" />
-              <span className="ml-3">{t('Logout')}</span>
+              <span className="ms-3">{t('Logout')}</span>
             </button>
           </div>
         </aside>
@@ -233,7 +233,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                           className="flex items-center px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 w-full text-left"
                         >
                           {item.icon}
-                          <span className="ml-3">{item.name}</span>
+                          <span className="ms-3">{item.name}</span>
                         </button>
                       );
                     }
@@ -250,7 +250,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {item.icon}
-                        <span className="ml-3">{item.name}</span>
+                        <span className="ms-3">{item.name}</span>
                       </Link>
                     );
                   })}
@@ -262,7 +262,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
                     className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left"
                   >
                     <LogOut className="w-5 h-5" />
-                    <span className="ml-3">{t('Logout')}</span>
+                    <span className="ms-3">{t('Logout')}</span>
                   </button>
                 </nav>
               </div>
