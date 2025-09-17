@@ -134,10 +134,7 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
         {/* Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 business-sidebar">
           <div className="p-6 flex justify-between items-center">
-            <div className="flex items-center">
-              <AppLogo size="lg" className="mr-3" />
-              <p className="text-sm text-gray-500 mt-1">{t('Business Portal')}</p>
-            </div>
+            <AppLogo size="lg" />
             <div className="flex items-center space-x-2">
               <button
                 className="relative p-1"

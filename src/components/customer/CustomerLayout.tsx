@@ -153,10 +153,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         {/* Right Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-l border-gray-200 sidebar">
           <div className="p-6 flex justify-between items-center">
-            <div className="brand-section flex items-center">
-              <AppLogo size="lg" className="mr-3" />
-              <p className="text-sm text-gray-500 mt-1 brand-subtitle">{t('menu.rewards')}</p>
-            </div>
+            <AppLogo size="lg" />
             <div className="flex items-center space-x-2 header-controls">
               <NotificationIndicator />
               <ThemeToggle variant="icon" />
