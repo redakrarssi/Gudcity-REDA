@@ -28,10 +28,11 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 	const [isRedeemingId, setIsRedeemingId] = useState<string | null>(null);
 	const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 	const [showConfetti, setShowConfetti] = useState(false);
+	const [currentPoints, setCurrentPoints] = useState<number>(card.points);
 	const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
 		overview: true,
 		program: false,
-		rewards: false,
+		rewards: true,
 		activity: false,
 		business: false,
 		staff: false
@@ -59,6 +60,12 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 		load();
 		return () => { isMounted = false; };
 	}, [isOpen, card?.id, card?.programId]);
+
+	useEffect(() => {
+		setCurrentPoints(card.points);
+		// reset success banner when switching cards
+		setRedeemSuccess(null);
+	}, [card.id]);
 
 	const loadBusinessDetails = async () => {
 		if (!card?.businessId) return;
@@ -91,12 +98,14 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 			</div>
 			<div className="relative flex items-center gap-3">
 				<div className="px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-white text-sm font-medium shadow-inner shadow-white/10">
-					{t('Points') || 'Points'}: <span className="font-semibold">{card.points}</span>
+					{t('Points') || 'Points'}: <span className="font-semibold">{currentPoints}</span>
 				</div>
 				<button aria-label={t('Close') || 'Close'} onClick={onClose} className="text-white/90 hover:text-white">
 					<X className="w-6 h-6" />
 				</button>
 			</div>
+			{/* 3px bottom expansion/accent */}
+			<div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20" />
 		</div>
 	);
 
@@ -141,29 +150,6 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 						)}
 					</div>
 
-					{/* Program Details */}
-					<div className="border border-gray-200 rounded-lg">
-						<div className="px-4">
-							<SectionHeader section="program" title={t('Program Details') || 'Program Details'} icon={<Award className="w-4 h-4 text-purple-600" />} />
-						</div>
-						{expanded.program && (
-							<div className="px-4 pb-4 text-sm text-gray-700 space-y-2">
-								<div className="font-medium">{programDetails?.name || card.programName}</div>
-								{programDetails?.description && <p className="text-gray-600">{programDetails.description}</p>}
-								{Array.isArray(programDetails?.rewardTiers) && programDetails.rewardTiers.length > 0 && (
-									<div className="mt-2">
-										<div className="text-gray-500 mb-1">{t('Reward Tiers') || 'Reward Tiers'}</div>
-										<ul className="list-disc pl-5 space-y-1">
-											{programDetails.rewardTiers.map((tier: any) => (
-												<li key={tier.id}>{tier.reward} — {tier.pointsRequired} {t('points') || 'points'}</li>
-											))}
-										</ul>
-									</div>
-								)}
-							</div>
-						)}
-					</div>
-
 					{/* Rewards */}
 					<div className="border border-gray-200 rounded-lg">
 						<div className="px-4">
@@ -181,16 +167,18 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 													<div className="font-medium">{r.name}</div>
 													<div className="text-gray-500">{r.points} {t('points') || 'points'}</div>
 												</div>
-												<div className="flex items-center gap-2">
-													{card.points >= r.points ? (
+								<div className="flex items-center gap-2">
+									{currentPoints >= r.points ? (
 														<button
 															onClick={async () => {
 															if (!card) return;
 															setIsRedeemingId(r.id);
 															try {
-																const result = await LoyaltyCardService.redeemReward(card.id, r.id);
+															const result = await LoyaltyCardService.redeemReward(card.id, r.id);
 																if (result?.success) {
 																	setRedeemSuccess(result.trackingCode ? `${result.message} • ${(t('Tracking code') || 'Tracking code')}: ${result.trackingCode}` : result.message);
+																// deduct points locally for instant sync
+																setCurrentPoints(prev => Math.max(0, prev - r.points));
 																	setShowConfetti(true);
 																	setTimeout(() => setShowConfetti(false), 3000);
 																	try {
@@ -211,13 +199,34 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 													>
 														{isRedeemingId === r.id ? (t('Redeeming...') || 'Redeeming...') : (t('Redeem') || 'Redeem')}
 													</button>
-													) : (
-														<span className="text-xs text-orange-600">{t('Not enough points') || 'Not enough points'}</span>
-													)}
+									) : null}
 												</div>
 											</li>
 										))}
 									</ul>
+								)}
+							</div>
+						)}
+					</div>
+
+					{/* Program Details */}
+					<div className="border border-gray-200 rounded-lg">
+						<div className="px-4">
+							<SectionHeader section="program" title={t('Program Details') || 'Program Details'} icon={<Award className="w-4 h-4 text-purple-600" />} />
+						</div>
+						{expanded.program && (
+							<div className="px-4 pb-4 text-sm text-gray-700 space-y-2">
+								<div className="font-medium">{programDetails?.name || card.programName}</div>
+								{programDetails?.description && <p className="text-gray-600">{programDetails.description}</p>}
+								{Array.isArray(programDetails?.rewardTiers) && programDetails.rewardTiers.length > 0 && (
+									<div className="mt-2">
+										<div className="text-gray-500 mb-1">{t('Reward Tiers') || 'Reward Tiers'}</div>
+										<ul className="list-disc pl-5 space-y-1">
+											{programDetails.rewardTiers.map((tier: any) => (
+												<li key={tier.id}>{tier.reward} — {tier.pointsRequired} {t('points') || 'points'}</li>
+											))}
+										</ul>
+									</div>
 								)}
 							</div>
 						)}
@@ -315,20 +324,20 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 						<div className="pointer-events-none absolute inset-0 z-20">
 							{Array.from({ length: 60 }).map((_, i) => {
 								const left = Math.random() * 100;
-								const delay = Math.random() * 0.2;
-								const duration = 1.8 + Math.random() * 0.9;
+								const delay = Math.random() * 0.3;
+								const duration = 3.0; // exactly 3 seconds
 								const size = 6 + Math.floor(Math.random() * 6);
 								const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
 								const color = colors[i % colors.length];
 								return (
 									<motion.span
 										key={i}
-										initial={{ y: -20, opacity: 0, rotate: 0 }}
-										animate={{ y: '100%', opacity: 1, rotate: 360 }}
+										initial={{ y: '100%', opacity: 0, rotate: 0 }}
+										animate={{ y: '-10%', opacity: 1, rotate: 360 }}
 										exit={{ opacity: 0 }}
 										transition={{ duration, delay, ease: 'easeOut' }}
 										style={{ left: `${left}%`, width: size, height: size, backgroundColor: color }}
-										className="absolute top-0 rounded-sm shadow-sm"
+										className="absolute bottom-0 rounded-sm shadow-sm"
 									/>
 								);
 							})}
