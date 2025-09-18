@@ -159,9 +159,21 @@ export const QRCard: React.FC<QRCardProps> = ({
   useEffect(() => {
     const computeSize = () => {
       const width = containerRef.current?.clientWidth || window.innerWidth;
-      // Use 82% of available width, clamp between 180 and 320px
-      const target = Math.min(320, Math.max(180, Math.floor(width * 0.82)));
-      setQrSize(target);
+      
+      // Mobile-first responsive sizing
+      if (width < 480) {
+        // Small mobile screens: use 85% of container width, min 160px, max 200px
+        const target = Math.min(200, Math.max(160, Math.floor(width * 0.85)));
+        setQrSize(target);
+      } else if (width < 768) {
+        // Medium mobile screens: use 75% of container width, min 180px, max 240px
+        const target = Math.min(240, Math.max(180, Math.floor(width * 0.75)));
+        setQrSize(target);
+      } else {
+        // Desktop screens: use original logic
+        const target = Math.min(320, Math.max(220, Math.floor(width * 0.7)));
+        setQrSize(target);
+      }
     };
     computeSize();
     window.addEventListener('resize', computeSize);
@@ -382,42 +394,42 @@ export const QRCard: React.FC<QRCardProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm mx-auto">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+      <div className="bg-white p-3 sm:p-4 lg:p-6 rounded-xl shadow-lg w-full mx-auto">
+        <div className="animate-pulse space-y-3 sm:space-y-4">
+          <div className="h-3 sm:h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-24 sm:h-32 lg:h-40 bg-gray-200 rounded mx-auto max-w-[200px] sm:max-w-[240px] lg:max-w-[280px]"></div>
+          <div className="h-3 sm:h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-3 sm:h-4 bg-gray-200 rounded w-3/4"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg max-w-sm w-full mx-auto relative">
+    <div ref={containerRef} className="bg-white p-3 sm:p-4 lg:p-6 rounded-xl shadow-lg w-full mx-auto relative">
       {/* Card indicator in the corner */}
       <div className="absolute top-2 left-2 flex items-center">
-        <CreditCard className="h-4 w-4 text-blue-500 mr-1" />
+        <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500 mr-1" />
         <span className="text-xs text-blue-600 font-medium">{cardType}</span>
       </div>
 
-      <div className="text-center mb-4">
+      <div className="text-center mb-3 sm:mb-4">
         <div className="flex justify-center items-center mb-2">
           {/* User Avatar/Initials */}
-          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-sm font-medium">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-xs sm:text-sm font-medium">
             {userInitials}
           </div>
-          <h2 className="text-xl font-semibold text-gray-800">{displayName}</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800 truncate">{displayName}</h2>
         </div>
-        <p className="text-sm text-gray-500">{t('qrCard.showToCollect', 'Show this card to collect points')}</p>
+        <p className="text-xs sm:text-sm text-gray-500">{t('qrCard.showToCollect', 'Show this card to collect points')}</p>
       </div>
       
       {error && !useFallback && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm flex items-start">
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-3 sm:mb-4 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-0">
           <div className="flex-1">{error}</div>
           <button 
             onClick={handleRefreshQrCode}
-            className="ml-2 text-blue-600 hover:underline flex items-center"
+            className="text-blue-600 hover:text-blue-700 hover:underline flex items-center py-2 px-3 sm:p-0 rounded-md sm:rounded-none bg-blue-50 sm:bg-transparent hover:bg-blue-100 sm:hover:bg-transparent transition-colors min-h-[44px] sm:min-h-auto"
             disabled={isRefreshing}
           >
             {isRefreshing ? (
@@ -431,17 +443,17 @@ export const QRCard: React.FC<QRCardProps> = ({
       )}
 
       {successMessage && (
-        <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm flex items-start">
-          <CheckCircle2 className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+        <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-3 sm:mb-4 text-xs sm:text-sm flex items-start">
+          <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0 mt-0.5" />
           <div className="flex-1">{successMessage}</div>
         </div>
       )}
 
-      <div className="flex justify-center p-3 sm:p-4 bg-white rounded-lg mb-4">
+      <div className="flex justify-center p-2 sm:p-3 lg:p-4 bg-white rounded-lg mb-3 sm:mb-4">
         {qrData ? (
           // Styled, scannable QR (modern blue→yellow gradient) with center logo
-          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[6px] rounded-xl shadow-sm" style={{ width: qrSize + 12, height: qrSize + 12 }}>
-            <div className="relative bg-white rounded-lg p-2 sm:p-3" style={{ width: qrSize, height: qrSize }}>
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[4px] sm:p-[6px] rounded-xl shadow-sm" style={{ width: qrSize + 8, height: qrSize + 8 }}>
+            <div className="relative bg-white rounded-lg p-1 sm:p-2 lg:p-3" style={{ width: qrSize, height: qrSize }}>
               {/* Hidden SVG to create a mask from the exact QR geometry */}
               <QRCodeSVG 
                 ref={qrSvgRef as any}
@@ -513,13 +525,13 @@ export const QRCard: React.FC<QRCardProps> = ({
           </div>
         ) : (
           // No QR code available
-          <div className="flex flex-col items-center justify-center border border-red-200 rounded-lg" style={{ width: qrSize, height: qrSize }}>
-            <Shield className="text-red-500 h-12 w-12 mb-4" />
+          <div className="flex flex-col items-center justify-center border border-red-200 rounded-lg p-4" style={{ width: qrSize, height: qrSize }}>
+            <Shield className="text-red-500 h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mb-3 sm:mb-4" />
             <div className="text-red-500 text-center">
-              {t('qrCard.noQrCode', 'No QR code available')}
+              <p className="text-xs sm:text-sm mb-2">{t('qrCard.noQrCode', 'No QR code available')}</p>
               <button
                 onClick={handleRefreshQrCode} 
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md block mx-auto"
+                className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs sm:text-sm transition-colors min-h-[44px] sm:min-h-auto"
                 disabled={isRefreshing}
               >
                 {isRefreshing ? t('qrCard.retrying', 'Retrying...') : t('qrCard.retry', 'Try Again')}
@@ -529,38 +541,38 @@ export const QRCard: React.FC<QRCardProps> = ({
         )}
       </div>
       
-      <div className="border-t border-gray-100 pt-4 mt-2 space-y-2">
+      <div className="border-t border-gray-100 pt-3 sm:pt-4 mt-2 space-y-2">
         {/* Card Details */}
-        <div className="flex justify-between items-center text-sm">
+        <div className="flex justify-between items-center text-xs sm:text-sm">
           <span className="text-gray-500">{t('qrCard.cardNumber', 'Card Number')}:</span>
-          <span className="font-medium">{actualCardNumber}</span>
+          <span className="font-medium text-right break-all">{actualCardNumber}</span>
         </div>
 
         {/* Expiration Date */}
-        <div className="flex justify-between items-center text-sm">
+        <div className="flex justify-between items-center text-xs sm:text-sm">
           <span className="text-gray-500 flex items-center">
-            <Clock className="h-3 w-3 inline mr-1" />
+            <Clock className="h-3 w-3 inline mr-1 flex-shrink-0" />
             {t('qrCard.expires', 'Expires')}:
           </span>
-          <span className={`font-medium ${isExpiringSoon ? 'text-amber-600' : ''}`}>
+          <span className={`font-medium text-right ${isExpiringSoon ? 'text-amber-600' : ''}`}>
             {expirationDate || t('qrCard.noExpiration', 'No expiration')}
             {isExpiringSoon && ' (Soon)'}
           </span>
         </div>
         
         {/* Program Enrollment Info */}
-        <div className="flex justify-between items-center text-sm">
+        <div className="flex justify-between items-center text-xs sm:text-sm">
           <span className="text-gray-500 flex items-center">
-            <BadgeCheck className="h-3 w-3 inline mr-1" />
+            <BadgeCheck className="h-3 w-3 inline mr-1 flex-shrink-0" />
             {t('qrCard.programs', 'Programs')}:
           </span>
           <span className="font-medium">{enrolledPrograms?.length || 0}</span>
         </div>
 
         {/* Available Promos */}
-        <div className="flex justify-between items-center text-sm">
+        <div className="flex justify-between items-center text-xs sm:text-sm">
           <span className="text-gray-500 flex items-center">
-            <Tag className="h-3 w-3 inline mr-1" />
+            <Tag className="h-3 w-3 inline mr-1 flex-shrink-0" />
             {t('qrCard.promos', 'Available Promos')}:
           </span>
           <span className="font-medium">{availablePromos?.length || 0}</span>
@@ -568,10 +580,14 @@ export const QRCard: React.FC<QRCardProps> = ({
       </div>
       
       {/* Action Buttons */}
-      <div className="mt-4 flex justify-between">
+      <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
         <button 
           onClick={handleRefreshQrCode} 
-          className={`text-sm flex items-center ${cooldownLeftMs > 0 ? 'text-blue-300 cursor-not-allowed' : 'text-blue-600'}`}
+          className={`text-xs sm:text-sm flex items-center py-2 px-3 sm:p-0 rounded-lg sm:rounded-none transition-colors ${
+            cooldownLeftMs > 0 
+              ? 'text-blue-300 cursor-not-allowed bg-gray-50 sm:bg-transparent' 
+              : 'text-blue-600 hover:text-blue-700 bg-blue-50 sm:bg-transparent hover:bg-blue-100 sm:hover:bg-transparent'
+          }`}
           disabled={isRefreshing || cooldownLeftMs > 0}
         >
           {isRefreshing ? (
@@ -583,8 +599,8 @@ export const QRCard: React.FC<QRCardProps> = ({
         </button>
         
         <div className="flex items-center text-green-600 text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {t('qrCard.secureCard', 'Secure Card')}
+          <Shield className="h-3 w-3 mr-1 flex-shrink-0" />
+          <span className="whitespace-nowrap">{t('qrCard.secureCard', 'Secure Card')}</span>
         </div>
       </div>
     </div>
