@@ -28,7 +28,7 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 	const [isRedeemingId, setIsRedeemingId] = useState<string | null>(null);
 	const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 	const [showConfetti, setShowConfetti] = useState(false);
-	const [currentPoints, setCurrentPoints] = useState<number>(card.points);
+	const [currentPoints, setCurrentPoints] = useState<number>(0);
 	const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
 		overview: true,
 		program: false,
@@ -61,11 +61,13 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 		return () => { isMounted = false; };
 	}, [isOpen, card?.id, card?.programId]);
 
-	useEffect(() => {
-		setCurrentPoints(card.points);
+useEffect(() => {
+	if (card) {
+		setCurrentPoints(card.points || 0);
 		// reset success banner when switching cards
 		setRedeemSuccess(null);
-	}, [card.id]);
+	}
+}, [card?.id]);
 
 	const loadBusinessDetails = async () => {
 		if (!card?.businessId) return;
