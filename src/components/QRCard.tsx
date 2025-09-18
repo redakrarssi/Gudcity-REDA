@@ -40,6 +40,10 @@ export const QRCard: React.FC<QRCardProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [maskUrl, setMaskUrl] = useState<string | null>(null);
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [qrSize, setQrSize] = useState<number>(250);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownLeftMs, setCooldownLeftMs] = useState<number>(0);
 
   // Create a more user-friendly display name
   const userInitials = displayName
@@ -151,6 +155,51 @@ export const QRCard: React.FC<QRCardProps> = ({
     return () => clearTimeout(id);
   }, [qrData]);
 
+  // Responsive sizing for mobile: compute QR size from container width
+  useEffect(() => {
+    const computeSize = () => {
+      const width = containerRef.current?.clientWidth || window.innerWidth;
+      // Use 82% of available width, clamp between 180 and 320px
+      const target = Math.min(320, Math.max(180, Math.floor(width * 0.82)));
+      setQrSize(target);
+    };
+    computeSize();
+    window.addEventListener('resize', computeSize);
+    return () => window.removeEventListener('resize', computeSize);
+  }, []);
+
+  const logoSize = Math.max(24, Math.round(qrSize * 0.16));
+
+  // Load cooldown from storage on mount/user change and tick down
+  useEffect(() => {
+    const key = `qr_refresh_until_${userId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const until = parseInt(stored, 10);
+      if (!isNaN(until)) {
+        setCooldownUntil(until);
+        setCooldownLeftMs(Math.max(0, until - Date.now()));
+      }
+    }
+    const interval = setInterval(() => {
+      setCooldownLeftMs(prev => {
+        const next = cooldownUntil ? Math.max(0, cooldownUntil - Date.now()) : 0;
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [userId, cooldownUntil]);
+
+  const formatDuration = (ms: number): string => {
+    if (ms <= 0) return 'Ready';
+    const totalSeconds = Math.ceil(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+    return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+  };
+
   const fetchQrCode = async () => {
     if (!userId) {
       setError('Missing user ID');
@@ -232,6 +281,11 @@ export const QRCard: React.FC<QRCardProps> = ({
   };
 
   const handleRefreshQrCode = async () => {
+    // 24h cooldown guard (manual refresh only)
+    if (cooldownUntil && cooldownUntil > Date.now()) {
+      setError(`You can refresh again in ${formatDuration(cooldownUntil - Date.now())}`);
+      return;
+    }
     setIsRefreshing(true);
     setError(null);
     
@@ -254,6 +308,11 @@ export const QRCard: React.FC<QRCardProps> = ({
       setTimeout(() => {
         setSuccessMessage(null);
       }, 3000);
+      // Set 24h cooldown
+      const until = Date.now() + 24 * 60 * 60 * 1000;
+      setCooldownUntil(until);
+      setCooldownLeftMs(24 * 60 * 60 * 1000);
+      localStorage.setItem(`qr_refresh_until_${userId}`, String(until));
       
       // Reload card info
       const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
@@ -335,7 +394,7 @@ export const QRCard: React.FC<QRCardProps> = ({
   }
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm mx-auto relative">
+    <div ref={containerRef} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg max-w-sm w-full mx-auto relative">
       {/* Card indicator in the corner */}
       <div className="absolute top-2 left-2 flex items-center">
         <CreditCard className="h-4 w-4 text-blue-500 mr-1" />
@@ -378,16 +437,16 @@ export const QRCard: React.FC<QRCardProps> = ({
         </div>
       )}
 
-      <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
+      <div className="flex justify-center p-3 sm:p-4 bg-white rounded-lg mb-4">
         {qrData ? (
           // Styled, scannable QR (modern blue→yellow gradient) with center logo
-          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[6px] rounded-xl shadow-sm">
-            <div className="relative bg-white rounded-lg p-3">
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[6px] rounded-xl shadow-sm" style={{ width: qrSize + 12, height: qrSize + 12 }}>
+            <div className="relative bg-white rounded-lg p-2 sm:p-3" style={{ width: qrSize, height: qrSize }}>
               {/* Hidden SVG to create a mask from the exact QR geometry */}
               <QRCodeSVG 
                 ref={qrSvgRef as any}
                 value={qrData}
-                size={250}
+                size={qrSize}
                 includeMargin={false}
                 level="H"
                 bgColor="#ffffff"
@@ -396,8 +455,10 @@ export const QRCard: React.FC<QRCardProps> = ({
               />
               {maskUrl ? (
                 <div
-                  className="w-[250px] h-[250px] rounded-md"
+                  className="rounded-md"
                   style={{
+                    width: qrSize,
+                    height: qrSize,
                     background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #f59e0b 100%)',
                     WebkitMaskImage: `url(${maskUrl})`,
                     maskImage: `url(${maskUrl})`,
@@ -413,7 +474,7 @@ export const QRCard: React.FC<QRCardProps> = ({
                 // Fallback: solid blue QR when mask is not available
                 <QRCodeSVG 
                   value={qrData}
-                  size={250}
+                  size={qrSize}
                   includeMargin={false}
                   level="H"
                   bgColor="#ffffff"
@@ -422,21 +483,21 @@ export const QRCard: React.FC<QRCardProps> = ({
               )}
               {/* Center logo overlay */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="bg-white rounded-md p-1 shadow-sm">
-                  <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+                <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 8, height: logoSize + 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src="/favicon.svg" alt="logo" style={{ width: logoSize, height: logoSize }} />
                 </div>
               </div>
             </div>
           </div>
         ) : qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL with center logo overlay
-          <div className="relative" style={{ width: 250, height: 250 }}>
+          <div className="relative" style={{ width: qrSize, height: qrSize }}>
             <img 
               src={qrImageUrl} 
               alt="QR Code" 
-              className="w-[250px] h-[250px] block"
-              width={250}
-              height={250}
+              style={{ width: qrSize, height: qrSize, display: 'block' }}
+              width={qrSize}
+              height={qrSize}
               onError={() => {
                 console.error('Failed to load QR image');
                 setError('QR image failed to load. Using generated QR code instead.');
@@ -445,14 +506,14 @@ export const QRCard: React.FC<QRCardProps> = ({
             />
             {/* Center logo overlay - uses favicon.svg; white pad preserves scannability */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="bg-white rounded-md p-1 shadow-sm">
-                <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+              <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 8, height: logoSize + 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/favicon.svg" alt="logo" style={{ width: logoSize, height: logoSize }} />
               </div>
             </div>
           </div>
         ) : (
           // No QR code available
-          <div className="flex flex-col items-center justify-center h-64 w-64 border border-red-200 rounded-lg">
+          <div className="flex flex-col items-center justify-center border border-red-200 rounded-lg" style={{ width: qrSize, height: qrSize }}>
             <Shield className="text-red-500 h-12 w-12 mb-4" />
             <div className="text-red-500 text-center">
               {t('qrCard.noQrCode', 'No QR code available')}
@@ -510,15 +571,15 @@ export const QRCard: React.FC<QRCardProps> = ({
       <div className="mt-4 flex justify-between">
         <button 
           onClick={handleRefreshQrCode} 
-          className="text-blue-600 text-sm flex items-center"
-          disabled={isRefreshing}
+          className={`text-sm flex items-center ${cooldownLeftMs > 0 ? 'text-blue-300 cursor-not-allowed' : 'text-blue-600'}`}
+          disabled={isRefreshing || cooldownLeftMs > 0}
         >
           {isRefreshing ? (
             <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
           ) : (
             <RefreshCw className="w-3 h-3 mr-1" />
           )}
-          {t('qrCard.refresh', 'Refresh')}
+          {cooldownLeftMs > 0 ? `Refresh (${formatDuration(cooldownLeftMs)})` : t('qrCard.refresh', 'Refresh')}
         </button>
         
         <div className="flex items-center text-green-600 text-xs">
