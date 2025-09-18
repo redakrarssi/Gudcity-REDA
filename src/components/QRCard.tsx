@@ -371,14 +371,22 @@ export const QRCard: React.FC<QRCardProps> = ({
             }}
           />
         ) : qrData ? (
-          // QR Code SVG generation from data
-          <div className="border border-gray-200 p-4 rounded-lg">
+          // Styled, scannable QR with center logo (black theme)
+          <div className="relative border border-gray-200 p-4 rounded-lg">
             <QRCodeSVG 
-              value={qrData} 
-              size={250} 
-              includeMargin={true}
-              level="M" // Medium error correction level
+              value={qrData}
+              size={250}
+              includeMargin={false}
+              level="H" // High error correction to allow center logo
+              bgColor="#ffffff"
+              fgColor="#000000"
             />
+            {/* Center logo overlay - uses favicon.svg */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="bg-white rounded-md p-1 shadow-sm">
+                <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+              </div>
+            </div>
           </div>
         ) : (
           // No QR code available
