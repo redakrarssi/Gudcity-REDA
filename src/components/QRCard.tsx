@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import ModernQRCode from './ModernQRCode';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
@@ -358,14 +357,22 @@ export const QRCard: React.FC<QRCardProps> = ({
 
       <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
         {qrData ? (
-          <ModernQRCode 
-            value={qrData}
-            size={250}
-            fgColor="#3b82f6"
-            bgColor="#ffffff"
-            logoSrc="/favicon.svg"
-            logoSize={40}
-          />
+          // Styled, scannable QR (blue theme) with center logo
+          <div className="relative border border-blue-100 p-4 rounded-lg">
+            <QRCodeSVG 
+              value={qrData}
+              size={250}
+              includeMargin={false}
+              level="H" // High error correction to allow center logo
+              bgColor="#ffffff"
+              fgColor="#3b82f6" // blue-500
+            />
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="bg-white rounded-md p-1 shadow-sm">
+                <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+              </div>
+            </div>
+          </div>
         ) : qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL with center logo overlay
           <div className="relative" style={{ width: 250, height: 250 }}>
