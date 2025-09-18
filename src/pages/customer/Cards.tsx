@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
+import CardDetailsModal from '../../components/customer/CardDetailsModal';
 import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw, Sparkles, BadgeCheck } from 'lucide-react';
 import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -110,6 +111,8 @@ const CustomerCards = () => {
     approvalId: null
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<LoyaltyCard | null>(null);
+  const [showCardDetailsModal, setShowCardDetailsModal] = useState(false);
   
   // Use our new enrollment notifications hook
   const { pendingEnrollments, hasUnhandledRequests } = useEnrollmentNotifications();
@@ -807,9 +810,9 @@ const CustomerCards = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleCardClick = (cardId: string | number) => {
-    const cardIdString = cardId.toString();
-    setActiveCard(cardIdString === activeCard ? null : cardIdString);
+  const openCardDetails = (card: LoyaltyCard) => {
+    setSelectedCard(card);
+    setShowCardDetailsModal(true);
   };
 
   const handleCardFlip = (cardId: string | number, e: React.MouseEvent) => {
@@ -1157,7 +1160,7 @@ const CustomerCards = () => {
                   {/* Main Card */}
                   <div 
                     className="bg-gradient-to-br shadow-xl rounded-2xl cursor-pointer overflow-hidden"
-                    onClick={() => handleCardClick(card.id)}
+                    onClick={() => openCardDetails(card)}
                   >
                     {/* Card Header */}
                     <div className={`bg-gradient-to-r ${getCardGradient(card)} p-6 text-white relative overflow-hidden`}>
@@ -1488,6 +1491,13 @@ const CustomerCards = () => {
 
       {/* Enrollment request modal */}
       {renderEnrollmentRequestModal()}
+
+      {/* Card Details Modal */}
+      <CardDetailsModal 
+        isOpen={showCardDetailsModal} 
+        onClose={() => { setShowCardDetailsModal(false); setSelectedCard(null); }} 
+        card={selectedCard} 
+      />
     </CustomerLayout>
   );
 };
