@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
@@ -38,6 +38,8 @@ export const QRCard: React.FC<QRCardProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [animateIn, setAnimateIn] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [maskUrl, setMaskUrl] = useState<string | null>(null);
+  const qrSvgRef = useRef<SVGSVGElement | null>(null);
 
   // Create a more user-friendly display name
   const userInitials = displayName
@@ -127,6 +129,27 @@ export const QRCard: React.FC<QRCardProps> = ({
     
     fetchCardInfo();
   }, [userId, onCardReady]);
+
+  // Build an SVG data URL mask from the generated QR SVG to allow gradient fill
+  useEffect(() => {
+    // Delay to next tick so QR SVG ref is populated
+    const id = setTimeout(() => {
+      try {
+        if (qrSvgRef.current) {
+          const svg = qrSvgRef.current.outerHTML;
+          const encoded = encodeURIComponent(svg)
+            // Ensure proper encoding for Safari
+            .replace(/\(/g, '%28')
+            .replace(/\)/g, '%29');
+          setMaskUrl(`data:image/svg+xml;utf8,${encoded}`);
+        }
+      } catch (e) {
+        // Fallback silently; component will render solid-color QR
+        setMaskUrl(null);
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [qrData]);
 
   const fetchQrCode = async () => {
     if (!userId) {
@@ -357,19 +380,51 @@ export const QRCard: React.FC<QRCardProps> = ({
 
       <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
         {qrData ? (
-          // Styled, scannable QR (blue theme) with center logo
-          <div className="relative border border-blue-100 p-4 rounded-lg">
-            <QRCodeSVG 
-              value={qrData}
-              size={250}
-              includeMargin={false}
-              level="H" // High error correction to allow center logo
-              bgColor="#ffffff"
-              fgColor="#3b82f6" // blue-500
-            />
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="bg-white rounded-md p-1 shadow-sm">
-                <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+          // Styled, scannable QR (modern blue→yellow gradient) with center logo
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[6px] rounded-xl shadow-sm">
+            <div className="relative bg-white rounded-lg p-3">
+              {/* Hidden SVG to create a mask from the exact QR geometry */}
+              <QRCodeSVG 
+                ref={qrSvgRef as any}
+                value={qrData}
+                size={250}
+                includeMargin={false}
+                level="H"
+                bgColor="#ffffff"
+                fgColor="#000000"
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+              />
+              {maskUrl ? (
+                <div
+                  className="w-[250px] h-[250px] rounded-md"
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #f59e0b 100%)',
+                    WebkitMaskImage: `url(${maskUrl})`,
+                    maskImage: `url(${maskUrl})`,
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskSize: 'contain',
+                    maskSize: 'contain',
+                    WebkitMaskPosition: 'center',
+                    maskPosition: 'center'
+                  }}
+                />
+              ) : (
+                // Fallback: solid blue QR when mask is not available
+                <QRCodeSVG 
+                  value={qrData}
+                  size={250}
+                  includeMargin={false}
+                  level="H"
+                  bgColor="#ffffff"
+                  fgColor="#3b82f6"
+                />
+              )}
+              {/* Center logo overlay */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="bg-white rounded-md p-1 shadow-sm">
+                  <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
+                </div>
               </div>
             </div>
           </div>
