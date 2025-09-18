@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GudCity</string>
-    <string name="web_base_url">https://your-domain.example</string>
+    <string name="web_base_url">https://vcarda.com</string>
     <string name="csrf_cookie_name">csrf_token</string>
 </resources>
 

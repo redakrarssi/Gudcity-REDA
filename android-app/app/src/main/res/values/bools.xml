@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="webview_enable_js">true</bool>
+    <bool name="webview_accept_third_party_cookies">true</bool>
+    <bool name="webview_keep_in_app">true</bool>
+    
+</resources>
+
+

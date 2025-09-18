@@ -1,0 +1,16 @@
+"offline_title" = "You’re offline";
+"offline_subtitle" = "We’ll keep trying in the background";
+"retry" = "Retry";
+"retry_loading" = "Retry loading";
+"load_failed" = "Load failed. Check your connection.";
+"load_unable" = "Unable to load. You might be offline.";
+"content_refreshed" = "Content refreshed";
+"accessibility_webview_label" = "Vcarda content";
+"accessibility_webview_hint" = "Double-tap to interact with web content";
+"biometric_unlock_reason" = "Unlock Vcarda";
+"privacy_policy_text" = "Privacy Policy: We collect minimal data necessary to provide services. No PII is logged.";
+"terms_text" = "Terms of Service: Use of the app is subject to the website's terms.";
+"allow_analytics" = "Allow analytics (non-PII)";
+"allow_crash" = "Allow crash reporting (non-PII)";
+"allow_tracking" = "Allow tracking (ATT)";
+

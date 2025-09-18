@@ -6,7 +6,7 @@
 
     <fragment
         android:id="@+id/webViewFragment"
-        android:name="com.gudcity.app.ui.WebViewFragment"
+        android:name="com.gudcity.app.ui.fragments.WebViewFragment"
         android:label="GudCity">
         <argument
             android:name="path"
