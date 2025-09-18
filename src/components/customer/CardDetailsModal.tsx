@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, ChevronDown, ChevronRight, Gift, Award, Clock, Users, Building2, CreditCard, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import LoyaltyCardService, { type LoyaltyCard, type CardActivity, type Reward } from '../../services/loyaltyCardService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { BusinessSettingsService } from '../../services/businessSettingsService';
@@ -10,11 +11,12 @@ interface CardDetailsModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	card: LoyaltyCard | null;
+	onAfterRedemption?: () => void;
 }
 
 type SectionKey = 'overview' | 'program' | 'rewards' | 'activity' | 'business' | 'staff';
 
-export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onClose, card }) => {
+export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onClose, card, onAfterRedemption }) => {
 	const { t } = useTranslation();
 	const [isLoading, setIsLoading] = useState(false);
 	const [activities, setActivities] = useState<CardActivity[]>([]);
@@ -23,6 +25,9 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 	const [programDetails, setProgramDetails] = useState<any | null>(null);
 	const [businessSettings, setBusinessSettings] = useState<any | null>(null);
 	const [staff, setStaff] = useState<User[]>([]);
+	const [isRedeemingId, setIsRedeemingId] = useState<string | null>(null);
+	const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+	const [showConfetti, setShowConfetti] = useState(false);
 	const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
 		overview: true,
 		program: false,
@@ -75,17 +80,23 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 	if (!isOpen || !card) return null;
 
 	const Header = (
-		<div className="p-4 sm:p-6 bg-gray-50 border-b border-gray-200 flex items-start justify-between">
-			<div className="space-y-1">
-				<div className="flex items-center gap-2 text-gray-900 font-semibold text-lg">
-					<CreditCard className="w-5 h-5 text-blue-600" />
+		<div className="p-5 sm:p-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 flex items-start justify-between relative overflow-hidden">
+			<div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+			<div className="relative space-y-1 text-white">
+				<div className="flex items-center gap-2 font-semibold text-lg">
+					<CreditCard className="w-5 h-5" />
 					<span>{card.businessName || t('cards.business')}</span>
 				</div>
-				<div className="text-sm text-gray-500">{card.programName}</div>
+				<div className="text-sm/5 opacity-90">{card.programName}</div>
 			</div>
-			<button aria-label={t('Close') || 'Close'} onClick={onClose} className="text-gray-400 hover:text-gray-600">
-				<X className="w-6 h-6" />
-			</button>
+			<div className="relative flex items-center gap-3">
+				<div className="px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-white text-sm font-medium shadow-inner shadow-white/10">
+					{t('Points') || 'Points'}: <span className="font-semibold">{card.points}</span>
+				</div>
+				<button aria-label={t('Close') || 'Close'} onClick={onClose} className="text-white/90 hover:text-white">
+					<X className="w-6 h-6" />
+				</button>
+			</div>
 		</div>
 	);
 
@@ -104,8 +115,15 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
 			<div className="absolute inset-0 bg-black/50" onClick={onClose} />
-			<div className="relative z-10 w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-xl flex flex-col overflow-hidden">
+			<div className="relative z-10 w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
 				{Header}
+				{redeemSuccess && (
+					<div className="px-4 sm:px-6 pt-4">
+						<div className="rounded-lg border border-green-200 bg-green-50 text-green-800 p-3 text-sm">
+							{redeemSuccess}
+						</div>
+					</div>
+				)}
 				<div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
 					{/* Overview */}
 					<div className="border border-gray-200 rounded-lg">
@@ -158,9 +176,45 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 								) : (
 									<ul className="divide-y divide-gray-100">
 										{rewards.map(r => (
-											<li key={r.id} className="py-2 flex items-center justify-between text-sm">
-												<div className="text-gray-800">{r.name}</div>
-												<div className="text-gray-500">{r.points} {t('points') || 'points'}</div>
+											<li key={r.id} className="py-3 flex items-center justify-between text-sm">
+												<div className="text-gray-800">
+													<div className="font-medium">{r.name}</div>
+													<div className="text-gray-500">{r.points} {t('points') || 'points'}</div>
+												</div>
+												<div className="flex items-center gap-2">
+													{card.points >= r.points ? (
+														<button
+															onClick={async () => {
+															if (!card) return;
+															setIsRedeemingId(r.id);
+															try {
+																const result = await LoyaltyCardService.redeemReward(card.id, r.id);
+																if (result?.success) {
+																	setRedeemSuccess(result.trackingCode ? `${result.message} • ${(t('Tracking code') || 'Tracking code')}: ${result.trackingCode}` : result.message);
+																	setShowConfetti(true);
+																	setTimeout(() => setShowConfetti(false), 3000);
+																	try {
+																		const acts = await LoyaltyCardService.getCardActivities(card.id, 20);
+																		setActivities(Array.isArray(acts) ? acts : []);
+																	} catch {}
+											// notify parent to refetch cards
+											if (onAfterRedemption) {
+												onAfterRedemption();
+											}
+																}
+															} finally {
+																setIsRedeemingId(null);
+															}
+														}}
+														className={`px-3 py-1.5 rounded-md text-white text-xs font-medium transition-colors ${isRedeemingId === r.id ? 'bg-green-400 cursor-wait' : 'bg-green-600 hover:bg-green-700'}`}
+														disabled={isRedeemingId === r.id}
+													>
+														{isRedeemingId === r.id ? (t('Redeeming...') || 'Redeeming...') : (t('Redeem') || 'Redeem')}
+													</button>
+													) : (
+														<span className="text-xs text-orange-600">{t('Not enough points') || 'Not enough points'}</span>
+													)}
+												</div>
 											</li>
 										))}
 									</ul>
@@ -254,6 +308,33 @@ export const CardDetailsModal: React.FC<CardDetailsModalProps> = ({ isOpen, onCl
 				<div className="p-4 border-t border-gray-200 flex justify-end gap-2">
 					<button onClick={onClose} className="px-4 py-2 text-sm rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200">{t('Close') || 'Close'}</button>
 				</div>
+
+				{/* Confetti overlay */}
+				<AnimatePresence>
+					{showConfetti && (
+						<div className="pointer-events-none absolute inset-0 z-20">
+							{Array.from({ length: 60 }).map((_, i) => {
+								const left = Math.random() * 100;
+								const delay = Math.random() * 0.2;
+								const duration = 1.8 + Math.random() * 0.9;
+								const size = 6 + Math.floor(Math.random() * 6);
+								const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+								const color = colors[i % colors.length];
+								return (
+									<motion.span
+										key={i}
+										initial={{ y: -20, opacity: 0, rotate: 0 }}
+										animate={{ y: '100%', opacity: 1, rotate: 360 }}
+										exit={{ opacity: 0 }}
+										transition={{ duration, delay, ease: 'easeOut' }}
+										style={{ left: `${left}%`, width: size, height: size, backgroundColor: color }}
+										className="absolute top-0 rounded-sm shadow-sm"
+									/>
+								);
+							})}
+						</div>
+					)}
+				</AnimatePresence>
 			</div>
 		</div>
 	);

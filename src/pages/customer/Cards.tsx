@@ -1496,7 +1496,10 @@ const CustomerCards = () => {
       <CardDetailsModal 
         isOpen={showCardDetailsModal} 
         onClose={() => { setShowCardDetailsModal(false); setSelectedCard(null); }} 
-        card={selectedCard} 
+        card={selectedCard}
+        onAfterRedemption={() => {
+          try { refetch(); } catch {}
+        }} 
       />
     </CustomerLayout>
   );
