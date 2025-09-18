@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import ModernQRCode from './ModernQRCode';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
@@ -356,32 +357,31 @@ export const QRCard: React.FC<QRCardProps> = ({
       )}
 
       <div className="flex justify-center p-4 bg-white rounded-lg mb-4">
-        {qrImageUrl && !useFallback ? (
-          // Direct image display from URL or data URL
-          <img 
-            src={qrImageUrl} 
-            alt="QR Code" 
-            className="mx-auto"
-            width={250}
-            height={250}
-            onError={() => {
-              console.error('Failed to load QR image');
-              setError('QR image failed to load. Using generated QR code instead.');
-              createFallbackQrCode();
-            }}
+        {qrData ? (
+          <ModernQRCode 
+            value={qrData}
+            size={250}
+            fgColor="#3b82f6"
+            bgColor="#ffffff"
+            logoSrc="/favicon.svg"
+            logoSize={40}
           />
-        ) : qrData ? (
-          // Styled, scannable QR with center logo (black theme)
-          <div className="relative border border-gray-200 p-4 rounded-lg">
-            <QRCodeSVG 
-              value={qrData}
-              size={250}
-              includeMargin={false}
-              level="H" // High error correction to allow center logo
-              bgColor="#ffffff"
-              fgColor="#000000"
+        ) : qrImageUrl && !useFallback ? (
+          // Direct image display from URL or data URL with center logo overlay
+          <div className="relative" style={{ width: 250, height: 250 }}>
+            <img 
+              src={qrImageUrl} 
+              alt="QR Code" 
+              className="w-[250px] h-[250px] block"
+              width={250}
+              height={250}
+              onError={() => {
+                console.error('Failed to load QR image');
+                setError('QR image failed to load. Using generated QR code instead.');
+                createFallbackQrCode();
+              }}
             />
-            {/* Center logo overlay - uses favicon.svg */}
+            {/* Center logo overlay - uses favicon.svg; white pad preserves scannability */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <div className="bg-white rounded-md p-1 shadow-sm">
                 <img src="/favicon.svg" alt="logo" className="w-10 h-10" />
