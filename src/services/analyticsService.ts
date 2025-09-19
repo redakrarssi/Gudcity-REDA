@@ -154,8 +154,8 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year'
   ): Promise<RetentionMetrics> {
     try {
-      const results = await sql`
-        SELECT 
+      const results = await sql.query(
+        `SELECT 
           period_type,
           active_customers,
           churn_rate,
@@ -163,11 +163,12 @@ export class AnalyticsService {
           avg_visit_frequency,
           customer_lifetime_value
         FROM business_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         ORDER BY period_start DESC
-        LIMIT 1
-      `;
+        LIMIT 1`,
+        [businessId, period]
+      );
 
       if (results.length > 0) {
         const data = results[0];
@@ -202,8 +203,8 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year'
   ): Promise<ProgramPerformance[]> {
     try {
-      const results = await sql`
-        SELECT 
+      const results = await sql.query(
+        `SELECT 
           program_id,
           program_name,
           total_customers,
@@ -214,10 +215,11 @@ export class AnalyticsService {
           avg_transaction_value,
           revenue
         FROM program_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
-        ORDER BY active_customers DESC
-      `;
+        WHERE business_id = $1
+        AND period_type = $2
+        ORDER BY active_customers DESC`,
+        [businessId, period]
+      );
 
       if (results.length > 0) {
         return results.map((row: SqlRow) => ({
@@ -272,18 +274,19 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year'
   ): Promise<CustomerSegment[]> {
     try {
-      const results = await sql`
-        SELECT 
+      const results = await sql.query(
+        `SELECT 
           segment_name,
           segment_size,
           avg_spend,
           visit_frequency,
           loyalty_score
         FROM customer_segments
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
-        ORDER BY loyalty_score DESC
-      `;
+        WHERE business_id = $1
+        AND period_type = $2
+        ORDER BY loyalty_score DESC`,
+        [businessId, period]
+      );
 
       // Define interface for program preference results
       interface ProgramPreference extends SqlRow {
@@ -303,8 +306,8 @@ export class AnalyticsService {
       }
       
       // In parallel, get the program preferences for each segment
-      const programPreferencesQuery = sql<ProgramPreference[]>`
-        SELECT 
+      const programPreferencesQuery = sql.query<ProgramPreference[]>(
+        `SELECT 
           spe.segment_id, 
           pa.program_name,
           spe.engagement_score
@@ -312,10 +315,11 @@ export class AnalyticsService {
         JOIN program_analytics pa 
           ON spe.program_id = pa.program_id 
           AND spe.business_id = pa.business_id
-        WHERE spe.business_id = ${businessId}
-        AND spe.period_type = ${period}
-        ORDER BY spe.engagement_score DESC
-      `;
+        WHERE spe.business_id = $1
+        AND spe.period_type = $2
+        ORDER BY spe.engagement_score DESC`,
+        [businessId, period]
+      );
       
       // Execute both queries in parallel
       const [segmentResults, programPreferences] = await Promise.all([
@@ -369,30 +373,32 @@ export class AnalyticsService {
   ): Promise<RevenueAnalysis> {
     try {
       // Get main revenue metrics
-      const revenueResults = await sql`
-        SELECT 
+      const revenueResults = await sql.query(
+        `SELECT 
           total_revenue,
           revenue_growth,
           avg_order_value
         FROM business_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         ORDER BY period_start DESC
-        LIMIT 1
-      `;
+        LIMIT 1`,
+        [businessId, period]
+      );
       
       // Get top products
-      const productsResults = await sql`
-        SELECT 
+      const productsResults = await sql.query(
+        `SELECT 
           product_name,
           revenue,
           quantity
         FROM top_products
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         ORDER BY revenue DESC
-        LIMIT 5
-      `;
+        LIMIT 5`,
+        [businessId, period]
+      );
 
       if (revenueResults.length > 0) {
         const data = revenueResults[0];
@@ -675,18 +681,19 @@ export class AnalyticsService {
     period: 'day' | 'week' | 'month' | 'year'
   ) {
     try {
-      const results = await sql`
-        SELECT 
+      const results = await sql.query(
+        `SELECT 
           active_customers,
           total_revenue,
           transactions,
           redemptions
         FROM business_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         ORDER BY period_start DESC
-        LIMIT 1
-      `;
+        LIMIT 1`,
+        [businessId, period]
+      );
 
       if (results.length > 0) {
         const data = results[0];

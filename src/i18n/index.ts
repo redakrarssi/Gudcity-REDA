@@ -497,8 +497,6 @@ const resources = {
         'Reward Description': 'Reward Description',
         exampleReward: 'e.g. Free Coffee',
         'Add Another Reward Tier': 'Add Another Reward Tier',
-        'points': 'points',
-        'stamps': 'stamps',
         'Ready to Launch!': 'Ready to Launch!',
         'Review your program details before launching it to your customers': 'Review your program details before launching it to your customers',
         'Program Status': 'Program Status',
@@ -546,7 +544,7 @@ const resources = {
         'Status': 'Status',
         'Last Active': 'Last Active',
         'Permissions': 'Permissions',
-        'Actions': 'Actions',
+        
         'Staff': 'Staff',
         'Never': 'Never',
         'Manage': 'Manage',
@@ -556,7 +554,6 @@ const resources = {
         'Delete Staff Member': 'Delete Staff Member',
         'Are you sure you want to delete this staff member? This action cannot be undone.': 'Are you sure you want to delete this staff member? This action cannot be undone.',
         'Cancel': 'Cancel',
-        'Delete': 'Delete',
         
         // Analytics Page
         'Total Points': 'Total Points',

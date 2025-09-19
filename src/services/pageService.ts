@@ -91,9 +91,7 @@ async function ensureDefaultPages(): Promise<void> {
     
     // Check if home page exists
     console.log('✅ Checking if home page exists...');
-    const existingHomePage = await sql`
-      SELECT * FROM pages WHERE slug = '/'
-    `;
+    const existingHomePage = await sql.query('SELECT * FROM pages WHERE slug = $1', ['/']);
     
     console.log('✅ Existing home page check result:', existingHomePage.length);
     
@@ -104,10 +102,10 @@ async function ensureDefaultPages(): Promise<void> {
       for (const page of defaultPages) {
         console.log(`✅ Inserting page: ${page.title}`);
         try {
-          await sql`
-            INSERT INTO pages (title, slug, content, template, status, is_system)
-            VALUES (${page.title}, ${page.slug}, ${page.content}, ${page.template}, ${page.status}, ${page.is_system})
-          `;
+          await sql.query(
+            'INSERT INTO pages (title, slug, content, template, status, is_system) VALUES ($1, $2, $3, $4, $5, $6)',
+            [page.title, page.slug, page.content, page.template, page.status, page.is_system]
+          );
           console.log(`✅ Inserted page: ${page.title}`);
         } catch (err) {
           console.error(`❌ Error inserting page ${page.title}:`, err);
@@ -128,10 +126,7 @@ async function ensureDefaultPages(): Promise<void> {
 export async function getAllPages(): Promise<Page[]> {
   try {
     console.log('✅ Getting all pages...');
-    const pages = await sql`
-      SELECT * FROM pages
-      ORDER BY created_at DESC
-    `;
+    const pages = await sql.query('SELECT * FROM pages ORDER BY created_at DESC');
     
     console.log(`✅ Found ${pages.length} pages`);
     return pages.map(formatPage);
@@ -144,10 +139,7 @@ export async function getAllPages(): Promise<Page[]> {
 // Get a page by ID
 export async function getPageById(id: number): Promise<Page | null> {
   try {
-    const pages = await sql`
-      SELECT * FROM pages
-      WHERE id = ${id}
-    `;
+    const pages = await sql.query('SELECT * FROM pages WHERE id = $1', [id]);
     
     if (pages.length === 0) {
       return null;
@@ -163,10 +155,7 @@ export async function getPageById(id: number): Promise<Page | null> {
 // Get a page by slug
 export async function getPageBySlug(slug: string): Promise<Page | null> {
   try {
-    const pages = await sql`
-      SELECT * FROM pages
-      WHERE slug = ${slug}
-    `;
+    const pages = await sql.query('SELECT * FROM pages WHERE slug = $1', [slug]);
     
     if (pages.length === 0) {
       return null;
@@ -188,11 +177,10 @@ export async function createPage(page: Omit<Page, 'id' | 'created_at' | 'updated
       throw new Error(`A page with slug "${page.slug}" already exists`);
     }
     
-    const result = await sql`
-      INSERT INTO pages (title, slug, content, template, status, is_system)
-      VALUES (${page.title}, ${page.slug}, ${page.content}, ${page.template}, ${page.status}, ${page.is_system})
-      RETURNING *
-    `;
+    const result = await sql.query(
+      'INSERT INTO pages (title, slug, content, template, status, is_system) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [page.title, page.slug, page.content, page.template, page.status, page.is_system]
+    );
     
     return formatPage(result[0]);
   } catch (error) {
@@ -227,19 +215,10 @@ export async function updatePage(id: number, page: Partial<Omit<Page, 'id' | 'cr
     const is_system = page.is_system !== undefined ? page.is_system : existingPage.is_system;
     
     // Execute the query with all fields
-    const result = await sql`
-      UPDATE pages
-      SET 
-        title = ${title},
-        slug = ${slug},
-        content = ${content},
-        template = ${template},
-        status = ${status},
-        is_system = ${is_system},
-        updated_at = NOW()
-      WHERE id = ${id}
-      RETURNING *
-    `;
+    const result = await sql.query(
+      'UPDATE pages SET title = $1, slug = $2, content = $3, template = $4, status = $5, is_system = $6, updated_at = NOW() WHERE id = $7 RETURNING *',
+      [title, slug, content, template, status, is_system, id]
+    );
     
     if (result.length === 0) {
       return null;
@@ -265,11 +244,7 @@ export async function deletePage(id: number): Promise<boolean> {
       throw new Error('Cannot delete a system page');
     }
     
-    const result = await sql`
-      DELETE FROM pages
-      WHERE id = ${id}
-      RETURNING *
-    `;
+    const result = await sql.query('DELETE FROM pages WHERE id = $1 RETURNING *', [id]);
     
     return result.length > 0;
   } catch (error) {

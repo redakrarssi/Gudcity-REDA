@@ -54,14 +54,10 @@ export class FailedLoginService {
   ): Promise<number> {
     try {
       // Use the database function to record the failed attempt
-      const result = await sql`
-        SELECT record_failed_login_attempt(
-          ${email},
-          ${ipAddress || null}::inet,
-          ${userAgent || null},
-          ${reason}
-        ) as failed_attempts
-      `;
+      const result = await sql.query(
+        'SELECT record_failed_login_attempt($1, $2::inet, $3, $4) as failed_attempts',
+        [email, ipAddress || null, userAgent || null, reason]
+      );
 
       const failedAttempts = result[0]?.failed_attempts || 0;
       
@@ -99,7 +95,7 @@ export class FailedLoginService {
    */
   static async resetFailedAttempts(email: string): Promise<void> {
     try {
-      await sql`SELECT reset_failed_login_attempts(${email})`;
+      await sql.query('SELECT reset_failed_login_attempts($1)', [email]);
       
       // Log successful login reset to security audit
       await SecurityAuditService.logSecurityEvent(
@@ -123,17 +119,14 @@ export class FailedLoginService {
   static async checkAccountLockout(email: string): Promise<AccountLockoutInfo> {
     try {
       // Check if account is locked
-      const lockResult = await sql`SELECT is_account_locked(${email}) as is_locked`;
+      const lockResult = await sql.query('SELECT is_account_locked($1) as is_locked', [email]);
       const isLocked = lockResult[0]?.is_locked || false;
 
       // Get failed attempts count
-      const userResult = await sql`
-        SELECT 
-          COALESCE(failed_login_attempts, 0) as failed_attempts,
-          account_locked_until
-        FROM users 
-        WHERE email = ${email}
-      `;
+      const userResult = await sql.query(
+        'SELECT COALESCE(failed_login_attempts, 0) as failed_attempts, account_locked_until FROM users WHERE email = $1',
+        [email]
+      );
 
       const failedAttempts = userResult[0]?.failed_attempts || 0;
       const lockedUntil = userResult[0]?.account_locked_until;
@@ -213,15 +206,12 @@ export class FailedLoginService {
     hours: number = 24
   ): Promise<FailedLoginAttempt[]> {
     try {
-      const whereClause = email ? sql`WHERE email = ${email} AND` : sql`WHERE`;
-      
-      const result = await sql`
-        SELECT id, email, ip_address, user_agent, attempted_at, failure_reason
-        FROM failed_login_attempts
-        ${whereClause} attempted_at >= NOW() - INTERVAL '${hours} hours'
-        ORDER BY attempted_at DESC
-        LIMIT 100
-      `;
+      const result = await sql.query(
+        email
+          ? 'SELECT id, email, ip_address, user_agent, attempted_at, failure_reason FROM failed_login_attempts WHERE email = $1 AND attempted_at >= NOW() - INTERVAL \'' + String(hours) + ' hours\' ORDER BY attempted_at DESC LIMIT 100'
+          : 'SELECT id, email, ip_address, user_agent, attempted_at, failure_reason FROM failed_login_attempts WHERE attempted_at >= NOW() - INTERVAL \'' + String(hours) + ' hours\' ORDER BY attempted_at DESC LIMIT 100',
+        email ? [email] : []
+      );
 
       return result.map(row => ({
         id: row.id,
@@ -243,10 +233,7 @@ export class FailedLoginService {
    */
   static async getFailedLoginSummary(): Promise<any[]> {
     try {
-      const result = await sql`
-        SELECT * FROM failed_login_summary
-        LIMIT 50
-      `;
+      const result = await sql.query('SELECT * FROM failed_login_summary LIMIT 50');
       return result;
     } catch (error) {
       console.error('Error getting failed login summary:', error);
@@ -261,14 +248,10 @@ export class FailedLoginService {
    */
   static async unlockAccount(email: string): Promise<boolean> {
     try {
-      await sql`
-        UPDATE users 
-        SET 
-          account_locked_until = NULL,
-          failed_login_attempts = 0,
-          last_failed_login = NULL
-        WHERE email = ${email}
-      `;
+      await sql.query(
+        'UPDATE users SET account_locked_until = NULL, failed_login_attempts = 0, last_failed_login = NULL WHERE email = $1',
+        [email]
+      );
       
       console.log(`🔓 Account manually unlocked for ${email}`);
       return true;

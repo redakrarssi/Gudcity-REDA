@@ -348,12 +348,10 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     }
     
     // Check if token is in database and not revoked
-    const tokenRecord = await sql`
-      SELECT * FROM refresh_tokens
-      WHERE token = ${refreshToken}
-      AND expires_at > NOW()
-      AND revoked = FALSE
-    `;
+    const tokenRecord = await sql.query(
+      'SELECT * FROM refresh_tokens WHERE token = $1 AND expires_at > NOW() AND revoked = FALSE',
+      [refreshToken]
+    );
     
     if (!tokenRecord || tokenRecord.length === 0) {
       console.error('Refresh token not found or expired');
@@ -368,11 +366,10 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     }
     
     // Revoke current refresh token
-    await sql`
-      UPDATE refresh_tokens
-      SET revoked = TRUE, revoked_at = NOW()
-      WHERE token = ${refreshToken}
-    `;
+    await sql.query(
+      'UPDATE refresh_tokens SET revoked = TRUE, revoked_at = NOW() WHERE token = $1',
+      [refreshToken]
+    );
     
     // Generate new tokens
     return generateTokens(user);
@@ -652,17 +649,9 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
 // Ensure the refresh_tokens table exists when module loads
 (async function ensureRefreshTokensTable() {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        revoked BOOLEAN DEFAULT FALSE,
-        revoked_at TIMESTAMP
-      )
-    `;
+    await sql.query(
+      'CREATE TABLE IF NOT EXISTS refresh_tokens (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, token TEXT NOT NULL, expires_at TIMESTAMP NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, revoked BOOLEAN DEFAULT FALSE, revoked_at TIMESTAMP)'
+    );
     console.log('Refresh tokens table initialized');
   } catch (error) {
     console.error('Error creating refresh tokens table:', error);

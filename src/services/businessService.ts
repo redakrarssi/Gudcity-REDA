@@ -187,24 +187,10 @@ export async function createBusiness(business: Business): Promise<Business | nul
   try {
     console.log('Creating new business:', business.name);
     
-    const result = await sql`
-      INSERT INTO businesses (
-        name, owner, email, phone, type, status, address, logo, description, notes, user_id
-      ) VALUES (
-        ${business.name},
-        ${business.owner},
-        ${business.email},
-        ${business.phone || null},
-        ${business.type || null},
-        ${business.status},
-        ${business.address || null},
-        ${business.logo || null},
-        ${business.description || null},
-        ${business.notes || null},
-        ${business.userId || null}
-      )
-      RETURNING *
-    `;
+    const result = await sql.query(
+      'INSERT INTO businesses (name, owner, email, phone, type, status, address, logo, description, notes, user_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+      [business.name, business.owner, business.email, business.phone || null, business.type || null, business.status, business.address || null, business.logo || null, business.description || null, business.notes || null, business.userId || null]
+    );
     
     if (result && result.length > 0) {
       console.log('Business created successfully:', result[0]);
@@ -227,8 +213,8 @@ export async function getAllBusinesses(): Promise<Business[]> {
   try {
     console.log('Fetching all businesses...');
     
-    const businesses = await sql`
-      SELECT 
+    const businesses = await sql.query(
+      `SELECT 
         b.*,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
@@ -243,8 +229,8 @@ export async function getAllBusinesses(): Promise<Business[]> {
       GROUP BY 
         b.id
       ORDER BY 
-        b.created_at DESC
-    `;
+        b.created_at DESC`
+    );
     
     console.log(`Retrieved ${businesses.length} businesses`);
     return businesses.map(mapDbBusinessToBusiness);
@@ -259,8 +245,8 @@ export async function getBusinessById(id: number): Promise<Business | null> {
   try {
     console.log(`Fetching business with id: ${id}`);
     
-    const result = await sql`
-      SELECT 
+    const result = await sql.query(
+      `SELECT 
         b.*,
         COUNT(DISTINCT bt.id) as total_transactions,
         COALESCE(SUM(bt.amount), 0) as total_revenue,
@@ -273,10 +259,11 @@ export async function getBusinessById(id: number): Promise<Business | null> {
       LEFT JOIN 
         business_daily_logins bdl ON b.id = bdl.business_id
       WHERE 
-        b.id = ${id}
+        b.id = $1
       GROUP BY 
-        b.id
-    `;
+        b.id`,
+      [id]
+    );
     
     if (result && result.length > 0) {
       console.log(`Business found with id ${id}`);
@@ -374,16 +361,17 @@ export async function recordBusinessLogin(businessId: number, userId: number, ip
   try {
     console.log(`Recording login for business ${businessId}, user ${userId}`);
     
-    await sql`
-      INSERT INTO business_daily_logins (
+    await sql.query(
+      `INSERT INTO business_daily_logins (
         business_id, user_id, ip_address, device
       ) VALUES (
-        ${businessId},
-        ${userId},
-        ${ipAddress || null},
-        ${device || null}
-      )
-    `;
+        $1,
+        $2,
+        $3,
+        $4
+      )`,
+      [businessId, userId, ipAddress || null, device || null]
+    );
     
     // Update the daily analytics for today
     const today = new Date().toISOString().split('T')[0];
@@ -401,15 +389,16 @@ export async function updateBusinessSessionDuration(businessId: number, userId: 
   try {
     console.log(`Updating session duration for business ${businessId}, user ${userId}: ${sessionDuration} seconds`);
     
-    await sql`
-      UPDATE business_daily_logins
-      SET session_duration = ${sessionDuration}
-      WHERE business_id = ${businessId}
-        AND user_id = ${userId}
+    await sql.query(
+      `UPDATE business_daily_logins
+      SET session_duration = $3
+      WHERE business_id = $1
+        AND user_id = $2
         AND session_duration = 0
       ORDER BY login_time DESC
-      LIMIT 1
-    `;
+      LIMIT 1`,
+      [businessId, userId, sessionDuration]
+    );
     
     return true;
   } catch (error) {
@@ -423,13 +412,10 @@ export async function getBusinessAnalytics(businessId: number, startDate: string
   try {
     console.log(`Fetching analytics for business ${businessId} from ${startDate} to ${endDate}`);
     
-    const results = await sql`
-      SELECT * FROM business_analytics
-      WHERE business_id = ${businessId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-      ORDER BY date
-    `;
+    const results = await sql.query(
+      'SELECT * FROM business_analytics WHERE business_id = $1 AND date >= $2 AND date <= $3 ORDER BY date',
+      [businessId, startDate, endDate]
+    );
     
     return results.map(mapDbAnalyticsToAnalytics);
   } catch (error) {
@@ -444,66 +430,52 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
     console.log(`Updating daily analytics for business ${businessId} on ${date}`);
     
     // Get login count for the day
-    const loginResults = await sql`
-      SELECT COUNT(*) as login_count
-      FROM business_daily_logins
-      WHERE business_id = ${businessId}
-        AND DATE(login_time) = ${date}
-    `;
+    const loginResults = await sql.query(
+      'SELECT COUNT(*) as login_count FROM business_daily_logins WHERE business_id = $1 AND DATE(login_time) = $2',
+      [businessId, date]
+    );
     const loginCount = parseInt(loginResults[0]?.login_count as string) || 0;
     
     // Get transaction data for the day
-    const transactionResults = await sql`
-      SELECT 
-        COUNT(*) as transaction_count,
-        COALESCE(SUM(amount), 0) as daily_revenue,
-        COUNT(DISTINCT customer_id) as active_customers
-      FROM business_transactions
-      WHERE business_id = ${businessId}
-        AND DATE(transaction_date) = ${date}
-    `;
+    const transactionResults = await sql.query(
+      'SELECT COUNT(*) as transaction_count, COALESCE(SUM(amount), 0) as daily_revenue, COUNT(DISTINCT customer_id) as active_customers FROM business_transactions WHERE business_id = $1 AND DATE(transaction_date) = $2',
+      [businessId, date]
+    );
     const transactionCount = parseInt(transactionResults[0]?.transaction_count as string) || 0;
     const dailyRevenue = parseFloat(transactionResults[0]?.daily_revenue as string) || 0;
     const activeCustomers = parseInt(transactionResults[0]?.active_customers as string) || 0;
     
     // Get new customers for the day (first transaction)
-    const newCustomerResults = await sql`
-      SELECT COUNT(DISTINCT customer_id) as new_customers
-      FROM business_transactions bt1
-      WHERE business_id = ${businessId}
-        AND DATE(transaction_date) = ${date}
-        AND NOT EXISTS (
-          SELECT 1 FROM business_transactions bt2
-          WHERE bt2.business_id = ${businessId}
-            AND bt2.customer_id = bt1.customer_id
-            AND DATE(bt2.transaction_date) < ${date}
-        )
-    `;
+    const newCustomerResults = await sql.query(
+      'SELECT COUNT(DISTINCT customer_id) as new_customers FROM business_transactions bt1 WHERE business_id = $1 AND DATE(transaction_date) = $2 AND NOT EXISTS (SELECT 1 FROM business_transactions bt2 WHERE bt2.business_id = $1 AND bt2.customer_id = bt1.customer_id AND DATE(bt2.transaction_date) < $2)',
+      [businessId, date]
+    );
     const newCustomers = parseInt(newCustomerResults[0]?.new_customers as string) || 0;
     
     // Calculate average transaction value
     const avgTransactionValue = transactionCount > 0 ? dailyRevenue / transactionCount : 0;
     
     // Calculate customer retention rate (active customers who have previous transactions)
-    const retentionResults = await sql`
-      SELECT 
+    const retentionResults = await sql.query(
+      `SELECT 
         COUNT(DISTINCT customer_id) as returning_customers
       FROM business_transactions
-      WHERE business_id = ${businessId}
-        AND DATE(transaction_date) = ${date}
+      WHERE business_id = $1
+        AND DATE(transaction_date) = $2
         AND customer_id IN (
           SELECT DISTINCT customer_id
           FROM business_transactions
-          WHERE business_id = ${businessId}
-            AND DATE(transaction_date) < ${date}
-        )
-    `;
+          WHERE business_id = $1
+            AND DATE(transaction_date) < $2
+        )`,
+      [businessId, date]
+    );
     const returningCustomers = parseInt(retentionResults[0]?.returning_customers as string) || 0;
     const retentionRate = activeCustomers > 0 ? (returningCustomers / activeCustomers) * 100 : 0;
     
     // Calculate growth rate (compared to previous day)
-    const previousDayResults = await sql`
-      SELECT 
+    const previousDayResults = await sql.query(
+      `SELECT 
         COALESCE(transactions, 0) as total_transactions,
         COALESCE(revenue, 0) as revenue
       FROM (
@@ -511,10 +483,11 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
           COUNT(bt.id) as transactions,
           COALESCE(SUM(bt.amount), 0) as revenue
         FROM business_transactions bt
-        WHERE bt.business_id = ${businessId}
-          AND DATE(bt.transaction_date) = (${date}::date - interval '1 day')
-      ) as prev_day_data
-    `;
+        WHERE bt.business_id = $1
+          AND DATE(bt.transaction_date) = ($2::date - interval '1 day')
+      ) as prev_day_data`,
+      [businessId, date]
+    );
     
     const previousDayTransactions = parseInt(previousDayResults[0]?.total_transactions as string) || 0;
     const previousDayRevenue = parseFloat(previousDayResults[0]?.revenue as string) || 0;
@@ -531,40 +504,23 @@ async function updateBusinessDailyAnalytics(businessId: number, date: string): P
     const growthRate = (transactionGrowth + revenueGrowth) / 2;
     
     // Check if an entry already exists for this business and date
-    const existingEntryResults = await sql`
-      SELECT id FROM business_analytics
-      WHERE business_id = ${businessId} AND date = ${date}
-    `;
+    const existingEntryResults = await sql.query(
+      'SELECT id FROM business_analytics WHERE business_id = $1 AND date = $2',
+      [businessId, date]
+    );
     
     if (existingEntryResults.length > 0) {
       // Update existing entry
-      await sql`
-        UPDATE business_analytics
-        SET 
-          login_count = ${loginCount},
-          active_customers = ${activeCustomers},
-          new_customers = ${newCustomers},
-          total_transactions = ${transactionCount},
-          revenue = ${dailyRevenue},
-          avg_transaction_value = ${avgTransactionValue},
-          customer_retention_rate = ${retentionRate},
-          growth_rate = ${growthRate},
-          updated_at = NOW()
-        WHERE business_id = ${businessId} AND date = ${date}
-      `;
+      await sql.query(
+        'UPDATE business_analytics SET login_count = $1, active_customers = $2, new_customers = $3, total_transactions = $4, revenue = $5, avg_transaction_value = $6, customer_retention_rate = $7, growth_rate = $8, updated_at = NOW() WHERE business_id = $9 AND date = $10',
+        [loginCount, activeCustomers, newCustomers, transactionCount, dailyRevenue, avgTransactionValue, retentionRate, growthRate, businessId, date]
+      );
     } else {
       // Create new entry
-      await sql`
-        INSERT INTO business_analytics (
-          business_id, date, login_count, active_customers, new_customers, 
-          total_transactions, revenue, avg_transaction_value, 
-          customer_retention_rate, growth_rate
-        ) VALUES (
-          ${businessId}, ${date}, ${loginCount}, ${activeCustomers}, ${newCustomers},
-          ${transactionCount}, ${dailyRevenue}, ${avgTransactionValue},
-          ${retentionRate}, ${growthRate}
-        )
-      `;
+      await sql.query(
+        'INSERT INTO business_analytics (business_id, date, login_count, active_customers, new_customers, total_transactions, revenue, avg_transaction_value, customer_retention_rate, growth_rate) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [businessId, date, loginCount, activeCustomers, newCustomers, transactionCount, dailyRevenue, avgTransactionValue, retentionRate, growthRate]
+      );
     }
     
     return true;
@@ -582,20 +538,10 @@ export async function getBusinessLoginHistory(businessId: number, days: number =
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     
-    const results = await sql`
-      SELECT 
-        DATE(login_time) as date,
-        COUNT(*) as login_count,
-        AVG(session_duration) as avg_session_duration
-      FROM business_daily_logins
-      WHERE 
-        business_id = ${businessId} AND
-        login_time >= ${startDate.toISOString()}
-      GROUP BY 
-        DATE(login_time)
-      ORDER BY 
-        DATE(login_time)
-    `;
+    const results = await sql.query(
+      'SELECT DATE(login_time) as date, COUNT(*) as login_count, AVG(session_duration) as avg_session_duration FROM business_daily_logins WHERE business_id = $1 AND login_time >= $2 GROUP BY DATE(login_time) ORDER BY DATE(login_time)',
+      [businessId, startDate.toISOString()]
+    );
     
     return results;
   } catch (error) {
@@ -610,45 +556,19 @@ export async function getBusinessActivityOverview(businessId: number): Promise<a
     console.log(`Fetching activity overview for business ${businessId}`);
     
     // Get total metrics
-    const totalsResult = await sql`
-      SELECT 
-        COUNT(DISTINCT bdl.id) as total_logins,
-        COUNT(DISTINCT bdl.user_id) as unique_users,
-        COALESCE(AVG(bdl.session_duration), 0) as avg_session_duration,
-        COUNT(DISTINCT bt.id) as total_transactions,
-        COALESCE(SUM(bt.amount), 0) as total_revenue,
-        COUNT(DISTINCT bt.customer_id) as total_customers
-      FROM 
-        businesses b
-      LEFT JOIN 
-        business_daily_logins bdl ON b.id = bdl.business_id
-      LEFT JOIN 
-        business_transactions bt ON b.id = bt.business_id
-      WHERE 
-        b.id = ${businessId}
-    `;
+    const totalsResult = await sql.query(
+      'SELECT COUNT(DISTINCT bdl.id) as total_logins, COUNT(DISTINCT bdl.user_id) as unique_users, COALESCE(AVG(bdl.session_duration), 0) as avg_session_duration, COUNT(DISTINCT bt.id) as total_transactions, COALESCE(SUM(bt.amount), 0) as total_revenue, COUNT(DISTINCT bt.customer_id) as total_customers FROM businesses b LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id LEFT JOIN business_transactions bt ON b.id = bt.business_id WHERE b.id = $1',
+      [businessId]
+    );
     
     // Get last 30 days metrics
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const recentResult = await sql`
-      SELECT 
-        COUNT(DISTINCT bdl.id) as recent_logins,
-        COUNT(DISTINCT bdl.user_id) as recent_users,
-        COALESCE(AVG(bdl.session_duration), 0) as recent_avg_session,
-        COUNT(DISTINCT bt.id) as recent_transactions,
-        COALESCE(SUM(bt.amount), 0) as recent_revenue,
-        COUNT(DISTINCT bt.customer_id) as recent_customers
-      FROM 
-        businesses b
-      LEFT JOIN 
-        business_daily_logins bdl ON b.id = bdl.business_id AND bdl.login_time >= ${thirtyDaysAgo.toISOString()}
-      LEFT JOIN 
-        business_transactions bt ON b.id = bt.business_id AND bt.transaction_date >= ${thirtyDaysAgo.toISOString()}
-      WHERE 
-        b.id = ${businessId}
-    `;
+    const recentResult = await sql.query(
+      'SELECT COUNT(DISTINCT bdl.id) as recent_logins, COUNT(DISTINCT bdl.user_id) as recent_users, COALESCE(AVG(bdl.session_duration), 0) as recent_avg_session, COUNT(DISTINCT bt.id) as recent_transactions, COALESCE(SUM(bt.amount), 0) as recent_revenue, COUNT(DISTINCT bt.customer_id) as recent_customers FROM businesses b LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id AND bdl.login_time >= $1 LEFT JOIN business_transactions bt ON b.id = bt.business_id AND bt.transaction_date >= $1 WHERE b.id = $2',
+      [thirtyDaysAgo.toISOString(), businessId]
+    );
     
     // Combine the results
     return {

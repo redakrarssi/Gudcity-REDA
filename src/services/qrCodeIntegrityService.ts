@@ -74,24 +74,24 @@ export class QrCodeIntegrityService {
       // Get total count of QR codes
       let totalQrCodesQuery;
       if (qrType && sinceDate) {
-        totalQrCodesQuery = sql`
-          SELECT COUNT(*) as count FROM customer_qrcodes
-          WHERE qr_type = ${qrType} AND created_at >= ${sinceDate}
-        `;
+        totalQrCodesQuery = sql.query(
+          'SELECT COUNT(*) as count FROM customer_qrcodes WHERE qr_type = $1 AND created_at >= $2',
+          [qrType, sinceDate]
+        );
       } else if (qrType) {
-        totalQrCodesQuery = sql`
-          SELECT COUNT(*) as count FROM customer_qrcodes
-          WHERE qr_type = ${qrType}
-        `;
+        totalQrCodesQuery = sql.query(
+          'SELECT COUNT(*) as count FROM customer_qrcodes WHERE qr_type = $1',
+          [qrType]
+        );
       } else if (sinceDate) {
-        totalQrCodesQuery = sql`
-          SELECT COUNT(*) as count FROM customer_qrcodes
-          WHERE created_at >= ${sinceDate}
-        `;
+        totalQrCodesQuery = sql.query(
+          'SELECT COUNT(*) as count FROM customer_qrcodes WHERE created_at >= $1',
+          [sinceDate]
+        );
       } else {
-        totalQrCodesQuery = sql`
-          SELECT COUNT(*) as count FROM customer_qrcodes
-        `;
+        totalQrCodesQuery = sql.query(
+          'SELECT COUNT(*) as count FROM customer_qrcodes'
+        );
       }
       
       const countResult = await withRetryableQuery(() => totalQrCodesQuery);
@@ -106,36 +106,25 @@ export class QrCodeIntegrityService {
         // Get a batch of QR codes
         let qrCodesQuery;
         if (qrType && sinceDate) {
-          qrCodesQuery = sql`
-            SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature
-            FROM customer_qrcodes
-            WHERE qr_type = ${qrType} AND created_at >= ${sinceDate}
-            ORDER BY id
-            LIMIT ${batchSize} OFFSET ${offset}
-          `;
+          qrCodesQuery = sql.query(
+            'SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature FROM customer_qrcodes WHERE qr_type = $1 AND created_at >= $2 ORDER BY id LIMIT $3 OFFSET $4',
+            [qrType, sinceDate, batchSize, offset]
+          );
         } else if (qrType) {
-          qrCodesQuery = sql`
-            SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature
-            FROM customer_qrcodes
-            WHERE qr_type = ${qrType}
-            ORDER BY id
-            LIMIT ${batchSize} OFFSET ${offset}
-          `;
+          qrCodesQuery = sql.query(
+            'SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature FROM customer_qrcodes WHERE qr_type = $1 ORDER BY id LIMIT $2 OFFSET $3',
+            [qrType, batchSize, offset]
+          );
         } else if (sinceDate) {
-          qrCodesQuery = sql`
-            SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature
-            FROM customer_qrcodes
-            WHERE created_at >= ${sinceDate}
-            ORDER BY id
-            LIMIT ${batchSize} OFFSET ${offset}
-          `;
+          qrCodesQuery = sql.query(
+            'SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature FROM customer_qrcodes WHERE created_at >= $1 ORDER BY id LIMIT $2 OFFSET $3',
+            [sinceDate, batchSize, offset]
+          );
         } else {
-          qrCodesQuery = sql`
-            SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature
-            FROM customer_qrcodes
-            ORDER BY id
-            LIMIT ${batchSize} OFFSET ${offset}
-          `;
+          qrCodesQuery = sql.query(
+            'SELECT id, qr_unique_id, customer_id, business_id, qr_type, status, qr_data, digital_signature FROM customer_qrcodes ORDER BY id LIMIT $1 OFFSET $2',
+            [batchSize, offset]
+          );
         }
         
         const qrCodesResult = await withRetryableQuery(() => qrCodesQuery);
@@ -146,10 +135,10 @@ export class QrCodeIntegrityService {
           
           try {
             // Check if customer exists
-            const customerResult = await withRetryableQuery(() => sql`
-              SELECT id, status FROM users 
-              WHERE id = ${qrCode.customer_id} AND user_type = 'customer'
-            `);
+            const customerResult = await withRetryableQuery(() => sql.query(
+              "SELECT id, status FROM users WHERE id = $1 AND user_type = 'customer'",
+              [qrCode.customer_id]
+            ));
             
             if (customerResult.length === 0) {
               // Customer doesn't exist - orphaned QR code
@@ -193,10 +182,10 @@ export class QrCodeIntegrityService {
             
             // If a business ID is associated, verify it exists
             if (qrCode.business_id) {
-              const businessResult = await withRetryableQuery(() => sql`
-                SELECT id, status FROM users 
-                WHERE id = ${qrCode.business_id} AND user_type = 'business'
-              `);
+              const businessResult = await withRetryableQuery(() => sql.query(
+                "SELECT id, status FROM users WHERE id = $1 AND user_type = 'business'",
+                [qrCode.business_id]
+              ));
               
               if (businessResult.length === 0) {
                 // Business doesn't exist - data inconsistency

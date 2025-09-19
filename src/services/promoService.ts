@@ -72,10 +72,10 @@ export class PromoService {
   ): Promise<{ valid: boolean; code?: PromoCode; error?: string }> {
     try {
       // Get code details from the database
-      const promoCodeResult = await sql`
-        SELECT * FROM promo_codes
-        WHERE code = ${code}
-      `;
+      const promoCodeResult = await sql.query(
+        'SELECT * FROM promo_codes WHERE code = $1',
+        [code]
+      );
       
       if (promoCodeResult.length === 0) {
         return { valid: false, error: 'Code not found' };
@@ -101,11 +101,10 @@ export class PromoService {
       }
 
       // Check if customer has already used this code
-      const existingRedemptionResult = await sql`
-        SELECT * FROM promo_redemptions
-        WHERE code_id = ${parseInt(promoCode.id)}
-        AND customer_id = ${parseInt(customerId)}
-      `;
+      const existingRedemptionResult = await sql.query(
+        'SELECT * FROM promo_redemptions WHERE code_id = $1 AND customer_id = $2',
+        [parseInt(promoCode.id), parseInt(customerId)]
+      );
 
       if (existingRedemptionResult.length > 0) {
         return { valid: false, error: 'Code already used by this customer' };
@@ -136,12 +135,10 @@ export class PromoService {
       const customerIdInt = parseInt(customerId);
 
       // Check if the promotion code exists and is active
-      const promotionResult = await sql`
-        SELECT * FROM promotions
-        WHERE code = ${code.trim()}
-        AND status = 'ACTIVE'
-        AND expiry_date > NOW()
-      `;
+      const promotionResult = await sql.query(
+        "SELECT * FROM promotions WHERE code = $1 AND status = 'ACTIVE' AND expiry_date > NOW()",
+        [code.trim()]
+      );
 
       if (promotionResult.length === 0) {
         return {
@@ -154,10 +151,10 @@ export class PromoService {
 
       // Check if this code has reached its usage limit
       if (promotion.usage_limit) {
-        const usageCount = await sql`
-          SELECT COUNT(*) as count FROM redemptions
-          WHERE promotion_id = ${promotion.id}
-        `;
+        const usageCount = await sql.query(
+          'SELECT COUNT(*) as count FROM redemptions WHERE promotion_id = $1',
+          [promotion.id]
+        );
 
         if (usageCount[0].count >= promotion.usage_limit) {
           return {
@@ -169,11 +166,10 @@ export class PromoService {
 
       // Check if customer has already redeemed this code
       if (!promotion.allow_multiple_use) {
-        const customerRedemptions = await sql`
-          SELECT * FROM redemptions
-          WHERE promotion_id = ${promotion.id}
-          AND customer_id = ${customerIdInt}
-        `;
+        const customerRedemptions = await sql.query(
+          'SELECT * FROM redemptions WHERE promotion_id = $1 AND customer_id = $2',
+          [promotion.id, customerIdInt]
+        );
 
         if (customerRedemptions.length > 0) {
           return {
@@ -184,22 +180,10 @@ export class PromoService {
       }
 
       // Record the redemption
-      const redemptionResult = await sql`
-        INSERT INTO redemptions (
-          promotion_id,
-          customer_id,
-          redeemed_at,
-          value,
-          currency
-        ) VALUES (
-          ${promotion.id},
-          ${customerIdInt},
-          NOW(),
-          ${promotion.value},
-          ${promotion.currency || 'USD'}
-        )
-        RETURNING id
-      `;
+      const redemptionResult = await sql.query(
+        'INSERT INTO redemptions (promotion_id, customer_id, redeemed_at, value, currency) VALUES ($1, $2, NOW(), $3, $4) RETURNING id',
+        [promotion.id, customerIdInt, promotion.value, promotion.currency || 'USD']
+      );
 
       return {
         success: true,
@@ -224,11 +208,10 @@ export class PromoService {
   ): Promise<{ codes: PromoCode[]; error?: string }> {
     try {
       const businessIdInt = parseInt(businessId);
-      const codesResult = await sql`
-        SELECT * FROM promo_codes
-        WHERE business_id = ${businessIdInt}
-        ORDER BY created_at DESC
-      `;
+      const codesResult = await sql.query(
+        'SELECT * FROM promo_codes WHERE business_id = $1 ORDER BY created_at DESC',
+        [businessIdInt]
+      );
       
       const codes = codesResult.map(this.dbPromoCodeToPromoCode);
       return { codes };
@@ -248,36 +231,28 @@ export class PromoService {
       const businessIdInt = parseInt(businessId);
       
       // Get total and active codes
-      const codesResult = await sql`
-        SELECT
-          COUNT(*) as total_codes,
-          SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_codes
-        FROM promo_codes
-        WHERE business_id = ${businessIdInt}
-      `;
+      const codesResult = await sql.query(
+        "SELECT COUNT(*) as total_codes, SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_codes FROM promo_codes WHERE business_id = $1",
+        [businessIdInt]
+      );
       
       // Get redemption stats
-      const redemptionsResult = await sql`
-        SELECT COUNT(*) as total_redemptions
-        FROM promo_redemptions
-        WHERE business_id = ${businessIdInt}
-      `;
+      const redemptionsResult = await sql.query(
+        'SELECT COUNT(*) as total_redemptions FROM promo_redemptions WHERE business_id = $1',
+        [businessIdInt]
+      );
       
       // Calculate redemption value
-      const valueResult = await sql`
-        SELECT SUM(value) as total_value, currency
-        FROM promo_redemptions
-        WHERE business_id = ${businessIdInt}
-        GROUP BY currency
-      `;
+      const valueResult = await sql.query(
+        'SELECT SUM(value) as total_value, currency FROM promo_redemptions WHERE business_id = $1 GROUP BY currency',
+        [businessIdInt]
+      );
       
       // Get counts by type
-      const typeResult = await sql`
-        SELECT type, COUNT(*) as count
-        FROM promo_codes
-        WHERE business_id = ${businessIdInt}
-        GROUP BY type
-      `;
+      const typeResult = await sql.query(
+        'SELECT type, COUNT(*) as count FROM promo_codes WHERE business_id = $1 GROUP BY type',
+        [businessIdInt]
+      );
       
       const totalCodes = parseInt(codesResult[0]?.total_codes || '0');
       const activeCodes = parseInt(codesResult[0]?.active_codes || '0');
@@ -353,9 +328,10 @@ export class PromoService {
     }
     
     // Check if code already exists in the database
-    const existingCodeResult = await sql`
-      SELECT id FROM promo_codes WHERE code = ${result}
-    `;
+      const existingCodeResult = await sql.query(
+        'SELECT id FROM promo_codes WHERE code = $1',
+        [result]
+      );
     
     if (existingCodeResult.length > 0) {
       return this.generateUniqueCode(); // Recursively try again

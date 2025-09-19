@@ -75,14 +75,15 @@ router.get('/businesses/:id', auth, async (req: Request, res: Response) => {
     const businessId = validateBusinessId(req.params.id);
     
     // Select only necessary fields, avoiding SELECT *
-    const businessResult = await sql<Business[]>`
-      SELECT id, name, email, business_name, business_phone, 
-             user_type, status, created_at, updated_at, 
-             avatar_url, description, address, phone, website
-      FROM users
-      WHERE id = ${businessId}
-      AND user_type = 'business'
-    `;
+    const businessResult = await sql.query<Business[]>(
+      `SELECT id, name, email, business_name, business_phone, 
+              user_type, status, created_at, updated_at, 
+              avatar_url, description, address, phone, website
+       FROM users
+       WHERE id = $1
+       AND user_type = 'business'`,
+      [businessId]
+    );
     
     if (!businessResult.length) {
       return res.status(404).json({ error: 'Business not found' });
@@ -122,15 +123,16 @@ router.get('/businesses/:id/enrolled-customers', auth, async (req: Request, res:
     const businessId = validateBusinessId(businessIdParam);
     const programId = validateUserId(String(programIdParam)); // Validate program ID format
     
-    const results = await sql<BusinessEnrollmentResult[]>`
-      SELECT u.id, u.name
-      FROM users u
-      JOIN customer_enrollments ce ON u.id = ce.customer_id
-      JOIN loyalty_programs lp ON ce.program_id = lp.id
-      WHERE lp.business_id = ${businessId}
-      AND u.user_type = 'customer'
-      AND ce.program_id = ${programId}
-    `;
+    const results = await sql.query<BusinessEnrollmentResult[]>(
+      `SELECT u.id, u.name
+       FROM users u
+       JOIN customer_enrollments ce ON u.id = ce.customer_id
+       JOIN loyalty_programs lp ON ce.program_id = lp.id
+       WHERE lp.business_id = $1
+       AND u.user_type = 'customer'
+       AND ce.program_id = $2`,
+      [businessId, programId]
+    );
     
     res.json(results);
   } catch (error) {
@@ -149,11 +151,9 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
     
-    const businesses = await sql<BusinessListItem[]>`
-      SELECT id, name, email, created_at 
-      FROM users 
-      WHERE user_type = 'business'
-    `;
+    const businesses = await sql.query<BusinessListItem[]>(
+      "SELECT id, name, email, created_at FROM users WHERE user_type = 'business'"
+    );
     
     res.json(businesses);
   } catch (error) {
@@ -170,8 +170,8 @@ router.get('/businesses', auth, async (req: Request, res: Response) => {
 router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Response) => {
   try {
     // Build overview from users (business owners) merged with optional businesses table + analytics
-    const rows = await sql<any[]>`
-      SELECT 
+    const rows = await sql.query<any[]>(
+      `SELECT 
         u.id                           AS user_id,
         u.name                         AS user_name,
         u.email                        AS user_email,
@@ -202,8 +202,8 @@ router.get('/admin/overview', auth, requireAdmin, async (_req: Request, res: Res
         u.id, u.name, u.email, u.created_at, u.business_name, u.business_phone, u.avatar_url,
         b.id, b.name, b.owner, b.type, b.status, b.address, b.logo,
         bp.address, bs.address, bp.phone, bs.phone
-      ORDER BY u.created_at DESC
-    `;
+      ORDER BY u.created_at DESC`
+    );
 
     const data = rows.map(r => ({
       // Prefer businesses.id when present; fall back to users.id so UI can still open basic details
@@ -250,8 +250,8 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
     }
 
     // Base profile info from businesses table
-    const result = await sql<any[]>`
-      SELECT 
+    const result = await sql.query<any[]>(
+      `SELECT 
         b.*,
         MAX(bdl.login_time) as last_login_time,
         COUNT(DISTINCT bt.customer_id) as total_customers,
@@ -259,9 +259,10 @@ router.get('/admin/:id/details', auth, requireAdmin, async (req: Request, res: R
       FROM businesses b
       LEFT JOIN business_daily_logins bdl ON b.id = bdl.business_id
       LEFT JOIN business_transactions bt ON b.id = bt.business_id
-      WHERE b.id = ${businessIdNumber}
-      GROUP BY b.id
-    `;
+      WHERE b.id = $1
+      GROUP BY b.id`,
+      [businessIdNumber]
+    );
 
     if (!result.length) {
       return res.status(404).json({ error: 'Business not found' });
@@ -334,13 +335,10 @@ router.get('/admin/:id/activity', auth, requireAdmin, async (req: Request, res: 
       }
     }
 
-    const rows = await sql<any[]>`
-      SELECT id, user_id, login_time, ip_address, device
-      FROM business_daily_logins
-      WHERE business_id = ${businessIdNumber}
-      ORDER BY login_time DESC
-      LIMIT ${limitNumber}
-    `;
+    const rows = await sql.query<any[]>(
+      'SELECT id, user_id, login_time, ip_address, device FROM business_daily_logins WHERE business_id = $1 ORDER BY login_time DESC LIMIT $2',
+      [businessIdNumber, limitNumber]
+    );
 
     res.json({ activity: rows });
   } catch (error) {
@@ -378,9 +376,10 @@ router.put('/admin/:id/status', auth, requireAdmin, async (req: Request, res: Re
       });
     }
 
-    const updated = await sql<any[]>`
-      UPDATE businesses SET status = ${status}, updated_at = NOW() WHERE id = ${businessIdNumber} RETURNING *
-    `;
+    const updated = await sql.query<any[]>(
+      'UPDATE businesses SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [status, businessIdNumber]
+    );
     if (!updated.length) {
       return res.status(404).json({ error: 'Business not found' });
     }
@@ -412,10 +411,10 @@ router.delete('/admin/:id', auth, requireAdmin, async (req: Request, res: Respon
     }
 
     // Best-effort cleanup. Some FKs are ON DELETE CASCADE, others may not be.
-    await client`DELETE FROM business_transactions WHERE business_id = ${businessIdNumber}`;
-    await client`DELETE FROM business_daily_logins WHERE business_id = ${businessIdNumber}`;
-    await client`DELETE FROM loyalty_programs WHERE business_id = ${businessIdNumber}`;
-    const deleted = await client`DELETE FROM businesses WHERE id = ${businessIdNumber} RETURNING id`;
+    await client.query('DELETE FROM business_transactions WHERE business_id = $1', [businessIdNumber]);
+    await client.query('DELETE FROM business_daily_logins WHERE business_id = $1', [businessIdNumber]);
+    await client.query('DELETE FROM loyalty_programs WHERE business_id = $1', [businessIdNumber]);
+    const deleted = await client.query('DELETE FROM businesses WHERE id = $1 RETURNING id', [businessIdNumber]);
 
     if (!deleted.length) {
       return res.status(404).json({ error: 'Business not found' });

@@ -165,7 +165,8 @@ const Login = () => {
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
             <h3 className="text-sm font-medium text-blue-800 mb-1">{t('auth.Demo Credentials')}</h3>
             <p className="text-xs text-blue-700">
-              <strong>{t('auth.Admin')}:</strong> admin@vcarda.com / password<br />
+              {/* <strong>{t('auth.Admin')}:</strong> admin@vcarda.com / password */}
+              <strong>{t('auth.Admin')}:</strong> Contact administrator for credentials<br />
               <strong>{t('auth.Customer')}:</strong> customer@example.com / password<br />
               <strong>{t('auth.Business')}:</strong> business@example.com / password
             </p>

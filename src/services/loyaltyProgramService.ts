@@ -18,11 +18,10 @@ export class LoyaltyProgramService {
    */
   static async getBusinessPrograms(businessId: string): Promise<LoyaltyProgram[]> {
     try {
-      const result = await sql`
-        SELECT * FROM loyalty_programs
-        WHERE business_id = ${parseInt(businessId)}
-        ORDER BY created_at DESC
-      `;
+      const result = await sql.query(
+        'SELECT * FROM loyalty_programs WHERE business_id = $1 ORDER BY created_at DESC',
+        [parseInt(businessId)]
+      );
       
       // Load reward tiers for each program
       const programsWithRewards = await Promise.all(result.map(async (program: any) => {
@@ -55,10 +54,10 @@ export class LoyaltyProgramService {
    */
   static async getProgramById(programId: string): Promise<LoyaltyProgram | null> {
     try {
-      const programs = await sql`
-        SELECT * FROM loyalty_programs
-        WHERE id = ${programId}
-      `;
+      const programs = await sql.query(
+        'SELECT * FROM loyalty_programs WHERE id = $1',
+        [programId]
+      );
       
       if (!programs.length) {
         return null;
@@ -91,11 +90,10 @@ export class LoyaltyProgramService {
    */
   static async getProgramRewardTiers(programId: string): Promise<RewardTier[]> {
     try {
-      const tiers = await sql`
-        SELECT * FROM reward_tiers
-        WHERE program_id = ${programId}
-        ORDER BY points_required ASC
-      `;
+      const tiers = await sql.query(
+        'SELECT * FROM reward_tiers WHERE program_id = $1 ORDER BY points_required ASC',
+        [programId]
+      );
       
       return tiers.map((tier: any) => ({
         id: tier.id,
@@ -466,15 +464,14 @@ export class LoyaltyProgramService {
       const businessId = program.businessId;
 
       // Get business name for notifications
-      const businessResult = await sql`SELECT name FROM users WHERE id = ${businessId}`;
+      const businessResult = await sql.query('SELECT name FROM users WHERE id = $1', [businessId]);
       const businessName = businessResult.length > 0 ? businessResult[0].name : 'Business';
 
       // Check if already enrolled
-      const enrollment = await sql`
-        SELECT * FROM program_enrollments
-        WHERE customer_id = ${customerId}
-        AND program_id = ${programId}
-      `;
+      const enrollment = await sql.query(
+        'SELECT * FROM program_enrollments WHERE customer_id = $1 AND program_id = $2',
+        [customerId, programId]
+      );
 
       if (enrollment.length > 0) {
         // Already enrolled
@@ -488,11 +485,10 @@ export class LoyaltyProgramService {
           return { success: false, error: 'Enrollment request already pending' };
         } else if (status === 'INACTIVE') {
           // Reactivate enrollment
-          await sql`
-            UPDATE program_enrollments
-            SET status = 'ACTIVE', updated_at = NOW()
-            WHERE customer_id = ${customerId} AND program_id = ${programId}
-          `;
+          await sql.query(
+            "UPDATE program_enrollments SET status = 'ACTIVE', updated_at = NOW() WHERE customer_id = $1 AND program_id = $2",
+            [customerId, programId]
+          );
           
           logger.info('Reactivated enrollment', { customerId, programId });
           return { success: true, message: 'Enrollment reactivated' };
@@ -803,13 +799,10 @@ export class LoyaltyProgramService {
   ): Promise<{ success: boolean; message?: string; cardId?: string }> {
     try {
       // Get the request details
-      const requestResult = await sql`
-        SELECT ar.*, lp.name as program_name, u.name as business_name
-        FROM customer_approval_requests ar
-        JOIN loyalty_programs lp ON ar.entity_id = lp.id::text
-        JOIN users u ON lp.business_id = u.id
-        WHERE ar.id = ${requestId} AND ar.request_type = 'ENROLLMENT'
-      `;
+      const requestResult = await sql.query(
+        "SELECT ar.*, lp.name as program_name, u.name as business_name FROM customer_approval_requests ar JOIN loyalty_programs lp ON ar.entity_id = lp.id::text JOIN users u ON lp.business_id = u.id WHERE ar.id = $1 AND ar.request_type = 'ENROLLMENT'",
+        [requestId]
+      );
       
       if (!requestResult.length) {
         return { success: false, message: 'Enrollment request not found' };
@@ -824,19 +817,17 @@ export class LoyaltyProgramService {
       }
       
       // Update request status (use response_at; table may not have updated_at)
-      await sql`
-        UPDATE customer_approval_requests
-        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, response_at = NOW()
-        WHERE id = ${requestId}
-      `;
+      await sql.query(
+        'UPDATE customer_approval_requests SET status = $1, response_at = NOW() WHERE id = $2',
+        [approved ? 'APPROVED' : 'REJECTED', requestId]
+      );
       
       // Update notification to mark action taken (by notification_id)
       if (request.notification_id) {
-        await sql`
-          UPDATE customer_notifications
-          SET action_taken = true, is_read = TRUE, read_at = NOW()
-          WHERE id = ${request.notification_id}
-        `;
+        await sql.query(
+          'UPDATE customer_notifications SET action_taken = true, is_read = TRUE, read_at = NOW() WHERE id = $1',
+          [request.notification_id]
+        );
       }
       
       // Ensure we have integer-safe IDs for DB writes
@@ -877,28 +868,25 @@ export class LoyaltyProgramService {
       // If approved, continue with enrollment
       
       // Check if already enrolled
-      const enrollment = await sql`
-        SELECT * FROM program_enrollments
-        WHERE customer_id = ${customerIdInt}
-        AND program_id = ${programIdInt}
-      `;
+      const enrollment = await sql.query(
+        'SELECT * FROM program_enrollments WHERE customer_id = $1 AND program_id = $2',
+        [customerIdInt, programIdInt]
+      );
       
       if (enrollment.length > 0) {
         // Already enrolled, just update status if needed
         if (enrollment[0].status !== 'ACTIVE') {
-          await sql`
-            UPDATE program_enrollments
-            SET status = 'ACTIVE', last_activity = NOW()
-            WHERE customer_id = ${customerIdInt} AND program_id = ${programIdInt}
-          `;
+          await sql.query(
+            "UPDATE program_enrollments SET status = 'ACTIVE', last_activity = NOW() WHERE customer_id = $1 AND program_id = $2",
+            [customerIdInt, programIdInt]
+          );
         }
         
         // Check if card exists
-        const cardResult = await sql`
-          SELECT id FROM loyalty_cards
-          WHERE customer_id = ${customerIdInt}
-          AND program_id = ${programIdInt}
-        `;
+        const cardResult = await sql.query(
+          'SELECT id FROM loyalty_cards WHERE customer_id = $1 AND program_id = $2',
+          [customerIdInt, programIdInt]
+        );
         
         if (cardResult.length > 0) {
           // Card already exists

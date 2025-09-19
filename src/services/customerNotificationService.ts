@@ -18,13 +18,10 @@ export class CustomerNotificationService {
    */
   static async markNotificationAsActionTaken(businessId: string, trackingCode: string): Promise<void> {
     try {
-      await sql`
-        UPDATE customer_notifications 
-        SET action_taken = TRUE, updated_at = NOW()
-        WHERE customer_id = ${businessId}
-        AND type = 'CUSTOMER_REDEMPTION'
-        AND (data::jsonb)->>'trackingCode' = ${trackingCode}
-      `;
+      await sql.query(
+        "UPDATE customer_notifications SET action_taken = TRUE, updated_at = NOW() WHERE customer_id = $1 AND type = 'CUSTOMER_REDEMPTION' AND (data::jsonb)->>'trackingCode' = $2",
+        [parseInt(businessId), trackingCode]
+      );
     } catch (error) {
       console.error('Error marking notification as action taken:', error);
     }
@@ -73,44 +70,20 @@ export class CustomerNotificationService {
       const notificationId = uuidv4();
       const now = new Date();
       
-      const result = await sql`
-        INSERT INTO customer_notifications (
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          data,
-          reference_id,
-          requires_action,
-          action_taken,
-          is_read,
-          created_at
-        ) VALUES (
-          ${notificationId},
-          ${customerIdInt},
-          ${businessIdInt},
-          ${notification.type},
-          ${notification.title},
-          ${notification.message},
-          ${notification.data ? JSON.stringify(notification.data) : null},
-          ${notification.referenceId || null},
-          ${notification.requiresAction},
-          ${notification.actionTaken},
-          ${notification.isRead},
-          ${now.toISOString()}
-        ) RETURNING *
-      `;
+      const result = await sql.query(
+        'INSERT INTO customer_notifications (id, customer_id, business_id, type, title, message, data, reference_id, requires_action, action_taken, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *',
+        [notificationId, customerIdInt, businessIdInt, notification.type, notification.title, notification.message, notification.data ? JSON.stringify(notification.data) : null, notification.referenceId || null, notification.requiresAction, notification.actionTaken, notification.isRead, now.toISOString()]
+      );
       
       if (!result.length) {
         return null;
       }
       
       // Get business name for better context
-      const businessNameResult = await sql`
-        SELECT name FROM users WHERE id = ${businessIdInt}
-      `;
+      const businessNameResult = await sql.query(
+        'SELECT name FROM users WHERE id = $1',
+        [businessIdInt]
+      );
       
       const businessName = businessNameResult.length ? businessNameResult[0].name : undefined;
       
@@ -146,15 +119,10 @@ export class CustomerNotificationService {
         return [];
       }
       
-      const results = await sql`
-        SELECT 
-          cn.*,
-          b.name as business_name
-        FROM customer_notifications cn
-        JOIN users b ON cn.business_id = b.id
-        WHERE cn.customer_id = ${normalizeCustomerId(customerId)}
-        ORDER BY cn.created_at DESC
-      `;
+      const results = await sql.query(
+        'SELECT cn.*, b.name as business_name FROM customer_notifications cn JOIN users b ON cn.business_id = b.id WHERE cn.customer_id = $1 ORDER BY cn.created_at DESC',
+        [normalizeCustomerId(customerId)]
+      );
 
       return results.map(this.mapNotification);
     } catch (error) {
@@ -183,17 +151,10 @@ export class CustomerNotificationService {
         return [];
       }
       
-      const results = await sql`
-        SELECT 
-          cn.*,
-          b.name as business_name,
-          COALESCE(lp.name, (cn.data::jsonb)->>'programName') as program_name
-        FROM customer_notifications cn
-        JOIN users b ON cn.business_id = b.id
-        LEFT JOIN loyalty_programs lp ON ((cn.data::jsonb)->>'programId')::int = lp.id
-        WHERE cn.customer_id = ${normalizeCustomerId(customerId)} AND cn.is_read = FALSE
-        ORDER BY cn.created_at DESC
-      `;
+      const results = await sql.query(
+        "SELECT cn.*, b.name as business_name, COALESCE(lp.name, (cn.data::jsonb)->>'programName') as program_name FROM customer_notifications cn JOIN users b ON cn.business_id = b.id LEFT JOIN loyalty_programs lp ON ((cn.data::jsonb)->>'programId')::int = lp.id WHERE cn.customer_id = $1 AND cn.is_read = FALSE ORDER BY cn.created_at DESC",
+        [normalizeCustomerId(customerId)]
+      );
 
       return results.map(this.mapNotification);
     } catch (error) {
@@ -208,12 +169,10 @@ export class CustomerNotificationService {
    */
   static async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      const result = await sql`
-        UPDATE customer_notifications
-        SET is_read = TRUE, read_at = NOW()
-        WHERE id = ${notificationId}
-        RETURNING id
-      `;
+      const result = await sql.query(
+        'UPDATE customer_notifications SET is_read = TRUE, read_at = NOW() WHERE id = $1 RETURNING id',
+        [notificationId]
+      );
 
       return result.length > 0;
     } catch (error) {
@@ -228,12 +187,10 @@ export class CustomerNotificationService {
    */
   static async markAllAsRead(customerId: string): Promise<boolean> {
     try {
-      const result = await sql`
-        UPDATE customer_notifications
-        SET is_read = TRUE, read_at = NOW()
-        WHERE customer_id = ${parseInt(customerId)} AND is_read = FALSE
-        RETURNING id
-      `;
+      const result = await sql.query(
+        'UPDATE customer_notifications SET is_read = TRUE, read_at = NOW() WHERE customer_id = $1 AND is_read = FALSE RETURNING id',
+        [parseInt(customerId)]
+      );
 
       return true;
     } catch (error) {
@@ -390,17 +347,10 @@ export class CustomerNotificationService {
         return [];
       }
       
-      const results = await sql`
-        SELECT 
-          ar.*,
-          b.name as business_name
-        FROM customer_approval_requests ar
-        JOIN users b ON ar.business_id = b.id
-        WHERE ar.customer_id = ${parseInt(customerId)} 
-          AND ar.status = 'PENDING'
-          AND ar.expires_at > NOW()
-        ORDER BY ar.requested_at DESC
-      `;
+      const results = await sql.query(
+        "SELECT ar.*, b.name as business_name FROM customer_approval_requests ar JOIN users b ON ar.business_id = b.id WHERE ar.customer_id = $1 AND ar.status = 'PENDING' AND ar.expires_at > NOW() ORDER BY ar.requested_at DESC",
+        [parseInt(customerId)]
+      );
 
       return results.map(this.mapApprovalRequest);
     } catch (error) {
@@ -418,10 +368,10 @@ export class CustomerNotificationService {
   static async respondToApproval(requestId: string, approved: boolean): Promise<boolean> {
     try {
       // Get the approval request details
-      const request = await sql`
-        SELECT * FROM customer_approval_requests
-        WHERE id = ${requestId}
-      `;
+      const request = await sql.query(
+        'SELECT * FROM customer_approval_requests WHERE id = $1',
+        [requestId]
+      );
 
       if (!request.length) {
         console.error('Approval request not found:', requestId);
@@ -460,11 +410,10 @@ export class CustomerNotificationService {
       }
 
       // Update the approval request status
-      await sql`
-        UPDATE customer_approval_requests
-        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, updated_at = NOW()
-        WHERE id = ${requestId}
-      `;
+      await sql.query(
+        'UPDATE customer_approval_requests SET status = $2, updated_at = NOW() WHERE id = $1',
+        [requestId, approved ? 'APPROVED' : 'REJECTED']
+      );
 
       // If this is a points deduction request, handle the points deduction process
       if (requestType === 'POINTS_DEDUCTION' && approved) {
@@ -616,41 +565,20 @@ export class CustomerNotificationService {
   static async getNotificationPreferences(customerId: string): Promise<NotificationPreference> {
     try {
       // Check if preferences exist
-      const existing = await sql`
-        SELECT * FROM customer_notification_preferences
-        WHERE customer_id = ${parseInt(customerId)}
-      `;
+      const existing = await sql.query(
+        'SELECT * FROM customer_notification_preferences WHERE customer_id = $1',
+        [parseInt(customerId)]
+      );
 
       if (existing.length) {
         return this.mapNotificationPreference(existing[0]);
       }
 
       // Create default preferences
-      const result = await sql`
-        INSERT INTO customer_notification_preferences (
-          customer_id,
-          email,
-          push,
-          in_app,
-          sms,
-          enrollment_notifications,
-          points_earned_notifications,
-          points_deducted_notifications,
-          promo_code_notifications,
-          reward_available_notifications
-        ) VALUES (
-          ${parseInt(customerId)},
-          TRUE,
-          TRUE,
-          TRUE,
-          FALSE,
-          TRUE,
-          TRUE,
-          TRUE,
-          TRUE,
-          TRUE
-        ) RETURNING *
-      `;
+      const result = await sql.query(
+        'INSERT INTO customer_notification_preferences (customer_id, email, push, in_app, sms, enrollment_notifications, points_earned_notifications, points_deducted_notifications, promo_code_notifications, reward_available_notifications) VALUES ($1, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE) RETURNING *',
+        [parseInt(customerId)]
+      );
 
       return this.mapNotificationPreference(result[0]);
     } catch (error) {
@@ -759,26 +687,10 @@ export class CustomerNotificationService {
       }
       
       // Get notifications where the business is the recipient
-      const results = await sql`
-        SELECT 
-          cn.*,
-          u.name as customer_name,
-          lp.name as program_name
-        FROM customer_notifications cn
-        LEFT JOIN users u ON cn.customer_id = u.id
-        LEFT JOIN loyalty_programs lp ON 
-          ((cn.data::jsonb)->>'programId')::text = lp.id::text OR 
-          CASE WHEN cn.reference_id IS NOT NULL THEN cn.reference_id::text = lp.id::text ELSE FALSE END
-        WHERE cn.business_id = ${parseInt(businessId)}
-        AND (
-          cn.type = 'ENROLLMENT_ACCEPTED' OR
-          cn.type = 'ENROLLMENT_REJECTED' OR
-          cn.type = 'NEW_ENROLLMENT' OR
-          cn.type = 'ENROLLMENT_REQUEST'
-        )
-        ORDER BY cn.created_at DESC
-        LIMIT 50
-      `;
+      const results = await sql.query(
+        "SELECT cn.*, u.name as customer_name, lp.name as program_name FROM customer_notifications cn LEFT JOIN users u ON cn.customer_id = u.id LEFT JOIN loyalty_programs lp ON ((cn.data::jsonb)->>'programId')::text = lp.id::text OR CASE WHEN cn.reference_id IS NOT NULL THEN cn.reference_id::text = lp.id::text ELSE FALSE END WHERE cn.business_id = $1 AND (cn.type = 'ENROLLMENT_ACCEPTED' OR cn.type = 'ENROLLMENT_REJECTED' OR cn.type = 'NEW_ENROLLMENT' OR cn.type = 'ENROLLMENT_REQUEST') ORDER BY cn.created_at DESC LIMIT 50",
+        [parseInt(businessId)]
+      );
 
       return results.map(row => this.mapNotification(row));
     } catch (error) {
@@ -824,19 +736,10 @@ export class CustomerNotificationService {
         return [];
       }
       
-      const results = await sql`
-        SELECT 
-          cn.*,
-          b.name as business_name
-        FROM customer_notifications cn
-        JOIN users b ON cn.business_id = b.id
-        WHERE cn.customer_id = ${customerIdInt}
-        AND cn.business_id = ${businessIdInt}
-        AND cn.type = 'POINTS_ADDED'
-        AND ((cn.data::jsonb)->>'programId') = ${programId}
-        AND cn.created_at > ${windowTime}
-        ORDER BY cn.created_at DESC
-      `;
+      const results = await sql.query(
+        "SELECT cn.*, b.name as business_name FROM customer_notifications cn JOIN users b ON cn.business_id = b.id WHERE cn.customer_id = $1 AND cn.business_id = $2 AND cn.type = 'POINTS_ADDED' AND ((cn.data::jsonb)->>'programId') = $3 AND cn.created_at > $4 ORDER BY cn.created_at DESC",
+        [customerIdInt, businessIdInt, programId, windowTime]
+      );
 
       return results.map(this.mapNotification);
     } catch (error) {

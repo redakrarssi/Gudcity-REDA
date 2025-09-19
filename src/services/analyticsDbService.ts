@@ -124,18 +124,18 @@ export class AnalyticsDbService {
     businessId: string,
     period: 'day' | 'week' | 'month' | 'year'
   ): Promise<CoreBusinessMetricsResult> {
-    const results = await sql<CoreBusinessMetricsResult[]>`
-      WITH current_period AS (
+    const results = await sql.query<CoreBusinessMetricsResult[]>(
+      `WITH current_period AS (
         SELECT * FROM business_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         ORDER BY period_start DESC
         LIMIT 1
       ),
       previous_period AS (
         SELECT * FROM business_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
+        WHERE business_id = $1
+        AND period_type = $2
         AND period_start < (SELECT period_start FROM current_period)
         ORDER BY period_start DESC
         LIMIT 1
@@ -151,7 +151,6 @@ export class AnalyticsDbService {
         c.avg_order_value,
         c.transactions,
         c.redemptions,
-        -- Calculate period-over-period changes
         CASE 
           WHEN p.active_customers > 0 THEN 
             (c.active_customers - p.active_customers)::float / p.active_customers
@@ -173,8 +172,9 @@ export class AnalyticsDbService {
           ELSE 0
         END AS redemptions_change
       FROM current_period c
-      LEFT JOIN previous_period p ON true
-    `;
+      LEFT JOIN previous_period p ON true`,
+      [businessId, period]
+    );
 
     if (results.length === 0) {
       throw new Error(`No core metrics found for business ID ${businessId} and period ${period}`);
@@ -193,8 +193,8 @@ export class AnalyticsDbService {
   ): Promise<ProgramPerformance[]> {
     try {
       // Use direct SQL query instead of fetchBusinessMetrics utility
-      const results = await sql<ProgramAnalyticsRow[]>`
-        SELECT 
+      const results = await sql.query<ProgramAnalyticsRow[]>(
+        `SELECT 
           program_id,
           program_name,
           total_customers,
@@ -205,10 +205,11 @@ export class AnalyticsDbService {
           avg_transaction_value,
           revenue
         FROM program_analytics
-        WHERE business_id = ${businessId}
-        AND period_type = ${period}
-        ORDER BY active_customers DESC
-      `;
+        WHERE business_id = $1
+        AND period_type = $2
+        ORDER BY active_customers DESC`,
+        [businessId, period]
+      );
 
       // Use our mapping utility to transform rows
       return mapSqlRowsToObjects(results, (row: ProgramAnalyticsRow) => ({

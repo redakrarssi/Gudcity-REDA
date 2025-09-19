@@ -368,12 +368,10 @@ export class LoyaltyCardService {
    */
   static async getCustomerCard(customerId: string, businessId: string): Promise<LoyaltyCard | null> {
     try {
-      const cards = await sql`
-        SELECT * FROM loyalty_cards
-        WHERE customer_id = ${customerId}
-        AND business_id = ${businessId}
-        AND is_active = true
-      `;
+      const cards = await sql.query(
+        'SELECT * FROM loyalty_cards WHERE customer_id = $1 AND business_id = $2 AND is_active = true',
+        [customerId, businessId]
+      );
       
       if (!cards.length) {
         return null;
@@ -391,11 +389,10 @@ export class LoyaltyCardService {
    */
   static async getProgramRewards(programId: string): Promise<Reward[]> {
     try {
-      const rewards = await sql`
-        SELECT * FROM reward_tiers
-        WHERE program_id = ${programId}
-        ORDER BY points_required ASC
-      `;
+      const rewards = await sql.query(
+        'SELECT * FROM reward_tiers WHERE program_id = $1 ORDER BY points_required ASC',
+        [programId]
+      );
       
       return rewards.map((reward: any) => ({
         id: reward.id.toString(),

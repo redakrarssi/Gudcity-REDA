@@ -85,8 +85,8 @@ export class NotificationService {
   ): Promise<{ success: boolean; notification?: Notification; error?: string }> {
     try {
       // Insert notification into database
-      const result = await sql`
-        INSERT INTO customer_notifications (
+      const result = await sql.query(
+        `INSERT INTO customer_notifications (
           id,
           customer_id,
           business_id,
@@ -96,20 +96,19 @@ export class NotificationService {
           data,
           is_read,
           created_at
-        )
-        VALUES (
+        ) VALUES (
           gen_random_uuid(),
-          ${parseInt(userId)},
-          ${data?.businessId || 0},
-          ${type},
-          ${title},
-          ${message},
-          ${data ? JSON.stringify(data) : null},
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
           false,
           NOW()
-        )
-        RETURNING id, created_at
-      `;
+        ) RETURNING id, created_at`,
+        [parseInt(userId), data?.businessId || 0, type, title, message, data ? JSON.stringify(data) : null]
+      );
       
       if (result.length === 0) {
         throw new Error('Failed to insert notification');
@@ -159,8 +158,8 @@ export class NotificationService {
   ): Promise<{ notifications: Notification[]; error?: string }> {
     try {
       // Get notifications from database
-      const result = await sql`
-        SELECT 
+      const result = await sql.query(
+        `SELECT 
           id,
           customer_id,
           business_id,
@@ -171,11 +170,12 @@ export class NotificationService {
           is_read,
           created_at
         FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
+        WHERE customer_id = $1
         ORDER BY created_at DESC
-        LIMIT ${limit}
-        OFFSET ${offset}
-      `;
+        LIMIT $2
+        OFFSET $3`,
+        [parseInt(userId), limit, offset]
+      );
       
       const notifications: Notification[] = result.map(row => ({
         id: row.id,
@@ -202,17 +202,16 @@ export class NotificationService {
   ): Promise<{ stats: NotificationStats; error?: string }> {
     try {
       // Get unread count
-      const unreadResult = await sql`
-        SELECT COUNT(*) as unread_count
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)} AND is_read = false
-      `;
+      const unreadResult = await sql.query(
+        'SELECT COUNT(*) as unread_count FROM customer_notifications WHERE customer_id = $1 AND is_read = false',
+        [parseInt(userId)]
+      );
       
       const unreadCount = parseInt(unreadResult[0]?.unread_count || '0');
       
       // Get recent notifications
-      const recentResult = await sql`
-        SELECT 
+      const recentResult = await sql.query(
+        `SELECT 
           id,
           customer_id,
           business_id,
@@ -223,10 +222,11 @@ export class NotificationService {
           is_read,
           created_at
         FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
+        WHERE customer_id = $1
         ORDER BY created_at DESC
-        LIMIT 5
-      `;
+        LIMIT 5`,
+        [parseInt(userId)]
+      );
       
       const recentNotifications: Notification[] = recentResult.map(row => ({
         id: row.id,
@@ -240,12 +240,10 @@ export class NotificationService {
       }));
       
       // Get category breakdown
-      const categoryResult = await sql`
-        SELECT type, COUNT(*) as count
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
-        GROUP BY type
-      `;
+      const categoryResult = await sql.query(
+        'SELECT type, COUNT(*) as count FROM customer_notifications WHERE customer_id = $1 GROUP BY type',
+        [parseInt(userId)]
+      );
       
       const categoryBreakdown = {} as Record<NotificationType, number>;
       categoryResult.forEach(row => {
@@ -275,12 +273,10 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const result = await sql`
-        UPDATE customer_notifications
-        SET is_read = true, read_at = NOW()
-        WHERE id = ${notificationId}
-        RETURNING id
-      `;
+      const result = await sql.query(
+        'UPDATE customer_notifications SET is_read = true, read_at = NOW() WHERE id = $1 RETURNING id',
+        [notificationId]
+      );
       
       if (result.length === 0) {
         return { success: false, error: 'Notification not found' };
@@ -638,8 +634,8 @@ export class NotificationService {
         )
       `;
       
-      const result = await sql`
-        SELECT 
+      const result = await sql.query(
+        `SELECT 
           rn.id,
           rn.customer_id,
           COALESCE(u.name, 'Customer') as customer_name,
@@ -655,10 +651,11 @@ export class NotificationService {
         FROM redemption_notifications rn
         LEFT JOIN users u ON CAST(rn.customer_id AS INTEGER) = u.id
         LEFT JOIN loyalty_programs lp ON CAST(rn.program_id AS INTEGER) = lp.id
-        WHERE rn.business_id = ${businessId}
+        WHERE rn.business_id = $1
         ORDER BY rn.created_at DESC
-        LIMIT 50
-      `;
+        LIMIT 50`,
+        [businessId]
+      );
       
       console.log(`🔍 Found ${result.length} notifications for business ${businessId}`);
       
@@ -706,11 +703,10 @@ export class NotificationService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // First check if the notification exists and belongs to this business
-      const check = await sql`
-        SELECT * FROM redemption_notifications
-        WHERE id = ${notificationId}
-        AND business_id = ${businessId}
-      `;
+      const check = await sql.query(
+        'SELECT * FROM redemption_notifications WHERE id = $1 AND business_id = $2',
+        [notificationId, businessId]
+      );
       
       if (!check.length) {
         return {
@@ -720,11 +716,10 @@ export class NotificationService {
       }
       
       // Update the status
-      await sql`
-        UPDATE redemption_notifications
-        SET status = ${status}, updated_at = NOW(), is_read = TRUE
-        WHERE id = ${notificationId}
-      `;
+      await sql.query(
+        'UPDATE redemption_notifications SET status = $1, updated_at = NOW(), is_read = TRUE WHERE id = $2',
+        [status, notificationId]
+      );
       
       // Get the notification details for the event
       const notification = check[0];
@@ -881,11 +876,10 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      await sql`
-        UPDATE redemption_notifications
-        SET is_read = TRUE, updated_at = NOW()
-        WHERE id = ${notificationId}
-      `;
+      await sql.query(
+        'UPDATE redemption_notifications SET is_read = TRUE, updated_at = NOW() WHERE id = $1',
+        [notificationId]
+      );
       
       return { success: true };
     } catch (error) {
@@ -908,8 +902,8 @@ export class NotificationService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // First, get the redemption notification details
-      const redemptionDetails = await sql`
-        SELECT 
+      const redemptionDetails = await sql.query(
+        `SELECT 
           rn.id,
           rn.customer_id,
           COALESCE(u.name, 'Customer') as customer_name,
@@ -925,8 +919,9 @@ export class NotificationService {
         LEFT JOIN users u ON CAST(rn.customer_id AS INTEGER) = u.id
         LEFT JOIN users b ON CAST(rn.business_id AS INTEGER) = b.id
         LEFT JOIN loyalty_programs lp ON CAST(rn.program_id AS INTEGER) = lp.id
-        WHERE rn.id = ${notificationId}
-      `;
+        WHERE rn.id = $1`,
+        [notificationId]
+      );
 
       if (redemptionDetails.length === 0) {
         return {
@@ -938,11 +933,10 @@ export class NotificationService {
       const redemption = redemptionDetails[0];
 
       // Update the redemption notification status
-      await sql`
-        UPDATE redemption_notifications
-        SET status = 'COMPLETED', is_read = TRUE, updated_at = NOW()
-        WHERE id = ${notificationId}
-      `;
+      await sql.query(
+        "UPDATE redemption_notifications SET status = 'COMPLETED', is_read = TRUE, updated_at = NOW() WHERE id = $1",
+        [notificationId]
+      );
 
       // Send delivery confirmation notification to customer
       try {

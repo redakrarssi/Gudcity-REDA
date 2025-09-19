@@ -112,14 +112,15 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<number> {
     try {
-      const result = await sql`
-        SELECT COALESCE(SUM(pe.current_points), 0) as total_points
-        FROM program_enrollments pe
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE lp.business_id = ${businessId}
-          AND pe.status = 'ACTIVE'
-          AND pe.enrolled_at BETWEEN ${startDate} AND ${endDate}
-      `;
+      const result = await sql.query(
+        `SELECT COALESCE(SUM(pe.current_points), 0) as total_points
+         FROM program_enrollments pe
+         JOIN loyalty_programs lp ON pe.program_id = lp.id
+         WHERE lp.business_id = $1
+           AND pe.status = 'ACTIVE'
+           AND pe.enrolled_at BETWEEN $2 AND $3`,
+        [businessId, startDate, endDate]
+      );
       
       return parseInt(result[0]?.total_points || '0');
     } catch (error) {
@@ -137,13 +138,14 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<number> {
     try {
-      const result = await sql`
-        SELECT COUNT(*) as total_redemptions
-        FROM redemption_notifications rn
-        WHERE rn.business_id = ${businessId}
-          AND rn.created_at BETWEEN ${startDate} AND ${endDate}
-          AND rn.status = 'COMPLETED'
-      `;
+      const result = await sql.query(
+        `SELECT COUNT(*) as total_redemptions
+         FROM redemption_notifications rn
+         WHERE rn.business_id = $1
+           AND rn.created_at BETWEEN $2 AND $3
+           AND rn.status = 'COMPLETED'`,
+        [businessId, startDate, endDate]
+      );
       
       return parseInt(result[0]?.total_redemptions || '0');
     } catch (error) {
@@ -161,17 +163,18 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<number> {
     try {
-      const result = await sql`
-        SELECT COUNT(DISTINCT c.id) as active_customers
-        FROM users c
-        JOIN program_enrollments pe ON c.id = pe.customer_id
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE lp.business_id = ${businessId}
-          AND c.user_type = 'customer'
-          AND c.status = 'active'
-          AND pe.status = 'ACTIVE'
-          AND pe.enrolled_at BETWEEN ${startDate} AND ${endDate}
-      `;
+      const result = await sql.query(
+        `SELECT COUNT(DISTINCT c.id) as active_customers
+         FROM users c
+         JOIN program_enrollments pe ON c.id = pe.customer_id
+         JOIN loyalty_programs lp ON pe.program_id = lp.id
+         WHERE lp.business_id = $1
+           AND c.user_type = 'customer'
+           AND c.status = 'active'
+           AND pe.status = 'ACTIVE'
+           AND pe.enrolled_at BETWEEN $2 AND $3`,
+        [businessId, startDate, endDate]
+      );
       
       return parseInt(result[0]?.active_customers || '0');
     } catch (error) {
@@ -190,28 +193,29 @@ export class BusinessAnalyticsService {
   ): Promise<number> {
     try {
       // Calculate retention rate based on customers who have multiple visits
-      const result = await sql`
-        WITH customer_visits AS (
-          SELECT 
-            c.id,
-            COUNT(DISTINCT lt.transaction_date::date) as visit_count
-          FROM users c
-          JOIN program_enrollments pe ON c.id = pe.customer_id
-          JOIN loyalty_programs lp ON pe.program_id = lp.id
-          LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessId}
-          WHERE lp.business_id = ${businessId}
-            AND c.user_type = 'customer'
-            AND c.status = 'active'
-            AND pe.status = 'ACTIVE'
-          GROUP BY c.id
-        )
-        SELECT 
-          CASE 
-            WHEN COUNT(*) = 0 THEN 0
-            ELSE ROUND((COUNT(CASE WHEN visit_count > 1 THEN 1 END) * 100.0 / COUNT(*)), 1)
-          END as retention_rate
-        FROM customer_visits
-      `;
+      const result = await sql.query(
+        `WITH customer_visits AS (
+           SELECT 
+             c.id,
+             COUNT(DISTINCT lt.transaction_date::date) as visit_count
+           FROM users c
+           JOIN program_enrollments pe ON c.id = pe.customer_id
+           JOIN loyalty_programs lp ON pe.program_id = lp.id
+           LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = $1
+           WHERE lp.business_id = $1
+             AND c.user_type = 'customer'
+             AND c.status = 'active'
+             AND pe.status = 'ACTIVE'
+           GROUP BY c.id
+         )
+         SELECT 
+           CASE 
+             WHEN COUNT(*) = 0 THEN 0
+             ELSE ROUND((COUNT(CASE WHEN visit_count > 1 THEN 1 END) * 100.0 / COUNT(*)), 1)
+           END as retention_rate
+         FROM customer_visits`,
+        [businessId]
+      );
       
       return parseFloat(result[0]?.retention_rate || '0');
     } catch (error) {
@@ -266,18 +270,19 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<Array<{reward: string, count: number}>> {
     try {
-      const result = await sql`
-        SELECT 
-          rn.reward as reward_name,
-          COUNT(*) as redemption_count
-        FROM redemption_notifications rn
-        WHERE rn.business_id = ${businessId}
-          AND rn.status = 'COMPLETED'
-          AND rn.created_at BETWEEN ${startDate} AND ${endDate}
-        GROUP BY rn.reward
-        ORDER BY redemption_count DESC
-        LIMIT 5
-      `;
+      const result = await sql.query(
+        `SELECT 
+           rn.reward as reward_name,
+           COUNT(*) as redemption_count
+         FROM redemption_notifications rn
+         WHERE rn.business_id = $1
+           AND rn.status = 'COMPLETED'
+           AND rn.created_at BETWEEN $2 AND $3
+         GROUP BY rn.reward
+         ORDER BY redemption_count DESC
+         LIMIT 5`,
+        [businessId, startDate, endDate]
+      );
       
       return result.map(row => ({
         reward: row.reward_name || 'Unknown Reward',
@@ -298,17 +303,18 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<Array<{date: string, value: number}>> {
     try {
-      const result = await sql`
-        SELECT 
-          DATE(lt.transaction_date) as visit_date,
-          COUNT(DISTINCT lt.customer_id) as daily_customers
-        FROM loyalty_transactions lt
-        WHERE lt.business_id = ${businessId}
-          AND lt.transaction_date BETWEEN ${startDate} AND ${endDate}
-        GROUP BY DATE(lt.transaction_date)
-        ORDER BY visit_date ASC
-        LIMIT 30
-      `;
+      const result = await sql.query(
+        `SELECT 
+           DATE(lt.transaction_date) as visit_date,
+           COUNT(DISTINCT lt.customer_id) as daily_customers
+         FROM loyalty_transactions lt
+         WHERE lt.business_id = $1
+           AND lt.transaction_date BETWEEN $2 AND $3
+         GROUP BY DATE(lt.transaction_date)
+         ORDER BY visit_date ASC
+         LIMIT 30`,
+        [businessId, startDate, endDate]
+      );
       
       return result.map(row => ({
         date: row.visit_date,
@@ -329,31 +335,32 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<Array<{category: string, value: number}>> {
     try {
-      const result = await sql`
-        WITH points_summary AS (
-          SELECT 
-            COALESCE(SUM(pe.current_points), 0) as total_earned,
-            COALESCE(SUM(CASE WHEN rn.status = 'COMPLETED' THEN rn.points ELSE 0 END), 0) as total_redeemed
-          FROM program_enrollments pe
-          JOIN loyalty_programs lp ON pe.program_id = lp.id
-          LEFT JOIN redemption_notifications rn ON rn.business_id = ${businessId}
-          WHERE lp.business_id = ${businessId}
-            AND pe.status = 'ACTIVE'
-            AND (pe.enrolled_at BETWEEN ${startDate} AND ${endDate} OR rn.created_at BETWEEN ${startDate} AND ${endDate})
-        )
-        SELECT 
-          total_earned,
-          total_redeemed,
-          CASE 
-            WHEN total_earned = 0 THEN 0
-            ELSE ROUND((total_earned * 100.0 / (total_earned + total_redeemed)), 1)
-          END as earned_percentage,
-          CASE 
-            WHEN total_redeemed = 0 THEN 0
-            ELSE ROUND((total_redeemed * 100.0 / (total_earned + total_redeemed)), 1)
-          END as redeemed_percentage
-        FROM points_summary
-      `;
+      const result = await sql.query(
+        `WITH points_summary AS (
+           SELECT 
+             COALESCE(SUM(pe.current_points), 0) as total_earned,
+             COALESCE(SUM(CASE WHEN rn.status = 'COMPLETED' THEN rn.points ELSE 0 END), 0) as total_redeemed
+           FROM program_enrollments pe
+           JOIN loyalty_programs lp ON pe.program_id = lp.id
+           LEFT JOIN redemption_notifications rn ON rn.business_id = $1
+           WHERE lp.business_id = $1
+             AND pe.status = 'ACTIVE'
+             AND (pe.enrolled_at BETWEEN $2 AND $3 OR rn.created_at BETWEEN $2 AND $3)
+         )
+         SELECT 
+           total_earned,
+           total_redeemed,
+           CASE 
+             WHEN total_earned = 0 THEN 0
+             ELSE ROUND((total_earned * 100.0 / (total_earned + total_redeemed)), 1)
+           END as earned_percentage,
+           CASE 
+             WHEN total_redeemed = 0 THEN 0
+             ELSE ROUND((total_redeemed * 100.0 / (total_earned + total_redeemed)), 1)
+           END as redeemed_percentage
+         FROM points_summary`,
+        [businessId, startDate, endDate]
+      );
       
       const row = result[0];
       if (!row) return [];
@@ -376,12 +383,10 @@ export class BusinessAnalyticsService {
    */
   private static async getTotalPrograms(businessId: string): Promise<number> {
     try {
-      const result = await sql`
-        SELECT COUNT(*) as total_programs
-        FROM loyalty_programs
-        WHERE business_id = ${businessId}
-          AND status = 'ACTIVE'
-      `;
+      const result = await sql.query(
+        'SELECT COUNT(*) as total_programs FROM loyalty_programs WHERE business_id = $1 AND status = \'ACTIVE\'',
+        [businessId]
+      );
       
       return parseInt(result[0]?.total_programs || '0');
     } catch (error) {
@@ -395,12 +400,10 @@ export class BusinessAnalyticsService {
    */
   private static async getTotalPromoCodes(businessId: string): Promise<number> {
     try {
-      const result = await sql`
-        SELECT COUNT(*) as total_promo_codes
-        FROM promo_codes
-        WHERE business_id = ${businessId}
-          AND status = 'ACTIVE'
-      `;
+      const result = await sql.query(
+        'SELECT COUNT(*) as total_promo_codes FROM promo_codes WHERE business_id = $1 AND status = \'ACTIVE\'',
+        [businessId]
+      );
       
       return parseInt(result[0]?.total_promo_codes || '0');
     } catch (error) {
@@ -418,21 +421,22 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<number> {
     try {
-      const result = await sql`
-        SELECT 
-          CASE 
-            WHEN COUNT(DISTINCT c.id) = 0 THEN 0
-            ELSE ROUND(AVG(pe.current_points), 1)
-          END as avg_points_per_customer
-        FROM users c
-        JOIN program_enrollments pe ON c.id = pe.customer_id
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE lp.business_id = ${businessId}
-          AND c.user_type = 'customer'
-          AND c.status = 'active'
-          AND pe.status = 'ACTIVE'
-          AND pe.enrolled_at BETWEEN ${startDate} AND ${endDate}
-      `;
+      const result = await sql.query(
+        `SELECT 
+           CASE 
+             WHEN COUNT(DISTINCT c.id) = 0 THEN 0
+             ELSE ROUND(AVG(pe.current_points), 1)
+           END as avg_points_per_customer
+         FROM users c
+         JOIN program_enrollments pe ON c.id = pe.customer_id
+         JOIN loyalty_programs lp ON pe.program_id = lp.id
+         WHERE lp.business_id = $1
+           AND c.user_type = 'customer'
+           AND c.status = 'active'
+           AND pe.status = 'ACTIVE'
+           AND pe.enrolled_at BETWEEN $2 AND $3`,
+        [businessId, startDate, endDate]
+      );
       
       return parseFloat(result[0]?.avg_points_per_customer || '0');
     } catch (error) {
@@ -450,21 +454,22 @@ export class BusinessAnalyticsService {
     endDate: string
   ): Promise<Array<{name: string, customers: number, points: number}>> {
     try {
-      const result = await sql`
-        SELECT 
-          lp.name as program_name,
-          COUNT(DISTINCT pe.customer_id) as customer_count,
-          COALESCE(SUM(pe.current_points), 0) as total_points
-        FROM loyalty_programs lp
-        LEFT JOIN program_enrollments pe ON lp.id = pe.program_id
-        WHERE lp.business_id = ${businessId}
-          AND lp.status = 'ACTIVE'
-          AND (pe.status = 'ACTIVE' OR pe.status IS NULL)
-          AND (pe.enrolled_at BETWEEN ${startDate} AND ${endDate} OR pe.enrolled_at IS NULL)
-        GROUP BY lp.id, lp.name
-        ORDER BY customer_count DESC, total_points DESC
-        LIMIT 5
-      `;
+      const result = await sql.query(
+        `SELECT 
+           lp.name as program_name,
+           COUNT(DISTINCT pe.customer_id) as customer_count,
+           COALESCE(SUM(pe.current_points), 0) as total_points
+         FROM loyalty_programs lp
+         LEFT JOIN program_enrollments pe ON lp.id = pe.program_id
+         WHERE lp.business_id = $1
+           AND lp.status = 'ACTIVE'
+           AND (pe.status = 'ACTIVE' OR pe.status IS NULL)
+           AND (pe.enrolled_at BETWEEN $2 AND $3 OR pe.enrolled_at IS NULL)
+         GROUP BY lp.id, lp.name
+         ORDER BY customer_count DESC, total_points DESC
+         LIMIT 5`,
+        [businessId, startDate, endDate]
+      );
       
       return result.map(row => ({
         name: row.program_name || 'Unknown Program',

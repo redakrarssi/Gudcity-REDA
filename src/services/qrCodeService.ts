@@ -158,9 +158,10 @@ export class QrCodeService {
    */
   static async getUserQrCode(userId: string): Promise<string | null> {
     try {
-      const result = await sql`
-        SELECT id, name, email, user_type FROM users WHERE id = ${userId}
-      `;
+      const result = await sql.query(
+        'SELECT id, name, email, user_type FROM users WHERE id = $1',
+        [userId]
+      );
 
       if (result.length === 0) {
         return null;
@@ -193,9 +194,10 @@ export class QrCodeService {
     }
 
     try {
-      const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${customerId} AND user_type = 'customer'
-      `;
+      const result = await sql.query(
+        "SELECT id, name, email FROM users WHERE id = $1 AND user_type = 'customer'",
+        [customerId]
+      );
 
       if (result.length === 0) {
         return null;
@@ -239,9 +241,10 @@ export class QrCodeService {
             }
             
             try {
-                  const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${businessId} AND user_type = 'business'
-      `;
+                  const result = await sql.query(
+        "SELECT id, name, email FROM users WHERE id = $1 AND user_type = 'business'",
+        [businessId]
+      );
 
       if (result.length === 0) {
         return null;
@@ -281,8 +284,8 @@ export class QrCodeService {
     }
 
     try {
-      const result = await sql`
-        SELECT 
+      const result = await sql.query(
+        `SELECT 
           lc.*,
           lp.name as program_name,
           u.name as business_name,
@@ -291,11 +294,12 @@ export class QrCodeService {
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN users u ON lc.business_id = u.id
         JOIN users customer ON lc.customer_id = customer.id
-        WHERE lc.customer_id = ${customerId}
-        AND lc.business_id = ${businessId}
-        AND lc.program_id = ${programId}
-        AND lc.is_active = true
-      `;
+        WHERE lc.customer_id = $1
+        AND lc.business_id = $2
+        AND lc.program_id = $3
+        AND lc.is_active = true`,
+        [customerId, businessId, programId]
+      );
 
       if (result.length === 0) {
           return null;
@@ -410,9 +414,10 @@ export class QrCodeService {
       }
 
       // Get business information
-      const business = await sql`
-        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
-      `;
+      const business = await sql.query(
+        "SELECT name FROM users WHERE id = $1 AND user_type = 'business'",
+        [businessId]
+      );
       
       const businessName = business.length > 0 ? business[0].name : 'Business';
 
@@ -445,12 +450,10 @@ export class QrCodeService {
         console.log(`Customer ${customerId} not enrolled with business ${businessId}`);
         
         // Get available programs for this business
-        const availablePrograms = await sql`
-          SELECT id, name, description, points_multiplier, is_active
-          FROM loyalty_programs 
-          WHERE business_id = ${businessId} AND is_active = true
-          ORDER BY created_at DESC
-        `;
+        const availablePrograms = await sql.query(
+          'SELECT id, name, description, points_multiplier, is_active FROM loyalty_programs WHERE business_id = $1 AND is_active = true ORDER BY created_at DESC',
+          [businessId]
+        );
 
             return {
               success: true,
@@ -529,9 +532,10 @@ export class QrCodeService {
       const programName = qrCodeData.programName || "Loyalty Program";
       
       // Get the business name
-      const businessResult = await sql`
-        SELECT name FROM users WHERE id = ${parseInt(businessId)}
-      `;
+      const businessResult = await sql.query(
+        'SELECT name FROM users WHERE id = $1',
+        [parseInt(businessId)]
+      );
       
       const businessName = businessResult.length > 0 
         ? businessResult[0].name 
@@ -541,12 +545,10 @@ export class QrCodeService {
       console.log(`🎯 Loyalty Card QR scanned: Card ${cardId}, Program ${programId}. Ready for manual point awarding.`);
       
       // Get current card info for display (no automatic point awarding)
-      const cardInfo = await sql`
-        SELECT lc.*, lp.name as program_name
-        FROM loyalty_cards lc
-        LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-        WHERE lc.id = ${cardId}
-      `;
+      const cardInfo = await sql.query(
+        'SELECT lc.*, lp.name as program_name FROM loyalty_cards lc LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id WHERE lc.id = $1',
+        [cardId]
+      );
       
       const success = cardInfo.length > 0; // Just check if card exists
 
@@ -591,13 +593,10 @@ export class QrCodeService {
       const promoCode = qrCodeData.promoCode;
       
       // Validate promo code
-      const promoResult = await sql`
-        SELECT * FROM promo_codes 
-        WHERE code = ${promoCode} 
-        AND business_id = ${businessId}
-        AND is_active = true
-        AND (expires_at IS NULL OR expires_at > NOW())
-      `;
+      const promoResult = await sql.query(
+        'SELECT * FROM promo_codes WHERE code = $1 AND business_id = $2 AND is_active = true AND (expires_at IS NULL OR expires_at > NOW())',
+        [promoCode, businessId]
+      );
 
       if (promoResult.length === 0) {
         return {
@@ -638,23 +637,10 @@ export class QrCodeService {
     metadata: any = {}
   ): Promise<void> {
     try {
-      await sql`
-        INSERT INTO qr_scan_logs (
-          scan_type,
-          scanned_by,
-          qr_code_data,
-          is_valid,
-          metadata,
-          scanned_at
-        ) VALUES (
-          ${scanType},
-          ${scannedBy},
-          ${JSON.stringify(qrCodeData)},
-          ${isValid},
-          ${JSON.stringify(metadata)},
-          NOW()
-        )
-      `;
+      await sql.query(
+        'INSERT INTO qr_scan_logs (scan_type, scanned_by, qr_code_data, is_valid, metadata, scanned_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+        [scanType, scannedBy, JSON.stringify(qrCodeData), isValid, JSON.stringify(metadata)]
+      );
     } catch (error) {
       console.error('Error logging QR scan:', error);
       // Don't throw error to avoid breaking the main flow

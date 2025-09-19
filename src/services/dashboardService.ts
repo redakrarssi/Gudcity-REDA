@@ -67,57 +67,29 @@ export interface DashboardStats {
 export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     // Get user stats
-    const userResults = await sql`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN role = 'customer' OR user_type = 'customer' THEN 1 END) as customers,
-        COUNT(CASE WHEN role = 'business' OR user_type = 'business' THEN 1 END) as businesses,
-        COUNT(CASE WHEN role = 'admin' THEN 1 END) as admins,
-        COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as new_today,
-        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as new_this_week,
-        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month
-      FROM users
-    `;
+    const userResults = await sql.query(
+      "SELECT COUNT(*) as total, COUNT(CASE WHEN role = 'customer' OR user_type = 'customer' THEN 1 END) as customers, COUNT(CASE WHEN role = 'business' OR user_type = 'business' THEN 1 END) as businesses, COUNT(CASE WHEN role = 'admin' THEN 1 END) as admins, COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as new_today, COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as new_this_week, COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month FROM users"
+    );
 
     // Get business stats
-    const businessResults = await sql`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
-        COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive,
-        COUNT(CASE WHEN status = 'suspended' THEN 1 END) as suspended,
-        COUNT(CASE WHEN DATE(registered_at) = CURRENT_DATE THEN 1 END) as new_today,
-        COUNT(CASE WHEN registered_at >= NOW() - INTERVAL '7 days' THEN 1 END) as new_this_week,
-        COUNT(CASE WHEN registered_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month
-      FROM businesses
-    `;
+    const businessResults = await sql.query(
+      "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'active' THEN 1 END) as active, COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive, COUNT(CASE WHEN status = 'suspended' THEN 1 END) as suspended, COUNT(CASE WHEN DATE(registered_at) = CURRENT_DATE THEN 1 END) as new_today, COUNT(CASE WHEN registered_at >= NOW() - INTERVAL '7 days' THEN 1 END) as new_this_week, COUNT(CASE WHEN registered_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month FROM businesses"
+    );
 
     // Get transaction stats
-    const transactionResults = await sql`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN DATE(transaction_date) = CURRENT_DATE THEN 1 END) as today,
-        COUNT(CASE WHEN transaction_date >= NOW() - INTERVAL '7 days' THEN 1 END) as this_week,
-        COUNT(CASE WHEN transaction_date >= NOW() - INTERVAL '30 days' THEN 1 END) as this_month,
-        COALESCE(SUM(amount), 0) as total_value
-      FROM business_transactions
-    `;
+    const transactionResults = await sql.query(
+      "SELECT COUNT(*) as total, COUNT(CASE WHEN DATE(transaction_date) = CURRENT_DATE THEN 1 END) as today, COUNT(CASE WHEN transaction_date >= NOW() - INTERVAL '7 days' THEN 1 END) as this_week, COUNT(CASE WHEN transaction_date >= NOW() - INTERVAL '30 days' THEN 1 END) as this_month, COALESCE(SUM(amount), 0) as total_value FROM business_transactions"
+    );
 
     // Get pending business applications
-    const pendingApplications = await sql`
-      SELECT COUNT(*) as pending
-      FROM business_applications
-      WHERE status = 'pending'
-    `;
+    const pendingApplications = await sql.query(
+      "SELECT COUNT(*) as pending FROM business_applications WHERE status = 'pending'"
+    );
 
     // Get recent pending business applications
-    const recentPendingBusinesses = await sql`
-      SELECT *
-      FROM business_applications
-      WHERE status = 'pending'
-      ORDER BY submitted_at DESC
-      LIMIT 5
-    `;
+    const recentPendingBusinesses = await sql.query(
+      "SELECT * FROM business_applications WHERE status = 'pending' ORDER BY submitted_at DESC LIMIT 5"
+    );
 
     // Map business applications to the right format
     const mappedPendingBusinesses = recentPendingBusinesses.map((app: any) => ({
@@ -160,12 +132,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ];
 
     // Get recent activities from logs
-    const recentActivities = await sql`
-      SELECT id, action as type, description as message, created_at as timestamp
-      FROM system_logs
-      ORDER BY created_at DESC
-      LIMIT 10
-    `;
+    const recentActivities = await sql.query(
+      'SELECT id, action as type, description as message, created_at as timestamp FROM system_logs ORDER BY created_at DESC LIMIT 10'
+    );
 
     // Format activities
     const mappedActivities = recentActivities.map((activity: any) => {

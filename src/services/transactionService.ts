@@ -38,59 +38,30 @@ export class TransactionService {
       const programIdInt = parseInt(programId);
 
       // Check if customer is enrolled in program
-      const enrollment = await sql`
-        SELECT * FROM customer_programs
-        WHERE customer_id = ${customerIdInt}
-        AND program_id = ${programIdInt}
-      `;
+      const enrollment = await sql.query(
+        'SELECT * FROM customer_programs WHERE customer_id = $1 AND program_id = $2',
+        [customerIdInt, programIdInt]
+      );
 
       // If not enrolled, enroll them
       if (enrollment.length === 0) {
-        await sql`
-          INSERT INTO customer_programs (
-            customer_id, 
-            program_id, 
-            current_points,
-            enrolled_at
-          )
-          VALUES (
-            ${customerIdInt}, 
-            ${programIdInt}, 
-            ${points},
-            NOW()
-          )
-        `;
+        await sql.query(
+          'INSERT INTO customer_programs (customer_id, program_id, current_points, enrolled_at) VALUES ($1, $2, $3, NOW())',
+          [customerIdInt, programIdInt, points]
+        );
       } else {
         // Update existing points
-        await sql`
-          UPDATE customer_programs
-          SET current_points = current_points + ${points},
-              updated_at = NOW()
-          WHERE customer_id = ${customerIdInt}
-          AND program_id = ${programIdInt}
-        `;
+        await sql.query(
+          'UPDATE customer_programs SET current_points = current_points + $1, updated_at = NOW() WHERE customer_id = $2 AND program_id = $3',
+          [points, customerIdInt, programIdInt]
+        );
       }
 
       // Record the transaction
-      const transaction = await sql`
-        INSERT INTO point_transactions (
-          customer_id,
-          business_id,
-          program_id,
-          points,
-          transaction_type,
-          created_at
-        )
-        VALUES (
-          ${customerIdInt},
-          ${businessIdInt},
-          ${programIdInt},
-          ${points},
-          'AWARD',
-          NOW()
-        )
-        RETURNING id
-      `;
+      const transaction = await sql.query(
+        "INSERT INTO point_transactions (customer_id, business_id, program_id, points, transaction_type, created_at) VALUES ($1, $2, $3, $4, 'AWARD', NOW()) RETURNING id",
+        [customerIdInt, businessIdInt, programIdInt, points]
+      );
 
       // Get business and program names if not provided
       const actualBusinessName = businessName || await this.getBusinessName(businessId);
@@ -153,15 +124,10 @@ export class TransactionService {
 
       // Try to get reward details from database
       try {
-        const rewardResult = await sql`
-          SELECT 
-            r.points_required as "pointsRequired",
-            p.business_id::text as "businessId"
-          FROM loyalty_program_rewards r
-          JOIN loyalty_programs p ON r.program_id = p.id
-          WHERE r.id = ${parseInt(rewardId)}
-          AND p.id = ${programIdInt}
-        `;
+        const rewardResult = await sql.query(
+          'SELECT r.points_required as "pointsRequired", p.business_id::text as "businessId" FROM loyalty_program_rewards r JOIN loyalty_programs p ON r.program_id = p.id WHERE r.id = $1 AND p.id = $2',
+          [parseInt(rewardId), programIdInt]
+        );
         
         if (rewardResult && rewardResult.length > 0) {
           pointsRequired = rewardResult[0].pointsRequired;
@@ -202,12 +168,10 @@ export class TransactionService {
       let currentPoints = 0;
 
       try {
-        const pointsResult = await sql`
-          SELECT current_points as "currentPoints"
-          FROM customer_programs
-          WHERE customer_id = ${customerIdInt}
-          AND program_id = ${programIdInt}
-        `;
+        const pointsResult = await sql.query(
+          'SELECT current_points as "currentPoints" FROM customer_programs WHERE customer_id = $1 AND program_id = $2',
+          [customerIdInt, programIdInt]
+        );
         
         if (pointsResult && pointsResult.length > 0) {
           currentPoints = pointsResult[0].currentPoints;
@@ -246,36 +210,17 @@ export class TransactionService {
       // Update points balance and record the transaction
       try {
         // Update customer's points balance
-        await sql`
-          UPDATE customer_programs
-          SET current_points = current_points - ${pointsRequired},
-              updated_at = NOW()
-          WHERE customer_id = ${customerIdInt}
-          AND program_id = ${programIdInt}
-        `;
+        await sql.query(
+          'UPDATE customer_programs SET current_points = current_points - $1, updated_at = NOW() WHERE customer_id = $2 AND program_id = $3',
+          [pointsRequired, customerIdInt, programIdInt]
+        );
         
         // Record the transaction
         const businessIdInt = parseInt(businessId);
-        await sql`
-          INSERT INTO point_transactions (
-            customer_id,
-            business_id,
-            program_id,
-            points,
-            transaction_type,
-            reward_id,
-            created_at
-          )
-          VALUES (
-            ${customerIdInt},
-            ${businessIdInt},
-            ${programIdInt},
-            ${pointsRequired},
-            'REDEEM',
-            ${parseInt(rewardId)},
-            NOW()
-          )
-        `;
+        await sql.query(
+          "INSERT INTO point_transactions (customer_id, business_id, program_id, points, transaction_type, reward_id, created_at) VALUES ($1, $2, $3, $4, 'REDEEM', $5, NOW())",
+          [customerIdInt, businessIdInt, programIdInt, pointsRequired, parseInt(rewardId)]
+        );
       } catch (err) {
         console.error('Error updating database:', err);
         
@@ -529,10 +474,10 @@ export class TransactionService {
   private static async getBusinessName(businessId: string): Promise<string> {
     try {
       // Try to get from database
-      const result = await sql`
-        SELECT name FROM businesses
-        WHERE id = ${parseInt(businessId)}
-      `;
+      const result = await sql.query(
+        'SELECT name FROM businesses WHERE id = $1',
+        [parseInt(businessId)]
+      );
       
       if (result && result.length > 0) {
         return result[0].name;
@@ -548,10 +493,10 @@ export class TransactionService {
   private static async getProgramName(programId: string): Promise<string> {
     try {
       // Try to get from database
-      const result = await sql`
-        SELECT name FROM loyalty_programs
-        WHERE id = ${parseInt(programId)}
-      `;
+      const result = await sql.query(
+        'SELECT name FROM loyalty_programs WHERE id = $1',
+        [parseInt(programId)]
+      );
       
       if (result && result.length > 0) {
         return result[0].name;
@@ -568,10 +513,10 @@ export class TransactionService {
   private static async getRewardName(rewardId: string): Promise<string> {
     try {
       // Try to get from database
-      const result = await sql`
-        SELECT reward_name FROM loyalty_program_rewards
-        WHERE id = ${parseInt(rewardId)}
-      `;
+      const result = await sql.query(
+        'SELECT reward_name FROM loyalty_program_rewards WHERE id = $1',
+        [parseInt(rewardId)]
+      );
       
       if (result && result.length > 0) {
         return result[0].reward_name;

@@ -61,23 +61,24 @@ export class CustomerService {
       console.log(`📊 Total active customers in system: ${allCustomers[0]?.count || 0}`);
       
       // Check if there are programs for this business
-      const businessPrograms = await sql`
-        SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = ${businessIdInt}
-      `;
+      const businessPrograms = await sql.query(
+        'SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = $1',
+        [businessIdInt]
+      );
       console.log(`📊 Programs for business ${businessIdInt}: ${businessPrograms[0]?.count || 0}`);
       
       // Check if there are any program enrollments
-      const enrollments = await sql`
-        SELECT COUNT(*) as count FROM program_enrollments pe
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE lp.business_id = ${businessIdInt}
-      `;
+      const enrollments = await sql.query(
+        'SELECT COUNT(*) as count FROM program_enrollments pe JOIN loyalty_programs lp ON pe.program_id = lp.id WHERE lp.business_id = $1',
+        [businessIdInt]
+      );
       console.log(`📊 Program enrollments for business ${businessIdInt}: ${enrollments[0]?.count || 0}`);
       
       // Check if there are any loyalty transactions
-      const transactions = await sql`
-        SELECT COUNT(*) as count FROM loyalty_transactions WHERE business_id = ${businessIdInt}
-      `;
+      const transactions = await sql.query(
+        'SELECT COUNT(*) as count FROM loyalty_transactions WHERE business_id = $1',
+        [businessIdInt]
+      );
       console.log(`📊 Loyalty transactions for business ${businessIdInt}: ${transactions[0]?.count || 0}`);
       
     } catch (error) {
@@ -110,8 +111,8 @@ export class CustomerService {
       
       // Get customers who are enrolled in AT LEAST ONE program of this business (BIG RULE)
       // Use DISTINCT ON to ensure each customer appears only once
-      const customers = await sql`
-        SELECT DISTINCT ON (c.id)
+      const customers = await sql.query(
+        `SELECT DISTINCT ON (c.id)
           c.id,
           c.name,
           c.email,
@@ -125,14 +126,15 @@ export class CustomerService {
         FROM users c
         JOIN program_enrollments pe ON c.id = pe.customer_id
         JOIN loyalty_programs lp ON pe.program_id = lp.id
-        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = $1
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND lp.business_id = ${businessIdInt}
+          AND lp.business_id = $1
           AND pe.status = 'ACTIVE'
         GROUP BY c.id, c.name, c.email, c.status, c.created_at
-        ORDER BY c.id, c.name ASC
-      `;
+        ORDER BY c.id, c.name ASC`,
+        [businessIdInt]
+      );
       
       console.log(`🔍 DEBUG: Raw SQL query returned ${customers.length} rows`);
       console.log(`🔍 DEBUG: First few raw results:`, customers.slice(0, 3));
@@ -199,25 +201,26 @@ export class CustomerService {
       }
       
       // Get customers who have had any transactions with this business
-      const customers = await sql`
-        SELECT DISTINCT
-          c.id,
-          c.name,
-          c.email,
-          c.status,
-          c.created_at as joined_at,
-          COALESCE(SUM(lt.amount), 0) as total_spent,
-          COUNT(lt.id) as transaction_count,
-          MAX(lt.transaction_date) as last_visit
+      const customers = await sql.query(
+        `SELECT DISTINCT
+        c.id,
+        c.name,
+        c.email,
+        c.status,
+        c.created_at as joined_at,
+        COALESCE(SUM(lt.amount), 0) as total_spent,
+        COUNT(lt.id) as transaction_count,
+        MAX(lt.transaction_date) as last_visit
         FROM users c
-        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = $1
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND (lt.business_id = ${businessIdInt} OR c.created_at IS NOT NULL)
+          AND (lt.business_id = $1 OR c.created_at IS NOT NULL)
         GROUP BY c.id, c.name, c.email, c.status, c.created_at
         ORDER BY c.name ASC
-        LIMIT 50
-      `;
+        LIMIT 50`,
+        [businessIdInt]
+      );
       
       console.log(`🔍 FALLBACK: Found ${customers.length} customers with business interactions`);
       
@@ -288,8 +291,8 @@ export class CustomerService {
         return [];
       }
       
-      const programs = await sql`
-        SELECT 
+      const programs = await sql.query(
+        `SELECT 
           lp.id,
           lp.name,
           pe.current_points as points,
@@ -297,11 +300,12 @@ export class CustomerService {
           pe.status
         FROM loyalty_programs lp
         JOIN program_enrollments pe ON lp.id = pe.program_id
-        WHERE pe.customer_id = ${customerIdInt}
-          AND lp.business_id = ${businessIdInt}
+        WHERE pe.customer_id = $1
+          AND lp.business_id = $2
           AND pe.status = 'ACTIVE'
-        ORDER BY pe.enrolled_at ASC
-      `;
+        ORDER BY pe.enrolled_at ASC`,
+        [customerIdInt, businessIdInt]
+      );
       
       return programs.map(program => ({
         id: program.id.toString(),
@@ -491,17 +495,18 @@ export class CustomerService {
       // Check for enrollments in loyalty programs first
       let enrollments = [];
       try {
-        enrollments = await sql`
-          SELECT 
+        enrollments = await sql.query(
+          `SELECT 
             pe.program_id,
             pe.current_points,
             lp.name as program_name
           FROM program_enrollments pe
           JOIN loyalty_programs lp ON pe.program_id = lp.id
-          WHERE pe.customer_id = ${customerId} 
-            AND lp.business_id = ${businessId}
-            AND pe.status = 'ACTIVE'
-        `;
+          WHERE pe.customer_id = $1 
+            AND lp.business_id = $2
+            AND pe.status = 'ACTIVE'`,
+          [customerId, businessId]
+        );
         
         if (enrollments.length > 0) {
           console.log(`Found ${enrollments.length} active program enrollments`);
@@ -517,12 +522,13 @@ export class CustomerService {
         console.log(`No active program enrollments found, checking business relationships`);
         
         try {
-          const relationships = await sql`
-            SELECT * FROM customer_business_relationships
-            WHERE customer_id = ${customerId}
-              AND business_id = ${businessId}
-              AND status = 'ACTIVE'
-          `;
+          const relationships = await sql.query(
+            `SELECT * FROM customer_business_relationships
+            WHERE customer_id = $1
+              AND business_id = $2
+              AND status = 'ACTIVE'`,
+            [customerId, businessId]
+          );
           
           if (relationships.length > 0) {
             console.log(`Found business relationship without program enrollment`);
@@ -531,10 +537,10 @@ export class CustomerService {
             
             // Try to find programs for this business to populate programIds
             try {
-              const businessPrograms = await sql`
-                SELECT id, name FROM loyalty_programs
-                WHERE business_id = ${businessId} AND status = 'active'
-              `;
+              const businessPrograms = await sql.query(
+                'SELECT id, name FROM loyalty_programs WHERE business_id = $1 AND status = \u0027active\u0027',
+                [businessId]
+              );
               
               if (businessPrograms.length > 0) {
                 // Add these programs to our enrollments list
@@ -560,17 +566,18 @@ export class CustomerService {
         console.log(`No active business relationship found, checking loyalty cards`);
         
         try {
-          const cards = await sql`
-            SELECT 
+          const cards = await sql.query(
+            `SELECT 
               lc.*,
               lp.id as program_id,
               lp.name as program_name
             FROM loyalty_cards lc
             LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-            WHERE lc.customer_id = ${customerId}
-              AND lc.business_id = ${businessId}
-              AND lc.is_active = true
-          `;
+            WHERE lc.customer_id = $1
+              AND lc.business_id = $2
+              AND lc.is_active = true`,
+            [customerId, businessId]
+          );
           
           if (cards.length > 0) {
             console.log(`Found ${cards.length} active loyalty cards`);
@@ -599,25 +606,26 @@ export class CustomerService {
       if (!isEnrolled) {
         try {
           // Check if customer exists
-          const customerExists = await sql`
-            SELECT EXISTS (SELECT 1 FROM users WHERE id = ${customerId} AND user_type = 'customer')
-          `;
+          const customerExists = await sql.query(
+            'SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND user_type = \u0027customer\u0027)',
+            [customerId]
+          );
           
           // Check if business has programs
-          const businessHasPrograms = await sql`
-            SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = ${businessId} AND status = 'active')
-          `;
+          const businessHasPrograms = await sql.query(
+            'SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = $1 AND status = \u0027active\u0027)',
+            [businessId]
+          );
           
           if (customerExists[0]?.exists && businessHasPrograms[0]?.exists) {
             console.log(`Customer and business both exist with programs - allowing enrollment`);
             isEnrolled = true;
             
             // Get business programs for enrollment
-            const businessPrograms = await sql`
-              SELECT id, name FROM loyalty_programs
-              WHERE business_id = ${businessId} AND status = 'active'
-              LIMIT 1
-            `;
+            const businessPrograms = await sql.query(
+              'SELECT id, name FROM loyalty_programs WHERE business_id = $1 AND status = \u0027active\u0027 LIMIT 1',
+              [businessId]
+            );
             
             if (businessPrograms.length > 0) {
               // Add first program as fallback
