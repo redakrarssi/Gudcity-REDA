@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from 'react-i18next';
 import { UserQrCodeService } from '../services/userQrCodeService';
+import { LoyaltyCardService } from '../services/loyaltyCardService';
+import { QrCodeService } from '../services/qrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
 import sql from '../utils/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,12 +15,23 @@ export interface QRCardProps {
   userId: string;
   displayName?: string;
   onCardReady?: (cardNumber: string) => void;
+  // Optional sizing overrides for embedding contexts (e.g., dashboard)
+  maxWidthClass?: string; // Tailwind classes controlling container max width
+  minSize?: number; // Minimum QR px size
+  maxSize?: number; // Maximum QR px size
+  scale?: number;   // Fraction of container width to use for QR
+  hideCardDetails?: boolean; // Hide card number and expiration for compact display
 }
 
 export const QRCard: React.FC<QRCardProps> = ({
   userId,
   displayName = 'Loyalty Member',
-  onCardReady
+  onCardReady,
+  maxWidthClass,
+  minSize,
+  maxSize,
+  scale,
+  hideCardDetails = false
 }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -41,7 +54,7 @@ export const QRCard: React.FC<QRCardProps> = ({
   const [maskUrl, setMaskUrl] = useState<string | null>(null);
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [qrSize, setQrSize] = useState<number>(250);
+  const [qrSize, setQrSize] = useState<number>(220);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownLeftMs, setCooldownLeftMs] = useState<number>(0);
 
@@ -82,57 +95,139 @@ export const QRCard: React.FC<QRCardProps> = ({
     return () => clearTimeout(timer);
   }, [userId]);
 
-  useEffect(() => {
-    const fetchCardInfo = async () => {
-      if (!userId) return;
+  // Create a reusable function to fetch card info
+  const fetchCardInfo = async (isInitialLoad = false) => {
+    if (!userId) return;
+    
+    try {
+      if (isInitialLoad) setLoading(true);
       
+      // Get customer card info with all relevant data
       try {
-        setLoading(true);
+        const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
         
-        // Get customer card info with all relevant data
-        try {
-          const cardInfo = await UserQrCodeService.getCustomerCardInfo(userId);
+        // Set card number from consistent generation (only on initial load)
+        if (isInitialLoad && cardInfo.cardNumber) {
+          setCardNumber(cardInfo.cardNumber);
           
-          // Set card number from consistent generation
-          if (cardInfo.cardNumber) {
-            setCardNumber(cardInfo.cardNumber);
-            
-            // Notify parent component if needed
-            if (onCardReady) {
-              onCardReady(cardInfo.cardNumber);
-            }
+          // Notify parent component if needed
+          if (onCardReady) {
+            onCardReady(cardInfo.cardNumber);
           }
-          
-          // Set enrolled programs and promo codes
-          setEnrolledPrograms(cardInfo.programs || []);
-          setAvailablePromos(cardInfo.promoCodes || []);
-          
-          // Set expiration date if available
-          if (cardInfo.expirationDate) {
-            const expDate = new Date(cardInfo.expirationDate);
-            setExpirationDate(expDate.toLocaleDateString());
-            
-            // Check if expiring within 30 days
-            const thirtyDaysFromNow = new Date();
-            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-            setIsExpiringSoon(expDate <= thirtyDaysFromNow);
-          }
-        } catch (err) {
-          console.error('Error fetching card info:', err);
-          // Use fallback values
-          setEnrolledPrograms([]);
-          setAvailablePromos([]);
         }
         
-        setLoading(false);
+        // Set expiration date if available (only on initial load)
+        if (isInitialLoad && cardInfo.expirationDate) {
+          const expDate = new Date(cardInfo.expirationDate);
+          setExpirationDate(expDate.toLocaleDateString());
+          
+          // Check if expiring within 30 days
+          const thirtyDaysFromNow = new Date();
+          thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+          setIsExpiringSoon(expDate <= thirtyDaysFromNow);
+        }
+        
+        // Get accurate enrollment data from loyalty cards service (always refresh)
+        const loyaltyCards = await LoyaltyCardService.getCustomerCards(userId);
+        
+        // Count enrolled programs (each card represents an enrolled program)
+        setEnrolledPrograms(loyaltyCards || []);
+        
+        // Count redeemable rewards (rewards with enough points/stamps)
+        let redeemableRewardsCount = 0;
+        if (loyaltyCards) {
+          loyaltyCards.forEach(card => {
+            if (card.availableRewards) {
+              redeemableRewardsCount += card.availableRewards.filter(reward => reward.isRedeemable).length;
+            }
+          });
+        }
+        
+        // Create mock array for UI display purposes (just for count)
+        const redeemableRewards = Array(redeemableRewardsCount).fill({ isRedeemable: true });
+        setAvailablePromos(redeemableRewards);
+        
+        console.log('📊 QR Card updated - Programs:', loyaltyCards?.length || 0, 'Redeemable rewards:', redeemableRewardsCount);
+        
       } catch (err) {
-        console.error('Error in card info effect:', err);
-        setLoading(false);
+        console.error('Error fetching card info:', err);
+        // Use fallback values
+        setEnrolledPrograms([]);
+        setAvailablePromos([]);
+      }
+      
+      if (isInitialLoad) setLoading(false);
+    } catch (err) {
+      console.error('Error in card info effect:', err);
+      if (isInitialLoad) setLoading(false);
+    }
+  };
+
+  // Debounced counts refresh to avoid excessive API calls
+  const refreshTimeoutRef = useRef<number | null>(null);
+  const scheduleCountsRefresh = () => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current as unknown as number);
+    }
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      fetchCardInfo(false);
+    }, 300);
+  };
+
+  useEffect(() => {
+    fetchCardInfo(true);
+  }, [userId, onCardReady]);
+
+  // Listen for real-time updates from Cards page and global events
+  useEffect(() => {
+    const handleQrPointsAwarded = (event: CustomEvent) => {
+      console.log('🔄 QR Card received refresh event:', event.detail);
+      // Refresh card data when points are awarded or rewards redeemed
+      scheduleCountsRefresh();
+    };
+
+    const handleCardDataUpdate = () => {
+      console.log('🔄 QR Card received card data update event');
+      // Refresh card data when general card updates occur
+      scheduleCountsRefresh();
+    };
+
+    // Listen for various update events
+    window.addEventListener('qrPointsAwarded' as any, handleQrPointsAwarded);
+    window.addEventListener('cardDataUpdate' as any, handleCardDataUpdate);
+    window.addEventListener('rewardRedeemed' as any, handleCardDataUpdate);
+    window.addEventListener('loyaltyCardUpdate' as any, handleCardDataUpdate);
+    // Also listen to hyphenated and system-wide events used elsewhere
+    window.addEventListener('points-awarded' as any, handleCardDataUpdate);
+    window.addEventListener('reward-redeemed' as any, handleCardDataUpdate);
+    window.addEventListener('loyalty-cards-refresh' as any, handleCardDataUpdate);
+    window.addEventListener('refresh-customer-cards' as any, handleCardDataUpdate);
+    window.addEventListener('program-points-updated' as any, handleCardDataUpdate);
+
+    return () => {
+      window.removeEventListener('qrPointsAwarded' as any, handleQrPointsAwarded);
+      window.removeEventListener('cardDataUpdate' as any, handleCardDataUpdate);
+      window.removeEventListener('rewardRedeemed' as any, handleCardDataUpdate);
+      window.removeEventListener('loyaltyCardUpdate' as any, handleCardDataUpdate);
+      window.removeEventListener('points-awarded' as any, handleCardDataUpdate);
+      window.removeEventListener('reward-redeemed' as any, handleCardDataUpdate);
+      window.removeEventListener('loyalty-cards-refresh' as any, handleCardDataUpdate);
+      window.removeEventListener('refresh-customer-cards' as any, handleCardDataUpdate);
+      window.removeEventListener('program-points-updated' as any, handleCardDataUpdate);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current as unknown as number);
       }
     };
-    
-    fetchCardInfo();
-  }, [userId, onCardReady]);
+  }, [userId]);
+
+  // Periodic refresh to keep data up to date (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchCardInfo(false);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [userId]);
 
   // Build an SVG data URL mask from the generated QR SVG to allow gradient fill
   useEffect(() => {
@@ -159,8 +254,11 @@ export const QRCard: React.FC<QRCardProps> = ({
   useEffect(() => {
     const computeSize = () => {
       const width = containerRef.current?.clientWidth || window.innerWidth;
-      // Use 82% of available width, clamp between 180 and 320px
-      const target = Math.min(320, Math.max(180, Math.floor(width * 0.82)));
+      // Use a percentage of available width, clamp for mobile and laptop screens
+      const effectiveScale = typeof scale === 'number' ? scale : 0.7;
+      const minPx = typeof minSize === 'number' ? minSize : 180;
+      const maxPx = typeof maxSize === 'number' ? maxSize : 260;
+      const target = Math.min(maxPx, Math.max(minPx, Math.floor(width * effectiveScale)));
       setQrSize(target);
     };
     computeSize();
@@ -168,7 +266,7 @@ export const QRCard: React.FC<QRCardProps> = ({
     return () => window.removeEventListener('resize', computeSize);
   }, []);
 
-  const logoSize = Math.max(24, Math.round(qrSize * 0.16));
+  const logoSize = Math.max(18, Math.round(qrSize * 0.14));
 
   // Load cooldown from storage on mount/user change and tick down
   useEffect(() => {
@@ -304,10 +402,13 @@ export const QRCard: React.FC<QRCardProps> = ({
       setQrImageUrl(newQrImageUrl);
       setSuccessMessage('QR code refreshed successfully');
       
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
+        // Also refresh card data
+        fetchCardInfo(false);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
       // Set 24h cooldown
       const until = Date.now() + 24 * 60 * 60 * 1000;
       setCooldownUntil(until);
@@ -394,22 +495,30 @@ export const QRCard: React.FC<QRCardProps> = ({
   }
 
   return (
-    <div ref={containerRef} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg max-w-sm w-full mx-auto relative">
+    <div
+      ref={containerRef}
+      className={
+        `bg-gradient-to-br from-white via-gray-50 to-blue-50 p-6 sm:p-7 rounded-2xl shadow-xl border border-gray-200 ${maxWidthClass ? maxWidthClass : 'max-w-sm md:max-w-md lg:max-w-lg'} w-full mx-auto relative transition-all duration-300 hover:shadow-2xl hover:border-blue-300`
+      }
+    >
       {/* Card indicator in the corner */}
-      <div className="absolute top-2 left-2 flex items-center">
-        <CreditCard className="h-4 w-4 text-blue-500 mr-1" />
-        <span className="text-xs text-blue-600 font-medium">{cardType}</span>
+      <div className="absolute top-4 left-4 flex items-center bg-blue-50 px-3 py-1 rounded-full">
+        <CreditCard className="h-3 w-3 text-blue-600 mr-1" />
+        <span className="text-xs text-blue-700 font-semibold uppercase tracking-wide">{cardType}</span>
       </div>
 
-      <div className="text-center mb-4">
-        <div className="flex justify-center items-center mb-2">
+      <div className="text-center mb-5 mt-6">
+        <div className="flex justify-center items-center mb-4">
           {/* User Avatar/Initials */}
-          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-2 text-sm font-medium">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 text-white flex items-center justify-center mr-4 text-xl font-bold shadow-xl border-2 border-white">
             {userInitials}
           </div>
-          <h2 className="text-xl font-semibold text-gray-800">{displayName}</h2>
+          <div className="text-left">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">{displayName}</h2>
+            <p className="text-sm text-gray-600 font-semibold">Loyalty Member</p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500">{t('qrCard.showToCollect', 'Show this card to collect points')}</p>
+        <p className="text-sm text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 rounded-xl border border-gray-200 font-medium">{t('qrCard.showToCollect', 'Show this card to collect points and rewards')}</p>
       </div>
       
       {error && !useFallback && (
@@ -437,16 +546,16 @@ export const QRCard: React.FC<QRCardProps> = ({
         </div>
       )}
 
-      <div className="flex justify-center p-3 sm:p-4 bg-white rounded-lg mb-4">
+      <div className="flex justify-center p-4 bg-white rounded-xl mb-4 shadow-inner border border-gray-200">
         {qrData ? (
-          // Styled, scannable QR (modern blue→yellow gradient) with center logo
-          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-amber-400 p-[6px] rounded-xl shadow-sm" style={{ width: qrSize + 12, height: qrSize + 12 }}>
-            <div className="relative bg-white rounded-lg p-2 sm:p-3" style={{ width: qrSize, height: qrSize }}>
+          // Styled, scannable QR (modern gradient) with center logo
+          <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-[8px] rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300" style={{ width: qrSize + 16, height: qrSize + 16 }}>
+            <div className="relative bg-white rounded-lg p-4 flex items-center justify-center" style={{ width: qrSize, height: qrSize }}>
               {/* Hidden SVG to create a mask from the exact QR geometry */}
               <QRCodeSVG 
                 ref={qrSvgRef as any}
                 value={qrData}
-                size={qrSize}
+                size={qrSize - 32}
                 includeMargin={false}
                 level="H"
                 bgColor="#ffffff"
@@ -457,8 +566,8 @@ export const QRCard: React.FC<QRCardProps> = ({
                 <div
                   className="rounded-md"
                   style={{
-                    width: qrSize,
-                    height: qrSize,
+                    width: qrSize - 32,
+                    height: qrSize - 32,
                     background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #f59e0b 100%)',
                     WebkitMaskImage: `url(${maskUrl})`,
                     maskImage: `url(${maskUrl})`,
@@ -474,7 +583,7 @@ export const QRCard: React.FC<QRCardProps> = ({
                 // Fallback: solid blue QR when mask is not available
                 <QRCodeSVG 
                   value={qrData}
-                  size={qrSize}
+                  size={qrSize - 32}
                   includeMargin={false}
                   level="H"
                   bgColor="#ffffff"
@@ -483,7 +592,7 @@ export const QRCard: React.FC<QRCardProps> = ({
               )}
               {/* Center logo overlay */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 8, height: logoSize + 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 4, height: logoSize + 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <img src="/favicon.svg" alt="logo" style={{ width: logoSize, height: logoSize }} />
                 </div>
               </div>
@@ -491,13 +600,14 @@ export const QRCard: React.FC<QRCardProps> = ({
           </div>
         ) : qrImageUrl && !useFallback ? (
           // Direct image display from URL or data URL with center logo overlay
-          <div className="relative" style={{ width: qrSize, height: qrSize }}>
+          <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-[8px] rounded-xl shadow-md" style={{ width: qrSize + 16, height: qrSize + 16 }}>
+            <div className="relative bg-white rounded-lg p-4 flex items-center justify-center" style={{ width: qrSize, height: qrSize }}>
             <img 
               src={qrImageUrl} 
               alt="QR Code" 
-              style={{ width: qrSize, height: qrSize, display: 'block' }}
-              width={qrSize}
-              height={qrSize}
+                style={{ width: qrSize - 32, height: qrSize - 32, display: 'block' }}
+                width={qrSize - 32}
+                height={qrSize - 32}
               onError={() => {
                 console.error('Failed to load QR image');
                 setError('QR image failed to load. Using generated QR code instead.');
@@ -506,15 +616,16 @@ export const QRCard: React.FC<QRCardProps> = ({
             />
             {/* Center logo overlay - uses favicon.svg; white pad preserves scannability */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 8, height: logoSize + 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="bg-white rounded-md p-1 shadow-sm" style={{ width: logoSize + 4, height: logoSize + 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/favicon.svg" alt="logo" style={{ width: logoSize, height: logoSize }} />
+                </div>
               </div>
             </div>
           </div>
         ) : (
           // No QR code available
           <div className="flex flex-col items-center justify-center border border-red-200 rounded-lg" style={{ width: qrSize, height: qrSize }}>
-            <Shield className="text-red-500 h-12 w-12 mb-4" />
+            <Shield className="text-red-500 h-8 w-8 mb-2" />
             <div className="text-red-500 text-center">
               {t('qrCard.noQrCode', 'No QR code available')}
               <button
@@ -529,62 +640,81 @@ export const QRCard: React.FC<QRCardProps> = ({
         )}
       </div>
       
-      <div className="border-t border-gray-100 pt-4 mt-2 space-y-2">
-        {/* Card Details */}
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-500">{t('qrCard.cardNumber', 'Card Number')}:</span>
-          <span className="font-medium">{actualCardNumber}</span>
+      <div className="border-t border-gray-200 pt-5 mt-4 space-y-3">
+        {/* Card Details - Hidden when hideCardDetails is true */}
+        {!hideCardDetails && (
+          <>
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700 font-semibold text-sm">{t('qrCard.cardNumber', 'Card Number')}</span>
+                <span className="font-bold text-gray-900 font-mono text-base tracking-wider">{actualCardNumber}</span>
+              </div>
         </div>
 
         {/* Expiration Date */}
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-500 flex items-center">
-            <Clock className="h-3 w-3 inline mr-1" />
-            {t('qrCard.expires', 'Expires')}:
+            <div className="flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+              <span className="text-blue-700 font-semibold text-sm flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                {t('qrCard.expires', 'Expires')}
           </span>
-          <span className={`font-medium ${isExpiringSoon ? 'text-amber-600' : ''}`}>
+              <span className={`font-bold text-base ${isExpiringSoon ? 'text-amber-600' : 'text-blue-900'}`}>
             {expirationDate || t('qrCard.noExpiration', 'No expiration')}
-            {isExpiringSoon && ' (Soon)'}
+                {isExpiringSoon && ' ⚠️'}
           </span>
         </div>
+          </>
+        )}
         
+        {/* Statistics Grid */}
+        <div className="grid grid-cols-2 gap-3">
         {/* Program Enrollment Info */}
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-500 flex items-center">
-            <BadgeCheck className="h-3 w-3 inline mr-1" />
-            {t('qrCard.programs', 'Programs')}:
-          </span>
-          <span className="font-medium">{enrolledPrograms?.length || 0}</span>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl text-center border border-blue-200 hover:shadow-md transition-shadow">
+            <div className="flex justify-center mb-3">
+              <div className="p-2 bg-blue-600 rounded-full">
+                <BadgeCheck className="h-5 w-5 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-blue-800 mb-1">{enrolledPrograms?.length || 0}</div>
+            <div className="text-sm text-blue-700 font-semibold">{t('qrCard.programs', 'Programs')}</div>
         </div>
 
-        {/* Available Promos */}
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-500 flex items-center">
-            <Tag className="h-3 w-3 inline mr-1" />
-            {t('qrCard.promos', 'Available Promos')}:
-          </span>
-          <span className="font-medium">{availablePromos?.length || 0}</span>
+          {/* Active Rewards */}
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl text-center border border-purple-200 hover:shadow-md transition-shadow">
+            <div className="flex justify-center mb-3">
+              <div className="p-2 bg-purple-600 rounded-full">
+                <Tag className="h-5 w-5 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-purple-800 mb-1">{availablePromos?.length || 0}</div>
+            <div className="text-sm text-purple-700 font-semibold">{t('qrCard.rewards', 'Active Rewards')}</div>
+          </div>
         </div>
       </div>
       
       {/* Action Buttons */}
-      <div className="mt-4 flex justify-between">
+      <div className="mt-5 flex justify-between items-center">
         <button 
           onClick={handleRefreshQrCode} 
-          className={`text-sm flex items-center ${cooldownLeftMs > 0 ? 'text-blue-300 cursor-not-allowed' : 'text-blue-600'}`}
+          className={`flex items-center px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+            cooldownLeftMs > 0 
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200' 
+              : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 border border-blue-500'
+          }`}
           disabled={isRefreshing || cooldownLeftMs > 0}
         >
           {isRefreshing ? (
-            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
           ) : (
-            <RefreshCw className="w-3 h-3 mr-1" />
+            <RefreshCw className="w-4 h-4 mr-2" />
           )}
           {cooldownLeftMs > 0 ? `Refresh (${formatDuration(cooldownLeftMs)})` : t('qrCard.refresh', 'Refresh')}
         </button>
         
-        <div className="flex items-center text-green-600 text-xs">
-          <Shield className="h-3 w-3 mr-1" />
-          {t('qrCard.secureCard', 'Secure Card')}
+        <div className="flex items-center bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2.5 rounded-xl border border-green-200">
+          <div className="p-1 bg-green-600 rounded-full mr-2">
+            <Shield className="h-3 w-3 text-white" />
+          </div>
+          <span className="text-green-800 text-sm font-semibold">{t('qrCard.secureCard', 'Secure')}</span>
         </div>
       </div>
     </div>

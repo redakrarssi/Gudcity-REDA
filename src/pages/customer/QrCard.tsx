@@ -188,7 +188,7 @@ const CustomerQrCard = () => {
 
   return (
     <CustomerLayout>
-      <div className="max-w-2xl mx-auto pb-12 qr-card-page customer-qrcard-page">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-12 qr-card-page customer-qrcard-page">
         {/* Header */}
         <div className={`transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
@@ -233,7 +233,7 @@ const CustomerQrCard = () => {
         {/* QR Card Section */}
         <div className={`mb-8 transition-all duration-500 ease-out transform ${animateIn ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="bg-white rounded-xl shadow-lg overflow-hidden qr-card-container customer-qrcard-container">
-            <div className="p-6 qr-card-content customer-qrcard-content">
+            <div className="p-4 sm:p-6 qr-card-content customer-qrcard-content">
               {user?.id && (
                 <QRCard 
                   userId={user.id.toString()} 
@@ -244,8 +244,8 @@ const CustomerQrCard = () => {
             </div>
             
             {/* Card Actions */}
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 card-actions customer-qrcard-actions">
-              <div className="flex flex-wrap justify-center gap-4 customer-qrcard-actions-grid">
+            <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-100 card-actions customer-qrcard-actions">
+              <div className="flex flex-wrap justify-center gap-3 sm:gap-4 customer-qrcard-actions-grid">
                 <button 
                   onClick={handleCopyId} 
                   className="flex items-center text-gray-600 hover:text-blue-600 text-sm transition-colors action-button customer-qrcard-action-button"

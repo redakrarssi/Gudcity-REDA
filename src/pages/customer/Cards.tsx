@@ -737,6 +737,27 @@ const CustomerCards = () => {
           // Force refetch immediately
           await refetch();
           
+          // Dispatch cross-page UI sync events so QR card updates instantly
+          try {
+            const enrollmentEvent = new CustomEvent('loyaltyCardUpdate', {
+              detail: { customerId: String(user?.id), action: 'enrollmentAccepted', programId: enrollmentRequestState.programId }
+            });
+            window.dispatchEvent(enrollmentEvent);
+
+            const genericUpdate = new CustomEvent('cardDataUpdate', {
+              detail: { source: 'enrollment', timestamp: Date.now() }
+            });
+            window.dispatchEvent(genericUpdate);
+
+            // Also emit widely-used event names for broader compatibility
+            const refreshEvent = new CustomEvent('loyalty-cards-refresh', {
+              detail: { customerId: String(user?.id), reason: 'enrollment' }
+            });
+            window.dispatchEvent(refreshEvent);
+          } catch (e) {
+            console.warn('Failed to dispatch enrollment sync events', e);
+          }
+
           // Schedule additional fetches to ensure all data is updated
           setTimeout(() => {
             syncEnrollments().then(() => refetch());
@@ -877,11 +898,39 @@ const CustomerCards = () => {
         // Refresh the cards to show updated points and rewards
         await refetch();
         
-        // Trigger refresh event for real-time sync
-        const refreshEvent = new CustomEvent('qrPointsAwarded', {
-          detail: { cardId, action: 'redemption' }
-        });
-        window.dispatchEvent(refreshEvent);
+        // Trigger refresh events for real-time sync across pages (QR card, dashboard)
+        try {
+          // Original event used by QRCard
+          const refreshEvent = new CustomEvent('qrPointsAwarded', {
+            detail: { cardId, action: 'redemption' }
+          });
+          window.dispatchEvent(refreshEvent);
+
+          // Explicit reward-specific event
+          const rewardEvent = new CustomEvent('rewardRedeemed', {
+            detail: { cardId, rewardId, rewardName }
+          });
+          window.dispatchEvent(rewardEvent);
+
+          // Generic card data update
+          const genericUpdate = new CustomEvent('cardDataUpdate', {
+            detail: { source: 'redemption', cardId, timestamp: Date.now() }
+          });
+          window.dispatchEvent(genericUpdate);
+
+          // Also emit hyphenated versions used elsewhere in app
+          const rewardEventAlt = new CustomEvent('reward-redeemed', {
+            detail: { cardId, rewardId, rewardName }
+          });
+          window.dispatchEvent(rewardEventAlt);
+
+          const pointsAwardedAlt = new CustomEvent('points-awarded', {
+            detail: { cardId, points: 0, action: 'redemption' }
+          });
+          window.dispatchEvent(pointsAwardedAlt);
+        } catch (e) {
+          console.warn('Failed to dispatch sync events after redemption', e);
+        }
         
       } else {
         addNotification('error', result.message);

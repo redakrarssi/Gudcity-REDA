@@ -9,9 +9,20 @@ const path = require('path');
 // Load environment variables
 dotenv.config();
 
-// Import admin routes
-const adminBusinessRoutes = require('./api/adminBusinessRoutesFixed');
-const { auth, requireAdmin } = require('./middleware/authFixed');
+// Import admin routes (CommonJS)
+let adminBusinessRoutes;
+try {
+  adminBusinessRoutes = require('./api/adminBusinessRoutesFixed.cjs');
+} catch (e) {
+  adminBusinessRoutes = require('./api/adminBusinessRoutesFixed');
+}
+let authFixed;
+try {
+  authFixed = require('./middleware/authFixed.cjs');
+} catch (e) {
+  authFixed = require('./middleware/authFixed');
+}
+const { auth, requireAdmin } = authFixed;
 
 // Create Express server
 const app = express();

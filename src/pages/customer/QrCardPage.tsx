@@ -193,7 +193,7 @@ export const QrCardPage: React.FC = () => {
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-3 flex items-center">
           <Gift className="mr-2 h-5 w-5 text-purple-600" />
-          {t('Available Promos')}
+          {t('Active Rewards')}
         </h2>
         
         {loading ? (

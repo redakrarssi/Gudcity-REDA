@@ -93,9 +93,18 @@ const CustomerDashboard = () => {
                 </span>
               </div>
             </div>
-            <div className="md:order-2 md:ml-6 flex w-full md:w-auto flex-col items-center md:items-center">
-              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 qr-card-container qr-on-right">
-                <QRCard userId={userData.id} displayName={userData.name} />
+            <div className="md:order-2 md:ml-6 mt-4 md:mt-0 flex w-full md:w-auto flex-col items-center md:items-center">
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 w-full sm:w-auto max-w-md lg:max-w-lg qr-card-container qr-on-right">
+                <QRCard
+                  userId={userData.id}
+                  displayName={userData.name}
+                  // Enhanced for easier scanning
+                  minSize={180}
+                  maxSize={260}
+                  scale={0.68}
+                  maxWidthClass="max-w-sm md:max-w-md"
+                  hideCardDetails={true}
+                />
               </div>
             </div>
           </div>
