@@ -1,6 +1,8 @@
 import type { Transaction, CustomerProgram, LoyaltyProgram } from '../types/loyalty';
 import sql from '../utils/db';
 import { NotificationService } from './notificationService';
+import { PointsValidator, PointsAuditor } from '../utils/pointsValidation';
+import { BusinessRuleValidator } from '../utils/businessRuleValidator';
 
 export class TransactionService {
   // Mock data stores
@@ -22,13 +24,18 @@ export class TransactionService {
     points: number,
     businessName?: string,
     programName?: string
-  ): Promise<{ success: boolean; error?: string; points?: number }> {
+  ): Promise<{ success: boolean; error?: string; points?: number; warnings?: string[] }> {
     try {
-      // Validate inputs
-      if (!customerId || !businessId || !programId || points <= 0) {
+      // Comprehensive validation
+      const validationResult = await PointsValidator.validatePointsTransactionComplete(
+        points, customerId, businessId, programId, 'AWARD'
+      );
+
+      if (!validationResult.isValid) {
         return {
           success: false,
-          error: 'Invalid input parameters'
+          error: validationResult.error || 'Validation failed',
+          warnings: validationResult.warnings
         };
       }
 
@@ -37,12 +44,17 @@ export class TransactionService {
       const businessIdInt = parseInt(businessId);
       const programIdInt = parseInt(programId);
 
-      // Check if customer is enrolled in program
+      // Get current points balance for auditing
+      let currentPoints = 0;
       const enrollment = await sql`
         SELECT * FROM customer_programs
         WHERE customer_id = ${customerIdInt}
         AND program_id = ${programIdInt}
       `;
+
+      if (enrollment.length > 0) {
+        currentPoints = enrollment[0].current_points || 0;
+      }
 
       // If not enrolled, enroll them
       if (enrollment.length === 0) {
@@ -71,6 +83,9 @@ export class TransactionService {
         `;
       }
 
+      // Calculate new balance for auditing
+      const newPoints = currentPoints + points;
+
       // Record the transaction
       const transaction = await sql`
         INSERT INTO point_transactions (
@@ -91,6 +106,29 @@ export class TransactionService {
         )
         RETURNING id
       `;
+
+      // Create audit entry for points change
+      const transactionRef = `txn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const cardId = `card-${customerIdInt}-${programIdInt}`;
+      
+      PointsAuditor.createAuditEntry(
+        customerId,
+        businessId,
+        programId,
+        cardId,
+        'AWARD',
+        currentPoints,
+        newPoints,
+        'TRANSACTION_SERVICE',
+        `Points awarded: ${points} points`,
+        transactionRef,
+        {
+          businessName: businessName || 'Unknown Business',
+          programName: programName || 'Unknown Program',
+          transactionId: transaction[0]?.id,
+          validationWarnings: validationResult.warnings
+        }
+      );
 
       // Get business and program names if not provided
       const actualBusinessName = businessName || await this.getBusinessName(businessId);
@@ -123,7 +161,8 @@ export class TransactionService {
 
       return {
         success: true,
-        points: points
+        points: points,
+        warnings: validationResult.warnings
       };
     } catch (error) {
       console.error('Error awarding points:', error);

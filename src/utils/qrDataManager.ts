@@ -12,6 +12,7 @@
  */
 
 import { QrEncryption } from './qrEncryption';
+import { encryptQRData, decryptQRData } from './encryption';
 
 export interface QrDataOptions {
   enableEncryption?: boolean;
@@ -46,6 +47,18 @@ export class QrDataManager {
         console.log('📱 Third-party scanner preview:', publicPreview);
         
         return JSON.stringify(encryptedData);
+      } else if (shouldEncrypt) {
+        // Fallback to new encryption utilities if Web Crypto API not available
+        console.log('🔒 Using fallback encryption for QR data protection');
+        
+        try {
+          const encryptedData = encryptQRData(originalData);
+          console.log('📱 QR data encrypted with AES-256-CBC');
+          return encryptedData;
+        } catch (encryptionError) {
+          console.warn('⚠️  Fallback encryption failed, using unencrypted QR code');
+          return JSON.stringify(originalData);
+        }
       } else {
         // Use original data (unencrypted)
         if (!QrEncryption.validateSetup()) {
@@ -82,6 +95,18 @@ export class QrDataManager {
         
         console.log('✅ QR data decrypted successfully for business use');
         return decryptedData;
+      } else if (this.isFallbackEncrypted(qrText)) {
+        // Try fallback decryption for AES-256-CBC encrypted data
+        console.log('🔓 Decrypting QR data with fallback method');
+        
+        try {
+          const decryptedData = decryptQRData(qrText);
+          console.log('✅ QR data decrypted successfully with fallback method');
+          return decryptedData;
+        } catch (decryptError) {
+          console.warn('⚠️  Fallback decryption failed, returning original data');
+          return parsedData;
+        }
       } else {
         // Unencrypted data - return as-is for backward compatibility
         console.log('📄 Processing unencrypted QR code (legacy format)');
@@ -125,6 +150,19 @@ export class QrDataManager {
     };
   }
   
+  /**
+   * Check if data is encrypted with fallback method (AES-256-CBC)
+   */
+  private static isFallbackEncrypted(qrText: string): boolean {
+    try {
+      // Check if it's a valid encrypted string format
+      const parts = qrText.split(':');
+      return parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Determine if QR data should be encrypted
    */
