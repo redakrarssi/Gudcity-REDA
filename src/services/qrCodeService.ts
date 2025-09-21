@@ -213,12 +213,11 @@ export class QrCodeService {
         timestamp: Date.now()
       };
 
-      // 🔒 Apply encryption to protect sensitive customer data (name, email)
-      // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
+      // Apply encryption to protect sensitive customer data
       const qrCodeData = await QrDataManager.prepareForGeneration(qrData, {
         enableEncryption: true,
         businessId: customerId,
-        forceEncryption: true // Force encryption for all customer QR codes
+        forceEncryption: true
       });
       
       // Cache the result
