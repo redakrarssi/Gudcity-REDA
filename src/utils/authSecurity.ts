@@ -8,6 +8,48 @@
 import crypto from 'crypto';
 import { validateDbInput } from './secureDb';
 
+// Browser-compatible crypto utilities
+const isBrowser = typeof window !== 'undefined';
+
+// Browser-compatible random bytes function
+function getRandomBytes(length: number): Buffer {
+  if (isBrowser) {
+    // Use Web Crypto API in browser
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      const array = new Uint8Array(length);
+      window.crypto.getRandomValues(array);
+      return Buffer.from(array);
+    } else {
+      // Fallback for older browsers
+      const array = new Uint8Array(length);
+      for (let i = 0; i < length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return Buffer.from(array);
+    }
+  } else {
+    // Node.js environment
+    return crypto.randomBytes(length);
+  }
+}
+
+// Browser-compatible random integer function
+function getRandomInt(min: number, max: number): number {
+  if (isBrowser) {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      return min + (array[0] % (max - min));
+    } else {
+      // Fallback for older browsers
+      return Math.floor(Math.random() * (max - min)) + min;
+    }
+  } else {
+    // Node.js environment
+    return crypto.randomInt(min, max);
+  }
+}
+
 // JWT Secret Management
 export interface JwtSecretConfig {
   accessSecret: string;
@@ -36,7 +78,7 @@ export class TokenEncryption {
    * Generate a cryptographically secure encryption key
    */
   static generateKey(): string {
-    return crypto.randomBytes(this.KEY_LENGTH).toString('hex');
+    return getRandomBytes(this.KEY_LENGTH).toString('hex');
   }
 
   /**
@@ -45,7 +87,7 @@ export class TokenEncryption {
   static encryptToken(token: string, key: string): string {
     try {
       const keyBuffer = Buffer.from(key, 'hex');
-      const iv = crypto.randomBytes(this.IV_LENGTH);
+      const iv = getRandomBytes(this.IV_LENGTH);
       const cipher = crypto.createCipher(this.ALGORITHM, keyBuffer);
       cipher.setAAD(Buffer.from('gudcity-auth', 'utf8'));
       
@@ -190,7 +232,7 @@ export class JwtSecretManager {
    * Generate a secure rotation key
    */
   private generateRotationKey(): string {
-    return crypto.randomBytes(32).toString('hex');
+    return getRandomBytes(32).toString('hex');
   }
 
   /**
@@ -246,9 +288,9 @@ export class JwtSecretManager {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
     let secret = '';
     
-    // Use crypto.randomBytes for secure random generation
+    // Use browser-compatible random generation
     for (let i = 0; i < length; i++) {
-      const randomIndex = crypto.randomInt(0, chars.length);
+      const randomIndex = getRandomInt(0, chars.length);
       secret += chars[randomIndex];
     }
     
@@ -440,7 +482,7 @@ export class SecureCookieManager {
     const cookieOptions = { ...this.COOKIE_OPTIONS, ...options };
     
     // Encrypt the cookie value
-    const encryptionKey = process.env.COOKIE_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+    const encryptionKey = process.env.COOKIE_ENCRYPTION_KEY || getRandomBytes(32).toString('hex');
     const encryptedValue = TokenEncryption.encryptToken(value, encryptionKey);
     
     res.cookie(name, encryptedValue, cookieOptions);
@@ -456,7 +498,7 @@ export class SecureCookieManager {
     }
 
     try {
-      const encryptionKey = process.env.COOKIE_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+      const encryptionKey = process.env.COOKIE_ENCRYPTION_KEY || getRandomBytes(32).toString('hex');
       return TokenEncryption.decryptToken(encryptedValue, encryptionKey);
     } catch (error) {
       console.error('Failed to decrypt cookie:', error);
@@ -472,7 +514,14 @@ export class SecureCookieManager {
   }
 }
 
-// Export singleton instances
-export const jwtSecretManager = JwtSecretManager.getInstance();
-export const tokenBlacklist = TokenBlacklist.getInstance();
-export const secureCookieManager = SecureCookieManager;
+// Export singleton instances (only in Node.js environment)
+let jwtSecretManager: JwtSecretManager | null = null;
+let tokenBlacklist: TokenBlacklist | null = null;
+
+if (!isBrowser) {
+  // Only initialize in Node.js environment
+  jwtSecretManager = JwtSecretManager.getInstance();
+  tokenBlacklist = TokenBlacklist.getInstance();
+}
+
+export { jwtSecretManager, tokenBlacklist, secureCookieManager: SecureCookieManager };
