@@ -7,11 +7,12 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { QrCodeStorageService } from '../services/qrCodeStorageService';
-import { createStandardCustomerQRCode } from './standardQrCodeGenerator';
+import { createStandardCustomerQRCode, generateStandardQRCode } from './standardQrCodeGenerator';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { User } from '../services/userService';
 import { logger } from './logger';
 import db from '../utils/db';
+import QrDataManager from '../utils/qrDataManager';
 
 /**
  * QR Card Generator class that handles all QR code generation for customer cards
@@ -58,20 +59,8 @@ export class QrCardGenerator {
       
       // Generate a consistent card number
       const cardNumber = UserQrCodeService.generateConsistentCardNumber(customerId);
-      
-      // Generate QR code data URL using the standard generator
-      const qrImageUrl = await createStandardCustomerQRCode(
-        customerId,
-        undefined, // No business ID for customer's primary QR
-        customerName,
-        customerEmail
-      );
-      
-      if (!qrImageUrl) {
-        throw new Error('Failed to generate QR code image');
-      }
-      
-      // Create QR data object with the structure that works for customer ID 4
+
+      // Create QR data object (will be encrypted before encoding)
       const qrData = {
         type: 'customer',
         customerId: customerId,
@@ -81,16 +70,36 @@ export class QrCardGenerator {
         cardType: cardType,
         timestamp: Date.now()
       };
+
+      // Prepare (encrypt if enabled) QR data for generation
+      let preparedQrObject: any = qrData;
+      try {
+        const preparedText = await QrDataManager.prepareForGeneration(qrData);
+        preparedQrObject = JSON.parse(preparedText);
+      } catch (e) {
+        logger.warn('QR encryption preparation failed, falling back to plaintext QR data');
+        preparedQrObject = qrData;
+      }
+
+      // Generate QR code image URL from the prepared (possibly encrypted) object
+      const qrImageUrl = await generateStandardQRCode(preparedQrObject, {
+        errorCorrectionLevel: 'M',
+        size: 300
+      });
+      
+      if (!qrImageUrl) {
+        throw new Error('Failed to generate QR code image');
+      }
       
       // Set expiry date
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + expiryDays);
       
-      // Store the QR code in the database
+      // Store the QR code in the database (store prepared/encrypted object)
       const storedQrCode = await QrCodeStorageService.createQrCode({
         customerId: customerId,
         qrType: 'CUSTOMER_CARD',
-        data: qrData,
+        data: preparedQrObject,
         imageUrl: qrImageUrl,
         isPrimary: isPrimary,
         expiryDate: expiryDate
