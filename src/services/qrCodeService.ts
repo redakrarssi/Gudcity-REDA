@@ -215,7 +215,10 @@ export class QrCodeService {
 
       // 🔒 Apply encryption to protect sensitive customer data (name, email)
       // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
-      const qrCodeData = await QrDataManager.prepareForGeneration(qrData);
+      const qrCodeData = await QrDataManager.prepareForGeneration(qrData, {
+        enableEncryption: true,
+        businessId: customerId
+      });
       
       // Cache the result
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
@@ -344,6 +347,10 @@ export class QrCodeService {
   ): Promise<QrCodeProcessingResult> {
     try {
       console.log('Processing QR code scan:', { type: qrCodeData.type, businessId, pointsToAward });
+      
+      // 🔓 Decrypt QR data if encrypted for business dashboard processing
+      const decryptedQrData = await QrDataManager.prepareForBusiness(JSON.stringify(qrCodeData));
+      qrCodeData = decryptedQrData;
       
       // Handle legacy format conversion if needed
       if (!qrCodeData.type && 'customerId' in qrCodeData) {
