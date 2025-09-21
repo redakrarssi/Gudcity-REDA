@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import sql from '../utils/db';
 import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
 import { logger } from '../utils/logger';
+import { PointsValidator, PointsAuditor } from '../utils/pointsValidation';
+import { BusinessRuleValidator } from '../utils/businessRuleValidator';
 
 /**
  * Award points to a customer
@@ -65,12 +67,22 @@ export async function handleAwardPoints(req: Request, res: Response) {
     const customerIdStr = String(customerIdInt);
     const programIdStr = String(programIdInt);
     
-    // Validate points is a positive number
-    if (isNaN(points) || points <= 0) {
+    // Comprehensive points validation
+    const validationResult = await PointsValidator.validatePointsTransactionComplete(
+      points, customerIdStr, businessIdStr, programIdStr, 'AWARD'
+    );
+
+    if (!validationResult.isValid) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Points must be a positive number' 
+        error: validationResult.error || 'Points validation failed',
+        warnings: validationResult.warnings
       });
+    }
+
+    // Log validation warnings if any
+    if (validationResult.warnings && validationResult.warnings.length > 0) {
+      console.warn('Points validation warnings:', validationResult.warnings);
     }
     
     console.log(`Award points request: customer=${customerIdStr}, program=${programIdStr}, points=${points}, business=${businessIdStr}`);
@@ -112,11 +124,12 @@ export async function handleAwardPoints(req: Request, res: Response) {
       customerName = customerResult[0].name;
     }
     
-    // 4. Find or create loyalty card
+    // 4. Find or create loyalty card with auditing
     let cardId: string;
+    let currentPoints = 0;
     
     const cardResult = await sql`
-      SELECT id FROM loyalty_cards
+      SELECT id, points FROM loyalty_cards
       WHERE customer_id = ${customerIdInt}
       AND program_id = ${programIdInt}
       LIMIT 1
@@ -154,11 +167,13 @@ export async function handleAwardPoints(req: Request, res: Response) {
         ) RETURNING id
       `;
       cardId = inserted[0].id;
+      currentPoints = 0; // New card starts with 0 points
       
       console.log(`Created new card ${cardId} for customer ${customerIdStr} in program ${programIdStr}`);
     } else {
       // Update existing card
       cardId = cardResult[0].id;
+      currentPoints = cardResult[0].points || 0;
       
       await sql`
         UPDATE loyalty_cards
@@ -170,6 +185,9 @@ export async function handleAwardPoints(req: Request, res: Response) {
       
       console.log(`Updated card ${cardId} for customer ${customerIdStr} in program ${programIdStr}`);
     }
+
+    // Calculate new points balance for auditing
+    const newPoints = currentPoints + points;
     
     // 5. Record the transaction
     const transactionRef = clientTxRef || `txn-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -201,6 +219,27 @@ export async function handleAwardPoints(req: Request, res: Response) {
     `;
     
     console.log(`Recorded transaction ${transactionRef} for ${points} points`);
+    
+    // Create audit entry for points change
+    PointsAuditor.createAuditEntry(
+      customerIdStr,
+      businessIdStr,
+      programIdStr,
+      cardId,
+      'AWARD',
+      currentPoints,
+      newPoints,
+      'AWARD_POINTS_HANDLER',
+      `Points awarded: ${points} points from ${businessName}`,
+      transactionRef,
+      {
+        businessName: businessName,
+        programName: programName,
+        customerName: customerName,
+        validationWarnings: validationResult.warnings,
+        handler: 'award-points-handler'
+      }
+    );
     
     // 6. Try to send notification (non-critical)
     try {

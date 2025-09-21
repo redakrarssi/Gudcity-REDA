@@ -217,7 +217,8 @@ export class QrCodeService {
       // Third-party QR scanners will only see encrypted data, business dashboard can decrypt
       const qrCodeData = await QrDataManager.prepareForGeneration(qrData, {
         enableEncryption: true,
-        businessId: customerId
+        businessId: customerId,
+        forceEncryption: true // Force encryption for all customer QR codes
       });
       
       // Cache the result
