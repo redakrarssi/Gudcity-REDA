@@ -225,7 +225,7 @@ export class QrCodeService {
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
       
       return qrCodeData;
-              } catch (error) {
+    } catch (error) {
       console.error('Error generating customer QR code:', error);
       return null;
     }
@@ -327,10 +327,10 @@ export class QrCodeService {
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
       
       return qrCodeData;
-      } catch (error) {
+    } catch (error) {
       console.error('Error generating loyalty card QR code:', error);
-          return null;
-        }
+      return null;
+    }
   }
   
   /**
