@@ -524,4 +524,4 @@ if (!isBrowser) {
   tokenBlacklist = TokenBlacklist.getInstance();
 }
 
-export { jwtSecretManager, tokenBlacklist, secureCookieManager: SecureCookieManager };
+export { jwtSecretManager, tokenBlacklist, SecureCookieManager as secureCookieManager };

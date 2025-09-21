@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/patch-vendor-charts.js",
+    "build:vercel": "node scripts/vercel-build.js",
     "postbuild": "node scripts/disable-sound.js",
     "build:analyze": "ANALYZE=true vite build",
     "build:prod": "vite build --mode production && node scripts/patch-vendor-charts.js",
