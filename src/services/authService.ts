@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { secureInsert, secureSelect, validateDbInput } from '../utils/secureDb';
 import env from '../utils/env';
 import { User, getUserByEmail } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
@@ -315,10 +316,22 @@ async function storeRefreshToken(userId: number, token: string, expiresIn: numbe
     `;
     
     // Store token
-    await sql`
-      INSERT INTO refresh_tokens (user_id, token, expires_at)
-      VALUES (${userId}, ${token}, ${expiresAt})
-    `;
+    // SECURITY: Validate inputs before storing
+    const userIdValidation = validateDbInput(userId, 'number');
+    const tokenValidation = validateDbInput(token, 'string', { maxLength: 1000 });
+    
+    if (!userIdValidation.isValid) {
+      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
+    }
+    if (!tokenValidation.isValid) {
+      throw new Error(`Invalid token: ${tokenValidation.errors.join(', ')}`);
+    }
+    
+    await secureInsert('refresh_tokens', {
+      user_id: userIdValidation.sanitized,
+      token: tokenValidation.sanitized,
+      expires_at: expiresAt
+    });
   } catch (error) {
     console.error('Error storing refresh token:', error);
     throw new Error('Failed to store refresh token');
@@ -348,12 +361,20 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     }
     
     // Check if token is in database and not revoked
-    const tokenRecord = await sql`
-      SELECT * FROM refresh_tokens
-      WHERE token = ${refreshToken}
-      AND expires_at > NOW()
-      AND revoked = FALSE
-    `;
+    // SECURITY: Validate refresh token before query
+    const tokenValidation = validateDbInput(refreshToken, 'string', { maxLength: 1000 });
+    if (!tokenValidation.isValid) {
+      console.error('Invalid refresh token format');
+      return null;
+    }
+    
+    const tokenRecord = await secureSelect(
+      'refresh_tokens',
+      '*',
+      'token = $1 AND expires_at > NOW() AND revoked = FALSE',
+      [tokenValidation.sanitized],
+      ['string']
+    );
     
     if (!tokenRecord || tokenRecord.length === 0) {
       console.error('Refresh token not found or expired');
@@ -368,11 +389,15 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     }
     
     // Revoke current refresh token
-    await sql`
-      UPDATE refresh_tokens
-      SET revoked = TRUE, revoked_at = NOW()
-      WHERE token = ${refreshToken}
-    `;
+    // SECURITY: Use secure update with validated token
+    const { secureUpdate } = await import('../utils/secureDb');
+    await secureUpdate(
+      'refresh_tokens',
+      { revoked: true, revoked_at: new Date() },
+      'token = $1',
+      [tokenValidation.sanitized],
+      ['string']
+    );
     
     // Generate new tokens
     return generateTokens(user);
@@ -413,12 +438,20 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
  */
 export async function revokeAllUserTokens(userId: number): Promise<boolean> {
   try {
-    await sql`
-      UPDATE refresh_tokens
-      SET revoked = TRUE, revoked_at = NOW()
-      WHERE user_id = ${userId}
-      AND revoked = FALSE
-    `;
+    // SECURITY: Validate user ID before update
+    const userIdValidation = validateDbInput(userId, 'number');
+    if (!userIdValidation.isValid) {
+      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
+    }
+    
+    const { secureUpdate } = await import('../utils/secureDb');
+    await secureUpdate(
+      'refresh_tokens',
+      { revoked: true, revoked_at: new Date() },
+      'user_id = $1 AND revoked = FALSE',
+      [userIdValidation.sanitized],
+      ['number']
+    );
     return true;
   } catch (error) {
     console.error('Error revoking user tokens:', error);
