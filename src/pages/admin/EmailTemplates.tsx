@@ -27,13 +27,13 @@ function sanitizeHtml(unsafeHtml: string): string {
     console.warn('DOMPurify sanitization failed:', error);
   }
 
-  // Fallback: Strip all HTML tags and encode special characters
-  const div = document.createElement('div');
-  div.textContent = unsafeHtml;
-  return div.innerHTML;
+  // Fallback: Use safe sanitization
+  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
+  return sanitizeForDisplay(unsafeHtml);
 }
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { useSanitization } from '../../hooks/useSanitization';
 import {
   Mail,
   Plus,
