@@ -224,6 +224,9 @@ export class QrCodeService {
       this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
       
       return qrCodeData;
+    } catch (error) {
+      console.error('Error generating customer QR code:', error);
+      return null;
     }
   }
 
