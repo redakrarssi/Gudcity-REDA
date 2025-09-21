@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import { secureInsert, secureSelect, validateDbInput } from '../utils/secureDb';
+import { jwtSecretManager, tokenBlacklist, secureCookieManager, TokenEncryption } from '../utils/authSecurity';
 import env from '../utils/env';
 import { User, getUserByEmail } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
@@ -189,25 +190,15 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
       throw new Error('JWT library not available');
     }
     
-    // SECURITY: Validate JWT secrets are set with better error messages
-    if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
-      console.error('JWT_SECRET is not configured. Please set VITE_JWT_SECRET in your environment variables.');
-      throw new Error('JWT access token secret is not configured');
+    // SECURITY: Use enhanced JWT secret validation
+    const secretValidation = jwtSecretManager.validateSecrets();
+    if (!secretValidation.isValid) {
+      console.error('JWT secret validation failed:', secretValidation.errors);
+      throw new Error(`JWT secret validation failed: ${secretValidation.errors.join(', ')}`);
     }
     
-    if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
-      console.error('JWT_REFRESH_SECRET is not configured. Please set VITE_JWT_REFRESH_SECRET in your environment variables.');
-      throw new Error('JWT refresh token secret is not configured');
-    }
-    
-    // Validate JWT secret lengths for security
-    if (env.JWT_SECRET.length < 32) {
-      console.warn('JWT_SECRET is shorter than recommended 32 characters');
-    }
-    
-    if (env.JWT_REFRESH_SECRET.length < 32) {
-      console.warn('JWT_REFRESH_SECRET is shorter than recommended 32 characters');
-    }
+    // Get current secrets from security manager
+    const currentSecrets = jwtSecretManager.getCurrentSecrets();
     
     // Create token payload with proper validation
     if (!user.id) {
@@ -245,13 +236,13 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
         throw new Error('JWT sign function not available');
       }
       
-      accessToken = signFunction.call(jwt, payload, env.JWT_SECRET, { 
+      accessToken = signFunction.call(jwt, payload, currentSecrets.accessSecret, { 
         expiresIn: env.JWT_EXPIRY,
         issuer: 'gudcity-loyalty-platform',
         audience: 'gudcity-users'
       });
       
-      refreshToken = signFunction.call(jwt, payload, env.JWT_REFRESH_SECRET, { 
+      refreshToken = signFunction.call(jwt, payload, currentSecrets.refreshSecret, { 
         expiresIn: env.JWT_REFRESH_EXPIRY,
         issuer: 'gudcity-loyalty-platform',
         audience: 'gudcity-users'
@@ -346,15 +337,19 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
     
-    // SECURITY: Validate JWT refresh secret is set
-    if (!env.JWT_REFRESH_SECRET) {
-      throw new Error('JWT refresh secret is not configured');
+    // SECURITY: Check if token is blacklisted
+    if (tokenBlacklist.isTokenBlacklisted(refreshToken)) {
+      console.error('Refresh token is blacklisted');
+      return null;
     }
+    
+    // Get current secrets from security manager
+    const currentSecrets = jwtSecretManager.getCurrentSecrets();
     
     // Verify the refresh token
     let payload: TokenPayload;
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as TokenPayload;
+      payload = jwt.verify(refreshToken, currentSecrets.refreshSecret) as TokenPayload;
     } catch (error) {
       console.error('Invalid refresh token:', error);
       return null;
@@ -415,13 +410,17 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
     
-    // SECURITY: Validate JWT secret is set
-    if (!env.JWT_SECRET) {
-      throw new Error('JWT secret is not configured');
+    // SECURITY: Check if token is blacklisted
+    if (tokenBlacklist.isTokenBlacklisted(token)) {
+      console.error('Token is blacklisted');
+      return null;
     }
     
+    // Get current secrets from security manager
+    const currentSecrets = jwtSecretManager.getCurrentSecrets();
+    
     // Verify the token with issuer/audience enforcement and small clock tolerance
-    const payload = jwt.verify(token, env.JWT_SECRET, {
+    const payload = jwt.verify(token, currentSecrets.accessSecret, {
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users',
       clockTolerance: 5
@@ -443,6 +442,9 @@ export async function revokeAllUserTokens(userId: number): Promise<boolean> {
     if (!userIdValidation.isValid) {
       throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
     }
+    
+    // SECURITY: Blacklist all user tokens
+    await tokenBlacklist.blacklistUserTokens(userIdValidation.sanitized, 'User logout');
     
     const { secureUpdate } = await import('../utils/secureDb');
     await secureUpdate(
@@ -702,11 +704,63 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
   }
 })();
 
+/**
+ * Blacklist a specific token
+ */
+export async function blacklistToken(token: string, reason: string): Promise<boolean> {
+  try {
+    await tokenBlacklist.blacklistToken(token, reason);
+    return true;
+  } catch (error) {
+    console.error('Error blacklisting token:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a token is blacklisted
+ */
+export function isTokenBlacklisted(token: string): boolean {
+  return tokenBlacklist.isTokenBlacklisted(token);
+}
+
+/**
+ * Rotate JWT secrets
+ */
+export async function rotateJwtSecrets(): Promise<boolean> {
+  try {
+    await jwtSecretManager.rotateSecrets();
+    return true;
+  } catch (error) {
+    console.error('Error rotating JWT secrets:', error);
+    return false;
+  }
+}
+
+/**
+ * Get JWT secret validation status
+ */
+export function getJwtSecretStatus(): { isValid: boolean; errors: string[] } {
+  return jwtSecretManager.validateSecrets();
+}
+
+/**
+ * Get token blacklist statistics
+ */
+export function getTokenBlacklistStats(): { totalBlacklisted: number; expiredCount: number } {
+  return tokenBlacklist.getBlacklistStats();
+}
+
 export default {
   generateTokens,
   refreshTokens,
   verifyToken,
   revokeAllUserTokens,
+  blacklistToken,
+  isTokenBlacklisted,
+  rotateJwtSecrets,
+  getJwtSecretStatus,
+  getTokenBlacklistStats,
   hashPassword,
   verifyPassword,
   checkRateLimit,
