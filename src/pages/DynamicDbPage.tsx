@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/layout/Layout';
 import { getPageBySlug, Page } from '../services/pageService';
+import { useSanitization } from '../hooks/useSanitization';
 
 function sanitizeHtml(unsafeHtml: string): string {
   try {
@@ -11,9 +12,9 @@ function sanitizeHtml(unsafeHtml: string): string {
       return DOMPurify.sanitize(unsafeHtml);
     }
   } catch {}
-  const div = document.createElement('div');
-  div.textContent = unsafeHtml || '';
-  return div.innerHTML;
+  // Use safe sanitization instead of innerHTML
+  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
+  return sanitizeForDisplay(unsafeHtml || '');
 }
 
 function extractSeo(content: string): { title?: string; description?: string } {
