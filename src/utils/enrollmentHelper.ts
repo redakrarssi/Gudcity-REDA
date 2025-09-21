@@ -186,15 +186,36 @@ export async function safeEnrollCustomer(
 
     // Get business name for notifications
     const sql = (await import('../utils/db')).default;
-    const businessResult = await sql`SELECT name FROM users WHERE id = ${businessId}`;
+    const { secureSelect, validateDbInput } = await import('../utils/secureDb');
+    
+    // SECURITY: Validate businessId before query
+    const businessIdValidation = validateDbInput(businessId, 'number');
+    if (!businessIdValidation.isValid) {
+      throw new Error(`Invalid business ID: ${businessIdValidation.errors.join(', ')}`);
+    }
+    
+    const businessResult = await secureSelect('users', 'name', 'id = $1', [businessIdValidation.sanitized], ['number']);
     const businessName = businessResult.length > 0 ? businessResult[0].name : 'Business';
     
     // Check if already enrolled
-    const enrollment = await sql`
-      SELECT * FROM program_enrollments
-      WHERE customer_id = ${customerId}
-      AND program_id = ${programId}
-    `;
+    // SECURITY: Validate customerId and programId before query
+    const customerIdValidation = validateDbInput(customerId, 'number');
+    const programIdValidation = validateDbInput(programId, 'number');
+    
+    if (!customerIdValidation.isValid) {
+      throw new Error(`Invalid customer ID: ${customerIdValidation.errors.join(', ')}`);
+    }
+    if (!programIdValidation.isValid) {
+      throw new Error(`Invalid program ID: ${programIdValidation.errors.join(', ')}`);
+    }
+    
+    const enrollment = await secureSelect(
+      'program_enrollments', 
+      '*', 
+      'customer_id = $1 AND program_id = $2', 
+      [customerIdValidation.sanitized, programIdValidation.sanitized], 
+      ['number', 'number']
+    );
 
     if (enrollment.length > 0) {
       // Already enrolled

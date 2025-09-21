@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { secureUpdate, secureSelect, secureInsert, validateDbInput } from '../utils/secureDb';
 
 // Business types and interfaces
 export interface BusinessApplication {
@@ -296,69 +297,110 @@ export async function updateBusiness(id: number, business: Partial<Business>): P
   try {
     console.log(`Updating business with id: ${id}`);
     
-    // Create individual update statements for each field
-    // This approach uses separate SQL queries for each field update
-    const now = new Date();
-    
-    // Start with a base SQL query
-    let query = sql`
-      UPDATE businesses 
-      SET updated_at = ${now}
-    `;
-    
-    // Append each field that needs to be updated
+    // SECURITY: Validate business ID
+    const idValidation = validateDbInput(id, 'number');
+    if (!idValidation.isValid) {
+      throw new Error(`Invalid business ID: ${idValidation.errors.join(', ')}`);
+    }
+
+    // SECURITY: Prepare update data with validation
+    const updateData: Record<string, any> = {
+      updated_at: new Date()
+    };
+
+    // Validate and sanitize each field before adding to update data
     if (business.name !== undefined) {
-      query = sql`${query}, name = ${business.name}`;
+      const nameValidation = validateDbInput(business.name, 'string', { maxLength: 255 });
+      if (!nameValidation.isValid) {
+        throw new Error(`Invalid business name: ${nameValidation.errors.join(', ')}`);
+      }
+      updateData.name = nameValidation.sanitized;
     }
-    
+
     if (business.owner !== undefined) {
-      query = sql`${query}, owner = ${business.owner}`;
+      const ownerValidation = validateDbInput(business.owner, 'string', { maxLength: 255 });
+      if (!ownerValidation.isValid) {
+        throw new Error(`Invalid owner: ${ownerValidation.errors.join(', ')}`);
+      }
+      updateData.owner = ownerValidation.sanitized;
     }
-    
+
     if (business.email !== undefined) {
-      query = sql`${query}, email = ${business.email}`;
+      const emailValidation = validateDbInput(business.email, 'email');
+      if (!emailValidation.isValid) {
+        throw new Error(`Invalid email: ${emailValidation.errors.join(', ')}`);
+      }
+      updateData.email = emailValidation.sanitized;
     }
-    
+
     if (business.phone !== undefined) {
-      query = sql`${query}, phone = ${business.phone}`;
+      const phoneValidation = validateDbInput(business.phone, 'phone');
+      if (!phoneValidation.isValid) {
+        throw new Error(`Invalid phone: ${phoneValidation.errors.join(', ')}`);
+      }
+      updateData.phone = phoneValidation.sanitized;
     }
-    
+
     if (business.type !== undefined) {
-      query = sql`${query}, type = ${business.type}`;
+      const typeValidation = validateDbInput(business.type, 'string', { maxLength: 50 });
+      if (!typeValidation.isValid) {
+        throw new Error(`Invalid business type: ${typeValidation.errors.join(', ')}`);
+      }
+      updateData.type = typeValidation.sanitized;
     }
-    
+
     if (business.status !== undefined) {
-      query = sql`${query}, status = ${business.status}`;
+      const statusValidation = validateDbInput(business.status, 'string', { maxLength: 20 });
+      if (!statusValidation.isValid) {
+        throw new Error(`Invalid status: ${statusValidation.errors.join(', ')}`);
+      }
+      updateData.status = statusValidation.sanitized;
     }
-    
+
     if (business.address !== undefined) {
-      query = sql`${query}, address = ${business.address}`;
+      const addressValidation = validateDbInput(business.address, 'string', { maxLength: 500 });
+      if (!addressValidation.isValid) {
+        throw new Error(`Invalid address: ${addressValidation.errors.join(', ')}`);
+      }
+      updateData.address = addressValidation.sanitized;
     }
-    
+
     if (business.logo !== undefined) {
-      query = sql`${query}, logo = ${business.logo}`;
+      const logoValidation = validateDbInput(business.logo, 'string', { maxLength: 500 });
+      if (!logoValidation.isValid) {
+        throw new Error(`Invalid logo URL: ${logoValidation.errors.join(', ')}`);
+      }
+      updateData.logo = logoValidation.sanitized;
     }
-    
+
     if (business.description !== undefined) {
-      query = sql`${query}, description = ${business.description}`;
+      const descValidation = validateDbInput(business.description, 'string', { maxLength: 1000 });
+      if (!descValidation.isValid) {
+        throw new Error(`Invalid description: ${descValidation.errors.join(', ')}`);
+      }
+      updateData.description = descValidation.sanitized;
     }
-    
+
     if (business.notes !== undefined) {
-      query = sql`${query}, notes = ${business.notes}`;
+      const notesValidation = validateDbInput(business.notes, 'string', { maxLength: 1000 });
+      if (!notesValidation.isValid) {
+        throw new Error(`Invalid notes: ${notesValidation.errors.join(', ')}`);
+      }
+      updateData.notes = notesValidation.sanitized;
     }
+
+    // SECURITY: Use secure update with parameterized query
+    const result = await secureUpdate(
+      'businesses',
+      updateData,
+      'id = $1',
+      [id],
+      ['number']
+    );
     
-    // Complete the query with the WHERE clause and RETURNING statement
-    query = sql`
-      ${query}
-      WHERE id = ${id}
-      RETURNING *
-    `;
-    
-    const result = await query;
-    
-    if (result && result.length > 0) {
+    if (result) {
       console.log(`Business with id ${id} updated successfully`);
-      return mapDbBusinessToBusiness(result[0]);
+      return mapDbBusinessToBusiness(result);
     }
     
     console.log(`No business found with id ${id} to update`);

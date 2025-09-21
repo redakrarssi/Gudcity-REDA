@@ -5,6 +5,7 @@ import Layout from '../components/layout/Layout';
 import PricingPlans from '../components/pricing/PricingPlans';
 import { Shield, Users, Award, ThumbsUp, Clock, Gift } from 'lucide-react';
 import { getPageBySlug, Page } from '../services/pageService';
+import { useSanitization } from '../hooks/useSanitization';
 
 function sanitizeHtml(unsafeHtml: string): string {
   try {
@@ -13,9 +14,9 @@ function sanitizeHtml(unsafeHtml: string): string {
       return DOMPurify.sanitize(unsafeHtml);
     }
   } catch {}
-  const div = document.createElement('div');
-  div.textContent = unsafeHtml || '';
-  return div.innerHTML;
+  // Use safe sanitization instead of innerHTML
+  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
+  return sanitizeForDisplay(unsafeHtml || '');
 }
 
 function extractSeo(content: string): { title?: string; description?: string } {

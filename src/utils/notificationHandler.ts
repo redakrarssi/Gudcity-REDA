@@ -3,6 +3,7 @@ import { logger } from './logger';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { createCardSyncEvent } from './realTimeSync';
 import sql from './db';
+import { secureSelect, validateDbInput } from './secureDb';
 import crypto from 'crypto';
 
 /**
@@ -52,12 +53,20 @@ export async function handlePointsAwarded(
     let businessNameSafe = businessName;
     try {
       if (!programNameSafe || /^\d+$/.test(programNameSafe)) {
-        const p = await sql`SELECT name FROM loyalty_programs WHERE id = ${parseInt(programId)}`;
-        if (p.length) programNameSafe = p[0].name || 'Loyalty Program';
+        // SECURITY: Validate and sanitize programId
+        const programIdValidation = validateDbInput(parseInt(programId), 'number');
+        if (programIdValidation.isValid) {
+          const p = await secureSelect('loyalty_programs', 'name', 'id = $1', [programIdValidation.sanitized], ['number']);
+          if (p.length) programNameSafe = p[0].name || 'Loyalty Program';
+        }
       }
       if (!businessNameSafe || /^\d+$/.test(businessNameSafe)) {
-        const b = await sql`SELECT name FROM users WHERE id = ${parseInt(businessId)}`;
-        if (b.length) businessNameSafe = b[0].name || 'Business';
+        // SECURITY: Validate and sanitize businessId
+        const businessIdValidation = validateDbInput(parseInt(businessId), 'number');
+        if (businessIdValidation.isValid) {
+          const b = await secureSelect('users', 'name', 'id = $1', [businessIdValidation.sanitized], ['number']);
+          if (b.length) businessNameSafe = b[0].name || 'Business';
+        }
       }
     } catch (_) {
       // Non-critical: fall back to provided values

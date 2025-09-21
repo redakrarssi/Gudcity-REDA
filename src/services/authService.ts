@@ -1,4 +1,6 @@
 import sql from '../utils/db';
+import { secureInsert, secureSelect, validateDbInput } from '../utils/secureDb';
+import { jwtSecretManager, tokenBlacklist, secureCookieManager, TokenEncryption } from '../utils/authSecurity';
 import env from '../utils/env';
 import { User, getUserByEmail } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
@@ -188,24 +190,26 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
       throw new Error('JWT library not available');
     }
     
-    // SECURITY: Validate JWT secrets are set with better error messages
-    if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
-      console.error('JWT_SECRET is not configured. Please set VITE_JWT_SECRET in your environment variables.');
-      throw new Error('JWT access token secret is not configured');
-    }
-    
-    if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
-      console.error('JWT_REFRESH_SECRET is not configured. Please set VITE_JWT_REFRESH_SECRET in your environment variables.');
-      throw new Error('JWT refresh token secret is not configured');
-    }
-    
-    // Validate JWT secret lengths for security
-    if (env.JWT_SECRET.length < 32) {
-      console.warn('JWT_SECRET is shorter than recommended 32 characters');
-    }
-    
-    if (env.JWT_REFRESH_SECRET.length < 32) {
-      console.warn('JWT_REFRESH_SECRET is shorter than recommended 32 characters');
+    // SECURITY: Use enhanced JWT secret validation (Node.js only)
+    if (jwtSecretManager) {
+      const secretValidation = jwtSecretManager.validateSecrets();
+      if (!secretValidation.isValid) {
+        console.error('JWT secret validation failed:', secretValidation.errors);
+        throw new Error(`JWT secret validation failed: ${secretValidation.errors.join(', ')}`);
+      }
+      
+      // Get current secrets from security manager
+      const currentSecrets = jwtSecretManager.getCurrentSecrets();
+      // Use currentSecrets for token generation
+    } else {
+      // Browser environment - use environment variables directly
+      if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
+        throw new Error('JWT access token secret is not configured');
+      }
+      
+      if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
+        throw new Error('JWT refresh token secret is not configured');
+      }
     }
     
     // Create token payload with proper validation
@@ -244,13 +248,17 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
         throw new Error('JWT sign function not available');
       }
       
-      accessToken = signFunction.call(jwt, payload, env.JWT_SECRET, { 
+      // Use appropriate secrets based on environment
+      const accessSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().accessSecret : env.JWT_SECRET;
+      const refreshSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().refreshSecret : env.JWT_REFRESH_SECRET;
+      
+      accessToken = signFunction.call(jwt, payload, accessSecret, { 
         expiresIn: env.JWT_EXPIRY,
         issuer: 'gudcity-loyalty-platform',
         audience: 'gudcity-users'
       });
       
-      refreshToken = signFunction.call(jwt, payload, env.JWT_REFRESH_SECRET, { 
+      refreshToken = signFunction.call(jwt, payload, refreshSecret, { 
         expiresIn: env.JWT_REFRESH_EXPIRY,
         issuer: 'gudcity-loyalty-platform',
         audience: 'gudcity-users'
@@ -315,10 +323,22 @@ async function storeRefreshToken(userId: number, token: string, expiresIn: numbe
     `;
     
     // Store token
-    await sql`
-      INSERT INTO refresh_tokens (user_id, token, expires_at)
-      VALUES (${userId}, ${token}, ${expiresAt})
-    `;
+    // SECURITY: Validate inputs before storing
+    const userIdValidation = validateDbInput(userId, 'number');
+    const tokenValidation = validateDbInput(token, 'string', { maxLength: 1000 });
+    
+    if (!userIdValidation.isValid) {
+      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
+    }
+    if (!tokenValidation.isValid) {
+      throw new Error(`Invalid token: ${tokenValidation.errors.join(', ')}`);
+    }
+    
+    await secureInsert('refresh_tokens', {
+      user_id: userIdValidation.sanitized,
+      token: tokenValidation.sanitized,
+      expires_at: expiresAt
+    });
   } catch (error) {
     console.error('Error storing refresh token:', error);
     throw new Error('Failed to store refresh token');
@@ -333,27 +353,39 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
     
-    // SECURITY: Validate JWT refresh secret is set
-    if (!env.JWT_REFRESH_SECRET) {
-      throw new Error('JWT refresh secret is not configured');
+    // SECURITY: Check if token is blacklisted (Node.js only)
+    if (tokenBlacklist && tokenBlacklist.isTokenBlacklisted(refreshToken)) {
+      console.error('Refresh token is blacklisted');
+      return null;
     }
+    
+    // Get current secrets from security manager or environment
+    const refreshSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().refreshSecret : env.JWT_REFRESH_SECRET;
     
     // Verify the refresh token
     let payload: TokenPayload;
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as TokenPayload;
+      payload = jwt.verify(refreshToken, refreshSecret) as TokenPayload;
     } catch (error) {
       console.error('Invalid refresh token:', error);
       return null;
     }
     
     // Check if token is in database and not revoked
-    const tokenRecord = await sql`
-      SELECT * FROM refresh_tokens
-      WHERE token = ${refreshToken}
-      AND expires_at > NOW()
-      AND revoked = FALSE
-    `;
+    // SECURITY: Validate refresh token before query
+    const tokenValidation = validateDbInput(refreshToken, 'string', { maxLength: 1000 });
+    if (!tokenValidation.isValid) {
+      console.error('Invalid refresh token format');
+      return null;
+    }
+    
+    const tokenRecord = await secureSelect(
+      'refresh_tokens',
+      '*',
+      'token = $1 AND expires_at > NOW() AND revoked = FALSE',
+      [tokenValidation.sanitized],
+      ['string']
+    );
     
     if (!tokenRecord || tokenRecord.length === 0) {
       console.error('Refresh token not found or expired');
@@ -368,11 +400,15 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
     }
     
     // Revoke current refresh token
-    await sql`
-      UPDATE refresh_tokens
-      SET revoked = TRUE, revoked_at = NOW()
-      WHERE token = ${refreshToken}
-    `;
+    // SECURITY: Use secure update with validated token
+    const { secureUpdate } = await import('../utils/secureDb');
+    await secureUpdate(
+      'refresh_tokens',
+      { revoked: true, revoked_at: new Date() },
+      'token = $1',
+      [tokenValidation.sanitized],
+      ['string']
+    );
     
     // Generate new tokens
     return generateTokens(user);
@@ -390,13 +426,17 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     // Import JWT dynamically
     const jwt = await import('jsonwebtoken');
     
-    // SECURITY: Validate JWT secret is set
-    if (!env.JWT_SECRET) {
-      throw new Error('JWT secret is not configured');
+    // SECURITY: Check if token is blacklisted (Node.js only)
+    if (tokenBlacklist && tokenBlacklist.isTokenBlacklisted(token)) {
+      console.error('Token is blacklisted');
+      return null;
     }
     
+    // Get current secrets from security manager or environment
+    const accessSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().accessSecret : env.JWT_SECRET;
+    
     // Verify the token with issuer/audience enforcement and small clock tolerance
-    const payload = jwt.verify(token, env.JWT_SECRET, {
+    const payload = jwt.verify(token, accessSecret, {
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users',
       clockTolerance: 5
@@ -413,12 +453,25 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
  */
 export async function revokeAllUserTokens(userId: number): Promise<boolean> {
   try {
-    await sql`
-      UPDATE refresh_tokens
-      SET revoked = TRUE, revoked_at = NOW()
-      WHERE user_id = ${userId}
-      AND revoked = FALSE
-    `;
+    // SECURITY: Validate user ID before update
+    const userIdValidation = validateDbInput(userId, 'number');
+    if (!userIdValidation.isValid) {
+      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
+    }
+    
+    // SECURITY: Blacklist all user tokens (Node.js only)
+    if (tokenBlacklist) {
+      await tokenBlacklist.blacklistUserTokens(userIdValidation.sanitized, 'User logout');
+    }
+    
+    const { secureUpdate } = await import('../utils/secureDb');
+    await secureUpdate(
+      'refresh_tokens',
+      { revoked: true, revoked_at: new Date() },
+      'user_id = $1 AND revoked = FALSE',
+      [userIdValidation.sanitized],
+      ['number']
+    );
     return true;
   } catch (error) {
     console.error('Error revoking user tokens:', error);
@@ -669,11 +722,88 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
   }
 })();
 
+/**
+ * Blacklist a specific token
+ */
+export async function blacklistToken(token: string, reason: string): Promise<boolean> {
+  try {
+    if (tokenBlacklist) {
+      await tokenBlacklist.blacklistToken(token, reason);
+      return true;
+    } else {
+      console.warn('Token blacklisting not available in browser environment');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error blacklisting token:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a token is blacklisted
+ */
+export function isTokenBlacklisted(token: string): boolean {
+  if (tokenBlacklist) {
+    return tokenBlacklist.isTokenBlacklisted(token);
+  } else {
+    console.warn('Token blacklisting not available in browser environment');
+    return false;
+  }
+}
+
+/**
+ * Rotate JWT secrets
+ */
+export async function rotateJwtSecrets(): Promise<boolean> {
+  try {
+    if (jwtSecretManager) {
+      await jwtSecretManager.rotateSecrets();
+      return true;
+    } else {
+      console.warn('JWT secret rotation not available in browser environment');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error rotating JWT secrets:', error);
+    return false;
+  }
+}
+
+/**
+ * Get JWT secret validation status
+ */
+export function getJwtSecretStatus(): { isValid: boolean; errors: string[] } {
+  if (jwtSecretManager) {
+    return jwtSecretManager.validateSecrets();
+  } else {
+    console.warn('JWT secret validation not available in browser environment');
+    return { isValid: true, errors: [] };
+  }
+}
+
+/**
+ * Get token blacklist statistics
+ */
+export function getTokenBlacklistStats(): { totalBlacklisted: number; expiredCount: number } {
+  if (tokenBlacklist) {
+    return tokenBlacklist.getBlacklistStats();
+  } else {
+    console.warn('Token blacklist statistics not available in browser environment');
+    return { totalBlacklisted: 0, expiredCount: 0 };
+  }
+}
+
 export default {
   generateTokens,
   refreshTokens,
   verifyToken,
   revokeAllUserTokens,
+  blacklistToken,
+  isTokenBlacklisted,
+  rotateJwtSecrets,
+  getJwtSecretStatus,
+  getTokenBlacklistStats,
   hashPassword,
   verifyPassword,
   checkRateLimit,

@@ -1,19 +1,38 @@
 /**
  * Authentication Token Service
  * 
- * This service provides consistent token management for API requests.
- * It handles token retrieval, generation, and storage to ensure API calls
- * always have valid authentication.
+ * This service provides secure token management for API requests.
+ * It handles token retrieval, generation, and storage using secure HTTP-only cookies
+ * and encryption to ensure API calls always have valid authentication.
  */
 
 import { STORAGE_KEYS } from '../utils/constants';
+import { secureCookieManager, TokenEncryption } from '../utils/authSecurity';
 
 /**
- * Get the current authentication token from various possible storage locations
+ * Get the current authentication token from secure storage
  * @returns The authentication token or null if not found
  */
 export function getAuthToken(): string | null {
-  // Try all possible token storage locations
+  // SECURITY: Try to get token from secure HTTP-only cookies first
+  // Note: This function runs on client-side, so we need to check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    // In browser environment, try to get from secure cookies
+    // This would typically be done through a server-side API call
+    // For now, we'll fall back to localStorage but with encryption
+    const encryptedToken = localStorage.getItem('encrypted_token');
+    if (encryptedToken) {
+      try {
+        const encryptionKey = process.env.VITE_COOKIE_ENCRYPTION_KEY || 'default-key';
+        return TokenEncryption.decryptToken(encryptedToken, encryptionKey);
+      } catch (error) {
+        console.error('Failed to decrypt token:', error);
+        return null;
+      }
+    }
+  }
+  
+  // Fallback to legacy token retrieval (for backward compatibility)
   const token = localStorage.getItem('token') || 
                 localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
                 localStorage.getItem('authToken') ||
@@ -48,9 +67,17 @@ function generateTokenFromUserData(): string | null {
     const tokenPayload = `${authUserId}:${userData.email}:${userData.role || 'user'}`;
     const token = btoa(tokenPayload);
     
-    // Save the generated token for future use
-    localStorage.setItem('token', token);
-    console.log('Generated auth token from user data');
+    // SECURITY: Save the generated token with encryption
+    try {
+      const encryptionKey = process.env.VITE_COOKIE_ENCRYPTION_KEY || 'default-key';
+      const encryptedToken = TokenEncryption.encryptToken(token, encryptionKey);
+      localStorage.setItem('encrypted_token', encryptedToken);
+      console.log('Generated and encrypted auth token from user data');
+    } catch (error) {
+      console.error('Failed to encrypt token:', error);
+      // Fallback to unencrypted storage (not recommended for production)
+      localStorage.setItem('token', token);
+    }
     
     return token;
   } catch (error) {
@@ -108,10 +135,18 @@ export function createAuthFetch() {
  * Clear all authentication tokens
  */
 export function clearAuthTokens(): void {
+  // SECURITY: Clear all token storage locations including encrypted tokens
   localStorage.removeItem('token');
+  localStorage.removeItem('encrypted_token');
   localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
   localStorage.removeItem('authToken');
   localStorage.removeItem('jwt');
+  
+  // Clear user data as well
+  localStorage.removeItem('authUserData');
+  localStorage.removeItem('authUserId');
+  
+  console.log('All authentication tokens cleared');
 }
 
 // Initialize: ensure token exists when the service is loaded

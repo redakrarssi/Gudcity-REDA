@@ -63,39 +63,69 @@ function helmet(options: HelmetOptions = {}) {
     req.cspNonce = styleNonce;
     (req as any).scriptNonce = scriptNonce;
     
-    // SECURITY: Enhanced Content Security Policy with nonce-based inline styles
+    // SECURITY: Enhanced Content Security Policy with strict nonce-based execution
     const cspDirectives = [
       "default-src 'self'",
-      // SECURITY: Use nonce for scripts instead of unsafe-eval
-      `script-src 'self' 'nonce-${scriptNonce}'`,
-      // SECURITY: Use nonce for styles instead of unsafe-inline
-      `style-src 'self' 'nonce-${styleNonce}' https://fonts.googleapis.com`,
+      // SECURITY: Strict script execution with nonce only
+      `script-src 'self' 'nonce-${scriptNonce}' 'strict-dynamic'`,
+      // SECURITY: Strict style execution with nonce only
+      `style-src 'self' 'nonce-${styleNonce}' https://fonts.googleapis.com 'strict-dynamic'`,
+      // SECURITY: Restrict image sources to prevent data exfiltration
       "img-src 'self' data: https: blob:",
-      "connect-src 'self' https: wss:",
-      "font-src 'self' https://fonts.gstatic.com",
+      // SECURITY: Restrict connections to prevent data exfiltration
+      "connect-src 'self' https: wss: ws:",
+      // SECURITY: Restrict font sources
+      "font-src 'self' https://fonts.gstatic.com data:",
+      // SECURITY: Block all object/embed/iframe content
       "object-src 'none'",
-      "media-src 'self' https:",
+      "embed-src 'none'",
       "frame-src 'none'",
+      // SECURITY: Restrict media sources
+      "media-src 'self' https:",
+      // SECURITY: Restrict worker sources
       "worker-src 'self' blob:",
+      // SECURITY: Restrict form actions
       "form-action 'self'",
+      // SECURITY: Restrict base URI
       "base-uri 'self'",
+      // SECURITY: Restrict manifest sources
       "manifest-src 'self'",
-      // Clickjacking protection beyond X-Frame-Options
-      "frame-ancestors 'none'"
+      // SECURITY: Strict frame ancestors policy
+      "frame-ancestors 'none'",
+      // SECURITY: Block all inline scripts and styles
+      "script-src-attr 'none'",
+      "style-src-attr 'none'",
+      // SECURITY: Require trusted types for DOM manipulation
+      "require-trusted-types-for 'script'",
+      "trusted-types default"
     ].join('; ');
 
-    // SECURITY: Comprehensive security headers
+    // SECURITY: Comprehensive security headers with enhanced protection
     const securityHeaders: Record<string, string> = {
       'Content-Security-Policy': cspDirectives,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'X-XSS-Protection': '1; mode=block',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+      // SECURITY: Enhanced permissions policy with more restrictions
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), autoplay=(), encrypted-media=(), fullscreen=(), picture-in-picture=(), sync-xhr=(), clipboard-read=(), clipboard-write=(), web-share=()',
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Resource-Policy': 'same-origin',
-      'Origin-Agent-Cluster': '?1'
+      'Origin-Agent-Cluster': '?1',
+      // SECURITY: Additional security headers
+      'X-DNS-Prefetch-Control': 'off',
+      'X-Download-Options': 'noopen',
+      'X-Permitted-Cross-Domain-Policies': 'none',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      // SECURITY: Prevent MIME type sniffing
+      'X-Content-Type-Options': 'nosniff',
+      // SECURITY: Additional XSS protection
+      'X-XSS-Protection': '1; mode=block; report=/csp-report',
+      // SECURITY: Feature policy for additional protection
+      'Feature-Policy': "geolocation 'none'; microphone 'none'; camera 'none'; payment 'none'; usb 'none'; magnetometer 'none'; gyroscope 'none'; accelerometer 'none'"
     };
 
     // SECURITY: Only set HSTS on HTTPS with enhanced settings

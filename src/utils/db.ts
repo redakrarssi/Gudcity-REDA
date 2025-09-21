@@ -220,6 +220,20 @@ sql.query = async function(queryText: string, values: any[] = []): Promise<any[]
   const startTime = performance.now();
   
   try {
+    // SECURITY: Validate query text for potential SQL injection
+    if (queryText.includes('--') || queryText.includes('/*') || queryText.includes('*/')) {
+      throw new Error('Query contains potentially malicious SQL comments');
+    }
+    
+    // SECURITY: Check for dangerous SQL keywords in user input
+    const dangerousKeywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE'];
+    const upperQuery = queryText.toUpperCase();
+    for (const keyword of dangerousKeywords) {
+      if (upperQuery.includes(keyword) && !upperQuery.includes('SELECT')) {
+        console.warn(`Potentially dangerous SQL keyword detected: ${keyword}`);
+      }
+    }
+    
     // Handle parameterized queries by directly passing to the neon client
     // This ensures proper handling of $1, $2, etc. placeholders
     const result = await connectionManager.getInstance()(queryText, ...values);
