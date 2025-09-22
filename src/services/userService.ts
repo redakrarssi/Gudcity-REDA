@@ -635,18 +635,8 @@ export async function updateStaffUser(
       return false;
     }
     
-    // Build update query dynamically based on provided data
-    const updateFields: string[] = [];
-    const updateValues: any[] = [];
-    let paramIndex = 1;
-    
-    if (updatedData.name) {
-      updateFields.push(`name = $${paramIndex++}`);
-      updateValues.push(updatedData.name);
-    }
-    
+    // Check if email is already taken by another user (if email is being updated)
     if (updatedData.email) {
-      // Check if email is already taken by another user
       const existingUser = await sql`
         SELECT id FROM users 
         WHERE LOWER(email) = LOWER(${updatedData.email}) AND id != ${staffId}
@@ -656,35 +646,70 @@ export async function updateStaffUser(
         console.error('Email already exists for another user');
         return false;
       }
-      
-      updateFields.push(`email = $${paramIndex++}`);
-      updateValues.push(updatedData.email.toLowerCase());
+    }
+    
+    // Build update data object
+    const updateData: any = {};
+    
+    if (updatedData.name) {
+      updateData.name = updatedData.name;
+    }
+    
+    if (updatedData.email) {
+      updateData.email = updatedData.email.toLowerCase();
     }
     
     if (updatedData.password) {
-      const hashedPassword = await hashPassword(updatedData.password);
-      updateFields.push(`password = $${paramIndex++}`);
-      updateValues.push(hashedPassword);
+      updateData.password = await hashPassword(updatedData.password);
     }
     
     if (updatedData.permissions) {
-      updateFields.push(`permissions = $${paramIndex++}`);
-      updateValues.push(JSON.stringify(updatedData.permissions));
+      updateData.permissions = JSON.stringify(updatedData.permissions);
     }
     
-    if (updateFields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       console.log('No fields to update');
       return true;
     }
     
     // Add updated_at field
-    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    updateData.updated_at = new Date();
     
-    // Execute update query
-    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`;
+    // Execute update query using proper Neon syntax
+    // Build dynamic update query
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (updatedData.name) {
+      updateFields.push('name = $' + (updateValues.length + 1));
+      updateValues.push(updatedData.name);
+    }
+    
+    if (updatedData.email) {
+      updateFields.push('email = $' + (updateValues.length + 1));
+      updateValues.push(updatedData.email);
+    }
+    
+    if (updatedData.password) {
+      updateFields.push('password = $' + (updateValues.length + 1));
+      updateValues.push(updatedData.password);
+    }
+    
+    if (updatedData.permissions) {
+      updateFields.push('permissions = $' + (updateValues.length + 1));
+      updateValues.push(updatedData.permissions);
+    }
+    
+    updateFields.push('updated_at = $' + (updateValues.length + 1));
+    updateValues.push(updateData.updated_at);
+    
+    // Add staffId as the last parameter
     updateValues.push(staffId);
     
-    await sql.unsafe(query, updateValues);
+    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${updateValues.length}`;
+    
+    // Use the query method for dynamic updates
+    await sql.query(query, updateValues);
     
     console.log('Staff user updated successfully');
     return true;
