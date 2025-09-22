@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import { createStandardCustomerQRCode, createStandardPromoQRCode, createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
+import { SqlSecurity } from '../utils/sqlSecurity';
 import { QrCodeStorageService } from './qrCodeStorageService';
 import env from '../utils/env';
 import rateLimiter from '../utils/rateLimiter';
@@ -158,8 +159,9 @@ export class QrCodeService {
    */
   static async getUserQrCode(userId: string): Promise<string | null> {
     try {
+      const userIdInt = SqlSecurity.validateCustomerId(userId);
       const result = await sql`
-        SELECT id, name, email, user_type FROM users WHERE id = ${userId}
+        SELECT id, name, email, user_type FROM users WHERE id = ${userIdInt}
       `;
 
       if (result.length === 0) {
@@ -193,8 +195,9 @@ export class QrCodeService {
     }
 
     try {
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
       const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${customerId} AND user_type = 'customer'
+        SELECT id, name, email FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
       `;
 
       if (result.length === 0) {
@@ -242,8 +245,9 @@ export class QrCodeService {
             }
             
             try {
+                  const businessIdInt = SqlSecurity.validateBusinessId(businessId);
                   const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${businessId} AND user_type = 'business'
+        SELECT id, name, email FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
       `;
 
       if (result.length === 0) {
@@ -284,6 +288,10 @@ export class QrCodeService {
     }
 
     try {
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const programIdInt = SqlSecurity.validateProgramId(programId);
+      
       const result = await sql`
         SELECT 
           lc.*,
@@ -294,9 +302,9 @@ export class QrCodeService {
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN users u ON lc.business_id = u.id
         JOIN users customer ON lc.customer_id = customer.id
-        WHERE lc.customer_id = ${customerId}
-        AND lc.business_id = ${businessId}
-        AND lc.program_id = ${programId}
+        WHERE lc.customer_id = ${customerIdInt}
+        AND lc.business_id = ${businessIdInt}
+        AND lc.program_id = ${programIdInt}
         AND lc.is_active = true
       `;
 
@@ -417,8 +425,9 @@ export class QrCodeService {
       }
 
       // Get business information
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const business = await sql`
-        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+        SELECT name FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
       `;
       
       const businessName = business.length > 0 ? business[0].name : 'Business';
@@ -455,7 +464,7 @@ export class QrCodeService {
         const availablePrograms = await sql`
           SELECT id, name, description, points_multiplier, is_active
           FROM loyalty_programs 
-          WHERE business_id = ${businessId} AND is_active = true
+          WHERE business_id = ${businessIdInt} AND is_active = true
           ORDER BY created_at DESC
         `;
 
@@ -536,8 +545,9 @@ export class QrCodeService {
       const programName = qrCodeData.programName || "Loyalty Program";
       
       // Get the business name
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const businessResult = await sql`
-        SELECT name FROM users WHERE id = ${parseInt(businessId)}
+        SELECT name FROM users WHERE id = ${businessIdInt}
       `;
       
       const businessName = businessResult.length > 0 
@@ -548,11 +558,12 @@ export class QrCodeService {
       console.log(`🎯 Loyalty Card QR scanned: Card ${cardId}, Program ${programId}. Ready for manual point awarding.`);
       
       // Get current card info for display (no automatic point awarding)
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
       const cardInfo = await sql`
         SELECT lc.*, lp.name as program_name
         FROM loyalty_cards lc
         LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-        WHERE lc.id = ${cardId}
+        WHERE lc.id = ${cardIdInt}
       `;
       
       const success = cardInfo.length > 0; // Just check if card exists
@@ -598,10 +609,13 @@ export class QrCodeService {
       const promoCode = qrCodeData.promoCode;
       
       // Validate promo code
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const sanitizedPromoCode = SqlSecurity.sanitizeString(promoCode, 50);
+      
       const promoResult = await sql`
         SELECT * FROM promo_codes 
-        WHERE code = ${promoCode} 
-        AND business_id = ${businessId}
+        WHERE code = ${sanitizedPromoCode} 
+        AND business_id = ${businessIdInt}
         AND is_active = true
         AND (expires_at IS NULL OR expires_at > NOW())
       `;
@@ -645,6 +659,11 @@ export class QrCodeService {
     metadata: any = {}
   ): Promise<void> {
     try {
+      const sanitizedScanType = SqlSecurity.sanitizeString(scanType, 50);
+      const scannedByInt = SqlSecurity.validateBusinessId(scannedBy);
+      const sanitizedQrCodeData = SqlSecurity.sanitizeString(JSON.stringify(qrCodeData), 1000);
+      const sanitizedMetadata = SqlSecurity.sanitizeString(JSON.stringify(metadata), 1000);
+      
       await sql`
         INSERT INTO qr_scan_logs (
           scan_type,
@@ -654,11 +673,11 @@ export class QrCodeService {
           metadata,
           scanned_at
         ) VALUES (
-          ${scanType},
-          ${scannedBy},
-          ${JSON.stringify(qrCodeData)},
+          ${sanitizedScanType},
+          ${scannedByInt},
+          ${sanitizedQrCodeData},
           ${isValid},
-          ${JSON.stringify(metadata)},
+          ${sanitizedMetadata},
           NOW()
         )
       `;
