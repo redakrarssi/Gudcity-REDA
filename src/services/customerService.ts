@@ -56,29 +56,30 @@ export class CustomerService {
       console.log(`🔍 DEBUG DATABASE STATE for business ${businessId} (${businessIdInt}):`);
       
       // Check if there are any customers at all
-      const allCustomers = await sql`
-        SELECT COUNT(*) as count FROM users WHERE user_type = 'customer' AND status = 'active'
-      `;
+      const allCustomers = await sql.query(
+        "SELECT COUNT(*) as count FROM users WHERE user_type = 'customer' AND status = 'active'"
+      );
       console.log(`📊 Total active customers in system: ${allCustomers[0]?.count || 0}`);
       
       // Check if there are programs for this business
-      const businessPrograms = await sql`
-        SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = ${businessIdInt}
-      `;
+      const businessPrograms = await sql.query(
+        "SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = $1",
+        [businessIdInt]
+      );
       console.log(`📊 Programs for business ${businessIdInt}: ${businessPrograms[0]?.count || 0}`);
       
       // Check if there are any program enrollments
-      const enrollments = await sql`
-        SELECT COUNT(*) as count FROM program_enrollments pe
-        JOIN loyalty_programs lp ON pe.program_id = lp.id
-        WHERE lp.business_id = ${businessIdInt}
-      `;
+      const enrollments = await sql.query(
+        "SELECT COUNT(*) as count FROM program_enrollments pe JOIN loyalty_programs lp ON pe.program_id = lp.id WHERE lp.business_id = $1",
+        [businessIdInt]
+      );
       console.log(`📊 Program enrollments for business ${businessIdInt}: ${enrollments[0]?.count || 0}`);
       
       // Check if there are any loyalty transactions
-      const transactions = await sql`
-        SELECT COUNT(*) as count FROM loyalty_transactions WHERE business_id = ${businessIdInt}
-      `;
+      const transactions = await sql.query(
+        "SELECT COUNT(*) as count FROM loyalty_transactions WHERE business_id = $1",
+        [businessIdInt]
+      );
       console.log(`📊 Loyalty transactions for business ${businessIdInt}: ${transactions[0]?.count || 0}`);
       
     } catch (error) {
@@ -106,7 +107,7 @@ export class CustomerService {
       
       // Get customers who are enrolled in AT LEAST ONE program of this business (BIG RULE)
       // Use DISTINCT ON to ensure each customer appears only once
-      const customers = await sql`
+      const customers = await sql.query(`
         SELECT DISTINCT ON (c.id)
           c.id,
           c.name,
@@ -121,14 +122,14 @@ export class CustomerService {
         FROM users c
         JOIN program_enrollments pe ON c.id = pe.customer_id
         JOIN loyalty_programs lp ON pe.program_id = lp.id
-        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = $1
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND lp.business_id = ${businessIdInt}
+          AND lp.business_id = $1
           AND pe.status = 'ACTIVE'
         GROUP BY c.id, c.name, c.email, c.status, c.created_at
         ORDER BY c.id, c.name ASC
-      `;
+      `, [businessIdInt, businessIdInt]);
       
       console.log(`🔍 DEBUG: Raw SQL query returned ${customers.length} rows`);
       console.log(`🔍 DEBUG: First few raw results:`, customers.slice(0, 3));
@@ -190,7 +191,7 @@ export class CustomerService {
       const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       
       // Get customers who have had any transactions with this business
-      const customers = await sql`
+      const customers = await sql.query(`
         SELECT DISTINCT
           c.id,
           c.name,
@@ -201,14 +202,14 @@ export class CustomerService {
           COUNT(lt.id) as transaction_count,
           MAX(lt.transaction_date) as last_visit
         FROM users c
-        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = ${businessIdInt}
+        LEFT JOIN loyalty_transactions lt ON c.id = lt.customer_id AND lt.business_id = $1
         WHERE c.user_type = 'customer' 
           AND c.status = 'active'
-          AND (lt.business_id = ${businessIdInt} OR c.created_at IS NOT NULL)
+          AND (lt.business_id = $1 OR c.created_at IS NOT NULL)
         GROUP BY c.id, c.name, c.email, c.status, c.created_at
         ORDER BY c.name ASC
         LIMIT 50
-      `;
+      `, [businessIdInt, businessIdInt]);
       
       console.log(`🔍 FALLBACK: Found ${customers.length} customers with business interactions`);
       
@@ -273,7 +274,7 @@ export class CustomerService {
       const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const customerIdInt = SqlSecurity.validateCustomerId(customerId);
       
-      const programs = await sql`
+      const programs = await sql.query(`
         SELECT 
           lp.id,
           lp.name,
@@ -282,11 +283,11 @@ export class CustomerService {
           pe.status
         FROM loyalty_programs lp
         JOIN program_enrollments pe ON lp.id = pe.program_id
-        WHERE pe.customer_id = ${customerIdInt}
-          AND lp.business_id = ${businessIdInt}
+        WHERE pe.customer_id = $1
+          AND lp.business_id = $2
           AND pe.status = 'ACTIVE'
         ORDER BY pe.enrolled_at ASC
-      `;
+      `, [customerIdInt, businessIdInt]);
       
       return programs.map(program => ({
         id: program.id.toString(),
@@ -307,16 +308,16 @@ export class CustomerService {
   static async getCustomerById(customerId: string): Promise<Customer | null> {
     try {
       const customerIdInt = SqlSecurity.validateCustomerId(customerId);
-      const customers = await sql`
+      const customers = await sql.query(`
         SELECT 
           c.*,
           COALESCE(SUM(pe.current_points), 0) as total_loyalty_points,
           COUNT(DISTINCT pe.program_id) as program_count
         FROM users c
         LEFT JOIN program_enrollments pe ON c.id::text = pe.customer_id AND pe.status = 'ACTIVE'
-        WHERE c.id = ${customerIdInt} AND c.user_type = 'customer'
+        WHERE c.id = $1 AND c.user_type = 'customer'
         GROUP BY c.id
-      `;
+      `, [customerIdInt]);
       
       if (!customers.length) {
         return null;
@@ -359,7 +360,7 @@ export class CustomerService {
       const sanitizedType = SqlSecurity.sanitizeString(interactionType, 50);
       const sanitizedDescription = SqlSecurity.sanitizeDescription(description);
       
-      await sql`
+      await sql.query(`
         INSERT INTO customer_interactions (
           customer_id,
           business_id,
@@ -368,13 +369,9 @@ export class CustomerService {
           happened_at
         )
         VALUES (
-          ${customerIdInt},
-          ${businessIdInt},
-          ${sanitizedType},
-          ${sanitizedDescription},
-          NOW()
+          $1, $2, $3, $4, NOW()
         )
-      `;
+      `, [customerIdInt, businessIdInt, sanitizedType, sanitizedDescription]);
       
       // TODO: Emit customer event for real-time updates
       // emitCustomerEvent(customerId, businessId, interactionType, description);
@@ -423,11 +420,11 @@ export class CustomerService {
     try {
       const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       // Trigger a refresh by updating the business's updated_at timestamp
-      await sql`
+      await sql.query(`
         UPDATE businesses 
         SET updated_at = NOW() 
-        WHERE id = ${businessIdInt}
-      `;
+        WHERE id = $1
+      `, [businessIdInt]);
       
       // TODO: Emit event for real-time sync
       // emitCustomerEvent('refresh', businessId, 'REFRESH', 'Customer list refreshed');
@@ -457,16 +454,16 @@ export class CustomerService {
       let businessName;
       
       try {
-        const customerInfo = await sql`
-          SELECT name FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
-        `;
+        const customerInfo = await sql.query(`
+          SELECT name FROM users WHERE id = $1 AND user_type = 'customer'
+        `, [customerIdInt]);
         if (customerInfo.length > 0) {
           customerName = customerInfo[0].name;
         }
         
-        const businessInfo = await sql`
-          SELECT name FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
-        `;
+        const businessInfo = await sql.query(`
+          SELECT name FROM users WHERE id = $1 AND user_type = 'business'
+        `, [businessIdInt]);
         if (businessInfo.length > 0) {
           businessName = businessInfo[0].name;
         }
@@ -485,17 +482,17 @@ export class CustomerService {
       // Check for enrollments in loyalty programs first
       let enrollments = [];
       try {
-        enrollments = await sql`
+        enrollments = await sql.query(`
           SELECT 
             pe.program_id,
             pe.current_points,
             lp.name as program_name
           FROM program_enrollments pe
           JOIN loyalty_programs lp ON pe.program_id = lp.id
-          WHERE pe.customer_id = ${customerIdInt} 
-            AND lp.business_id = ${businessIdInt}
+          WHERE pe.customer_id = $1 
+            AND lp.business_id = $2
             AND pe.status = 'ACTIVE'
-        `;
+        `, [customerIdInt, businessIdInt]);
         
         if (enrollments.length > 0) {
           console.log(`Found ${enrollments.length} active program enrollments`);
@@ -511,12 +508,12 @@ export class CustomerService {
         console.log(`No active program enrollments found, checking business relationships`);
         
         try {
-          const relationships = await sql`
+          const relationships = await sql.query(`
             SELECT * FROM customer_business_relationships
-            WHERE customer_id = ${customerIdInt}
-              AND business_id = ${businessIdInt}
+            WHERE customer_id = $1
+              AND business_id = $2
               AND status = 'ACTIVE'
-          `;
+          `, [customerIdInt, businessIdInt]);
           
           if (relationships.length > 0) {
             console.log(`Found business relationship without program enrollment`);
@@ -525,10 +522,10 @@ export class CustomerService {
             
             // Try to find programs for this business to populate programIds
             try {
-              const businessPrograms = await sql`
+              const businessPrograms = await sql.query(`
                 SELECT id, name FROM loyalty_programs
-                WHERE business_id = ${businessIdInt} AND status = 'active'
-              `;
+                WHERE business_id = $1 AND status = 'active'
+              `, [businessIdInt]);
               
               if (businessPrograms.length > 0) {
                 // Add these programs to our enrollments list
@@ -554,17 +551,17 @@ export class CustomerService {
         console.log(`No active business relationship found, checking loyalty cards`);
         
         try {
-          const cards = await sql`
+          const cards = await sql.query(`
             SELECT 
               lc.*,
               lp.id as program_id,
               lp.name as program_name
             FROM loyalty_cards lc
             LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-            WHERE lc.customer_id = ${customerIdInt}
-              AND lc.business_id = ${businessIdInt}
+            WHERE lc.customer_id = $1
+              AND lc.business_id = $2
               AND lc.is_active = true
-          `;
+          `, [customerIdInt, businessIdInt]);
           
           if (cards.length > 0) {
             console.log(`Found ${cards.length} active loyalty cards`);
@@ -593,25 +590,25 @@ export class CustomerService {
       if (!isEnrolled) {
         try {
           // Check if customer exists
-          const customerExists = await sql`
-            SELECT EXISTS (SELECT 1 FROM users WHERE id = ${customerIdInt} AND user_type = 'customer')
-          `;
+          const customerExists = await sql.query(`
+            SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND user_type = 'customer')
+          `, [customerIdInt]);
           
           // Check if business has programs
-          const businessHasPrograms = await sql`
-            SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = ${businessIdInt} AND status = 'active')
-          `;
+          const businessHasPrograms = await sql.query(`
+            SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = $1 AND status = 'active')
+          `, [businessIdInt]);
           
           if (customerExists[0]?.exists && businessHasPrograms[0]?.exists) {
             console.log(`Customer and business both exist with programs - allowing enrollment`);
             isEnrolled = true;
             
             // Get business programs for enrollment
-            const businessPrograms = await sql`
+            const businessPrograms = await sql.query(`
               SELECT id, name FROM loyalty_programs
-              WHERE business_id = ${businessIdInt} AND status = 'active'
+              WHERE business_id = $1 AND status = 'active'
               LIMIT 1
-            `;
+            `, [businessIdInt]);
             
             if (businessPrograms.length > 0) {
               // Add first program as fallback
@@ -680,11 +677,11 @@ export class CustomerService {
       const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const programIdInt = SqlSecurity.validateProgramId(programId);
       
-      const existingCheck = await sql`
+      const existingCheck = await sql.query(`
         SELECT * FROM customer_business_relationships
-        WHERE customer_id = ${customerIdInt}
-          AND business_id = ${businessIdInt}
-      `;
+        WHERE customer_id = $1
+          AND business_id = $2
+      `, [customerIdInt, businessIdInt]);
       
       // If it doesn't exist, create it
       if (existingCheck.length === 0) {
@@ -700,7 +697,7 @@ export class CustomerService {
           )
         `;
         
-        await sql`
+        await sql.query(`
           INSERT INTO customer_business_relationships (
             customer_id,
             business_id,
@@ -709,17 +706,13 @@ export class CustomerService {
             updated_at
           )
           VALUES (
-            ${customerIdInt},
-            ${businessIdInt},
-            'ACTIVE',
-            NOW(),
-            NOW()
+            $1, $2, 'ACTIVE', NOW(), NOW()
           )
           ON CONFLICT (customer_id, business_id) 
           DO UPDATE SET
             status = 'ACTIVE',
             updated_at = NOW()
-        `;
+        `, [customerIdInt, businessIdInt]);
         
         // Record the association event
         await this.recordCustomerInteraction(
@@ -730,15 +723,15 @@ export class CustomerService {
         );
       } else {
         // If it exists but might be inactive, reactivate it
-        await sql`
+        await sql.query(`
           UPDATE customer_business_relationships
           SET 
             status = 'ACTIVE',
             updated_at = NOW()
           WHERE 
-            customer_id = ${customerIdInt} AND
-            business_id = ${businessIdInt}
-        `;
+            customer_id = $1 AND
+            business_id = $2
+        `, [customerIdInt, businessIdInt]);
       }
       
       // Import LoyaltyProgramService dynamically to avoid circular dependency
@@ -781,17 +774,17 @@ export class CustomerService {
       const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const promoCodeIdInt = SqlSecurity.sanitizeId(promoCodeId);
       
-      const customerResult = await sql`
-        SELECT name, email FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
-      `;
+      const customerResult = await sql.query(`
+        SELECT name, email FROM users WHERE id = $1 AND user_type = 'customer'
+      `, [customerIdInt]);
       
-      const promoCodeResult = await sql`
-        SELECT code, name, type, value, currency FROM promo_codes WHERE id = ${promoCodeIdInt}
-      `;
+      const promoCodeResult = await sql.query(`
+        SELECT code, name, type, value, currency FROM promo_codes WHERE id = $1
+      `, [promoCodeIdInt]);
       
-      const businessResult = await sql`
-        SELECT name FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
-      `;
+      const businessResult = await sql.query(`
+        SELECT name FROM users WHERE id = $1 AND user_type = 'business'
+      `, [businessIdInt]);
       
       if (customerResult.length === 0) {
         return { success: false, error: 'Customer not found' };
@@ -869,7 +862,7 @@ export class CustomerService {
       }
       
       // Search for customers that match the search term
-      const result = await sql`
+      const result = await sql.query(`
         SELECT 
           id,
           name,
@@ -883,12 +876,12 @@ export class CustomerService {
         WHERE user_type = 'customer' 
           AND status = 'active'
           AND (
-            LOWER(name) LIKE ${`%${sanitizedQuery}%`} OR
-            LOWER(email) LIKE ${`%${sanitizedQuery}%`}
+            LOWER(name) LIKE $1 OR
+            LOWER(email) LIKE $1
           )
         ORDER BY name ASC
         LIMIT 20
-      `;
+      `, [`%${sanitizedQuery}%`]);
       
       // Convert to Customer objects with proper type handling
       const customers: Customer[] = result.map((row: any) => ({
