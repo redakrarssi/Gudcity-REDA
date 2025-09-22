@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import { NotificationService } from './notificationService';
+import { SqlSecurity } from '../utils/sqlSecurity';
 
 export interface Customer {
   id: string;
@@ -51,7 +52,7 @@ export class CustomerService {
    */
   static async debugDatabaseState(businessId: string): Promise<void> {
     try {
-      const businessIdInt = parseInt(businessId, 10);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       console.log(`🔍 DEBUG DATABASE STATE for business ${businessId} (${businessIdInt}):`);
       
       // Check if there are any customers at all
@@ -100,13 +101,8 @@ export class CustomerService {
       }
       
       // Convert businessId to integer for database comparison
-      const businessIdInt = parseInt(businessId, 10);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       console.log(`🔍 DEBUG: Converted business ID to integer: ${businessIdInt}`);
-      
-      if (isNaN(businessIdInt)) {
-        console.error('❌ ERROR: Business ID is not a valid number:', businessId);
-        return [];
-      }
       
       // Get customers who are enrolled in AT LEAST ONE program of this business (BIG RULE)
       // Use DISTINCT ON to ensure each customer appears only once
@@ -191,12 +187,7 @@ export class CustomerService {
   static async getBusinessCustomersFallback(businessId: string): Promise<Customer[]> {
     try {
       console.log(`🔍 FALLBACK: Fetching customers who interacted with business ${businessId}`);
-      const businessIdInt = parseInt(businessId, 10);
-      
-      if (isNaN(businessIdInt)) {
-        console.error('❌ FALLBACK ERROR: Invalid business ID:', businessId);
-        return [];
-      }
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       
       // Get customers who have had any transactions with this business
       const customers = await sql`
@@ -256,8 +247,7 @@ export class CustomerService {
    */
   static async countBusinessCustomers(businessId: string): Promise<number> {
     try {
-      const businessIdInt = parseInt(businessId, 10);
-      if (isNaN(businessIdInt)) return 0;
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       
       console.log(`🔍 Counting customers for business ${businessId} (${businessIdInt})`);
       
@@ -280,13 +270,8 @@ export class CustomerService {
    */
   static async getCustomerPrograms(customerId: string, businessId: string): Promise<CustomerProgram[]> {
     try {
-      const businessIdInt = parseInt(businessId, 10);
-      const customerIdInt = parseInt(customerId, 10);
-      
-      if (isNaN(businessIdInt) || isNaN(customerIdInt)) {
-        console.error('❌ ERROR: Invalid business or customer ID');
-        return [];
-      }
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
       
       const programs = await sql`
         SELECT 
@@ -321,6 +306,7 @@ export class CustomerService {
    */
   static async getCustomerById(customerId: string): Promise<Customer | null> {
     try {
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
       const customers = await sql`
         SELECT 
           c.*,
@@ -328,7 +314,7 @@ export class CustomerService {
           COUNT(DISTINCT pe.program_id) as program_count
         FROM users c
         LEFT JOIN program_enrollments pe ON c.id::text = pe.customer_id AND pe.status = 'ACTIVE'
-        WHERE c.id = ${customerId} AND c.user_type = 'customer'
+        WHERE c.id = ${customerIdInt} AND c.user_type = 'customer'
         GROUP BY c.id
       `;
       
@@ -368,6 +354,11 @@ export class CustomerService {
     description: string
   ): Promise<boolean> {
     try {
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const sanitizedType = SqlSecurity.sanitizeString(interactionType, 50);
+      const sanitizedDescription = SqlSecurity.sanitizeDescription(description);
+      
       await sql`
         INSERT INTO customer_interactions (
           customer_id,
@@ -377,10 +368,10 @@ export class CustomerService {
           happened_at
         )
         VALUES (
-          ${customerId},
-          ${businessId},
-          ${interactionType},
-          ${description},
+          ${customerIdInt},
+          ${businessIdInt},
+          ${sanitizedType},
+          ${sanitizedDescription},
           NOW()
         )
       `;
@@ -430,11 +421,12 @@ export class CustomerService {
    */
   static async refreshBusinessCustomers(businessId: string): Promise<void> {
     try {
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       // Trigger a refresh by updating the business's updated_at timestamp
       await sql`
         UPDATE businesses 
         SET updated_at = NOW() 
-        WHERE id = ${businessId}
+        WHERE id = ${businessIdInt}
       `;
       
       // TODO: Emit event for real-time sync
@@ -459,20 +451,22 @@ export class CustomerService {
       console.log(`Checking enrollment status for customer ${customerId} with business ${businessId}`);
       
       // Get customer and business information first
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       let customerName;
       let businessName;
       
       try {
-        const customerInfo = await sql`
-          SELECT name FROM users WHERE id = ${customerId} AND user_type = 'customer'
-        `;
+        const customerInfo = await sql.query(`
+          SELECT name FROM users WHERE id = $1 AND user_type = 'customer'
+        `, [customerIdInt]);
         if (customerInfo.length > 0) {
           customerName = customerInfo[0].name;
         }
         
-        const businessInfo = await sql`
-          SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
-        `;
+        const businessInfo = await sql.query(`
+          SELECT name FROM users WHERE id = $1 AND user_type = 'business'
+        `, [businessIdInt]);
         if (businessInfo.length > 0) {
           businessName = businessInfo[0].name;
         }
@@ -498,8 +492,8 @@ export class CustomerService {
             lp.name as program_name
           FROM program_enrollments pe
           JOIN loyalty_programs lp ON pe.program_id = lp.id
-          WHERE pe.customer_id = ${customerId} 
-            AND lp.business_id = ${businessId}
+          WHERE pe.customer_id = ${customerIdInt} 
+            AND lp.business_id = ${businessIdInt}
             AND pe.status = 'ACTIVE'
         `;
         
@@ -519,8 +513,8 @@ export class CustomerService {
         try {
           const relationships = await sql`
             SELECT * FROM customer_business_relationships
-            WHERE customer_id = ${customerId}
-              AND business_id = ${businessId}
+            WHERE customer_id = ${customerIdInt}
+              AND business_id = ${businessIdInt}
               AND status = 'ACTIVE'
           `;
           
@@ -533,7 +527,7 @@ export class CustomerService {
             try {
               const businessPrograms = await sql`
                 SELECT id, name FROM loyalty_programs
-                WHERE business_id = ${businessId} AND status = 'active'
+                WHERE business_id = ${businessIdInt} AND status = 'active'
               `;
               
               if (businessPrograms.length > 0) {
@@ -567,8 +561,8 @@ export class CustomerService {
               lp.name as program_name
             FROM loyalty_cards lc
             LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-            WHERE lc.customer_id = ${customerId}
-              AND lc.business_id = ${businessId}
+            WHERE lc.customer_id = ${customerIdInt}
+              AND lc.business_id = ${businessIdInt}
               AND lc.is_active = true
           `;
           
@@ -600,12 +594,12 @@ export class CustomerService {
         try {
           // Check if customer exists
           const customerExists = await sql`
-            SELECT EXISTS (SELECT 1 FROM users WHERE id = ${customerId} AND user_type = 'customer')
+            SELECT EXISTS (SELECT 1 FROM users WHERE id = ${customerIdInt} AND user_type = 'customer')
           `;
           
           // Check if business has programs
           const businessHasPrograms = await sql`
-            SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = ${businessId} AND status = 'active')
+            SELECT EXISTS (SELECT 1 FROM loyalty_programs WHERE business_id = ${businessIdInt} AND status = 'active')
           `;
           
           if (customerExists[0]?.exists && businessHasPrograms[0]?.exists) {
@@ -615,7 +609,7 @@ export class CustomerService {
             // Get business programs for enrollment
             const businessPrograms = await sql`
               SELECT id, name FROM loyalty_programs
-              WHERE business_id = ${businessId} AND status = 'active'
+              WHERE business_id = ${businessIdInt} AND status = 'active'
               LIMIT 1
             `;
             
@@ -682,10 +676,14 @@ export class CustomerService {
   ): Promise<boolean> {
     try {
       // Check if the customer-business association already exists
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const programIdInt = SqlSecurity.validateProgramId(programId);
+      
       const existingCheck = await sql`
         SELECT * FROM customer_business_relationships
-        WHERE customer_id = ${customerId}
-          AND business_id = ${businessId}
+        WHERE customer_id = ${customerIdInt}
+          AND business_id = ${businessIdInt}
       `;
       
       // If it doesn't exist, create it
@@ -711,8 +709,8 @@ export class CustomerService {
             updated_at
           )
           VALUES (
-            ${customerId},
-            ${businessId},
+            ${customerIdInt},
+            ${businessIdInt},
             'ACTIVE',
             NOW(),
             NOW()
@@ -738,8 +736,8 @@ export class CustomerService {
             status = 'ACTIVE',
             updated_at = NOW()
           WHERE 
-            customer_id = ${customerId} AND
-            business_id = ${businessId}
+            customer_id = ${customerIdInt} AND
+            business_id = ${businessIdInt}
         `;
       }
       
@@ -779,16 +777,20 @@ export class CustomerService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Get customer and promo code details
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const promoCodeIdInt = SqlSecurity.sanitizeId(promoCodeId);
+      
       const customerResult = await sql`
-        SELECT name, email FROM users WHERE id = ${customerId} AND user_type = 'customer'
+        SELECT name, email FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
       `;
       
       const promoCodeResult = await sql`
-        SELECT code, name, type, value, currency FROM promo_codes WHERE id = ${promoCodeId}
+        SELECT code, name, type, value, currency FROM promo_codes WHERE id = ${promoCodeIdInt}
       `;
       
       const businessResult = await sql`
-        SELECT name FROM users WHERE id = ${businessId} AND user_type = 'business'
+        SELECT name FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
       `;
       
       if (customerResult.length === 0) {
@@ -858,7 +860,13 @@ export class CustomerService {
    */
   static async searchCustomers(businessId: string, searchTerm: string): Promise<Customer[]> {
     try {
-      const query = searchTerm.toLowerCase();
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const sanitizedQuery = SqlSecurity.sanitizeSearchQuery(searchTerm);
+      
+      if (!sanitizedQuery) {
+        console.warn('Search query is empty or invalid after sanitization');
+        return [];
+      }
       
       // Search for customers that match the search term
       const result = await sql`
@@ -875,8 +883,8 @@ export class CustomerService {
         WHERE user_type = 'customer' 
           AND status = 'active'
           AND (
-            LOWER(name) LIKE ${`%${query}%`} OR
-            LOWER(email) LIKE ${`%${query}%`}
+            LOWER(name) LIKE ${`%${sanitizedQuery}%`} OR
+            LOWER(email) LIKE ${`%${sanitizedQuery}%`}
           )
         ORDER BY name ASC
         LIMIT 20

@@ -39,7 +39,11 @@
     "admin:init-db": "node scripts/init-admin-db.mjs",
     "admin:check-health": "node scripts/check-admin-db-health.mjs",
     "admin:fix-passwords": "node scripts/fix-password-update.mjs",
-    "admin:api-server": "node start-api-server.cjs"
+    "admin:api-server": "node start-api-server.cjs",
+    "security:generate-secrets": "node scripts/generate-secure-secrets.js",
+    "security:setup-production": "node scripts/setup-production-security.js",
+    "security:validate-production": "node scripts/validate-security.js",
+    "security:production-check": "npm run security:generate-secrets && npm run security:setup-production"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

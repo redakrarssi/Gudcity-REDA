@@ -1,5 +1,6 @@
 import sql from '../utils/db';
 import { useAuth } from '../contexts/AuthContext';
+import { SqlSecurity } from '../utils/sqlSecurity';
 import { v4 as uuidv4 } from 'uuid';
 import { QrCodeStorageService } from './qrCodeStorageService';
 import { createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
@@ -368,10 +369,13 @@ export class LoyaltyCardService {
    */
   static async getCustomerCard(customerId: string, businessId: string): Promise<LoyaltyCard | null> {
     try {
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      
       const cards = await sql`
         SELECT * FROM loyalty_cards
-        WHERE customer_id = ${customerId}
-        AND business_id = ${businessId}
+        WHERE customer_id = ${customerIdInt}
+        AND business_id = ${businessIdInt}
         AND is_active = true
       `;
       
@@ -391,9 +395,10 @@ export class LoyaltyCardService {
    */
   static async getProgramRewards(programId: string): Promise<Reward[]> {
     try {
+      const programIdInt = SqlSecurity.validateProgramId(programId);
       const rewards = await sql`
         SELECT * FROM reward_tiers
-        WHERE program_id = ${programId}
+        WHERE program_id = ${programIdInt}
         ORDER BY points_required ASC
       `;
       
@@ -1249,13 +1254,24 @@ export class LoyaltyCardService {
       console.log(`🎯 AWARDING EXACTLY ${points} POINTS TO CARD ${cardId} (Source: ${source})`);
 
       // ENHANCED APPROACH: Use database function for reliable point awarding
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
+      const pointsInt = SqlSecurity.validatePoints(points);
+      const sanitizedSource = SqlSecurity.sanitizeSource(source);
+      const sanitizedDescription = SqlSecurity.sanitizeDescription(
+        description || `Points awarded via ${source}`, 
+        500
+      );
+      const sanitizedTransactionRef = SqlSecurity.sanitizeTransactionRef(
+        transactionRef || `tx-${Date.now()}`
+      );
+      
       const result = await sql`
         SELECT award_points_to_card(
-          ${parseInt(cardId)}, 
-          ${points}, 
-          ${source}, 
-          ${description || `Points awarded via ${source}`},
-          ${transactionRef || `tx-${Date.now()}`}
+          ${cardIdInt}, 
+          ${pointsInt}, 
+          ${sanitizedSource}, 
+          ${sanitizedDescription},
+          ${sanitizedTransactionRef}
         ) as success
       `;
 
@@ -1273,7 +1289,7 @@ export class LoyaltyCardService {
             total_points_earned,
             updated_at
           FROM loyalty_cards 
-          WHERE id = ${cardId}
+          WHERE id = ${cardIdInt}
         `;
 
         if (updatedCard.length > 0) {
@@ -1304,7 +1320,7 @@ export class LoyaltyCardService {
             FROM loyalty_cards lc
             JOIN loyalty_programs lp ON lc.program_id = lp.id
             JOIN users u ON lp.business_id = u.id
-            WHERE lc.id = ${cardId}
+            WHERE lc.id = ${cardIdInt}
           `;
           
           if (cardInfo.length > 0) {
@@ -1344,9 +1360,9 @@ export class LoyaltyCardService {
         const directUpdate = await sql`
           UPDATE loyalty_cards
           SET 
-            points = COALESCE(points, 0) + ${points},
+            points = COALESCE(points, 0) + ${pointsInt},
             updated_at = NOW()
-          WHERE id = ${cardId}
+          WHERE id = ${cardIdInt}
           RETURNING id, points
         `;
         
@@ -1363,11 +1379,11 @@ export class LoyaltyCardService {
               transaction_reference,
               created_at
             ) VALUES (
-              ${cardId},
+              ${cardIdInt},
               'EARN_POINTS',
-              ${points},
-              ${description || `Points awarded via ${source}`},
-              ${transactionRef || `tx-${Date.now()}`},
+              ${pointsInt},
+              ${sanitizedDescription},
+              ${sanitizedTransactionRef},
               NOW()
             )
           `;
@@ -1422,6 +1438,10 @@ export class LoyaltyCardService {
       const formattedPoints = Number(points.toFixed(2));
       
       // Get the card details
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
+      const pointsInt = SqlSecurity.validatePoints(points);
+      const sanitizedDescription = SqlSecurity.sanitizeDescription(description, 500);
+      
       const cardResult = await sql`
         SELECT 
           lc.*,
@@ -1430,7 +1450,7 @@ export class LoyaltyCardService {
         FROM loyalty_cards lc
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN users b ON lc.business_id = b.id
-        WHERE lc.id = ${cardId}
+        WHERE lc.id = ${cardIdInt}
       `;
       
       if (!cardResult.length) {
@@ -1449,7 +1469,7 @@ export class LoyaltyCardService {
         SET 
           points = ${newBalance},
           updated_at = NOW()
-        WHERE id = ${cardId}
+        WHERE id = ${cardIdInt}
         RETURNING *
       `;
       
@@ -1468,7 +1488,7 @@ export class LoyaltyCardService {
           created_at
         )
         VALUES (
-          ${cardId},
+          ${cardIdInt},
           ${card.customer_id},
           ${card.business_id},
           ${card.program_id},
@@ -1476,7 +1496,7 @@ export class LoyaltyCardService {
           ${currentPoints},
           ${newBalance},
           'POINTS_ADDED',
-          ${description},
+          ${sanitizedDescription},
           NOW()
         )
       `;
@@ -1556,6 +1576,9 @@ export class LoyaltyCardService {
   ): Promise<RedemptionResult> {
     try {
       // Get card details including business name
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
+      const sanitizedRewardName = SqlSecurity.sanitizeString(rewardName, 255);
+      
       const cardResult = await sql`
         SELECT 
           lc.*,
@@ -1567,7 +1590,7 @@ export class LoyaltyCardService {
         JOIN users u ON lc.business_id = u.id
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN customers c ON lc.customer_id = c.id
-        WHERE lc.id = ${cardId}
+        WHERE lc.id = ${cardIdInt}
       `;
       
       if (cardResult.length === 0) {
@@ -1577,14 +1600,15 @@ export class LoyaltyCardService {
       const card = cardResult[0];
       
       // Get available rewards for this program
+      const programIdInt = SqlSecurity.validateProgramId(card.program_id);
       const programRewards = await sql`
         SELECT * FROM loyalty_rewards 
-        WHERE program_id = ${card.program_id} 
+        WHERE program_id = ${programIdInt} 
         AND is_active = true
       `;
       
       // Find the specific reward by name
-      const reward = programRewards.find((r: any) => r.name === rewardName);
+      const reward = programRewards.find((r: any) => r.name === sanitizedRewardName);
       
       if (!reward) {
         return { success: false, message: 'Reward not found' };
@@ -1604,14 +1628,15 @@ export class LoyaltyCardService {
         
         try {
         // Deduct points from card
+          const requiredPointsInt = SqlSecurity.validatePoints(requiredPoints);
           await transaction`
           UPDATE loyalty_cards
           SET 
-              points = points - ${requiredPoints},
-              points_balance = COALESCE(points_balance, 0) - ${requiredPoints},
-              total_points_spent = COALESCE(total_points_spent, 0) + ${requiredPoints},
+              points = points - ${requiredPointsInt},
+              points_balance = COALESCE(points_balance, 0) - ${requiredPointsInt},
+              total_points_spent = COALESCE(total_points_spent, 0) + ${requiredPointsInt},
             updated_at = NOW()
-          WHERE id = ${cardId}
+          WHERE id = ${cardIdInt}
         `;
           
           // Generate a unique redemption reference
@@ -1624,6 +1649,10 @@ export class LoyaltyCardService {
           const businessName = String(card.business_name || 'Business');
         
         // Record redemption activity
+          const sanitizedRedemptionDescription = SqlSecurity.sanitizeDescription(
+            `Redeemed reward: ${sanitizedRewardName}`, 
+            500
+          );
           await transaction`
             INSERT INTO loyalty_transactions (
             card_id,
@@ -1637,14 +1666,14 @@ export class LoyaltyCardService {
               transaction_ref,
             created_at
           ) VALUES (
-            ${cardId},
+            ${cardIdInt},
               ${card.customer_id},
               ${card.business_id},
               ${card.program_id},
               'REDEEM',
-              ${requiredPoints},
+              ${requiredPointsInt},
               'CUSTOMER',
-              ${`Redeemed reward: ${rewardName}`},
+              ${sanitizedRedemptionDescription},
               ${redemptionId},
             NOW()
           )
@@ -1853,10 +1882,14 @@ export class LoyaltyCardService {
   ): Promise<RedemptionResult> {
     try {
       // Find card with this promo code
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
+      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
+      const sanitizedPromoCode = SqlSecurity.sanitizeString(promoCode, 100);
+      
       const cardResult = await sql`
         SELECT * FROM loyalty_cards 
-        WHERE promo_code = ${promoCode} 
-        AND business_id = ${businessId}
+        WHERE promo_code = ${sanitizedPromoCode} 
+        AND business_id = ${businessIdInt}
       `;
       
       if (!cardResult.length) {
@@ -1876,8 +1909,8 @@ export class LoyaltyCardService {
         // Find redeemer's card
         const redeemerCardResult = await sql`
           SELECT * FROM loyalty_cards 
-          WHERE customer_id = ${customerId}
-          AND business_id = ${businessId} 
+          WHERE customer_id = ${customerIdInt}
+          AND business_id = ${businessIdInt} 
           AND is_active = true
         `;
         
@@ -1924,11 +1957,14 @@ export class LoyaltyCardService {
    */
   static async getCardActivities(cardId: string, limit: number = 10): Promise<any[]> {
     try {
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
+      const limitInt = SqlSecurity.sanitizeId(limit);
+      
       const activities = await sql`
         SELECT * FROM card_activities
-        WHERE card_id = ${cardId}
+        WHERE card_id = ${cardIdInt}
         ORDER BY created_at DESC
-        LIMIT ${limit}
+        LIMIT ${limitInt}
       `;
       
       return activities.map((activity: any) => ({
@@ -1952,6 +1988,7 @@ export class LoyaltyCardService {
   static async getBusinessCardStats(businessId: string): Promise<any> {
     try {
       // Get total active cards
+      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
       const cardsResult = await sql`
         SELECT 
           COUNT(*) as total_cards,
@@ -1960,7 +1997,7 @@ export class LoyaltyCardService {
           SUM(CASE WHEN tier = 'GOLD' THEN 1 ELSE 0 END) as gold_cards, 
           SUM(CASE WHEN tier = 'PLATINUM' THEN 1 ELSE 0 END) as platinum_cards
         FROM loyalty_cards
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${businessIdInt}
         AND is_active = true
       `;
       
@@ -1969,7 +2006,7 @@ export class LoyaltyCardService {
         SELECT COUNT(*) as total_redemptions
         FROM card_activities ca
         JOIN loyalty_cards lc ON ca.card_id = lc.id
-        WHERE lc.business_id = ${businessId}
+        WHERE lc.business_id = ${businessIdInt}
         AND ca.activity_type = 'REDEEM_REWARD'
       `;
       
@@ -1998,8 +2035,9 @@ export class LoyaltyCardService {
    */
   private static async checkAndUpdateTier(cardId: string): Promise<boolean> {
     try {
+      const cardIdInt = SqlSecurity.validateCardId(cardId);
       const cardResult = await sql`
-        SELECT * FROM loyalty_cards WHERE id = ${cardId}
+        SELECT * FROM loyalty_cards WHERE id = ${cardIdInt}
       `;
       
       if (!cardResult.length) {
@@ -2030,20 +2068,25 @@ export class LoyaltyCardService {
           ? this.cardTiers[nextTierIndex].pointsRequired - points
           : null;
         
+        const sanitizedTier = SqlSecurity.sanitizeString(newTier, 50);
+        const sanitizedBenefits = SqlSecurity.sanitizeString(JSON.stringify(tierData.benefits), 1000);
+        const sanitizedRewards = SqlSecurity.sanitizeString(JSON.stringify(this.getDefaultRewards(newTier)), 2000);
+        
         await sql`
           UPDATE loyalty_cards
           SET 
-            tier = ${newTier},
-            card_type = ${newTier},
-            benefits = ${tierData.benefits},
+            tier = ${sanitizedTier},
+            card_type = ${sanitizedTier},
+            benefits = ${sanitizedBenefits},
             points_multiplier = ${tierData.pointsMultiplier},
             points_to_next = ${pointsToNext},
-            available_rewards = ${JSON.stringify(this.getDefaultRewards(newTier))},
+            available_rewards = ${sanitizedRewards},
             updated_at = NOW()
-          WHERE id = ${cardId}
+          WHERE id = ${cardIdInt}
         `;
         
         // Record tier upgrade activity
+        const sanitizedTierDescription = SqlSecurity.sanitizeDescription(`Upgraded to ${newTier} tier`, 255);
         await sql`
           INSERT INTO card_activities (
             card_id,
@@ -2052,10 +2095,10 @@ export class LoyaltyCardService {
             description,
             created_at
           ) VALUES (
-            ${cardId},
+            ${cardIdInt},
             'TIER_CHANGE',
             0,
-            ${`Upgraded to ${newTier} tier`},
+            ${sanitizedTierDescription},
             NOW()
           )
         `;
