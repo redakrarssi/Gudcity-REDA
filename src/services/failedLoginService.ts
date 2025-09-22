@@ -213,15 +213,25 @@ export class FailedLoginService {
     hours: number = 24
   ): Promise<FailedLoginAttempt[]> {
     try {
-      const whereClause = email ? sql`WHERE email = ${email} AND` : sql`WHERE`;
-      
-      const result = await sql`
+      let query = `
         SELECT id, email, ip_address, user_agent, attempted_at, failure_reason
         FROM failed_login_attempts
-        ${whereClause} attempted_at >= NOW() - INTERVAL '${hours} hours'
-        ORDER BY attempted_at DESC
-        LIMIT 100
+        WHERE attempted_at >= NOW() - INTERVAL '$$1 hours'
       `;
+      const params = [hours];
+      
+      if (email) {
+        query = `
+          SELECT id, email, ip_address, user_agent, attempted_at, failure_reason
+          FROM failed_login_attempts
+          WHERE email = $1 AND attempted_at >= NOW() - INTERVAL '$$2 hours'
+        `;
+        params.unshift(email);
+      }
+      
+      query += ' ORDER BY attempted_at DESC LIMIT 100';
+      
+      const result = await sql.query(query, params);
 
       return result.map(row => ({
         id: row.id,

@@ -198,10 +198,10 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
     // Check if email already exists - use case-insensitive comparison
     console.log('Checking if email already exists...');
     // Use a case-insensitive comparison to avoid duplicate emails in different cases
-    const existingUserQuery = await sql`
+    const existingUserQuery = await sql.query(`
       SELECT id, email FROM users 
-      WHERE LOWER(email) = LOWER(${user.email})
-    `;
+      WHERE LOWER(email) = LOWER($1)
+    `, [user.email]);
     
     if (existingUserQuery && existingUserQuery.length > 0) {
       console.error('User with email already exists - case insensitive match:', existingUserQuery[0].email);
@@ -214,7 +214,7 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
 
     console.log('Executing INSERT query...');
     try {
-      const result = await sql`
+      const result = await sql.query(`
         INSERT INTO users (
           name, 
           email, 
@@ -229,20 +229,22 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>): Promise
           created_by
         )
         VALUES (
-          ${user.name}, 
-          ${user.email}, 
-          ${hashedPassword || ''}, 
-          ${user.role || 'customer'}, 
-          ${user.user_type || 'customer'}, 
-          ${user.business_name || null}, 
-          ${user.business_phone || null}, 
-          ${user.avatar_url || null},
-          ${user.business_owner_id || null},
-          ${user.permissions ? JSON.stringify(user.permissions) : null},
-          ${user.created_by || null}
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
         )
         RETURNING id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at
-      `;
+      `, [
+        user.name, 
+        user.email, 
+        hashedPassword || '', 
+        user.role || 'customer', 
+        user.user_type || 'customer', 
+        user.business_name || null, 
+        user.business_phone || null, 
+        user.avatar_url || null,
+        user.business_owner_id || null,
+        user.permissions ? JSON.stringify(user.permissions) : null,
+        user.created_by || null
+      ]);
       
       console.log('INSERT query successful, result:', result);
       if (result && result.length > 0) {
