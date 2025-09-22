@@ -580,7 +580,7 @@ export async function getStaffUsers(ownerId: number): Promise<User[]> {
   }
 }
 
-// Update staff permissions
+// Update staff permissions - SECURITY COMPLIANT
 export async function updateStaffPermissions(
   staffId: number,
   ownerId: number,
@@ -589,32 +589,67 @@ export async function updateStaffPermissions(
   try {
     console.log('Updating staff permissions for staff:', staffId, 'by owner:', ownerId);
     
-    // Verify the staff user belongs to this owner
-    const staffUser = await getUserById(staffId);
-    if (!staffUser || staffUser.business_owner_id !== ownerId) {
-      console.error('Staff user not found or does not belong to this owner');
+    // Input validation - SECURITY REQUIREMENT
+    if (!staffId || !ownerId || staffId <= 0 || ownerId <= 0) {
+      console.error('Invalid staff ID or owner ID provided');
       return false;
     }
     
-    // Get current permissions and merge with updates
-    const currentPermissions = staffUser.permissions || createDefaultStaffPermissions();
+    // Verify the staff user belongs to this owner - AUTHORIZATION CHECK
+    const staffUser = await getUserById(staffId);
+    if (!staffUser || staffUser.business_owner_id !== ownerId || staffUser.role !== 'staff') {
+      console.error('Staff user not found, does not belong to this owner, or is not a staff user');
+      return false;
+    }
+    
+    // Validate permissions structure - SECURITY REQUIREMENT
+    const validPermissions = createDefaultStaffPermissions();
+    const validKeys = Object.keys(validPermissions);
+    
+    for (const key of Object.keys(permissions)) {
+      if (!validKeys.includes(key)) {
+        console.error(`Invalid permission key: ${key}`);
+        return false;
+      }
+      
+      // Ensure only boolean values are accepted
+      if (typeof permissions[key as keyof StaffPermissions] !== 'boolean') {
+        console.error(`Invalid permission value for ${key}: must be boolean`);
+        return false;
+      }
+    }
+    
+    // Get current permissions and merge with updates - PREVENT DATA LOSS
+    const currentPermissions = staffUser.permissions || validPermissions;
     const updatedPermissions = { ...currentPermissions, ...permissions };
     
+    // Use parameterized query to prevent SQL injection - SECURITY REQUIREMENT
     await sql`
       UPDATE users 
-      SET permissions = ${JSON.stringify(updatedPermissions)}
-      WHERE id = ${staffId}
+      SET permissions = ${JSON.stringify(updatedPermissions)}, updated_at = ${new Date()}
+      WHERE id = ${staffId} AND role = 'staff'
     `;
     
     console.log('Staff permissions updated successfully');
     return true;
   } catch (error) {
     console.error('Error updating staff permissions:', error);
+    
+    // Log security-relevant details without exposing sensitive information
+    if (error instanceof Error) {
+      console.error('Permission update error details:', {
+        message: error.message,
+        name: error.name,
+        staffId: staffId,
+        permissionKeys: Object.keys(permissions)
+      });
+    }
+    
     return false;
   }
 }
 
-// Update staff user information (only by owner)
+// Update staff user information (only by owner) - SECURITY COMPLIANT
 export async function updateStaffUser(
   staffId: number,
   ownerId: number,
@@ -626,70 +661,399 @@ export async function updateStaffUser(
   }
 ): Promise<boolean> {
   try {
-    console.log('Updating staff user:', staffId, 'by owner:', ownerId);
+    console.log('🔍 STAFF UPDATE DIAGNOSTICS START');
+    console.log('📊 Input Parameters:', {
+      staffId: staffId,
+      ownerId: ownerId,
+      updatedDataKeys: Object.keys(updatedData),
+      updatedData: {
+        name: updatedData.name,
+        email: updatedData.email,
+        hasPassword: !!updatedData.password,
+        hasPermissions: !!updatedData.permissions
+      }
+    });
     
-    // Verify the staff user belongs to this owner
-    const staffUser = await getUserById(staffId);
-    if (!staffUser || staffUser.business_owner_id !== ownerId || staffUser.role !== 'staff') {
-      console.error('Staff user not found, does not belong to this owner, or is not a staff user');
+    // Input validation and sanitization - SECURITY REQUIREMENT
+    if (!staffId || !ownerId || staffId <= 0 || ownerId <= 0) {
+      console.error('❌ DIAGNOSTIC: Invalid staff ID or owner ID provided', { staffId, ownerId });
       return false;
     }
+    console.log('✅ DIAGNOSTIC: Input validation passed');
     
-    // Build update query dynamically based on provided data
-    const updateFields: string[] = [];
-    const updateValues: any[] = [];
-    let paramIndex = 1;
+    // Verify the staff user belongs to this owner - AUTHORIZATION CHECK
+    console.log('🔍 DIAGNOSTIC: Fetching staff user...');
+    const staffUser = await getUserById(staffId);
+    console.log('📊 DIAGNOSTIC: Staff user data:', {
+      exists: !!staffUser,
+      id: staffUser?.id,
+      name: staffUser?.name,
+      email: staffUser?.email,
+      role: staffUser?.role,
+      business_owner_id: staffUser?.business_owner_id,
+      expected_owner_id: ownerId
+    });
+    
+    if (!staffUser || staffUser.business_owner_id !== ownerId || staffUser.role !== 'staff') {
+      console.error('❌ DIAGNOSTIC: Authorization failed', {
+        userExists: !!staffUser,
+        ownerIdMatch: staffUser?.business_owner_id === ownerId,
+        isStaff: staffUser?.role === 'staff',
+        actualRole: staffUser?.role,
+        actualOwnerId: staffUser?.business_owner_id
+      });
+      return false;
+    }
+    console.log('✅ DIAGNOSTIC: Authorization check passed');
+    
+    // Validate and sanitize input data - SECURITY REQUIREMENT
+    console.log('🔍 DIAGNOSTIC: Starting data validation...');
+    const sanitizedData: any = {};
     
     if (updatedData.name) {
-      updateFields.push(`name = $${paramIndex++}`);
-      updateValues.push(updatedData.name);
+      console.log('🔍 DIAGNOSTIC: Validating name field...');
+      const trimmedName = updatedData.name.trim();
+      console.log('📊 DIAGNOSTIC: Name validation:', {
+        originalName: updatedData.name,
+        trimmedName: trimmedName,
+        length: trimmedName.length,
+        isValid: trimmedName.length >= 2 && trimmedName.length <= 100
+      });
+      
+      if (trimmedName.length < 2 || trimmedName.length > 100) {
+        console.error('❌ DIAGNOSTIC: Invalid name length (must be 2-100 characters)', {
+          length: trimmedName.length,
+          name: trimmedName
+        });
+        return false;
+      }
+      sanitizedData.name = trimmedName;
+      console.log('✅ DIAGNOSTIC: Name validation passed');
     }
     
     if (updatedData.email) {
-      // Check if email is already taken by another user
-      const existingUser = await sql`
-        SELECT id FROM users 
-        WHERE LOWER(email) = LOWER(${updatedData.email}) AND id != ${staffId}
-      `;
+      console.log('🔍 DIAGNOSTIC: Validating email field...');
+      const trimmedEmail = updatedData.email.trim().toLowerCase();
+      console.log('📊 DIAGNOSTIC: Email processing:', {
+        originalEmail: updatedData.email,
+        trimmedEmail: trimmedEmail,
+        currentStaffEmail: staffUser.email,
+        currentStaffEmailLower: staffUser.email?.toLowerCase()
+      });
       
-      if (existingUser.length > 0) {
-        console.error('Email already exists for another user');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isValidFormat = emailRegex.test(trimmedEmail);
+      console.log('📊 DIAGNOSTIC: Email format validation:', {
+        email: trimmedEmail,
+        regex: emailRegex.toString(),
+        isValid: isValidFormat
+      });
+      
+      if (!isValidFormat) {
+        console.error('❌ DIAGNOSTIC: Invalid email format:', {
+          email: trimmedEmail,
+          reason: 'Failed regex validation'
+        });
         return false;
       }
+      console.log('✅ DIAGNOSTIC: Email format validation passed');
       
-      updateFields.push(`email = $${paramIndex++}`);
-      updateValues.push(updatedData.email.toLowerCase());
+      // Compare emails to determine if change is needed
+      const currentEmailLower = staffUser.email?.toLowerCase();
+      const isSameEmail = currentEmailLower === trimmedEmail;
+      console.log('📊 DIAGNOSTIC: Email comparison:', {
+        staffId: staffId,
+        currentEmail: staffUser.email,
+        currentEmailLower: currentEmailLower,
+        newEmail: trimmedEmail,
+        isSameEmail: isSameEmail,
+        needsDuplicateCheck: !isSameEmail
+      });
+      
+      // Only check for duplicates if the email is actually changing
+      if (!isSameEmail) {
+        console.log('🔍 DIAGNOSTIC: Email is changing, checking for duplicates...');
+        
+        try {
+          // Check if email is already taken by another user - PREVENT DUPLICATES
+          const existingUser = await sql`
+            SELECT id, email, name, role FROM users 
+            WHERE LOWER(email) = ${trimmedEmail} AND id != ${staffId}
+          `;
+          
+          console.log('📊 DIAGNOSTIC: Duplicate email check result:', {
+            searchEmail: trimmedEmail,
+            excludeId: staffId,
+            foundUsers: existingUser.length,
+            users: existingUser.map(u => ({ 
+              id: u.id, 
+              email: u.email, 
+              name: u.name, 
+              role: u.role 
+            }))
+          });
+          
+          if (existingUser.length > 0) {
+            console.error('❌ DIAGNOSTIC: Email already exists for another user:', {
+              conflictingUser: existingUser[0],
+              attemptedEmail: trimmedEmail,
+              staffIdTrying: staffId
+            });
+            return false;
+          }
+          console.log('✅ DIAGNOSTIC: No duplicate email found');
+        } catch (emailCheckError) {
+          console.error('❌ DIAGNOSTIC: Error during duplicate email check:', {
+            error: emailCheckError,
+            email: trimmedEmail,
+            staffId: staffId
+          });
+          return false;
+        }
+      } else {
+        console.log('✅ DIAGNOSTIC: Email is not changing, skipping duplicate check');
+      }
+      
+      sanitizedData.email = trimmedEmail;
+      console.log('✅ DIAGNOSTIC: Email validation completed successfully');
     }
     
     if (updatedData.password) {
-      const hashedPassword = await hashPassword(updatedData.password);
-      updateFields.push(`password = $${paramIndex++}`);
-      updateValues.push(hashedPassword);
+      // Password validation - SECURITY REQUIREMENT
+      if (updatedData.password.length < 8) {
+        console.error('Password must be at least 8 characters');
+        return false;
+      }
+      
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(updatedData.password)) {
+        console.error('Password must contain uppercase, lowercase, and number');
+        return false;
+      }
+      
+      // Hash the password securely - SECURITY REQUIREMENT
+      sanitizedData.password = await hashPassword(updatedData.password);
     }
     
     if (updatedData.permissions) {
-      updateFields.push(`permissions = $${paramIndex++}`);
-      updateValues.push(JSON.stringify(updatedData.permissions));
+      // Validate permissions structure - SECURITY REQUIREMENT
+      const validPermissions = createDefaultStaffPermissions();
+      const validKeys = Object.keys(validPermissions);
+      
+      for (const key of Object.keys(updatedData.permissions)) {
+        if (!validKeys.includes(key)) {
+          console.error(`Invalid permission key: ${key}`);
+          return false;
+        }
+      }
+      
+      // Merge with existing permissions to prevent data loss
+      const currentPermissions = staffUser.permissions || validPermissions;
+      const mergedPermissions = { ...currentPermissions, ...updatedData.permissions };
+      
+      sanitizedData.permissions = JSON.stringify(mergedPermissions);
     }
     
-    if (updateFields.length === 0) {
-      console.log('No fields to update');
+    // Check if there are any fields to update
+    console.log('📊 DIAGNOSTIC: Final sanitized data:', {
+      fieldsToUpdate: Object.keys(sanitizedData),
+      sanitizedData: {
+        ...sanitizedData,
+        password: sanitizedData.password ? '[HASHED]' : undefined
+      }
+    });
+    
+    if (Object.keys(sanitizedData).length === 0) {
+      console.log('✅ DIAGNOSTIC: No valid fields to update - returning success');
       return true;
     }
+    console.log('🔍 DIAGNOSTIC: Proceeding with database update...');
     
-    // Add updated_at field
-    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    // Add updated timestamp
+    sanitizedData.updated_at = new Date();
     
-    // Execute update query
-    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`;
-    updateValues.push(staffId);
+    console.log('🔍 DIAGNOSTIC: Executing database update using Neon tagged templates...');
     
-    await sql.unsafe(query, updateValues);
+    try {
+      // Execute using Neon's tagged template approach - FIX FOR API CHANGE
+      let result;
+      
+      // Build query using tagged template literals for each field combination
+      if (sanitizedData.name && sanitizedData.email && sanitizedData.password && sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              email = ${sanitizedData.email}, 
+              password = ${sanitizedData.password}, 
+              permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name && sanitizedData.email && sanitizedData.password) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              email = ${sanitizedData.email}, 
+              password = ${sanitizedData.password}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name && sanitizedData.email && sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              email = ${sanitizedData.email}, 
+              permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name && sanitizedData.email) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              email = ${sanitizedData.email}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name && sanitizedData.password) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              password = ${sanitizedData.password}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name && sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.email && sanitizedData.password) {
+        result = await sql`
+          UPDATE users 
+          SET email = ${sanitizedData.email}, 
+              password = ${sanitizedData.password}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.email && sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET email = ${sanitizedData.email}, 
+              permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.password && sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET password = ${sanitizedData.password}, 
+              permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.name) {
+        result = await sql`
+          UPDATE users 
+          SET name = ${sanitizedData.name}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.email) {
+        result = await sql`
+          UPDATE users 
+          SET email = ${sanitizedData.email}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.password) {
+        result = await sql`
+          UPDATE users 
+          SET password = ${sanitizedData.password}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else if (sanitizedData.permissions) {
+        result = await sql`
+          UPDATE users 
+          SET permissions = ${sanitizedData.permissions}, 
+              updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      } else {
+        // Only update timestamp
+        result = await sql`
+          UPDATE users 
+          SET updated_at = ${sanitizedData.updated_at}
+          WHERE id = ${staffId} AND role = 'staff'
+        `;
+      }
+      
+      console.log('📊 DIAGNOSTIC: Database update result:', {
+        rowCount: result.count,
+        command: result.command,
+        success: result.count > 0,
+        fieldsUpdated: Object.keys(sanitizedData).length
+      });
+      
+      // Verify the update was successful
+      if (result.count === 0) {
+        console.error('❌ DIAGNOSTIC: No rows updated - possible causes:', {
+          staffIdExists: staffId,
+          isStaffRole: 'Check if user.role = "staff"',
+          suggestion: 'User may not exist or may not have staff role'
+        });
+        return false;
+      }
+      
+      console.log('✅ DIAGNOSTIC: Staff user updated successfully!', {
+        rowsAffected: result.count,
+        staffId: staffId,
+        fieldsUpdated: Object.keys(sanitizedData).length
+      });
+      console.log('🎉 STAFF UPDATE DIAGNOSTICS COMPLETE - SUCCESS');
+      return true;
+    } catch (dbError) {
+      console.error('❌ DIAGNOSTIC: Database execution error:', {
+        error: dbError,
+        sanitizedFields: Object.keys(sanitizedData),
+        staffId: staffId
+      });
+      throw dbError; // Re-throw to be caught by outer catch block
+    }
     
-    console.log('Staff user updated successfully');
-    return true;
   } catch (error) {
-    console.error('Error updating staff user:', error);
+    console.error('❌ DIAGNOSTIC: FATAL ERROR in staff update:', error);
+    console.log('💥 STAFF UPDATE DIAGNOSTICS COMPLETE - FAILURE');
+    
+    // Enhanced error diagnostics without exposing sensitive information
+    if (error instanceof Error) {
+      console.error('📊 DIAGNOSTIC: Error analysis:', {
+        errorType: error.name,
+        errorMessage: error.message,
+        staffId: staffId,
+        ownerId: ownerId,
+        hasPassword: !!updatedData.password,
+        hasPermissions: !!updatedData.permissions,
+        hasName: !!updatedData.name,
+        hasEmail: !!updatedData.email,
+        stack: error.stack?.split('\n').slice(0, 3) // Only first 3 stack lines for debugging
+      });
+      
+      // Specific error type diagnostics
+      if (error.message.includes('duplicate') || error.message.includes('unique')) {
+        console.error('📊 DIAGNOSTIC: Duplicate key constraint violation detected');
+      }
+      if (error.message.includes('permission') || error.message.includes('unauthorized')) {
+        console.error('📊 DIAGNOSTIC: Permission/authorization error detected');
+      }
+      if (error.message.includes('connection') || error.message.includes('network')) {
+        console.error('📊 DIAGNOSTIC: Database connection error detected');
+      }
+    }
+    
     return false;
   }
 }

@@ -19,6 +19,8 @@ import { ScanResult, QrCodeType } from '../../types/qrCode';
 import { BusinessEnrollmentNotifications } from '../../components/business/BusinessEnrollmentNotifications';
 import { BusinessRedemptionNotifications } from '../../components/business/BusinessRedemptionNotifications';
 import { RedemptionVerification } from '../../components/business/RedemptionVerification';
+import { PermissionGate } from '../../components/common/PermissionGate';
+import { PERMISSIONS, hasPermission } from '../../utils/permissions';
 import { IconBell } from '../../components/icons/IconBell';
 import QuickAwardPoints from '../../components/QuickAwardPoints';
 
@@ -265,10 +267,31 @@ const BusinessDashboard = () => {
   };
 
   const handleProgramSubmit = (program: Partial<LoyaltyProgram>) => {
+    // SECURITY: Check permissions before allowing program modifications - REDA.MD COMPLIANCE
     if (selectedProgram) {
-      // Update existing program
+      // Update existing program - check edit permission
+      if (!hasPermission(user, PERMISSIONS.PROGRAMS_EDIT)) {
+        console.error('🔒 SECURITY: User attempted to update program without permission', {
+          userId: user?.id,
+          userRole: user?.role,
+          attemptedAction: 'program_update_dashboard',
+          programId: selectedProgram.id
+        });
+        return;
+      }
+      console.log('✅ SECURITY: Program update permission verified (Dashboard)', { userId: user?.id });
       setPrograms(programs.map(p => p.id === selectedProgram.id ? { ...p, ...program } as LoyaltyProgram : p));
     } else {
+      // Create new program - check create permission
+      if (!hasPermission(user, PERMISSIONS.PROGRAMS_CREATE)) {
+        console.error('🔒 SECURITY: User attempted to create program without permission', {
+          userId: user?.id,
+          userRole: user?.role,
+          attemptedAction: 'program_create_dashboard'
+        });
+        return;
+      }
+      console.log('✅ SECURITY: Program creation permission verified (Dashboard)', { userId: user?.id });
       // Add new program with required fields
       setPrograms([...programs, { 
         ...program, 
@@ -338,13 +361,23 @@ const BusinessDashboard = () => {
                 )}
               </div>
             </Link>
-            <button
-              onClick={() => { setShowProgramBuilder(true); setSelectedProgram(null); }}
-              className="action-button px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700 transition-colors"
+            <PermissionGate
+              permission={PERMISSIONS.PROGRAMS_CREATE}
+              fallback={
+                <div className="action-button px-4 py-2 bg-gray-300 text-gray-500 rounded-md flex items-center cursor-not-allowed">
+                  <Plus className="action-icon h-5 w-5 mr-2" />
+                  {t('business.New Program')} (Owner Only)
+                </div>
+              }
             >
-              <Plus className="action-icon h-5 w-5 mr-2" />
-              {t('business.New Program')}
-            </button>
+              <button
+                onClick={() => { setShowProgramBuilder(true); setSelectedProgram(null); }}
+                className="action-button px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700 transition-colors"
+              >
+                <Plus className="action-icon h-5 w-5 mr-2" />
+                {t('business.New Program')}
+              </button>
+            </PermissionGate>
           </div>
         </div>
         

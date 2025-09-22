@@ -9,7 +9,7 @@ import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { DeleteButton, PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
-import { PERMISSIONS, isBusinessOwner } from '../../utils/permissions';
+import { PERMISSIONS, isBusinessOwner, hasPermission } from '../../utils/permissions';
 import { getBusinessIdString } from '../../utils/businessContext';
 import sql, { verifyConnection } from '../../utils/db';
 
@@ -131,6 +131,26 @@ const Programs = () => {
   };
 
   const handleProgramEdit = (program: LoyaltyProgram) => {
+    // SECURITY: Check if user has permission to edit programs - REDA.MD COMPLIANCE
+    if (!hasPermission(user, PERMISSIONS.PROGRAMS_EDIT)) {
+      console.error('🔒 SECURITY: User attempted to edit program without permission', {
+        userId: user?.id,
+        userRole: user?.role,
+        userPermissions: user?.permissions,
+        attemptedAction: 'program_edit',
+        programId: program.id
+      });
+      
+      setError('❌ Access Denied: You do not have permission to edit programs. Please contact your business owner for access.');
+      return;
+    }
+
+    console.log('✅ SECURITY: Program edit permission verified for user', {
+      userId: user?.id,
+      userRole: user?.role,
+      programId: program.id
+    });
+
     setSelectedProgram(program);
     setShowProgramBuilder(true);
   };
@@ -140,6 +160,26 @@ const Programs = () => {
     
     try {
       if (selectedProgram) {
+        // SECURITY: Check if user has permission to edit programs - REDA.MD COMPLIANCE
+        if (!hasPermission(user, PERMISSIONS.PROGRAMS_EDIT)) {
+          console.error('🔒 SECURITY: User attempted to update program without permission', {
+            userId: user?.id,
+            userRole: user?.role,
+            userPermissions: user?.permissions,
+            attemptedAction: 'program_update',
+            programId: selectedProgram.id
+          });
+          
+          setError('❌ Access Denied: You do not have permission to update programs. Please contact your business owner for access.');
+          return;
+        }
+
+        console.log('✅ SECURITY: Program update permission verified for user', {
+          userId: user?.id,
+          userRole: user?.role,
+          programId: selectedProgram.id
+        });
+
         // Update existing program
         const updatedProgram = await LoyaltyProgramService.updateProgram(
           selectedProgram.id,
@@ -152,10 +192,33 @@ const Programs = () => {
           ));
           setShowProgramBuilder(false);
           setSelectedProgram(null);
+          
+          console.log('✅ SECURITY: Program updated successfully by authorized user', {
+            userId: user?.id,
+            programId: selectedProgram.id
+          });
         } else {
           setError(t('business.Failed to update program. Please try again.'));
         }
       } else {
+        // SECURITY: Check if user has permission to create programs - REDA.MD COMPLIANCE
+        if (!hasPermission(user, PERMISSIONS.PROGRAMS_CREATE)) {
+          console.error('🔒 SECURITY: User attempted to create program without permission', {
+            userId: user?.id,
+            userRole: user?.role,
+            userPermissions: user?.permissions,
+            attemptedAction: 'program_create'
+          });
+          
+          setError('❌ Access Denied: You do not have permission to create programs. Only business owners can create new loyalty programs.');
+          return;
+        }
+
+        console.log('✅ SECURITY: Program creation permission verified for user', {
+          userId: user?.id,
+          userRole: user?.role
+        });
+
         // Create new program
         // Validate business ID is available
         const businessId = user?.id?.toString();
@@ -364,13 +427,23 @@ const Programs = () => {
                           >
                             {t('business.Delete')}
                           </DeleteButton>
-                          <button
-                            onClick={() => handleProgramEdit(program)}
-                            className="text-sm flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors program-edit-btn"
+                          <PermissionGate
+                            permission={PERMISSIONS.PROGRAMS_EDIT}
+                            fallback={
+                              <div className="text-sm px-3 py-1.5 bg-gray-300 text-gray-500 rounded cursor-not-allowed flex items-center">
+                                {t('business.Edit')} (No Permission)
+                                <ChevronRight className="w-4 h-4 ml-1" />
+                              </div>
+                            }
                           >
-                            {t('business.Edit')}
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </button>
+                            <button
+                              onClick={() => handleProgramEdit(program)}
+                              className="text-sm flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors program-edit-btn"
+                            >
+                              {t('business.Edit')}
+                              <ChevronRight className="w-4 h-4 ml-1" />
+                            </button>
+                          </PermissionGate>
                         </div>
                       </div>
                     </div>
@@ -386,16 +459,26 @@ const Programs = () => {
                     <p className="mt-2 text-sm text-gray-600 max-w-md mx-auto programs-empty-description">
                       {t('business.You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.')}
                     </p>
-                    <button
-                      onClick={() => {
-                        setSelectedProgram(null);
-                        setShowProgramBuilder(true);
-                      }}
-                      className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto programs-empty-btn"
+                    <PermissionGate
+                      permission={PERMISSIONS.PROGRAMS_CREATE}
+                      fallback={
+                        <div className="mt-6 flex items-center gap-2 bg-gray-300 text-gray-500 px-4 py-2 rounded-lg cursor-not-allowed mx-auto">
+                          <Plus className="w-5 h-5" />
+                          {t('business.Create Program')} (Owner Only)
+                        </div>
+                      }
                     >
-                      <Plus className="w-5 h-5" />
-                      {t('business.Create Program')}
-                    </button>
+                      <button
+                        onClick={() => {
+                          setSelectedProgram(null);
+                          setShowProgramBuilder(true);
+                        }}
+                        className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mx-auto programs-empty-btn"
+                      >
+                        <Plus className="w-5 h-5" />
+                        {t('business.Create Program')}
+                      </button>
+                    </PermissionGate>
                   </div>
                 )}
               </>

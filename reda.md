@@ -165,27 +165,117 @@ The enrollment notification system enables business owners to invite customers t
 - **Testing** - Ensure error scenarios are covered in tests
 - **Graceful Degradation** - Design features to degrade gracefully when errors occur
 
-## Website Security
+## Website Security - Updated December 2024
+
+### SECURITY-FIRST DEVELOPMENT MANDATE
+
+**CRITICAL RULE**: All code written from this point forward MUST be security-conscious. Security vulnerabilities will be actively prevented and addressed as the highest priority in all development activities.
 
 ### Authentication and Authorization
-- **Token Management** - Ensure proper handling of auth tokens with appropriate expiration
-- **Permission Checks** - Implement consistent permission verification across all endpoints
-- **Session Management** - Follow best practices for session handling and timeout
-- **Multi-factor Authentication** - Consider MFA implementation for sensitive operations
+- **Token Management** - Implement secure JWT handling with automatic refresh and proper expiration (15-30 minutes for access tokens)
+- **Permission Checks** - Implement role-based access control (RBAC) with granular permissions verified on every endpoint
+- **Session Management** - Use secure session handling with HttpOnly, Secure, and SameSite cookie attributes
+- **Multi-factor Authentication** - Implement TOTP-based MFA for admin accounts and sensitive business operations
+- **Password Security** - Enforce strong password policies with bcrypt hashing (minimum 12 rounds)
+- **Account Lockout** - Implement progressive account lockout after failed login attempts
 
 ### Data Protection
-- **PII Handling** - Follow strict protocols for handling Personally Identifiable Information
-- **Data Encryption** - Ensure sensitive data is encrypted at rest and in transit
-- **Input Sanitization** - Implement thorough input sanitization to prevent injection attacks
-- **CORS Policies** - Maintain strict CORS policies to prevent unauthorized data access
+- **PII Handling** - Implement data minimization principles and GDPR compliance for all personal data
+- **Data Encryption** - Use AES-256 encryption at rest and TLS 1.3 for data in transit
+- **Input Sanitization** - Implement comprehensive input validation using allowlists, not blocklists
+- **CORS Policies** - Configure strict CORS with specific origins, no wildcards in production
+- **Data Masking** - Implement data masking for sensitive information in logs and error messages
+- **Database Security** - Use parameterized queries exclusively, never string concatenation
 
-### Security Best Practices
-- **XSS Prevention** - Implement measures against Cross-Site Scripting attacks
-- **CSRF Protection** - Ensure Cross-Site Request Forgery protections are in place
-- **Rate Limiting** - Implement rate limiting on sensitive endpoints
-- **Dependency Security** - Regularly audit dependencies for security vulnerabilities
-- **Secure Headers** - Configure secure HTTP headers (Content-Security-Policy, etc.)
-- **Audit Logging** - Maintain comprehensive audit logs for security-relevant actions
+### Modern Security Threats Protection
+- **XSS Prevention** - Implement Content Security Policy (CSP) with nonce-based script loading
+- **CSRF Protection** - Use double-submit cookies or synchronizer tokens for state-changing operations
+- **Clickjacking Protection** - Implement X-Frame-Options: DENY or CSP frame-ancestors 'none'
+- **Server-Side Request Forgery (SSRF)** - Validate and allowlist external URLs and IP ranges
+- **Prototype Pollution** - Validate object properties and use Object.create(null) for safe objects
+- **Path Traversal** - Sanitize file paths and use absolute path validation
+
+### Supply Chain and Dependency Security
+- **Dependency Auditing** - Run npm audit and Snyk checks on every build
+- **Version Pinning** - Pin exact dependency versions, avoid version ranges in production
+- **License Compliance** - Ensure all dependencies have compatible licenses
+- **Automated Security Updates** - Implement automated security patch management
+- **Third-party Services** - Audit all external APIs and services for security compliance
+- **Subresource Integrity** - Use SRI hashes for external scripts and stylesheets
+
+### Infrastructure Security
+- **Rate Limiting** - Implement progressive rate limiting (burst/sustained) on all endpoints
+- **API Security** - Implement API versioning, request/response validation, and comprehensive logging
+- **Secure Headers** - Configure all security headers (HSTS, CSP, X-Content-Type-Options, etc.)
+- **Error Handling** - Never expose stack traces or sensitive information in error responses
+- **Audit Logging** - Log all security events with correlation IDs for forensic analysis
+- **Intrusion Detection** - Monitor for suspicious patterns and automated attack attempts
+
+### DevSecOps Integration
+- **Security Testing** - Integrate SAST, DAST, and dependency scanning into CI/CD pipeline
+- **Code Review Security** - Mandate security-focused code reviews for all changes
+- **Vulnerability Disclosure** - Establish clear process for handling security vulnerability reports
+- **Incident Response** - Document and test security incident response procedures
+- **Security Metrics** - Track and monitor security KPIs and vulnerability remediation times
+
+## MANDATORY SECURITY VULNERABILITY PREVENTION RULE
+
+### 🛡️ **ZERO TOLERANCE FOR SECURITY VULNERABILITIES**
+
+**EFFECTIVE IMMEDIATELY**: All code written for this project MUST be free of security vulnerabilities. This is a non-negotiable requirement for all future development.
+
+#### Implementation Requirements
+
+1. **Pre-Development Security Assessment**
+   - Review all planned features for potential security implications
+   - Identify threat vectors before implementation begins
+   - Plan security controls as part of the initial design
+
+2. **Secure Coding Standards**
+   - Follow OWASP Top 10 prevention guidelines for all code
+   - Implement security-by-design principles in every component
+   - Use established security libraries rather than custom implementations
+   - Validate all inputs at every boundary (client, API, database)
+
+3. **Security Validation Process**
+   - Every piece of code MUST pass security review before merge
+   - Automated security scanning must pass with zero critical/high vulnerabilities
+   - Manual security testing required for authentication and authorization changes
+   - Penetration testing for any customer-facing features
+
+4. **Common Vulnerability Prevention**
+   - **SQL Injection**: Use parameterized queries exclusively
+   - **XSS**: Implement proper output encoding and CSP
+   - **Authentication Bypass**: Multi-layer authentication verification
+   - **Authorization Flaws**: Principle of least privilege enforcement
+   - **Sensitive Data Exposure**: Encrypt PII and implement proper access controls
+   - **Insecure Dependencies**: Regular security audits and updates
+   - **Insufficient Logging**: Comprehensive security event logging
+
+5. **Security Review Checklist**
+   - [ ] Input validation implemented and tested
+   - [ ] Output encoding applied where needed
+   - [ ] Authentication and authorization properly enforced
+   - [ ] Sensitive data properly protected
+   - [ ] Error handling doesn't leak information
+   - [ ] Dependencies scanned for vulnerabilities
+   - [ ] Security headers properly configured
+   - [ ] Rate limiting implemented where appropriate
+
+6. **Continuous Security Monitoring**
+   - Automated vulnerability scanning in CI/CD pipeline
+   - Real-time security monitoring in production
+   - Regular security assessments and code audits
+   - Immediate response protocol for discovered vulnerabilities
+
+#### Accountability and Enforcement
+
+- **Developer Responsibility**: Every developer is accountable for the security of their code
+- **Review Requirement**: No code merges without security approval
+- **Training Mandate**: Ongoing security training required for all team members
+- **Documentation**: All security decisions and implementations must be documented
+
+**Remember**: Security is not optional. It's a fundamental requirement that protects our users, their data, and the integrity of our platform.
 
 ## Best Practices for AI Changes
 
