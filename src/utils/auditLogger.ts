@@ -60,46 +60,64 @@ export const getAuditLogs = async (
   }
 ): Promise<any[]> => {
   try {
-    let query = sql`SELECT * FROM security_audit_logs WHERE 1=1`;
+    let query = 'SELECT * FROM security_audit_logs WHERE 1=1';
+    const params: any[] = [];
+    let paramIndex = 1;
     
     // Build query conditionally based on search parameters
     if (searchParams.actionType) {
-      query = sql`${query} AND action_type = ${searchParams.actionType}`;
+      query += ` AND action_type = $${paramIndex}`;
+      params.push(searchParams.actionType);
+      paramIndex++;
     }
     
     if (searchParams.resourceId) {
-      query = sql`${query} AND resource_id = ${searchParams.resourceId}`;
+      query += ` AND resource_id = $${paramIndex}`;
+      params.push(searchParams.resourceId);
+      paramIndex++;
     }
     
     if (searchParams.userId) {
-      query = sql`${query} AND user_id = ${searchParams.userId}`;
+      query += ` AND user_id = $${paramIndex}`;
+      params.push(searchParams.userId);
+      paramIndex++;
     }
     
     if (searchParams.ipAddress) {
-      query = sql`${query} AND ip_address = ${searchParams.ipAddress}`;
+      query += ` AND ip_address = $${paramIndex}`;
+      params.push(searchParams.ipAddress);
+      paramIndex++;
     }
     
     if (searchParams.startDate) {
-      query = sql`${query} AND timestamp >= ${searchParams.startDate}`;
+      query += ` AND timestamp >= $${paramIndex}`;
+      params.push(searchParams.startDate);
+      paramIndex++;
     }
     
     if (searchParams.endDate) {
-      query = sql`${query} AND timestamp <= ${searchParams.endDate}`;
+      query += ` AND timestamp <= $${paramIndex}`;
+      params.push(searchParams.endDate);
+      paramIndex++;
     }
     
     // Add ordering
-    query = sql`${query} ORDER BY timestamp DESC`;
+    query += ' ORDER BY timestamp DESC';
     
     // Add pagination
     if (searchParams.limit) {
-      query = sql`${query} LIMIT ${searchParams.limit}`;
+      query += ` LIMIT $${paramIndex}`;
+      params.push(searchParams.limit);
+      paramIndex++;
       
       if (searchParams.offset) {
-        query = sql`${query} OFFSET ${searchParams.offset}`;
+        query += ` OFFSET $${paramIndex}`;
+        params.push(searchParams.offset);
+        paramIndex++;
       }
     }
     
-    const result = await query;
+    const result = await sql.query(query, params);
     return result;
   } catch (error) {
     console.error('Error retrieving audit logs:', error);

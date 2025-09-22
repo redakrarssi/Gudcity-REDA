@@ -99,7 +99,7 @@ export class FailedLoginService {
    */
   static async resetFailedAttempts(email: string): Promise<void> {
     try {
-      await sql`SELECT reset_failed_login_attempts(${email})`;
+      await sql.query('SELECT reset_failed_login_attempts($1)', [email]);
       
       // Log successful login reset to security audit
       await SecurityAuditService.logSecurityEvent(
@@ -123,7 +123,7 @@ export class FailedLoginService {
   static async checkAccountLockout(email: string): Promise<AccountLockoutInfo> {
     try {
       // Check if account is locked
-      const lockResult = await sql`SELECT is_account_locked(${email}) as is_locked`;
+      const lockResult = await sql.query('SELECT is_account_locked($1) as is_locked', [email]);
       const isLocked = lockResult[0]?.is_locked || false;
 
       // Get failed attempts count
@@ -213,15 +213,25 @@ export class FailedLoginService {
     hours: number = 24
   ): Promise<FailedLoginAttempt[]> {
     try {
-      const whereClause = email ? sql`WHERE email = ${email} AND` : sql`WHERE`;
-      
-      const result = await sql`
+      let query = `
         SELECT id, email, ip_address, user_agent, attempted_at, failure_reason
         FROM failed_login_attempts
-        ${whereClause} attempted_at >= NOW() - INTERVAL '${hours} hours'
-        ORDER BY attempted_at DESC
-        LIMIT 100
+        WHERE attempted_at >= NOW() - INTERVAL '$$1 hours'
       `;
+      const params = [hours];
+      
+      if (email) {
+        query = `
+          SELECT id, email, ip_address, user_agent, attempted_at, failure_reason
+          FROM failed_login_attempts
+          WHERE email = $1 AND attempted_at >= NOW() - INTERVAL '$$2 hours'
+        `;
+        params.unshift(email);
+      }
+      
+      query += ' ORDER BY attempted_at DESC LIMIT 100';
+      
+      const result = await sql.query(query, params);
 
       return result.map(row => ({
         id: row.id,

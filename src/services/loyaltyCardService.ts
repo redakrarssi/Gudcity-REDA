@@ -368,12 +368,12 @@ export class LoyaltyCardService {
    */
   static async getCustomerCard(customerId: string, businessId: string): Promise<LoyaltyCard | null> {
     try {
-      const cards = await sql`
+      const cards = await sql.query(`
         SELECT * FROM loyalty_cards
-        WHERE customer_id = ${customerId}
-        AND business_id = ${businessId}
+        WHERE customer_id = $1
+        AND business_id = $2
         AND is_active = true
-      `;
+      `, [customerId, businessId]);
       
       if (!cards.length) {
         return null;
@@ -391,11 +391,11 @@ export class LoyaltyCardService {
    */
   static async getProgramRewards(programId: string): Promise<Reward[]> {
     try {
-      const rewards = await sql`
+      const rewards = await sql.query(`
         SELECT * FROM reward_tiers
-        WHERE program_id = ${programId}
+        WHERE program_id = $1
         ORDER BY points_required ASC
-      `;
+      `, [programId]);
       
       return rewards.map((reward: any) => ({
         id: reward.id.toString(),
@@ -462,14 +462,14 @@ export class LoyaltyCardService {
       await this.ensureRedemptionsTable();
 
       // Get the card details with customer info
-      const cardResult = await sql`
+      const cardResult = await sql.query(`
         SELECT lc.*, u.name as business_name, lp.name as program_name, c.name as customer_name, c.email as customer_email
         FROM loyalty_cards lc
         JOIN loyalty_programs lp ON lc.program_id = lp.id
         JOIN users u ON lp.business_id = u.id
         LEFT JOIN users c ON lc.customer_id = c.id
-        WHERE lc.id = ${cardId}
-      `;
+        WHERE lc.id = $1
+      `, [cardId]);
 
       if (!cardResult.length) {
         return {
@@ -482,10 +482,10 @@ export class LoyaltyCardService {
       const currentPoints = parseFloat(card.points) || 0;
 
       // Get the reward details
-      const rewardResult = await sql`
-        SELECT * FROM reward_tiers
-        WHERE id = ${rewardId}
-      `;
+      const rewardResult = await sql.query(
+        'SELECT * FROM reward_tiers WHERE id = $1',
+        [rewardId]
+      );
 
       if (!rewardResult.length) {
         return {
@@ -511,9 +511,10 @@ export class LoyaltyCardService {
       
       // Ensure code is unique
       while (attempts < 10) {
-        const existingCode = await sql`
-          SELECT id FROM redemptions WHERE tracking_code = ${trackingCode}
-        `;
+        const existingCode = await sql.query(
+          'SELECT id FROM redemptions WHERE tracking_code = $1',
+          [trackingCode]
+        );
         
         if (!existingCode.length) break;
         
@@ -524,14 +525,14 @@ export class LoyaltyCardService {
       // Deduct points from card
       const newPoints = currentPoints - pointsRequired;
       
-      await sql`
+      await sql.query(`
         UPDATE loyalty_cards 
-        SET points = ${newPoints}, updated_at = NOW()
-        WHERE id = ${cardId}
-      `;
+        SET points = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [newPoints, cardId]);
 
       // Record the redemption with tracking code
-      const redemptionResult = await sql`
+      const redemptionResult = await sql.query(`
         INSERT INTO redemptions (
           tracking_code,
           card_id,
@@ -545,22 +546,21 @@ export class LoyaltyCardService {
           business_name,
           program_name,
           status
-        ) VALUES (
-          ${trackingCode},
-          ${cardId},
-          ${card.customer_id},
-          ${card.business_id},
-          ${card.program_id},
-          ${rewardId},
-          ${reward.reward},
-          ${pointsRequired},
-          ${card.customer_name || 'Customer'},
-          ${card.business_name || 'Business'},
-          ${card.program_name || 'Program'},
-          'PENDING'
-        )
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'PENDING')
         RETURNING id
-      `;
+      `, [
+        trackingCode,
+        cardId,
+        card.customer_id,
+        card.business_id,
+        card.program_id,
+        rewardId,
+        reward.reward,
+        pointsRequired,
+        card.customer_name || 'Customer',
+        card.business_name || 'Business',
+        card.program_name || 'Program'
+      ]);
 
       // Record the redemption activity
       await sql`
@@ -722,10 +722,10 @@ export class LoyaltyCardService {
     try {
       await this.ensureRedemptionsTable();
 
-      const redemption = await sql`
-        SELECT * FROM redemptions
-        WHERE tracking_code = ${trackingCode}
-      `;
+      const redemption = await sql.query(
+        'SELECT * FROM redemptions WHERE tracking_code = $1',
+        [trackingCode]
+      );
 
       if (!redemption.length) {
         return {

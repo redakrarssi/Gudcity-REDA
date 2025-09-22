@@ -103,43 +103,56 @@ export class LocationService {
       // Build SQL query using tagged template literal approach
       let query = sql`SELECT * FROM business_locations WHERE is_active = true`;
       
-      // Add filters using tagged template literals
+      // Build parameterized query
+      let queryStr = 'SELECT * FROM business_locations WHERE 1=1';
+      const queryParams: any[] = [];
+      let paramIndex = 1;
+      
+      // Add filters using parameterized queries
       if (params.businessId) {
         const businessIdNum = typeof params.businessId === 'string' ? 
           parseInt(params.businessId) : params.businessId;
-        query = sql`${query} AND business_id = ${businessIdNum}`;
+        queryStr += ` AND business_id = $${paramIndex}`;
+        queryParams.push(businessIdNum);
+        paramIndex++;
       }
       
       if (params.city) {
-        query = sql`${query} AND city ILIKE ${'%' + params.city + '%'}`;
+        queryStr += ` AND city ILIKE $${paramIndex}`;
+        queryParams.push('%' + params.city + '%');
+        paramIndex++;
       }
       
       if (params.country) {
-        query = sql`${query} AND country ILIKE ${'%' + params.country + '%'}`;
+        queryStr += ` AND country ILIKE $${paramIndex}`;
+        queryParams.push('%' + params.country + '%');
+        paramIndex++;
       }
       
       // If latitude, longitude and radius are provided, filter by distance
       if (params.latitude && params.longitude && params.radius) {
-        query = sql`
-          ${query} AND (
-            6371 * acos(
-              cos(radians(${params.latitude})) * 
-              cos(radians(latitude)) * 
-              cos(radians(longitude) - radians(${params.longitude})) + 
-              sin(radians(${params.latitude})) * 
-              sin(radians(latitude))
-            )
-          ) <= ${params.radius}
-        `;
+        queryStr += ` AND (
+          6371 * acos(
+            cos(radians($${paramIndex})) * 
+            cos(radians(latitude)) * 
+            cos(radians(longitude) - radians($${paramIndex + 1})) + 
+            sin(radians($${paramIndex})) * 
+            sin(radians(latitude))
+          )
+        ) <= $${paramIndex + 2}`;
+        queryParams.push(params.latitude, params.longitude, params.radius);
+        paramIndex += 3;
       }
       
       // Add limit if provided
       if (params.limit) {
-        query = sql`${query} LIMIT ${params.limit}`;
+        queryStr += ` LIMIT $${paramIndex}`;
+        queryParams.push(params.limit);
+        paramIndex++;
       }
       
       // Execute the query
-      const result = await query;
+      const result = await sql.query(queryStr, queryParams);
       const locations = result.map(this.dbToBusinessLocation);
       
       return { locations };

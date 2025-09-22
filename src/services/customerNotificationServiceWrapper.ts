@@ -119,7 +119,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
          // CRITICAL FIX: Ensure customer exists before calling stored procedure
          // This provides an additional safety net in case the stored procedure fix isn't sufficient
          try {
-           const customerCheck = await sql`SELECT id FROM customers WHERE id = ${customerIdInt}`;
+           const customerCheck = await sql.query('SELECT id FROM customers WHERE id = $1', [customerIdInt]);
            if (!customerCheck || customerCheck.length === 0) {
              logger.warn('Customer not found, attempting to create', { customerIdInt });
              
@@ -149,7 +149,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
            try { await ensureEnrollmentProcedureExists(); } catch (_) {}
            // We must pass (customer_id, program_id, request_id)
            logger.info('Calling process_enrollment_approval (wrapper)', { customerIdInt, programIdInt, requestId });
-           return await sql`SELECT process_enrollment_approval(${customerIdInt}, ${programIdInt}, ${requestId}::uuid) as card_id`;
+           return await sql.query('SELECT process_enrollment_approval($1, $2, $3::uuid) as card_id', [customerIdInt, programIdInt, requestId]);
          });
         
         if (result && result[0]) {

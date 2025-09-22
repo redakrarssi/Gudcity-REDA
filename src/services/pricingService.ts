@@ -107,7 +107,7 @@ export async function createPlan(plan: Omit<PricingPlan, 'id' | 'created_at' | '
 export async function updatePlan(id: number, plan: Partial<Omit<PricingPlan, 'id' | 'created_at' | 'updated_at'>>): Promise<PricingPlan | null> {
   await ensurePricingTableExists();
   // Fetch existing
-  const existingRows = await sql`SELECT * FROM pricing_plans WHERE id = ${id}`;
+  const existingRows = await sql.query('SELECT * FROM pricing_plans WHERE id = $1', [id]);
   if (existingRows.length === 0) return null;
   const existing = formatPlan(existingRows[0]);
 
@@ -121,28 +121,28 @@ export async function updatePlan(id: number, plan: Partial<Omit<PricingPlan, 'id
   const is_active = plan.is_active ?? existing.is_active;
   const sort_order = plan.sort_order ?? existing.sort_order;
 
-  const rows = await sql`
+  const rows = await sql.query(`
     UPDATE pricing_plans SET
-      name = ${name},
-      description = ${description},
-      price = ${price},
-      billing_period = ${billing_period},
-      currency = ${currency},
-      features = ${JSON.stringify(features)}::jsonb,
-      is_popular = ${is_popular},
-      is_active = ${is_active},
-      sort_order = ${sort_order},
+      name = $1,
+      description = $2,
+      price = $3,
+      billing_period = $4,
+      currency = $5,
+      features = $6::jsonb,
+      is_popular = $7,
+      is_active = $8,
+      sort_order = $9,
       updated_at = NOW()
-    WHERE id = ${id}
+    WHERE id = $10
     RETURNING *
-  `;
+  `, [name, description, price, billing_period, currency, JSON.stringify(features), is_popular, is_active, sort_order, id]);
   if (rows.length === 0) return null;
   return formatPlan(rows[0]);
 }
 
 export async function deletePlan(id: number): Promise<boolean> {
   await ensurePricingTableExists();
-  const rows = await sql`DELETE FROM pricing_plans WHERE id = ${id} RETURNING id`;
+  const rows = await sql.query('DELETE FROM pricing_plans WHERE id = $1 RETURNING id', [id]);
   return rows.length > 0;
 }
 

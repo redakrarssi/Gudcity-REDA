@@ -49,6 +49,10 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/admin', adminBusinessRoutes);
 
+// Auth routes
+const authRoutes = require('./api/authRoutes.cjs');
+app.use('/api/auth', authRoutes);
+
 // Auth test route
 app.get('/api/test-auth', auth, (req, res) => {
   res.json({
