@@ -113,10 +113,10 @@ export async function getUserById(id: number): Promise<User | null> {
       return null;
     }
     
-    const result = await sql`
+    const result = await sql.query(`
       SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
-      FROM users WHERE id = ${id}
-    `;
+      FROM users WHERE id = $1
+    `, [id]);
     
     if (!result || result.length === 0) {
       console.log(`No user found with ID: ${id}`);
@@ -158,10 +158,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     }
     
     // If we have a database connection, query it
-    const result = await sql`
+    const result = await sql.query(`
       SELECT id, name, email, password, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
-      FROM users WHERE LOWER(email) = LOWER(${email})
-    `;
+      FROM users WHERE LOWER(email) = LOWER($1)
+    `, [email]);
     
     console.log(`Query result for email ${email}:`, result);
     

@@ -18,11 +18,11 @@ export class LoyaltyProgramService {
    */
   static async getBusinessPrograms(businessId: string): Promise<LoyaltyProgram[]> {
     try {
-      const result = await sql`
+      const result = await sql.query(`
         SELECT * FROM loyalty_programs
-        WHERE business_id = ${parseInt(businessId)}
+        WHERE business_id = $1
         ORDER BY created_at DESC
-      `;
+      `, [parseInt(businessId)]);
       
       // Load reward tiers for each program
       const programsWithRewards = await Promise.all(result.map(async (program: any) => {
@@ -55,10 +55,10 @@ export class LoyaltyProgramService {
    */
   static async getProgramById(programId: string): Promise<LoyaltyProgram | null> {
     try {
-      const programs = await sql`
-        SELECT * FROM loyalty_programs
-        WHERE id = ${programId}
-      `;
+      const programs = await sql.query(
+        'SELECT * FROM loyalty_programs WHERE id = $1',
+        [programId]
+      );
       
       if (!programs.length) {
         return null;
@@ -91,11 +91,11 @@ export class LoyaltyProgramService {
    */
   static async getProgramRewardTiers(programId: string): Promise<RewardTier[]> {
     try {
-      const tiers = await sql`
+      const tiers = await sql.query(`
         SELECT * FROM reward_tiers
-        WHERE program_id = ${programId}
+        WHERE program_id = $1
         ORDER BY points_required ASC
-      `;
+      `, [programId]);
       
       return tiers.map((tier: any) => ({
         id: tier.id,
