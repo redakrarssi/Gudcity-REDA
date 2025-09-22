@@ -266,37 +266,37 @@ export class LoyaltyProgramService {
       if (updateFields.length > 0) {
         // Handle each field separately since we can't dynamically build the query
         if (programData.name !== undefined) {
-          await sql`UPDATE loyalty_programs SET name = ${programData.name} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET name = $1 WHERE id = $2', [programData.name, programId]);
         }
         
         if (programData.description !== undefined) {
-          await sql`UPDATE loyalty_programs SET description = ${programData.description} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET description = $1 WHERE id = $2', [programData.description, programId]);
         }
         
         if (programData.type !== undefined) {
-          await sql`UPDATE loyalty_programs SET type = ${programData.type} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET type = $1 WHERE id = $2', [programData.type, programId]);
         }
         
         if (programData.pointValue !== undefined) {
-          await sql`UPDATE loyalty_programs SET points_per_dollar = ${programData.pointValue} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET points_per_dollar = $1 WHERE id = $2', [programData.pointValue, programId]);
         }
         
         if (programData.expirationDays !== undefined) {
-          await sql`UPDATE loyalty_programs SET points_expiry_days = ${programData.expirationDays} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET points_expiry_days = $1 WHERE id = $2', [programData.expirationDays, programId]);
         }
         
         if (programData.status !== undefined) {
-          await sql`UPDATE loyalty_programs SET status = ${programData.status} WHERE id = ${programId}`;
+          await sql.query('UPDATE loyalty_programs SET status = $1 WHERE id = $2', [programData.status, programId]);
         }
         
         // Always update the timestamp
-        await sql`UPDATE loyalty_programs SET updated_at = NOW() WHERE id = ${programId}`;
+        await sql.query('UPDATE loyalty_programs SET updated_at = NOW() WHERE id = $1', [programId]);
       }
       
       // Update reward tiers if provided
       if (programData.rewardTiers) {
         // First delete existing reward tiers
-        await sql`DELETE FROM reward_tiers WHERE program_id = ${programId}`;
+        await sql.query('DELETE FROM reward_tiers WHERE program_id = $1', [programId]);
         
         // Then insert new ones
         if (programData.rewardTiers.length > 0) {
@@ -364,17 +364,17 @@ export class LoyaltyProgramService {
       const enrolledCustomers = await this.getEnrolledCustomers(programId);
       
       // Delete associated reward tiers first (due to foreign key constraints)
-      await sql`DELETE FROM reward_tiers WHERE program_id = ${programId}`;
+      await sql.query('DELETE FROM reward_tiers WHERE program_id = $1', [programId]);
       
       // Delete customer enrollments
-      await sql`DELETE FROM customer_programs WHERE program_id = ${programId}`;
+      await sql.query('DELETE FROM customer_programs WHERE program_id = $1', [programId]);
       
       // Then delete the program
-      const result = await sql`
+      const result = await sql.query(`
         DELETE FROM loyalty_programs
-        WHERE id = ${programId}
+        WHERE id = $1
         RETURNING id
-      `;
+      `, [programId]);
       
       const deletionSuccess = result.length > 0;
       
@@ -466,7 +466,7 @@ export class LoyaltyProgramService {
       const businessId = program.businessId;
 
       // Get business name for notifications
-      const businessResult = await sql`SELECT name FROM users WHERE id = ${businessId}`;
+      const businessResult = await sql.query('SELECT name FROM users WHERE id = $1', [businessId]);
       const businessName = businessResult.length > 0 ? businessResult[0].name : 'Business';
 
       // Check if already enrolled

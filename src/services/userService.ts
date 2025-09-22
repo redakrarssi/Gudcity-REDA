@@ -279,36 +279,36 @@ export async function updateUser(id: number, userData: Partial<User>): Promise<U
   try {
     // Handle specific fields separately for type safety
     if (userData.name) {
-      await sql`UPDATE users SET name = ${userData.name} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET name = $1 WHERE id = $2', [userData.name, id]);
     }
     
     if (userData.email) {
-      await sql`UPDATE users SET email = ${userData.email} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET email = $1 WHERE id = $2', [userData.email, id]);
     }
     
     if (userData.password) {
       const hashedPassword = await hashPassword(userData.password);
-      await sql`UPDATE users SET password = ${hashedPassword} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, id]);
     }
     
     if (userData.role) {
-      await sql`UPDATE users SET role = ${userData.role} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET role = $1 WHERE id = $2', [userData.role, id]);
     }
     
     if (userData.user_type) {
-      await sql`UPDATE users SET user_type = ${userData.user_type} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET user_type = $1 WHERE id = $2', [userData.user_type, id]);
     }
     
     if (userData.business_name !== undefined) {
-      await sql`UPDATE users SET business_name = ${userData.business_name} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET business_name = $1 WHERE id = $2', [userData.business_name, id]);
     }
     
     if (userData.business_phone !== undefined) {
-      await sql`UPDATE users SET business_phone = ${userData.business_phone} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET business_phone = $1 WHERE id = $2', [userData.business_phone, id]);
     }
     
     if (userData.avatar_url !== undefined) {
-      await sql`UPDATE users SET avatar_url = ${userData.avatar_url} WHERE id = ${id}`;
+      await sql.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [userData.avatar_url, id]);
     }
     
     // Get the updated user
@@ -366,7 +366,7 @@ export async function validateUser(email: string, password: string): Promise<Use
 
 export async function deleteUser(id: number): Promise<boolean> {
   try {
-    await sql`DELETE FROM users WHERE id = ${id}`;
+    await sql.query('DELETE FROM users WHERE id = $1', [id]);
     return true;
   } catch (error) {
     console.error(`Error deleting user with id ${id}:`, error);
@@ -707,7 +707,7 @@ export async function deleteStaffUser(staffId: number, ownerId: number): Promise
     }
     
     // Delete the staff user
-    await sql`DELETE FROM users WHERE id = ${staffId}`;
+    await sql.query('DELETE FROM users WHERE id = $1', [staffId]);
     
     console.log('Staff user deleted successfully');
     return true;

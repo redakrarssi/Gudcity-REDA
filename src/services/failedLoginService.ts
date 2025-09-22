@@ -99,7 +99,7 @@ export class FailedLoginService {
    */
   static async resetFailedAttempts(email: string): Promise<void> {
     try {
-      await sql`SELECT reset_failed_login_attempts(${email})`;
+      await sql.query('SELECT reset_failed_login_attempts($1)', [email]);
       
       // Log successful login reset to security audit
       await SecurityAuditService.logSecurityEvent(
@@ -123,7 +123,7 @@ export class FailedLoginService {
   static async checkAccountLockout(email: string): Promise<AccountLockoutInfo> {
     try {
       // Check if account is locked
-      const lockResult = await sql`SELECT is_account_locked(${email}) as is_locked`;
+      const lockResult = await sql.query('SELECT is_account_locked($1) as is_locked', [email]);
       const isLocked = lockResult[0]?.is_locked || false;
 
       // Get failed attempts count
