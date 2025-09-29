@@ -11,17 +11,10 @@
 }
 
 /* Layout adjustments for RTL */
-[dir="rtl"] .flex {
-  flex-direction: row-reverse;
-}
-
-[dir="rtl"] .flex-col {
-  flex-direction: column;
-}
-
-[dir="rtl"] .flex-row {
-  flex-direction: row-reverse;
-}
+/* Avoid globally reversing all flex containers; only target named regions */
+[dir="rtl"] .rtl-row-reverse { flex-direction: row-reverse; }
+[dir="rtl"] .rtl-col { flex-direction: column; }
+[dir="rtl"] .rtl-row { flex-direction: row; }
 
 /* Margins and padding adjustments */
 [dir="rtl"] .mr-1 { margin-right: 0; margin-left: 0.25rem; }
@@ -229,8 +222,6 @@
   }
 }
 
-<<<<<<< Current (Your changes)
-=======
 /* Desktop layout: keep QR card on the right visually while supporting RTL text */
 @media (min-width: 769px) {
   .dashboard-hero {
@@ -256,8 +247,9 @@
   align-items: center;
   line-height: 1;
 }
-
->>>>>>> Incoming (Background Agent changes)
+/* Header-specific RTL fixes */
+[dir="rtl"] .header-user-menu { left: 0; right: auto; }
+[dir="rtl"] .header-nav-gap > * + * { margin-right: 2rem; margin-left: 0; }
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;
