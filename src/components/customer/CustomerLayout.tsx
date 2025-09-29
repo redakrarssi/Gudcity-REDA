@@ -183,7 +183,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         {/* Sidebar: on large screens keep it visually to the right; internally flip content for RTL */}
         <aside className={`hidden md:flex md:flex-col w-64 bg-white ${isArabic ? 'border-r' : 'border-l'} border-gray-200 sidebar`}>
           <div className={`p-4 flex justify-between items-center ${isArabic ? 'rtl-row-reverse' : ''}`}> 
-            <AppLogo className="shrink-0" size="lg" imageSrc={logoWebp} showText={false} heightPx={144} />
+            <AppLogo className="shrink-0" size="lg" imageSrc={logoWebp} showText={false} heightPx={96} />
             <div className="flex items-center gap-2 header-controls">
               <NotificationIndicator />
               <ThemeToggle variant="icon" />
