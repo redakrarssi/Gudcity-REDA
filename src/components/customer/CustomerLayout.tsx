@@ -181,7 +181,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         </div>
 
         {/* Sidebar: on large screens keep it visually to the right; internally flip content for RTL */}
-        <aside className={`hidden md:flex md:flex-col w-64 bg-white ${isArabic ? 'border-r' : 'border-l'} border-gray-200 sidebar`}>
+        <aside dir={isArabic ? 'rtl' : 'ltr'} className={`hidden md:flex md:flex-col w-64 bg-white ${isArabic ? 'border-r' : 'border-l'} border-gray-200 sidebar`}>
           <div className={`p-4 flex justify-between items-center ${isArabic ? 'rtl-row-reverse' : ''}`}> 
             <AppLogo className="shrink-0" size="lg" imageSrc={logoWebp} showText={false} heightPx={96} />
             <div className="flex items-center gap-2 header-controls">
@@ -190,7 +190,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 pb-4 space-y-1.5 overflow-y-auto navigation">
+          <nav className={`flex-1 px-4 pb-4 space-y-1.5 overflow-y-auto navigation ${isArabic ? 'text-right' : ''}`}>
             <div className={`px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>Menu</div>
             {menuItems.map((item) => (
               <Link
