@@ -80,11 +80,11 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Mobile header */}
           <header className="bg-white border-b border-gray-200 md:hidden mobile-header">
-            <div className="flex items-center justify-between h-16 px-4">
-              <AppLogo className={`${isArabic ? '-mr-1' : '-ml-1'} shrink-0`} size="md" imageSrc={logoWebp} showText={false} heightPx={60} />
-              <div className="flex items-center mobile-controls">
-                <ThemeToggle variant="icon" className="mr-2 mobile-control" />
-                <NotificationIndicator className="mr-2 mobile-control" />
+            <div className={`flex items-center justify-between h-16 px-4 ${isArabic ? 'rtl-row-reverse' : ''}`}> 
+              <AppLogo className="shrink-0" size="md" imageSrc={logoWebp} showText={false} heightPx={48} />
+              <div className="flex items-center gap-2 mobile-controls">
+                <ThemeToggle variant="icon" className="mobile-control" />
+                <NotificationIndicator className="mobile-control" />
                 <button 
                   className="p-1 text-gray-600 mobile-control"
                   onClick={toggleMobileMenu}
@@ -109,6 +109,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                       aria-current={isActive(item.path) ? 'page' : undefined}
                       className={[
                         'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 mobile-nav-item',
+                        isArabic ? 'flex-row-reverse text-right' : '',
                         isActive(item.path)
                           ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                           : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
@@ -130,6 +131,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                     aria-current={isActive('/settings') ? 'page' : undefined}
                     className={[
                       'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 mobile-nav-item',
+                      isArabic ? 'flex-row-reverse text-right' : '',
                       isActive('/settings')
                         ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                         : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
@@ -152,6 +154,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                     }}
                     className={[
                       'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 w-full text-left mobile-nav-item',
+                      isArabic ? 'flex-row-reverse text-right' : '',
                       'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
                     ].join(' ')}
@@ -177,18 +180,18 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
           <NotificationPopup />
         </div>
 
-        {/* Right Sidebar */}
-        <aside className="hidden md:flex md:flex-col w-64 bg-white border-l border-gray-200 sidebar">
-          <div className="p-4 flex justify-between items-center">
-            <AppLogo className={`${isArabic ? '-mr-4' : '-ml-3'} shrink-0`} size="lg" imageSrc={logoWebp} showText={false} heightPx={110} />
-            <div className="flex items-center space-x-2 header-controls">
+        {/* Sidebar: on large screens keep it visually to the right; internally flip content for RTL */}
+        <aside className={`hidden md:flex md:flex-col w-64 bg-white ${isArabic ? 'border-r' : 'border-l'} border-gray-200 sidebar`}>
+          <div className={`p-4 flex justify-between items-center ${isArabic ? 'rtl-row-reverse' : ''}`}> 
+            <AppLogo className="shrink-0" size="lg" imageSrc={logoWebp} showText={false} heightPx={72} />
+            <div className="flex items-center gap-2 header-controls">
               <NotificationIndicator />
               <ThemeToggle variant="icon" />
             </div>
           </div>
 
           <nav className="flex-1 px-4 pb-4 space-y-1.5 overflow-y-auto navigation">
-            <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Menu</div>
+            <div className={`px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>Menu</div>
             {menuItems.map((item) => (
               <Link
                 key={item.path}
@@ -196,6 +199,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                 aria-current={isActive(item.path) ? 'page' : undefined}
                 className={[
                   'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 nav-item',
+                  isArabic ? 'flex-row-reverse text-right' : '',
                   isActive(item.path)
                     ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                     : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
@@ -216,12 +220,13 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               </Link>
             ))}
 
-            <div className="mt-4 px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Account</div>
+            <div className={`mt-4 px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>Account</div>
             <Link
               to="/settings"
               aria-current={isActive('/settings') ? 'page' : undefined}
               className={[
                 'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 footer-item',
+                isArabic ? 'flex-row-reverse text-right' : '',
                 isActive('/settings')
                   ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
                   : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
@@ -243,6 +248,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               onClick={handleLogout}
               className={[
                 'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 w-full text-left footer-item',
+                isArabic ? 'flex-row-reverse text-right' : '',
                 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
               ].join(' ')}

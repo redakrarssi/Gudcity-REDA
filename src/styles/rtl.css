@@ -250,6 +250,7 @@
 /* Header-specific RTL fixes */
 [dir="rtl"] .header-user-menu { left: 0; right: auto; }
 [dir="rtl"] .header-nav-gap > * + * { margin-right: 2rem; margin-left: 0; }
+[dir="rtl"] .notification-badge { left: 0; right: auto; transform: translate(-50%, -50%); }
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {
   direction: rtl;
