@@ -6,12 +6,13 @@ interface AppLogoProps {
   showText?: boolean;
   textClassName?: string;
   imageSrc?: string;
+  heightPx?: number;
 }
 
 const sizeToPixels: Record<NonNullable<AppLogoProps['size']>, number> = {
-  sm: 24,
-  md: 28,
-  lg: 32
+  sm: 28,
+  md: 40,
+  lg: 56
 };
 
 export const AppLogo: React.FC<AppLogoProps> = ({
@@ -19,9 +20,10 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   size = 'md',
   showText = true,
   textClassName,
-  imageSrc
+  imageSrc,
+  heightPx
 }) => {
-  const dimension = sizeToPixels[size];
+  const dimension = heightPx ?? sizeToPixels[size];
 
   return (
     <div className={`flex items-center ${className || ''}`.trim()}>
@@ -38,8 +40,8 @@ export const AppLogo: React.FC<AppLogoProps> = ({
           }
         }}
         alt="Vcarda logo"
-        className="block"
-        style={{ width: dimension, height: dimension }}
+        className="block object-contain"
+        style={{ height: dimension, width: 'auto' }}
       />
       {showText && (
         <span className={`ms-2 font-bold text-black ${textClassName || ''}`.trim()}>

@@ -5,6 +5,7 @@ import { Menu, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { IconBell } from '../icons/IconBell';
 import { NotificationService } from '../../services/notificationService';
+import logoWebp from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
 
 const Header: React.FC = () => {
   const { t } = useTranslation();
@@ -56,10 +57,17 @@ const Header: React.FC = () => {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center py-4">
+        <div className="flex justify-between items-center py-[0.805rem]">
           {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <span className="text-xl font-bold text-blue-600">Vcarda</span>
+          <Link to="/" className="flex items-center relative">
+            <span className="sr-only">Vcarda</span>
+            <div className="relative h-10 md:h-12 w-[180px] md:w-[220px] overflow-visible">
+              <img 
+                src={logoWebp} 
+                alt="Vcarda" 
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-[108px] md:h-[126px] w-auto object-contain"
+              />
+            </div>
           </Link>
 
           {/* Desktop Navigation */}

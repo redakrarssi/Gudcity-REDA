@@ -46,7 +46,10 @@ class WebViewFragment : Fragment() {
         settings.setSupportMultipleWindows(false)
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            WebView.enableSafeBrowsing(requireContext(), true)
+            try {
+                settings.safeBrowsingEnabled = true
+            } catch (_: Throwable) {
+            }
         }
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)

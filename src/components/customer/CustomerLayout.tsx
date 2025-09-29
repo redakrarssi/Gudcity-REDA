@@ -19,6 +19,7 @@ import NotificationIndicator from '../notifications/NotificationIndicator';
 import GlobalNotificationCenter from '../notifications/GlobalNotificationCenter';
 import NotificationPopup from '../notifications/NotificationPopup';
 import { AppLogo } from '../ui/AppLogo';
+import logoWebp from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -79,8 +80,8 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Mobile header */}
           <header className="bg-white border-b border-gray-200 md:hidden mobile-header">
-            <div className="flex items-center justify-between p-4">
-              <AppLogo size="md" />
+            <div className="flex items-center justify-between h-16 px-4">
+              <AppLogo className={`${isArabic ? '-mr-1' : '-ml-1'} shrink-0`} size="md" imageSrc={logoWebp} showText={false} heightPx={60} />
               <div className="flex items-center mobile-controls">
                 <ThemeToggle variant="icon" className="mr-2 mobile-control" />
                 <NotificationIndicator className="mr-2 mobile-control" />
@@ -100,39 +101,65 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
             {/* Mobile Menu */}
             {mobileMenuOpen && (
               <div className="bg-white border-b border-gray-200 py-2 mobile-menu">
-                <nav className="px-4 space-y-1 mobile-nav">
+                <nav className="px-4 space-y-1.5 mobile-nav">
                   {menuItems.map((item) => (
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center px-4 py-3 rounded-lg transition-colors mobile-nav-item ${
+                      aria-current={isActive(item.path) ? 'page' : undefined}
+                      className={[
+                        'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 mobile-nav-item',
                         isActive(item.path)
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
+                          ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+                      ].join(' ')}
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      <span className="mobile-nav-icon">{item.icon}</span>
-                      <span className="ml-3 mobile-nav-text">{item.name}</span>
+                      <span className={[
+                        'w-5 h-5',
+                        isActive(item.path) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+                      ].join(' ')}>
+                        {item.icon}
+                      </span>
+                      <span className="truncate">{item.name}</span>
                     </Link>
                   ))}
                   <Link
                     to="/settings"
-                    className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg mobile-nav-item"
+                    aria-current={isActive('/settings') ? 'page' : undefined}
+                    className={[
+                      'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 mobile-nav-item',
+                      isActive('/settings')
+                        ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+                    ].join(' ')}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    <Settings className="w-5 h-5 mobile-nav-icon" />
-                    <span className="ml-3 mobile-nav-text">{t('menu.settings')}</span>
+                    <span className={[
+                      'w-5 h-5',
+                      isActive('/settings') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+                    ].join(' ')}>
+                      <Settings className="w-5 h-5" />
+                    </span>
+                    <span className="truncate">{t('menu.settings')}</span>
                   </Link>
                   <button
                     onClick={(e) => {
                       handleLogout(e);
                       setMobileMenuOpen(false);
                     }}
-                    className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left mobile-nav-item"
+                    className={[
+                      'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 w-full text-left mobile-nav-item',
+                      'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+                    ].join(' ')}
                   >
-                    <LogOut className="w-5 h-5 mobile-nav-icon" />
-                    <span className="ml-3 mobile-nav-text">{t('menu.logout')}</span>
+                    <span className="w-5 h-5 text-gray-400 group-hover:text-gray-500">
+                      <LogOut className="w-5 h-5" />
+                    </span>
+                    <span className="truncate">{t('menu.logout')}</span>
                   </button>
                 </nav>
               </div>
@@ -152,47 +179,80 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
         {/* Right Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-l border-gray-200 sidebar">
-          <div className="p-6 flex justify-between items-center">
-            <AppLogo size="lg" />
+          <div className="p-4 flex justify-between items-center">
+            <AppLogo className={`${isArabic ? '-mr-4' : '-ml-3'} shrink-0`} size="lg" imageSrc={logoWebp} showText={false} heightPx={110} />
             <div className="flex items-center space-x-2 header-controls">
               <NotificationIndicator />
               <ThemeToggle variant="icon" />
             </div>
           </div>
 
-          <nav className="flex-1 px-4 pb-4 space-y-1 navigation">
+          <nav className="flex-1 px-4 pb-4 space-y-1.5 overflow-y-auto navigation">
+            <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Menu</div>
             {menuItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 py-3 rounded-lg transition-colors nav-item ${
+                aria-current={isActive(item.path) ? 'page' : undefined}
+                className={[
+                  'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 nav-item',
                   isActive(item.path)
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                    ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                  // Sidebar edge accent (RTL vs LTR)
+                  isActive(item.path)
+                    ? (isArabic ? 'border-l-2 border-blue-600' : 'border-r-2 border-blue-600')
+                    : '',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+                ].join(' ')}
               >
-                <span className="nav-icon">{item.icon}</span>
-                <span className="ml-3 nav-text">{item.name}</span>
+                <span className={[
+                  'w-5 h-5',
+                  isActive(item.path) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+                ].join(' ')}>
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.name}</span>
               </Link>
             ))}
-          </nav>
 
-          <div className="border-t border-gray-200 p-4 footer-section">
+            <div className="mt-4 px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Account</div>
             <Link
               to="/settings"
-              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg footer-item"
+              aria-current={isActive('/settings') ? 'page' : undefined}
+              className={[
+                'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 footer-item',
+                isActive('/settings')
+                  ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                isActive('/settings')
+                  ? (isArabic ? 'border-l-2 border-blue-600' : 'border-r-2 border-blue-600')
+                  : '',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+              ].join(' ')}
             >
-              <Settings className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.settings')}</span>
+              <span className={[
+                'w-5 h-5',
+                isActive('/settings') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
+              ].join(' ')}>
+                <Settings className="w-5 h-5" />
+              </span>
+              <span className="truncate">{t('menu.settings')}</span>
             </Link>
             <button
               onClick={handleLogout}
-              className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg w-full text-left footer-item"
+              className={[
+                'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition transform-gpu hover:translate-x-0.5 w-full text-left footer-item',
+                'text-gray-700 hover:text-gray-900 hover:bg-gray-50',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300'
+              ].join(' ')}
             >
-              <LogOut className="w-5 h-5 footer-icon" />
-              <span className="ml-3">{t('menu.logout')}</span>
+              <span className="w-5 h-5 text-gray-400 group-hover:text-gray-500">
+                <LogOut className="w-5 h-5" />
+              </span>
+              <span className="truncate">{t('menu.logout')}</span>
             </button>
-          </div>
+          </nav>
         </aside>
       </div>
     </NotificationProvider>
