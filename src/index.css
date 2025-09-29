@@ -5,3 +5,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global override: adjust Tailwind's p-4 utility padding */
+.p-4 { padding: 0rem !important; }
