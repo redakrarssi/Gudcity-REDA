@@ -1,39 +1,6 @@
 import React, { useState, useEffect } from 'react';
-
-// Enhanced HTML sanitizer with strict security policies
-function sanitizeHtml(unsafeHtml: string): string {
-  if (!unsafeHtml || typeof unsafeHtml !== 'string') {
-    return '';
-  }
-
-  try {
-    // Try to use DOMPurify if available (most secure option)
-    const DOMPurify = (window as any).DOMPurify;
-    if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
-      return DOMPurify.sanitize(unsafeHtml, {
-        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a', 'img'],
-        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title'],
-        ALLOW_DATA_ATTR: false,
-        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select'],
-        FORBID_ATTR: ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress', 'onchange', 'onsubmit'],
-        SANITIZE_DOM: true,
-        KEEP_CONTENT: true,
-        RETURN_DOM: false,
-        RETURN_DOM_FRAGMENT: false,
-        RETURN_TRUSTED_TYPE: false
-      });
-    }
-  } catch (error) {
-    console.warn('DOMPurify sanitization failed:', error);
-  }
-
-  // Fallback: Use safe sanitization
-  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
-  return sanitizeForDisplay(unsafeHtml);
-}
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { useSanitization } from '../../hooks/useSanitization';
 import {
   FileText,
   Plus,
@@ -61,6 +28,41 @@ import {
   ensurePagesTableExists
 } from '../../services/pageService';
 import { logSystemActivity } from '../../services/dashboardService';
+
+// Enhanced HTML sanitizer with strict security policies
+function sanitizeHtml(unsafeHtml: string): string {
+  if (!unsafeHtml || typeof unsafeHtml !== 'string') {
+    return '';
+  }
+
+  try {
+    // Try to use DOMPurify if available (most secure option)
+    const DOMPurify = (window as any).DOMPurify;
+    if (DOMPurify && typeof DOMPurify.sanitize === 'function') {
+      return DOMPurify.sanitize(unsafeHtml, {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a', 'img', 'div', 'span'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class'],
+        ALLOW_DATA_ATTR: false,
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select'],
+        FORBID_ATTR: ['onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout', 'onkeydown', 'onkeyup', 'onkeypress', 'onchange', 'onsubmit'],
+        SANITIZE_DOM: true,
+        KEEP_CONTENT: true,
+        RETURN_DOM: false,
+        RETURN_DOM_FRAGMENT: false,
+        RETURN_TRUSTED_TYPE: false
+      });
+    }
+  } catch (error) {
+    console.warn('DOMPurify sanitization failed:', error);
+  }
+
+  // Fallback: Basic sanitization by escaping dangerous characters
+  return unsafeHtml
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/javascript:/gi, '');
+}
 
 // Helper function to format DB Page model to component model
 const formatPageForComponent = (dbPage: Page): PageModel => {
@@ -128,18 +130,6 @@ const PageManager = () => {
     status: 'draft'
   });
   
-  // Load pages from database on component mount
-  useEffect(() => {
-    (async () => {
-      try {
-        await ensurePagesTableExists();
-      } catch (e) {
-        console.warn('Pages table ensure failed (continuing):', e);
-      }
-      fetchPages();
-    })();
-  }, []);
-  
   // Fetch pages from database
   const fetchPages = async () => {
     try {
@@ -157,6 +147,19 @@ const PageManager = () => {
       setLoading(false);
     }
   };
+  
+  // Load pages from database on component mount
+  useEffect(() => {
+    (async () => {
+      try {
+        await ensurePagesTableExists();
+      } catch (e) {
+        console.warn('Pages table ensure failed (continuing):', e);
+      }
+      fetchPages();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Filter pages based on search and filters
   const filteredPages = pages.filter(page => {

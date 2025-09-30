@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 class DeepLinkInstrumentedTest {
     @Test
     fun deepLink_to_cards_opens_activity() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://vcarda.com/cards"))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.vcarda.com/cards"))
         ActivityScenario.launch<MainActivity>(intent).use { }
     }
 }

@@ -47,7 +47,7 @@ Quick Start (Xcode UI)
      - Permitted background task scheduler identifiers: [ "com.yourorg.vcarda.refresh" ]
 
 5) Configure domain and Universal Links
-   - Set `AppConfig.domain` in `Vcarda/Config/AppConfig.swift` to your real domain (e.g., vcarda.com)
+   - Set `AppConfig.domain` in `Vcarda/Config/AppConfig.swift` to your real domain (e.g., www.vcarda.com)
    - Associated Domains: add `applinks:YOUR_VCARDA_DOMAIN`
    - Host the AASA file at: https://YOUR_VCARDA_DOMAIN/.well-known/apple-app-site-association
 

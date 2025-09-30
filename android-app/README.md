@@ -2,7 +2,7 @@ GudCity Android App
 
 Setup:
 - Open in Android Studio (JDK 17)
-- Update res/values/strings.xml → web_base_url = https://vcarda.com
+- Update res/values/strings.xml → web_base_url = https://www.vcarda.com
 - Build and run
 
 Signing & AAB:

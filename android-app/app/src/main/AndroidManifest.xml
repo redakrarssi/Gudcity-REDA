@@ -23,11 +23,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="vcarda.com"
+                    android:host="www.vcarda.com"
                     android:pathPrefix="/cards"
                     android:scheme="https" />
                 <data
-                    android:host="vcarda.com"
+                    android:host="www.vcarda.com"
                     android:pathPrefix="/"
                     android:scheme="https" />
             </intent-filter>

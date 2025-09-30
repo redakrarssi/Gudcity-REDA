@@ -1,7 +1,7 @@
 Digital Asset Links setup for verified app links
 
 1) Host assetlinks.json at:
-   https://vcarda.com/.well-known/assetlinks.json
+   https://www.vcarda.com/.well-known/assetlinks.json
 
 2) Example assetlinks.json:
 [
@@ -20,6 +20,6 @@ Digital Asset Links setup for verified app links
 3) Get fingerprint:
 keytool -list -v -alias YOUR_RELEASE_ALIAS -keystore YOUR_RELEASE_KEYSTORE.jks
 
-4) After hosting, install the app and visit an https link on vcarda.com; Android should verify and open in-app.
+4) After hosting, install the app and visit an https link on www.vcarda.com; Android should verify and open in-app.
 
 
