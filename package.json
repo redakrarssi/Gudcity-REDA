@@ -43,7 +43,9 @@
     "security:generate-secrets": "node scripts/generate-secure-secrets.js",
     "security:setup-production": "node scripts/setup-production-security.js",
     "security:validate-production": "node scripts/validate-security.js",
-    "security:production-check": "npm run security:generate-secrets && npm run security:setup-production"
+    "security:production-check": "npm run security:generate-secrets && npm run security:setup-production",
+    "migrate:security": "node db/run-security-migrations.mjs",
+    "db:migrate": "node db/run-security-migrations.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

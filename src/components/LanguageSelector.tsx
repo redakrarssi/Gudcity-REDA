@@ -91,7 +91,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         return {
           container: 'relative inline-block text-left',
           button: 'inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
-          dropdown: 'origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50',
+          dropdown: 'absolute mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50',
           item: 'block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors'
         };
     }
@@ -99,6 +99,26 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
 
   const styles = getVariantStyles();
   const [isOpen, setIsOpen] = React.useState(false);
+  const [dropdownPosition, setDropdownPosition] = React.useState<'left' | 'right'>('left');
+
+  // Calculate dropdown position based on available space
+  React.useEffect(() => {
+    if (isOpen && variant === 'default') {
+      const button = document.querySelector('[data-language-selector] button');
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const dropdownWidth = 224; // w-56 = 14rem = 224px
+        
+        // Check if there's enough space on the right
+        if (rect.left + dropdownWidth > viewportWidth) {
+          setDropdownPosition('right');
+        } else {
+          setDropdownPosition('left');
+        }
+      }
+    }
+  }, [isOpen, variant]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -141,7 +161,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className={styles.dropdown}>
+        <div className={`${styles.dropdown} ${variant === 'default' ? (dropdownPosition === 'right' ? 'right-0 left-auto' : 'left-0 right-auto') : ''}`}>
           <div className="py-1" role="menu" aria-orientation="vertical">
             {LANGUAGES.map((language) => (
               <button

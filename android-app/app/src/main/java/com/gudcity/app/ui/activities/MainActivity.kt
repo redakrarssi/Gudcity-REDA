@@ -3,8 +3,11 @@ package com.gudcity.app.ui.activities
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
+import android.view.View
+import android.view.WindowInsetsController
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import com.gudcity.app.R
@@ -23,6 +26,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        
+        // Fix status bar icons to be visible (dark icons on light background)
+        setupStatusBar()
 
         val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHost.navController
@@ -49,6 +55,24 @@ class MainActivity : AppCompatActivity() {
             val path = data.path ?: ""
             val args = Bundle().apply { putString("path", path) }
             navController.navigate(R.id.webViewFragment, args)
+        }
+    }
+    
+    private fun setupStatusBar() {
+        // Make status bar transparent with dark icons
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ (API 30+)
+            window.insetsController?.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // Android 6+ (API 23+)
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = 
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
     }
 }

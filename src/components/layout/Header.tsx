@@ -6,7 +6,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { IconBell } from '../icons/IconBell';
 import { NotificationService } from '../../services/notificationService';
 import { AppLogo } from '../ui/AppLogo';
-import logoWebp from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
 
 const Header: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -63,7 +62,7 @@ const Header: React.FC = () => {
         <div className={`flex justify-between items-center py-3 ${isArabic ? 'rtl-header-flex' : ''}`}>
           {/* Logo */}
           <Link to="/" className="flex items-center" aria-label="Vcarda Home">
-            <AppLogo className="shrink-0" imageSrc={logoWebp} showText={false} heightPx={48} />
+            <AppLogo className="shrink-0" imageSrc="/svg logo vcarda.svg" showText={false} heightPx={48} />
           </Link>
 
           {/* Desktop Navigation */}

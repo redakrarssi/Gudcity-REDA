@@ -5,7 +5,7 @@
         android:name=".GudCityApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="GudCity"
+        android:label="Vcarda"
         android:supportsRtl="true"
         android:theme="@style/Theme.GudCity"
         android:networkSecurityConfig="@xml/network_security_config">
@@ -60,6 +60,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
 </manifest>
 

@@ -1,8 +1,6 @@
 import sql from '../utils/db';
-import { secureInsert, secureSelect, validateDbInput } from '../utils/secureDb';
-import { jwtSecretManager, tokenBlacklist, secureCookieManager, TokenEncryption } from '../utils/authSecurity';
 import env from '../utils/env';
-import { User, getUserByEmail } from './userService';
+import { User } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
 import bcrypt from 'bcryptjs';
 
@@ -174,124 +172,60 @@ export function resetRateLimit(ip: string): void {
 
 /**
  * Generate JWT tokens for authentication
+ * REFACTORED: Now calls server-side API endpoint instead of using jsonwebtoken directly
+ * This fixes the browser compatibility issue with jsonwebtoken library
  */
 export async function generateTokens(user: User): Promise<AuthTokens> {
   try {
-    // Import JWT dynamically to avoid SSR issues with proper error handling
-    let jwt: any;
-    try {
-      jwt = await import('jsonwebtoken');
-      // Check if the import has a default export or named exports
-      if (jwt.default && typeof jwt.default.sign === 'function') {
-        jwt = jwt.default;
-      }
-    } catch (importError) {
-      console.error('Failed to import jsonwebtoken:', importError);
-      throw new Error('JWT library not available');
-    }
-    
-    // SECURITY: Use enhanced JWT secret validation (Node.js only)
-    if (jwtSecretManager) {
-      const secretValidation = jwtSecretManager.validateSecrets();
-      if (!secretValidation.isValid) {
-        console.error('JWT secret validation failed:', secretValidation.errors);
-        throw new Error(`JWT secret validation failed: ${secretValidation.errors.join(', ')}`);
-      }
-      
-      // Get current secrets from security manager
-      const currentSecrets = jwtSecretManager.getCurrentSecrets();
-      // Use currentSecrets for token generation
-    } else {
-      // Browser environment - use environment variables directly
-      if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
-        throw new Error('JWT access token secret is not configured');
-      }
-      
-      if (!env.JWT_REFRESH_SECRET || env.JWT_REFRESH_SECRET.trim() === '') {
-        throw new Error('JWT refresh token secret is not configured');
-      }
-    }
-    
-    // Create token payload with proper validation
+    // Validate user data
     if (!user.id) {
       throw new Error('User ID is required for token generation');
     }
     
-    const payload: TokenPayload = {
+    if (!user.email) {
+      throw new Error('User email is required for token generation');
+    }
+    
+    // Call server-side API endpoint for token generation
+    const response = await fetch('/api/auth/generate-tokens', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
       userId: user.id,
       email: user.email,
       role: user.role || 'customer'
-    };
+      })
+    });
     
-    // Calculate expiry times in seconds with error handling
-    let accessExpiry: number;
-    let refreshExpiry: number;
-    
-    try {
-      accessExpiry = parseJwtExpiry(env.JWT_EXPIRY);
-      refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY);
-    } catch (expiryError) {
-      console.error('Error parsing JWT expiry times:', expiryError);
-      // Use default values if parsing fails
-      accessExpiry = 3600; // 1 hour
-      refreshExpiry = 604800; // 7 days
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Server error: ${response.status}`);
     }
     
-    // Generate tokens with proper error handling
-    let accessToken: string;
-    let refreshToken: string;
+    const data = await response.json();
     
-    try {
-      // Ensure we have the correct jwt function reference
-      const signFunction = jwt.sign || jwt.default?.sign;
-      if (typeof signFunction !== 'function') {
-        throw new Error('JWT sign function not available');
-      }
-      
-      // Use appropriate secrets based on environment
-      const accessSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().accessSecret : env.JWT_SECRET;
-      const refreshSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().refreshSecret : env.JWT_REFRESH_SECRET;
-      
-      accessToken = signFunction.call(jwt, payload, accessSecret, { 
-        expiresIn: env.JWT_EXPIRY,
-        issuer: 'gudcity-loyalty-platform',
-        audience: 'gudcity-users'
-      });
-      
-      refreshToken = signFunction.call(jwt, payload, refreshSecret, { 
-        expiresIn: env.JWT_REFRESH_EXPIRY,
-        issuer: 'gudcity-loyalty-platform',
-        audience: 'gudcity-users'
-      });
-    } catch (signError) {
-      console.error('Error signing JWT tokens:', signError);
-      throw new Error('Failed to sign authentication tokens');
-    }
-    
-    // Store refresh token in database for validation later
-    try {
-      await storeRefreshToken(user.id, refreshToken, refreshExpiry);
-    } catch (storeError) {
-      console.error('Error storing refresh token:', storeError);
-      // Don't fail token generation if storage fails, but log the error
+    if (!data.success || !data.data) {
+      throw new Error(data.error || 'Failed to generate tokens');
     }
     
     console.log('✅ JWT tokens generated successfully for user:', user.id);
     
     return {
-      accessToken,
-      refreshToken,
-      expiresIn: accessExpiry
+      accessToken: data.data.accessToken,
+      refreshToken: data.data.refreshToken,
+      expiresIn: data.data.expiresIn
     };
   } catch (error) {
     console.error('Error generating tokens:', error);
     
     // Provide more specific error messages
     if (error instanceof Error) {
-      if (error.message.includes('JWT secrets')) {
+      if (error.message.includes('fetch')) {
+        throw new Error('Network error. Please check your connection and try again.');
+      } else if (error.message.includes('configuration')) {
         throw new Error('Authentication system configuration error. Please contact administrator.');
-      } else if (error.message.includes('JWT library')) {
-        throw new Error('Authentication system unavailable. Please try again later.');
       } else {
         throw new Error(`Failed to generate authentication tokens: ${error.message}`);
       }
@@ -301,117 +235,50 @@ export async function generateTokens(user: User): Promise<AuthTokens> {
   }
 }
 
-/**
- * Store refresh token in database
- */
-async function storeRefreshToken(userId: number, token: string, expiresIn: number): Promise<void> {
-  try {
-    // Calculate expiration date
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
-    
-    // Create refresh_tokens table if it doesn't exist
-    await sql`
-      CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        revoked BOOLEAN DEFAULT FALSE,
-        revoked_at TIMESTAMP
-      )
-    `;
-    
-    // Store token
-    // SECURITY: Validate inputs before storing
-    const userIdValidation = validateDbInput(userId, 'number');
-    const tokenValidation = validateDbInput(token, 'string', { maxLength: 1000 });
-    
-    if (!userIdValidation.isValid) {
-      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
-    }
-    if (!tokenValidation.isValid) {
-      throw new Error(`Invalid token: ${tokenValidation.errors.join(', ')}`);
-    }
-    
-    await secureInsert('refresh_tokens', {
-      user_id: userIdValidation.sanitized,
-      token: tokenValidation.sanitized,
-      expires_at: expiresAt
-    });
-  } catch (error) {
-    console.error('Error storing refresh token:', error);
-    throw new Error('Failed to store refresh token');
-  }
-}
+// Note: storeRefreshToken has been moved to server-side (authTokenHandler.ts)
+// Token storage is now handled by the /api/auth/generate-tokens endpoint
 
 /**
  * Verify and refresh tokens
+ * REFACTORED: Now calls server-side API endpoint instead of using jsonwebtoken directly
  */
 export async function refreshTokens(refreshToken: string): Promise<AuthTokens | null> {
   try {
-    // Import JWT dynamically
-    const jwt = await import('jsonwebtoken');
-    
-    // SECURITY: Check if token is blacklisted (Node.js only)
-    if (tokenBlacklist && tokenBlacklist.isTokenBlacklisted(refreshToken)) {
-      console.error('Refresh token is blacklisted');
+    if (!refreshToken) {
+      console.error('No refresh token provided');
       return null;
     }
     
-    // Get current secrets from security manager or environment
-    const refreshSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().refreshSecret : env.JWT_REFRESH_SECRET;
+    // Call server-side API endpoint for token refresh
+    const response = await fetch('/api/auth/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refreshToken
+      })
+    });
     
-    // Verify the refresh token
-    let payload: TokenPayload;
-    try {
-      payload = jwt.verify(refreshToken, refreshSecret) as TokenPayload;
-    } catch (error) {
-      console.error('Invalid refresh token:', error);
+    if (!response.ok) {
+      console.error('Failed to refresh tokens:', response.status);
       return null;
     }
     
-    // Check if token is in database and not revoked
-    // SECURITY: Validate refresh token before query
-    const tokenValidation = validateDbInput(refreshToken, 'string', { maxLength: 1000 });
-    if (!tokenValidation.isValid) {
-      console.error('Invalid refresh token format');
+    const data = await response.json();
+    
+    if (!data.success || !data.data) {
+      console.error('Token refresh failed:', data.error);
       return null;
     }
     
-    const tokenRecord = await secureSelect(
-      'refresh_tokens',
-      '*',
-      'token = $1 AND expires_at > NOW() AND revoked = FALSE',
-      [tokenValidation.sanitized],
-      ['string']
-    );
+    console.log('✅ Tokens refreshed successfully');
     
-    if (!tokenRecord || tokenRecord.length === 0) {
-      console.error('Refresh token not found or expired');
-      return null;
-    }
-    
-    // Get user
-    const user = await getUserByEmail(payload.email);
-    if (!user) {
-      console.error('User not found for refresh token');
-      return null;
-    }
-    
-    // Revoke current refresh token
-    // SECURITY: Use secure update with validated token
-    const { secureUpdate } = await import('../utils/secureDb');
-    await secureUpdate(
-      'refresh_tokens',
-      { revoked: true, revoked_at: new Date() },
-      'token = $1',
-      [tokenValidation.sanitized],
-      ['string']
-    );
-    
-    // Generate new tokens
-    return generateTokens(user);
+    return {
+      accessToken: data.data.accessToken,
+      refreshToken: data.data.refreshToken,
+      expiresIn: data.data.expiresIn
+    };
   } catch (error) {
     console.error('Error refreshing tokens:', error);
     return null;
@@ -420,58 +287,80 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens | 
 
 /**
  * Verify access token
+ * REFACTORED: Now calls server-side API endpoint instead of using jsonwebtoken directly
  */
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    // Import JWT dynamically
-    const jwt = await import('jsonwebtoken');
-    
-    // SECURITY: Check if token is blacklisted (Node.js only)
-    if (tokenBlacklist && tokenBlacklist.isTokenBlacklisted(token)) {
-      console.error('Token is blacklisted');
+    if (!token) {
+      console.error('No token provided for verification');
       return null;
     }
     
-    // Get current secrets from security manager or environment
-    const accessSecret = jwtSecretManager ? jwtSecretManager.getCurrentSecrets().accessSecret : env.JWT_SECRET;
+    // Call server-side API endpoint for token verification
+    const response = await fetch('/api/auth/verify-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token
+      })
+    });
     
-    // Verify the token with issuer/audience enforcement and small clock tolerance
-    const payload = jwt.verify(token, accessSecret, {
-      issuer: 'gudcity-loyalty-platform',
-      audience: 'gudcity-users',
-      clockTolerance: 5
-    }) as TokenPayload;
-    return payload;
+    if (!response.ok) {
+      console.error('Failed to verify token:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success || !data.valid) {
+      console.error('Token verification failed:', data.error);
+      return null;
+    }
+    
+    return data.payload;
   } catch (error) {
-    console.error('Invalid token:', error);
+    console.error('Error verifying token:', error);
     return null;
   }
 }
 
 /**
  * Revoke all refresh tokens for a user
+ * REFACTORED: Now calls server-side API endpoint
  */
 export async function revokeAllUserTokens(userId: number): Promise<boolean> {
   try {
-    // SECURITY: Validate user ID before update
-    const userIdValidation = validateDbInput(userId, 'number');
-    if (!userIdValidation.isValid) {
-      throw new Error(`Invalid user ID: ${userIdValidation.errors.join(', ')}`);
+    if (!userId) {
+      console.error('No user ID provided');
+      return false;
     }
     
-    // SECURITY: Blacklist all user tokens (Node.js only)
-    if (tokenBlacklist) {
-      await tokenBlacklist.blacklistUserTokens(userIdValidation.sanitized, 'User logout');
+    // Call server-side API endpoint to revoke tokens
+    const response = await fetch('/api/auth/revoke-tokens', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId
+      })
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to revoke tokens:', response.status);
+      return false;
     }
     
-    const { secureUpdate } = await import('../utils/secureDb');
-    await secureUpdate(
-      'refresh_tokens',
-      { revoked: true, revoked_at: new Date() },
-      'user_id = $1 AND revoked = FALSE',
-      [userIdValidation.sanitized],
-      ['number']
-    );
+    const data = await response.json();
+    
+    if (!data.success) {
+      console.error('Token revocation failed:', data.error);
+      return false;
+    }
+    
+    console.log('✅ All tokens revoked successfully');
     return true;
   } catch (error) {
     console.error('Error revoking user tokens:', error);
@@ -479,27 +368,8 @@ export async function revokeAllUserTokens(userId: number): Promise<boolean> {
   }
 }
 
-/**
- * Parse JWT expiry string (like "1h", "7d") to seconds
- */
-function parseJwtExpiry(expiry: string): number {
-  const match = expiry.match(/^(\d+)([smhdw])$/);
-  if (!match) {
-    return 3600; // Default to 1 hour if format is invalid
-  }
-  
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  
-  switch (unit) {
-    case 's': return value; // seconds
-    case 'm': return value * 60; // minutes
-    case 'h': return value * 60 * 60; // hours
-    case 'd': return value * 24 * 60 * 60; // days
-    case 'w': return value * 7 * 24 * 60 * 60; // weeks
-    default: return 3600; // default to 1 hour
-  }
-}
+// Note: parseJwtExpiry has been moved to server-side (authTokenHandler.ts)
+// JWT expiry parsing is now handled server-side
 
 /**
  * Hash password with stronger settings and comprehensive error handling
@@ -722,88 +592,17 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
   }
 })();
 
-/**
- * Blacklist a specific token
- */
-export async function blacklistToken(token: string, reason: string): Promise<boolean> {
-  try {
-    if (tokenBlacklist) {
-      await tokenBlacklist.blacklistToken(token, reason);
-      return true;
-    } else {
-      console.warn('Token blacklisting not available in browser environment');
-      return false;
-    }
-  } catch (error) {
-    console.error('Error blacklisting token:', error);
-    return false;
-  }
-}
-
-/**
- * Check if a token is blacklisted
- */
-export function isTokenBlacklisted(token: string): boolean {
-  if (tokenBlacklist) {
-    return tokenBlacklist.isTokenBlacklisted(token);
-  } else {
-    console.warn('Token blacklisting not available in browser environment');
-    return false;
-  }
-}
-
-/**
- * Rotate JWT secrets
- */
-export async function rotateJwtSecrets(): Promise<boolean> {
-  try {
-    if (jwtSecretManager) {
-      await jwtSecretManager.rotateSecrets();
-      return true;
-    } else {
-      console.warn('JWT secret rotation not available in browser environment');
-      return false;
-    }
-  } catch (error) {
-    console.error('Error rotating JWT secrets:', error);
-    return false;
-  }
-}
-
-/**
- * Get JWT secret validation status
- */
-export function getJwtSecretStatus(): { isValid: boolean; errors: string[] } {
-  if (jwtSecretManager) {
-    return jwtSecretManager.validateSecrets();
-  } else {
-    console.warn('JWT secret validation not available in browser environment');
-    return { isValid: true, errors: [] };
-  }
-}
-
-/**
- * Get token blacklist statistics
- */
-export function getTokenBlacklistStats(): { totalBlacklisted: number; expiredCount: number } {
-  if (tokenBlacklist) {
-    return tokenBlacklist.getBlacklistStats();
-  } else {
-    console.warn('Token blacklist statistics not available in browser environment');
-    return { totalBlacklisted: 0, expiredCount: 0 };
-  }
-}
+// Note: Token blacklisting, JWT secret rotation, and related security features
+// have been moved to server-side only. These operations are now handled by:
+// - authTokenHandler.ts (server-side token management)
+// - authSecurity.ts (server-side security utilities)
+// Browser-side code should use the /api/auth/* endpoints instead
 
 export default {
   generateTokens,
   refreshTokens,
   verifyToken,
   revokeAllUserTokens,
-  blacklistToken,
-  isTokenBlacklisted,
-  rotateJwtSecrets,
-  getJwtSecretStatus,
-  getTokenBlacklistStats,
   hashPassword,
   verifyPassword,
   checkRateLimit,

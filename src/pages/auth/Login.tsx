@@ -7,7 +7,7 @@ import LanguageSelector from '../../components/LanguageSelector';
 import FailedLoginService, { LoginSecurityInfo } from '../../services/failedLoginService';
 
 const Login = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
@@ -146,30 +146,30 @@ const Login = () => {
   };
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      {/* Language selector - top right */}
-      <div className="absolute top-4 right-4 z-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-blue-500/5 to-transparent rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-indigo-500/5 to-transparent rounded-full blur-3xl" />
+      </div>
+
+      {/* Language selector - top left */}
+      <div className="absolute top-6 left-6 z-10">
         <LanguageSelector variant="default" showIcon={false} />
       </div>
       
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md">
-        <div>
-          <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900">
+      <div className="max-w-md w-full space-y-8 bg-white/80 backdrop-blur-lg p-10 rounded-2xl shadow-2xl border border-white/20 relative">
+        {/* Header */}
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+            <Lock className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
             {t('auth.Sign in to your account')}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="text-gray-600">
             {t('auth.Access the Vcarda platform')}
           </p>
-          
-          {/* Demo Credentials */}
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-1">{t('auth.Demo Credentials')}</h3>
-            <p className="text-xs text-blue-700">
-              <strong>{t('auth.Admin')}:</strong> admin@vcarda.com / password<br />
-              <strong>{t('auth.Customer')}:</strong> customer@example.com / password<br />
-              <strong>{t('auth.Business')}:</strong> business@example.com / password
-            </p>
-          </div>
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -253,12 +253,12 @@ const Login = () => {
             </div>
           )}
           
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email-address" className="block text-sm font-medium text-gray-700 mb-1">{t('auth.Email address')}</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label htmlFor="email-address" className={`block text-sm font-semibold text-gray-700 ${i18n.language === 'ar' ? 'text-right' : 'text-left'}`}>{t('auth.Email address')}</label>
+              <div className="relative group">
+                <div className={`absolute inset-y-0 flex items-center pointer-events-none z-10 ${i18n.language === 'ar' ? 'right-0 pr-4' : 'left-0 pl-4'}`}>
+                  <Mail className="h-5 w-5 text-gray-500 group-focus-within:text-blue-500 transition-colors" />
                 </div>
                 <input
                   id="email-address"
@@ -266,19 +266,21 @@ const Login = () => {
                   type="email"
                   autoComplete="email"
                   required
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className={`block w-full py-4 border-2 border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white ${i18n.language === 'ar' ? 'pr-12 pl-4 text-right' : 'pl-12 pr-4 text-left'}`}
                   placeholder={t('auth.Email address')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  dir={i18n.language === 'ar' ? 'rtl' : 'ltr'}
+                  style={i18n.language === 'ar' ? { textAlign: 'right' } : { textAlign: 'left' }}
                 />
               </div>
             </div>
             
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">{t('auth.Password')}</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+            <div className="space-y-2">
+              <label htmlFor="password" className={`block text-sm font-semibold text-gray-700 ${i18n.language === 'ar' ? 'text-right' : 'text-left'}`}>{t('auth.Password')}</label>
+              <div className="relative group">
+                <div className={`absolute inset-y-0 flex items-center pointer-events-none z-10 ${i18n.language === 'ar' ? 'right-0 pr-4' : 'left-0 pl-4'}`}>
+                  <Lock className="h-5 w-5 text-gray-500 group-focus-within:text-blue-500 transition-colors" />
                 </div>
                 <input
                   id="password"
@@ -286,16 +288,18 @@ const Login = () => {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  className="appearance-none block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className={`block w-full py-4 border-2 border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white ${i18n.language === 'ar' ? 'pr-12 pl-12 text-right' : 'pl-12 pr-12 text-left'}`}
                   placeholder={t('auth.Password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  dir={i18n.language === 'ar' ? 'rtl' : 'ltr'}
+                  style={i18n.language === 'ar' ? { textAlign: 'right' } : { textAlign: 'left' }}
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <div className={`absolute inset-y-0 flex items-center z-10 ${i18n.language === 'ar' ? 'left-0 pl-4' : 'right-0 pr-4'}`}>
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
-                    className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    className="text-gray-500 hover:text-blue-500 focus:outline-none transition-colors duration-200"
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5" />
@@ -314,33 +318,33 @@ const Login = () => {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+              <label htmlFor="remember-me" className="ml-3 block text-sm font-medium text-gray-700">
                 {t('auth.Remember me')}
               </label>
             </div>
 
             <div className="text-sm">
-              <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+              <Link to="/forgot-password" className="font-semibold text-blue-600 hover:text-blue-500 transition-colors duration-200">
                 {t('auth.Forgot your password?')}
               </Link>
             </div>
           </div>
 
-          <div>
+          <div className="pt-2">
             <button
               type="submit"
               disabled={isLoading || (securityInfo?.isAccountLocked && lockoutCountdown > 0)}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 ${
+              className={`group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] ${
                 securityInfo?.isAccountLocked 
                   ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl'
               }`}
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -348,25 +352,45 @@ const Login = () => {
                 </>
               ) : securityInfo?.isAccountLocked && lockoutCountdown > 0 ? (
                 <div className="flex items-center">
-                  <Shield className="h-4 w-4 mr-2" />
+                  <Shield className="h-5 w-5 mr-2" />
                   {t('auth.Account Locked')}
                 </div>
               ) : (
-                t('auth.Sign in')
+                <div className="flex items-center">
+                  {t('auth.Sign in')}
+                  <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
               )}
             </button>
           </div>
         </form>
         
-        <div className="text-center mt-4">
-          <p className="text-sm text-gray-600 mb-4">
-            {t('auth.Don\'t have an account?')}{' '}
-            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              {t('auth.Create an account')}
-            </Link>
-          </p>
+        <div className="text-center mt-8 space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">{t('auth.Don\'t have an account?')}</span>
+            </div>
+          </div>
           
-          <Link to="/" className="font-medium text-blue-600 hover:text-blue-500">
+          <Link 
+            to="/register" 
+            className="inline-flex items-center justify-center w-full py-3 px-6 border-2 border-blue-200 rounded-xl text-sm font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200"
+          >
+            {t('auth.Create an account')}
+          </Link>
+          
+          <Link 
+            to="/" 
+            className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors duration-200"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
             {t('auth.Back to Homepage')}
           </Link>
         </div>
