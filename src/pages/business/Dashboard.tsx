@@ -216,19 +216,21 @@ const BusinessDashboard = () => {
       );
       
       if (scanResult.success) {
-        // Show success message
-        setScannerMessage(`Success! ${scanResult.pointsAwarded || 0} points awarded.`);
+        // Show success message (localized)
+        setScannerMessage(
+          t('notifications.successfulScanAwardedPoints', { points: scanResult.pointsAwarded || 0 })
+        );
         
         // Send notification to business owner
         await NotificationService.createNotification(
           businessId,
           'POINTS_EARNED',
           t('business.Successful Scan'),
-          `You successfully scanned a customer QR code and awarded ${scanResult.pointsAwarded || 0} points.`
+          t('notifications.successfulScanAwardedPoints', { points: scanResult.pointsAwarded || 0 })
         );
       } else {
         // Show error message
-        setScannerMessage(`Error: ${scanResult.message}`);
+        setScannerMessage(`${t('business.Scan Failed')}: ${scanResult.message}`);
         
         // Send notification about failed scan
         await NotificationService.createNotification(
@@ -240,7 +242,7 @@ const BusinessDashboard = () => {
       }
     } catch (error) {
       console.error('Error processing QR code:', error);
-      setScannerMessage(`Error: ${error instanceof Error ? error.message : t('business.Unknown error')}`);
+      setScannerMessage(`${t('business.Scan Error')}: ${error instanceof Error ? (error as Error).message : t('business.Unknown error')}`);
       
       // Send error notification
       const businessIdForError = getBusinessIdString(user);

@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { NotificationProvider } from '../../contexts/NotificationContext';
-import { ThemeToggle } from '../ui/ThemeToggle';
 import NotificationIndicator from '../notifications/NotificationIndicator';
 import GlobalNotificationCenter from '../notifications/GlobalNotificationCenter';
 import NotificationPopup from '../notifications/NotificationPopup';
@@ -86,7 +85,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                 <NotificationIndicator className="mobile-control" />
               </div>
               <div className={`flex items-center gap-2 mobile-controls ${isArabic ? 'flex-row-reverse' : ''}`}>
-                <button 
+                <button
                   className="p-1 text-gray-600 mobile-control"
                   onClick={toggleMobileMenu}
                 >
@@ -96,7 +95,6 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
                     <Menu className="w-6 h-6" />
                   )}
                 </button>
-                <ThemeToggle variant="icon" className="mobile-control" />
               </div>
             </div>
 
@@ -184,16 +182,15 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
         {/* Sidebar: on large screens keep it visually to the right; internally flip content for RTL */}
         <aside dir={isArabic ? 'rtl' : 'ltr'} className={`hidden md:flex md:flex-col w-64 bg-white ${isArabic ? 'border-r' : 'border-l'} border-gray-200 sidebar`}>
-          <div className={`p-4 flex justify-between items-center ${isArabic ? 'flex-row-reverse' : ''}`}> 
+          <div className={`p-4 flex justify-between items-center ${isArabic ? 'flex-row-reverse' : ''}`}>
             <div className={`flex items-center gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
               <AppLogo className="shrink-0" size="lg" imageSrc={logoWebp} showText={false} heightPx={96} />
               <NotificationIndicator />
             </div>
-            <ThemeToggle variant="icon" className="header-controls" />
           </div>
 
           <nav className={`flex-1 px-4 pb-4 space-y-1.5 overflow-y-auto navigation ${isArabic ? 'text-right' : ''}`}>
-            <div className={`px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>Menu</div>
+            <div className={`px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>{t('menu.section.menu')}</div>
             {menuItems.map((item) => (
               <Link
                 key={item.path}
@@ -222,7 +219,7 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
               </Link>
             ))}
 
-            <div className={`mt-4 px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>Account</div>
+            <div className={`mt-4 px-3 py-2 text-xs uppercase tracking-wide text-gray-500 ${isArabic ? 'text-right' : ''}`}>{t('menu.section.account')}</div>
             <Link
               to="/settings"
               aria-current={isActive('/settings') ? 'page' : undefined}

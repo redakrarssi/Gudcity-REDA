@@ -238,8 +238,14 @@ const CustomerCards = () => {
       // Check if this notification is for the current user
       if (user && detail.customerId === user.id.toString()) {
         if (detail.type === 'POINTS_ADDED') {
-          // Show notification toast
-          addNotification('success', `You've received ${detail.points} points in ${detail.programName || t('cards.yourLoyaltyProgram')}`);
+          // Show notification toast (localized)
+          addNotification(
+            'success',
+            t('notifications.receivedPointsInProgram', {
+              points: detail.points,
+              programName: detail.programName || t('cards.yourLoyaltyProgram')
+            })
+          );
           
           // Just do a simple refetch - no complex state management
           refetch();
@@ -252,7 +258,10 @@ const CustomerCards = () => {
       const detail = event.detail;
       if (user && detail.customerId === user.id.toString()) {
         const programName = detail.programName || `Program ${detail.programId}`;
-        addNotification('success', `You've received ${detail.points} points in ${programName}!`);
+        addNotification(
+          'success',
+          t('notifications.receivedPointsInProgram', { points: detail.points, programName })
+        );
         console.log(`Points awarded event: ${detail.points} points to program ${detail.programId}, card ${detail.cardId}`);
         refetch();
       }
@@ -280,7 +289,7 @@ const CustomerCards = () => {
       if (user && detail.customerId === user.id.toString()) {
         const programName = detail.programName || `Program ${detail.programId}`;
         console.log(`Program points updated: ${detail.points} points for program ${detail.programId}, card ${detail.cardId}`);
-        addNotification('success', `Your ${programName} card has been updated with ${detail.points} points!`);
+        addNotification('success', t('notifications.cardUpdatedWithPoints', { programName, points: detail.points }));
         refetch();
       }
     };
@@ -292,7 +301,7 @@ const CustomerCards = () => {
         console.log(`QR points awarded: ${detail.pointsAwarded} points from ${detail.businessName}`);
         
         // Show immediate notification
-        addNotification('success', `You've received ${detail.pointsAwarded} points from ${detail.businessName}!`);
+        addNotification('success', t('notifications.receivedPointsFromBusiness', { points: detail.pointsAwarded, businessName: detail.businessName }));
         
         // Trigger point animations for all affected cards
         if (detail.cardUpdates && Array.isArray(detail.cardUpdates)) {
@@ -352,7 +361,7 @@ const CustomerCards = () => {
       if (user && detail.customerId === user.id.toString()) {
         console.log('Force reload customer cards requested, refreshing immediately...');
         const programName = detail.programName || `Program ${detail.programId}`;
-        addNotification('success', `You've received ${detail.points} points in ${programName}! Your cards are updating...`);
+        addNotification('success', t('notifications.receivedPointsInProgramUpdating', { points: detail.points, programName }));
         refetch();
         
         // Double-check with a delayed refresh
@@ -372,7 +381,7 @@ const CustomerCards = () => {
             // Check if this is for the current user
             if (user && data.customerId === user.id.toString()) {
               // Show notification
-              addNotification('success', `You've received ${data.points} points in ${data.programName || t('cards.yourLoyaltyProgram')}`);
+              addNotification('success', t('notifications.receivedPointsInProgram', { points: data.points, programName: data.programName || t('cards.yourLoyaltyProgram') }));
               
               // Just do a simple refetch - no complex state management
               refetch();
@@ -427,7 +436,7 @@ const CustomerCards = () => {
             const data = JSON.parse(localStorage.getItem(key) || '{}');
             if (data.customerId === user.id.toString()) {
               console.log('Sync points event found, refreshing cards...');
-              addNotification('success', `You've received ${data.points} points in ${data.programName}!`);
+              addNotification('success', t('notifications.receivedPointsInProgram', { points: data.points, programName: data.programName }));
               refetch();
               localStorage.removeItem(key);
             }
@@ -513,7 +522,7 @@ const CustomerCards = () => {
               // If flag is newer than 10 seconds, refresh immediately
               if (now - flagTime < 10000) {
                 console.log('Immediate refresh flag detected, refreshing cards NOW...');
-                addNotification('success', `You've received ${refreshData.points} points! Updating your cards...`);
+                addNotification('success', t('notifications.receivedPointsUpdating', { points: refreshData.points }));
                 refetch();
                 // Remove the flag after processing
                 localStorage.removeItem('IMMEDIATE_CARDS_REFRESH');
@@ -539,7 +548,7 @@ const CustomerCards = () => {
                 if (now - updateTime < 120000) {
                   const programId = key.replace('program_', '').replace('_points_updated', '');
                   console.log(`Program-specific update found: Program ${programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-                  addNotification('success', `Your Program ${programId} card has been updated with ${updateData.points} points!`);
+                  addNotification('success', t('notifications.cardUpdatedWithPoints', { programName: `Program ${programId}`, points: updateData.points }));
                   refetch();
                   // Remove processed notification
                   localStorage.removeItem(key);
@@ -565,7 +574,7 @@ const CustomerCards = () => {
                 if (now - updateTime < 120000) {
                   const cardId = key.replace('card_', '').replace('_points_updated', '');
                   console.log(`Card-specific update found: Card ${cardId}, Program ${updateData.programId}, ${updateData.points} points`);
-                  addNotification('success', `Your card ${cardId} has been updated with ${updateData.points} points!`);
+                  addNotification('success', t('notifications.cardIdUpdatedWithPoints', { cardId, points: updateData.points }));
                   refetch();
                   // Remove processed notification
                   localStorage.removeItem(key);
@@ -604,7 +613,7 @@ const CustomerCards = () => {
             // If update is newer than 1 minute, refresh
             if (now - updateTime < 60000) {
               console.log(`Customer-specific points update detected: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-              addNotification('success', `You've received ${updateData.points} points!`);
+              addNotification('success', t('notifications.receivedPoints', { points: updateData.points }));
               refetch();
               // Remove the flag after processing
               localStorage.removeItem(customerUpdateKey);
@@ -626,7 +635,7 @@ const CustomerCards = () => {
                 // Process updates from the last 2 minutes
                 if (now - updateTime < 120000) {
                   console.log(`Point update notification found: Program ${updateData.programId}, Card ${updateData.cardId}, ${updateData.points} points`);
-                  addNotification('success', `You've received ${updateData.points} points in ${updateData.programName}!`);
+                  addNotification('success', t('notifications.receivedPointsInProgram', { points: updateData.points, programName: updateData.programName }));
                   refetch();
                   // Remove processed notification
                   localStorage.removeItem(key);
@@ -664,7 +673,7 @@ const CustomerCards = () => {
           }
           
           const programName = data.programName || `Program ${data.programId}`;
-          addNotification('success', `You've received ${data.points} points in ${programName}!`);
+          addNotification('success', t('notifications.receivedPointsInProgram', { points: data.points, programName }));
           refetch();
         }
       };

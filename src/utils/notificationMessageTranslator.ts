@@ -46,6 +46,7 @@ export class NotificationMessageTranslator {
     // Extract business name from message
     const businessMatch = message.match(/at\s+([^.!?]+)/i) || 
                          message.match(/by\s+([^.!?]+)/i) ||
+                         message.match(/from\s+([^.!?:]+)/i) ||
                          message.match(/scanned\s+by\s+([^.!?]+)/i);
     if (businessMatch) {
       params.businessName = businessMatch[1].trim();
@@ -62,6 +63,13 @@ export class NotificationMessageTranslator {
     const rewardMatch = message.match(/redeemed\s+([^.!?]+?)\s+for/i);
     if (rewardMatch) {
       params.rewardName = rewardMatch[1].trim();
+    }
+    
+    // Extract promo code
+    const codeMatch = message.match(/promo code\s*(?:from\s*[^:]+)?:\s*([A-Za-z0-9_-]+)/i);
+    if (codeMatch) {
+      params.code = codeMatch[1].trim();
+      params.promoCode = codeMatch[1].trim();
     }
 
     // Extract error message
@@ -107,6 +115,11 @@ export class NotificationMessageTranslator {
       return t('notifications.youRedeemedReward');
     }
 
+    // Enrollment request sent
+    if (title.includes('Enrollment Request Sent')) {
+      return t('notifications.enrollmentRequestSent');
+    }
+
     // Default: return original title
     return title;
   }
@@ -119,6 +132,22 @@ export class NotificationMessageTranslator {
     t: TFunction,
     params: Record<string, any>
   ): string {
+    // "You've received X points from Y in the program Z"
+    if (message.includes("You've received") && message.includes('points from') && message.includes('program')) {
+      return t('notifications.receivedPointsFromBusinessInProgram', {
+        points: params.points,
+        businessName: params.businessName,
+        programName: params.programName
+      });
+    }
+
+    // "You've received X points in Z"
+    if (message.includes("You've received") && message.includes('points in') && !message.includes('from')) {
+      return t('notifications.receivedPointsInProgram', {
+        points: params.points,
+        programName: params.programName
+      });
+    }
     // Points earned at business patterns
     if (message.includes("You've earned") && message.includes("points at") && message.includes("program")) {
       return t('notifications.youEarnedPointsAt', {
@@ -172,6 +201,27 @@ export class NotificationMessageTranslator {
         rewardName: params.rewardName || t('notifications.aReward'),
         points: params.points,
         businessName: params.businessName
+      });
+    }
+
+    // Enrollment waiting message
+    if (message.includes('Waiting for') && message.includes('respond') && message.includes('enrollment invitation')) {
+      return t('notifications.waitingForEnrollmentResponse', {
+        customerName: params.customerName || '',
+        programName: params.programName || t('notifications.aProgram')
+      });
+    }
+
+    // Error processing request
+    if (message.includes('An error occurred while processing your request')) {
+      return t('notifications.errorOccurredProcessingRequest');
+    }
+
+    // New promo code
+    if (message.includes("You've received a new promo code from")) {
+      return t('notifications.newPromoCodeFrom', {
+        businessName: params.businessName || '',
+        code: params.code || params.promoCode || ''
       });
     }
 

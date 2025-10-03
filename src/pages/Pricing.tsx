@@ -5,7 +5,7 @@ import Layout from '../components/layout/Layout';
 import PricingPlans from '../components/pricing/PricingPlans';
 import { Shield, Users, Award, ThumbsUp, Clock, Gift } from 'lucide-react';
 import { getPageBySlug, Page } from '../services/pageService';
-import { useSanitization } from '../hooks/useSanitization';
+import { sanitizeForDisplay } from '../utils/sanitizer';
 
 function sanitizeHtml(unsafeHtml: string): string {
   try {
@@ -15,7 +15,6 @@ function sanitizeHtml(unsafeHtml: string): string {
     }
   } catch {}
   // Use safe sanitization instead of innerHTML
-  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
   return sanitizeForDisplay(unsafeHtml || '');
 }
 

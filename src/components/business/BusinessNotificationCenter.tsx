@@ -71,7 +71,7 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
-                Business Notifications
+                {t('notifications.notifications')}
               </h2>
               <button
                 onClick={onClose}
@@ -86,7 +86,7 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
               {notifications.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No notifications yet</p>
+                  <p>{t('notifications.noNotificationsYet')}</p>
                 </div>
               ) : (
                 notifications.map(notification => {
@@ -146,13 +146,13 @@ export const BusinessNotificationCenter: React.FC<BusinessNotificationCenterProp
               <div className="p-4 bg-gray-50 border-t border-gray-200">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">
-                    {businessUnreadCount} pending notifications
+                    {businessUnreadCount} {t('notifications.approvals')}
                   </span>
                   <button
                     onClick={onClose}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors duration-200"
                   >
-                    Close
+                    {t('notifications.closeNotifications')}
                   </button>
                 </div>
               </div>

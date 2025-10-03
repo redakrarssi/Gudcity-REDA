@@ -19,10 +19,10 @@ import { IconBell } from '../icons/IconBell';
 import { BusinessNotificationCenter } from './BusinessNotificationCenter';
 import { StaffSettingsModal } from './StaffSettingsModal';
 import { useAuth } from '../../contexts/AuthContext';
-import { ThemeToggle } from '../ui/ThemeToggle';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { canAccessNavigation, isBusinessOwner, isStaffMember } from '../../utils/permissions';
 import { AppLogo } from '../ui/AppLogo';
+import logoImage from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -133,21 +133,45 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
       <div dir={isArabic ? 'rtl' : 'ltr'} lang={isArabic ? 'ar' : i18n?.language} className={`flex h-screen bg-gray-50 business-layout ${isArabic ? 'arabic-text' : ''}`}>
         {/* Sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 bg-white border-r border-gray-200 business-sidebar">
-          <div className="p-6 flex justify-between items-center">
-            <AppLogo size="lg" />
-            <div className="flex items-center space-x-2">
-              <button
-                className="relative p-1"
-                onClick={() => setShowNotificationCenter(true)}
-                aria-label="Notifications"
-              >
-                <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-7 h-7" />
-              </button>
-              <ThemeToggle variant="icon" />
-            </div>
+          <div className={`py-3 flex items-center ${isArabic ? 'flex-row-reverse pr-2 pl-10' : 'pl-3 pr-4'}`}>
+            {isArabic ? (
+              <>
+                <img 
+                  src={logoImage} 
+                  alt="Logo" 
+                  className="h-[124px] w-auto object-contain -mr-3 -ml-[20px]"
+                />
+                <div className="flex items-center mr-auto">
+                  <button
+                    className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                    onClick={() => setShowNotificationCenter(true)}
+                    aria-label="Notifications"
+                  >
+                    <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-6 h-6" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <img 
+                  src={logoImage} 
+                  alt="Logo" 
+                  className="h-[124px] w-auto object-contain -ml-3"
+                />
+                <div className="flex items-center ml-2">
+                  <button
+                    className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                    onClick={() => setShowNotificationCenter(true)}
+                    aria-label="Notifications"
+                  >
+                    <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-6 h-6" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
-          <nav className="flex-1 px-4 pb-4 space-y-1">
+          <nav className="flex-1 px-4 pb-4 space-y-1 -mt-6">
             {menuItems.map((item) => {
               if (item.isModal) {
                 return (
@@ -193,28 +217,62 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
         {/* Mobile header */}
         <div className="flex flex-col flex-1 overflow-hidden business-main-content">
           <header className="bg-white border-b border-gray-200 md:hidden">
-            <div className="flex items-center justify-between p-4">
-              <AppLogo size="md" />
-              <div className="flex items-center">
-                <ThemeToggle variant="icon" className="mr-2" />
-                <button
-                  className="p-1 mr-2 text-gray-600 relative"
-                  onClick={() => setShowNotificationCenter(true)}
-                  aria-label="Notifications"
-                >
-                  <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-7 h-7" />
-                </button>
-                <button 
-                  className="p-1 text-gray-600"
-                  onClick={toggleMobileMenu}
-                >
-                  {mobileMenuOpen ? (
-                    <X className="w-6 h-6" />
-                  ) : (
-                    <Menu className="w-6 h-6" />
-                  )}
-                </button>
-              </div>
+            <div className={`flex items-center ${isArabic ? 'flex-row-reverse pr-2 pl-9' : 'px-3 justify-between'} -my-3`}>
+              {isArabic ? (
+                <>
+                  <img 
+                    src={logoImage} 
+                    alt="Logo" 
+                    className="h-[104px] w-auto object-contain -mr-2 -ml-[20px]"
+                  />
+                  <div className="flex items-center gap-2 mr-auto">
+                    <button
+                      className="p-1.5 text-gray-600 relative hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={() => setShowNotificationCenter(true)}
+                      aria-label="Notifications"
+                    >
+                      <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-6 h-6" />
+                    </button>
+                    <button 
+                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={toggleMobileMenu}
+                    >
+                      {mobileMenuOpen ? (
+                        <X className="w-6 h-6" />
+                      ) : (
+                        <Menu className="w-6 h-6" />
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <img 
+                    src={logoImage} 
+                    alt="Logo" 
+                    className="h-[104px] w-auto object-contain"
+                  />
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      className="p-1.5 text-gray-600 relative hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={() => setShowNotificationCenter(true)}
+                      aria-label="Notifications"
+                    >
+                      <IconBell showNotification={hasNotifications} unreadCount={businessUnreadCount} className="w-6 h-6" />
+                    </button>
+                    <button 
+                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      onClick={toggleMobileMenu}
+                    >
+                      {mobileMenuOpen ? (
+                        <X className="w-6 h-6" />
+                      ) : (
+                        <Menu className="w-6 h-6" />
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Mobile Menu */}

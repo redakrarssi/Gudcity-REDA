@@ -58,16 +58,16 @@ const Header: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm ring-1 ring-gray-900/5">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center py-3">
+    <header className={`sticky top-0 z-50 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm ring-1 ring-gray-900/5 ${isArabic ? 'rtl-header' : ''}`}>
+      <div className={`max-w-7xl mx-auto px-4 ${isArabic ? 'rtl-header-container' : ''}`}>
+        <div className={`flex justify-between items-center py-3 ${isArabic ? 'rtl-header-flex' : ''}`}>
           {/* Logo */}
           <Link to="/" className="flex items-center" aria-label="Vcarda Home">
             <AppLogo className="shrink-0" imageSrc={logoWebp} showText={false} heightPx={48} />
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className={`hidden md:flex items-center gap-8 ${isArabic ? 'rtl-nav' : ''}`}>
             {navItems.map((item) => (
               <Link
                 key={item.path}
@@ -95,24 +95,24 @@ const Header: React.FC = () => {
                   <span className="max-w-[12rem] truncate">{user?.name}</span>
                   <ChevronDown className="h-4 w-4" />
                 </button>
-                <div className={`absolute ${isArabic ? 'left-0' : 'right-0'} w-48 mt-2 bg-white border border-gray-200 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200`}> 
+                <div className={`absolute ${isArabic ? 'left-0' : 'right-0'} w-48 mt-2 bg-white border border-gray-200 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200`}>
                   {user?.role === 'admin' && (
                     <Link
                       to="/admin"
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
+                      className={`block px-4 py-2 text-gray-700 hover:bg-gray-50 ${isArabic ? 'rtl-dropdown-item' : ''}`}
                     >
                       {t('Admin Dashboard')}
                     </Link>
                   )}
                   <Link
                     to="/profile"
-                    className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    className={`block px-4 py-2 text-gray-700 hover:bg-gray-50 ${isArabic ? 'rtl-dropdown-item' : ''}`}
                   >
                     {t('Profile')}
                   </Link>
                   <button
                     onClick={logout}
-                    className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 ${isArabic ? 'rtl-dropdown-item' : ''}`}
                   >
                     {t('Logout')}
                   </button>
@@ -122,13 +122,13 @@ const Header: React.FC = () => {
               <>
                 <Link
                   to="/login"
-                  className="text-gray-700/80 hover:text-blue-700"
+                  className={`text-gray-700/80 hover:text-blue-700 ${isArabic ? 'rtl-auth-link' : ''}`}
                 >
                   {t('Login')}
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg shadow-sm hover:from-blue-700 hover:to-indigo-700"
+                  className={`bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg shadow-sm hover:from-blue-700 hover:to-indigo-700 ${isArabic ? 'rtl-auth-button' : ''}`}
                 >
                   {t('Sign Up')}
                 </Link>
@@ -138,7 +138,7 @@ const Header: React.FC = () => {
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden p-2 text-gray-600 hover:text-gray-800"
+            className={`md:hidden p-2 text-gray-600 hover:text-gray-800 ${isArabic ? 'rtl-mobile-button' : ''}`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
           >
@@ -150,17 +150,17 @@ const Header: React.FC = () => {
           </button>
         </div>
       </div>
-      <div className="h-[3px] bg-gradient-to-r from-indigo-500 via-sky-500 to-blue-600" />
+      <div className={`h-[3px] ${isArabic ? 'bg-gradient-to-l' : 'bg-gradient-to-r'} from-indigo-500 via-sky-500 to-blue-600`} />
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden px-4 py-3 bg-gray-50 border-t border-gray-100">
-          <nav className="flex flex-col gap-2">
+        <div className={`md:hidden px-4 py-3 bg-gray-50 border-t border-gray-100 ${isArabic ? 'rtl-mobile-menu' : ''}`}>
+          <nav className={`flex flex-col gap-2 ${isArabic ? 'rtl-mobile-nav' : ''}`}>
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className="text-gray-700/90 hover:text-blue-700 py-2"
+                className={`text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {item.name}
@@ -171,7 +171,7 @@ const Header: React.FC = () => {
                 {user?.role === 'admin' && (
                   <Link
                     to="/admin"
-                    className="text-gray-700/90 hover:text-blue-700 py-2"
+                    className={`text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     {t('Admin Dashboard')}
@@ -179,7 +179,7 @@ const Header: React.FC = () => {
                 )}
                 <Link
                   to="/profile"
-                  className="text-gray-700/90 hover:text-blue-700 py-2"
+                  className={`text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {t('Profile')}
@@ -189,7 +189,7 @@ const Header: React.FC = () => {
                     logout();
                     setMobileMenuOpen(false);
                   }}
-                  className="text-left text-gray-700/90 hover:text-blue-700 py-2"
+                  className={`text-left text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                 >
                   {t('Logout')}
                 </button>
@@ -198,14 +198,14 @@ const Header: React.FC = () => {
               <>
                 <Link
                   to="/login"
-                  className="text-gray-700/90 hover:text-blue-700 py-2"
+                  className={`text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {t('Login')}
                 </Link>
                 <Link
                   to="/register"
-                  className="text-gray-700/90 hover:text-blue-700 py-2"
+                  className={`text-gray-700/90 hover:text-blue-700 py-2 ${isArabic ? 'rtl-mobile-nav-item' : ''}`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {t('Sign Up')}

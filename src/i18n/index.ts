@@ -1005,7 +1005,22 @@ const resources = {
         programDiscontinued: 'Program Discontinued',
         programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}}. Your points and rewards from this program are no longer available.',
         newEnrollmentIn: 'New enrollment in {{programName}}',
-        aReward: 'a reward'
+        aReward: 'a reward',
+        // Extended notification messages
+        receivedPointsInProgram: "You've received {{points}} points in {{programName}}",
+        receivedPoints: "You've received {{points}} points!",
+        receivedPointsFromBusiness: "You've received {{points}} points from {{businessName}}!",
+        receivedPointsFromBusinessInProgram: "You've received {{points}} points from {{businessName}} in the program {{programName}}",
+        cardUpdatedWithPoints: 'Your {{programName}} card has been updated with {{points}} points!'
+        ,cardIdUpdatedWithPoints: 'Your card {{cardId}} has been updated with {{points}} points!',
+        receivedPointsInProgramUpdating: "You've received {{points}} points in {{programName}}! Your cards are updating...",
+        receivedPointsUpdating: "You've received {{points}} points! Updating your cards...",
+        successfulScanAwardedPoints: 'You successfully scanned a customer QR code and awarded {{points}} points.',
+        newPromoCodeFrom: "You've received a new promo code from {{businessName}}: {{code}}",
+        errorProcessingRequest: 'Error Processing Request',
+        errorOccurredProcessingRequest: 'An error occurred while processing your request.',
+        enrollmentRequestSent: 'Enrollment Request Sent',
+        waitingForEnrollmentResponse: 'Waiting for {{customerName}} to respond to the {{programName}} enrollment invitation.'
       },
       
       // Authentication Pages
@@ -1077,6 +1092,13 @@ const resources = {
         arabic: 'Arabic',
         spanish: 'Spanish',
         french: 'French'
+      },
+      // Menu section headers
+      menu: {
+        section: {
+          menu: 'Menu',
+          account: 'Account'
+        }
       },
       
       // Landing Page
@@ -1551,7 +1573,11 @@ const resources = {
         settings: 'الإعدادات',
         mySettings: 'إعداداتي',
         logout: 'تسجيل الخروج',
-        rewards: 'المكافآت'
+        rewards: 'المكافآت',
+        section: {
+          menu: 'القائمة',
+          account: 'الحساب'
+        }
       },
       
       // Notification Center
@@ -1610,7 +1636,22 @@ const resources = {
         programDiscontinued: 'تم إيقاف البرنامج',
         programDiscontinuedMessage: 'تم إيقاف برنامج الولاء "{{programName}}" من قبل {{businessName}}. نقاطك ومكافآتك من هذا البرنامج لم تعد متاحة.',
         newEnrollmentIn: 'انضمام جديد إلى {{programName}}',
-        aReward: 'مكافأة'
+        aReward: 'مكافأة',
+        // Extended notification messages
+        receivedPointsInProgram: 'لقد استلمت {{points}} نقطة في {{programName}}',
+        receivedPoints: 'لقد استلمت {{points}} نقطة!',
+        receivedPointsFromBusiness: 'لقد استلمت {{points}} نقطة من {{businessName}}!',
+        receivedPointsFromBusinessInProgram: 'لقد استلمت {{points}} نقطة من {{businessName}} في برنامج {{programName}}',
+        cardUpdatedWithPoints: 'تم تحديث بطاقة {{programName}} الخاصة بك بـ {{points}} نقطة!',
+        cardIdUpdatedWithPoints: 'تم تحديث البطاقة {{cardId}} الخاصة بك بـ {{points}} نقطة!',
+        receivedPointsInProgramUpdating: 'لقد استلمت {{points}} نقطة في {{programName}}! يتم تحديث بطاقاتك...',
+        receivedPointsUpdating: 'لقد استلمت {{points}} نقطة! يتم تحديث بطاقاتك...',
+        successfulScanAwardedPoints: 'لقد قمت بمسح رمز QR للعميل بنجاح ومنحت {{points}} نقطة.',
+        newPromoCodeFrom: 'لقد استلمت رمزاً ترويجياً جديداً من {{businessName}}: {{code}}',
+        errorProcessingRequest: 'خطأ في معالجة الطلب',
+        errorOccurredProcessingRequest: 'حدث خطأ أثناء معالجة طلبك.',
+        enrollmentRequestSent: 'تم إرسال طلب الانضمام',
+        waitingForEnrollmentResponse: 'بانتظار رد {{customerName}} على دعوة الانضمام إلى برنامج {{programName}}.'
       },
       // Business Dashboard
       business: {
@@ -2676,7 +2717,11 @@ const resources = {
         qrCard: 'Tarjeta QR',
         settings: 'Configuración',
         logout: 'Cerrar Sesión',
-        rewards: 'Recompensas'
+        rewards: 'Recompensas',
+        section: {
+          menu: 'Menú',
+          account: 'Cuenta'
+        }
       },
       
       // Notification Center
@@ -2735,7 +2780,22 @@ const resources = {
         programDiscontinued: 'Programa Descontinuado',
         programDiscontinuedMessage: 'El programa de lealtad "{{programName}}" ha sido descontinuado por {{businessName}}. Tus puntos y recompensas de este programa ya no están disponibles.',
         newEnrollmentIn: 'Nueva inscripción en {{programName}}',
-        aReward: 'una recompensa'
+        aReward: 'una recompensa',
+        // Extended notification messages
+        receivedPointsInProgram: 'Has recibido {{points}} puntos en {{programName}}',
+        receivedPoints: '¡Has recibido {{points}} puntos!',
+        receivedPointsFromBusiness: '¡Has recibido {{points}} puntos de {{businessName}}!',
+        receivedPointsFromBusinessInProgram: 'Has recibido {{points}} puntos de {{businessName}} en el programa {{programName}}',
+        cardUpdatedWithPoints: '¡Tu tarjeta de {{programName}} se ha actualizado con {{points}} puntos!',
+        cardIdUpdatedWithPoints: '¡Tu tarjeta {{cardId}} se ha actualizado con {{points}} puntos!',
+        receivedPointsInProgramUpdating: '¡Has recibido {{points}} puntos en {{programName}}! Tus tarjetas se están actualizando...',
+        receivedPointsUpdating: '¡Has recibido {{points}} puntos! Actualizando tus tarjetas...',
+        successfulScanAwardedPoints: 'Has escaneado correctamente un código QR de cliente y otorgaste {{points}} puntos.',
+        newPromoCodeFrom: 'Has recibido un nuevo código promocional de {{businessName}}: {{code}}',
+        errorProcessingRequest: 'Error al procesar la solicitud',
+        errorOccurredProcessingRequest: 'Ocurrió un error al procesar tu solicitud.',
+        enrollmentRequestSent: 'Solicitud de Inscripción Enviada',
+        waitingForEnrollmentResponse: 'Esperando la respuesta de {{customerName}} a la invitación de inscripción al programa {{programName}}.'
       },
       
       // Business Dashboard
@@ -3805,7 +3865,11 @@ const resources = {
         qrCard: 'Carte QR',
         settings: 'Paramètres',
         logout: 'Déconnexion',
-        rewards: 'Récompenses'
+        rewards: 'Récompenses',
+        section: {
+          menu: 'Menu',
+          account: 'Compte'
+        }
       },
       
       // Notification Center
@@ -3864,7 +3928,22 @@ const resources = {
         programDiscontinued: 'Programme Arrêté',
         programDiscontinuedMessage: 'Le programme de fidélité "{{programName}}" a été arrêté par {{businessName}}. Vos points et récompenses de ce programme ne sont plus disponibles.',
         newEnrollmentIn: 'Nouvelle inscription à {{programName}}',
-        aReward: 'une récompense'
+        aReward: 'une récompense',
+        // Extended notification messages
+        receivedPointsInProgram: 'Vous avez reçu {{points}} points dans {{programName}}',
+        receivedPoints: 'Vous avez reçu {{points}} points !',
+        receivedPointsFromBusiness: 'Vous avez reçu {{points}} points de {{businessName}} !',
+        receivedPointsFromBusinessInProgram: 'Vous avez reçu {{points}} points de {{businessName}} dans le programme {{programName}}',
+        cardUpdatedWithPoints: 'Votre carte {{programName}} a été mise à jour avec {{points}} points !',
+        cardIdUpdatedWithPoints: 'Votre carte {{cardId}} a été mise à jour avec {{points}} points !',
+        receivedPointsInProgramUpdating: 'Vous avez reçu {{points}} points dans {{programName}} ! Mise à jour de vos cartes...',
+        receivedPointsUpdating: 'Vous avez reçu {{points}} points ! Mise à jour de vos cartes...',
+        successfulScanAwardedPoints: 'Vous avez scanné avec succès un QR client et attribué {{points}} points.',
+        newPromoCodeFrom: 'Vous avez reçu un nouveau code promo de {{businessName}} : {{code}}',
+        errorProcessingRequest: 'Erreur de traitement de la demande',
+        errorOccurredProcessingRequest: 'Une erreur s’est produite lors du traitement de votre demande.',
+        enrollmentRequestSent: 'Demande d’inscription envoyée',
+        waitingForEnrollmentResponse: 'En attente de la réponse de {{customerName}} à l’invitation d’inscription au programme {{programName}}.'
       },
       // Business Dashboard
       business: {

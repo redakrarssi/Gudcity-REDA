@@ -27,13 +27,12 @@ function sanitizeHtml(unsafeHtml: string): string {
     console.warn('DOMPurify sanitization failed:', error);
   }
 
-  // Fallback: Use safe sanitization
-  const { sanitizeForDisplay } = useSanitization({ level: 'moderate' });
+  // Fallback: Use safe sanitization (non-hook utility)
   return sanitizeForDisplay(unsafeHtml);
 }
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { useSanitization } from '../../hooks/useSanitization';
+import { sanitizeForDisplay } from '../../utils/sanitizer';
 import {
   Mail,
   Plus,

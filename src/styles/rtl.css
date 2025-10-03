@@ -250,6 +250,53 @@
 /* Header-specific RTL fixes */
 [dir="rtl"] .header-user-menu { left: 0; right: auto; }
 [dir="rtl"] .header-nav-gap > * + * { margin-right: 2rem; margin-left: 0; }
+
+/* Main Header RTL styling */
+[dir="rtl"] .rtl-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .rtl-header-container {
+  direction: rtl;
+}
+
+[dir="rtl"] .rtl-header-flex {
+  direction: rtl;
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .rtl-nav {
+  direction: rtl;
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .rtl-mobile-menu {
+  direction: rtl;
+}
+
+[dir="rtl"] .rtl-mobile-nav {
+  direction: rtl;
+}
+
+[dir="rtl"] .rtl-dropdown-item {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-auth-link {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-auth-button {
+  text-align: center;
+}
+
+[dir="rtl"] .rtl-mobile-nav-item {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-mobile-button {
+  /* Mobile menu button positioning for RTL */
+}
 [dir="rtl"] .notification-badge { left: 0; right: auto; transform: translate(-50%, -50%); }
 /* Transaction history table RTL */
 [dir="rtl"] .transaction-table {

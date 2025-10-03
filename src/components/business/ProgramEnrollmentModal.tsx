@@ -112,7 +112,12 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
       if (result && result.success) {
         // Set status to pending - waiting for customer response
         setEnrollmentStatus('pending');
-        setSuccess(`Enrollment invitation sent to ${customerName}. Waiting for response...`);
+        setSuccess(
+          t('notifications.waitingForEnrollmentResponse', {
+            customerName,
+            programName
+          })
+        );
         
         // Create a notification for the business dashboard about the pending enrollment
         try {
@@ -120,8 +125,8 @@ export const ProgramEnrollmentModal: React.FC<ProgramEnrollmentModalProps> = ({
             customerId: businessId,
             businessId: businessId,
             type: 'ENROLLMENT_PENDING',
-            title: 'Enrollment Request Sent',
-            message: `Waiting for ${customerName} to respond to the ${programName} enrollment invitation.`,
+            title: t('notifications.enrollmentRequestSent'),
+            message: t('notifications.waitingForEnrollmentResponse', { customerName, programName }),
             requiresAction: false,
             actionTaken: false,
             isRead: false,

@@ -144,7 +144,12 @@ function App() {
             try {
               const data = JSON.parse(event.newValue);
               if (data.points && data.programName) {
-                toast.success(`You've received ${data.points} points in ${data.programName}`);
+                try {
+                  // Prefer translation key if available
+                  toast.success(t('notifications.receivedPointsInProgram', { points: data.points, programName: data.programName }));
+                } catch {
+                  toast.success(`You've received ${data.points} points in ${data.programName}`);
+                }
               }
             } catch (error) {
               console.warn('Error parsing notification data', error);
