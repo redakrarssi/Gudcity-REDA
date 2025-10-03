@@ -51,7 +51,7 @@ const LandingPage = () => {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-white loyalty-doodle-bg loyalty-doodle-overlay">
       {/* Top Navigation */}
       <nav className={`bg-white transition-all duration-300 ${scrolled ? 'shadow-sm' : ''}`}>
         <div className="container mx-auto px-4 py-4">
