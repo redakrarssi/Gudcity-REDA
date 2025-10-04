@@ -13,7 +13,6 @@ import {
   Users, 
   BarChart3, 
   Settings, 
-  X, 
   CheckCircle,
   AlertCircle,
   DollarSign,
@@ -33,7 +32,6 @@ interface DashboardInfoBox {
   icon: React.ReactNode;
   link: string;
   step: number;
-  isDismissible?: boolean;
 }
 
 const BusinessDashboard = () => {
@@ -41,7 +39,6 @@ const BusinessDashboard = () => {
   const { user } = useAuth();
   const { currency, updateCurrency, formatAmount } = useBusinessCurrency();
   const [businessProfileComplete, setBusinessProfileComplete] = useState<boolean | null>(null);
-  const [dismissedBoxes, setDismissedBoxes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Check if business profile is complete
@@ -82,23 +79,6 @@ const BusinessDashboard = () => {
     checkBusinessProfile();
   }, [user]);
 
-  // Load dismissed boxes from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('business-dashboard-dismissed-boxes');
-    if (saved) {
-      try {
-        setDismissedBoxes(JSON.parse(saved));
-      } catch (error) {
-        console.error('Error loading dismissed boxes:', error);
-      }
-    }
-  }, []);
-
-  const dismissBox = (boxId: string) => {
-    const newDismissed = [...dismissedBoxes, boxId];
-    setDismissedBoxes(newDismissed);
-    localStorage.setItem('business-dashboard-dismissed-boxes', JSON.stringify(newDismissed));
-  };
 
   const infoBoxes: DashboardInfoBox[] = [
     {
@@ -107,8 +87,7 @@ const BusinessDashboard = () => {
       description: t('Set up a loyalty program to start rewarding your customers. Create programs, set points rules, and design rewards that keep customers coming back.'),
       icon: <CreditCard className="w-8 h-8 text-blue-500" />,
       link: '/business/programs',
-      step: 1,
-      isDismissible: true
+      step: 1
     },
     {
       id: 'qr-scanner',
@@ -116,8 +95,7 @@ const BusinessDashboard = () => {
       description: t('Use the QR scanner to enroll customers in your programs and award points instantly. Scan customer QR codes to manage their loyalty journey.'),
       icon: <QrCode className="w-8 h-8 text-green-500" />,
       link: '/business/qr-scanner',
-      step: 2,
-      isDismissible: true
+      step: 2
     },
     {
       id: 'promotions',
@@ -125,8 +103,7 @@ const BusinessDashboard = () => {
       description: t('Design and launch special offers, discounts, and seasonal campaigns to attract more customers and increase engagement.'),
       icon: <Gift className="w-8 h-8 text-purple-500" />,
       link: '/business/promotions',
-      step: 3,
-      isDismissible: true
+      step: 3
     },
     {
       id: 'customers',
@@ -134,8 +111,7 @@ const BusinessDashboard = () => {
       description: t('View customer profiles, track their loyalty progress, manage their accounts, and analyze customer behavior patterns.'),
       icon: <Users className="w-8 h-8 text-orange-500" />,
       link: '/business/customers',
-      step: 4,
-      isDismissible: true
+      step: 4
     },
     {
       id: 'analytics',
@@ -143,12 +119,9 @@ const BusinessDashboard = () => {
       description: t('Get detailed insights into your loyalty program performance, customer engagement metrics, and business growth analytics.'),
       icon: <BarChart3 className="w-8 h-8 text-indigo-500" />,
       link: '/business/analytics',
-      step: 5,
-      isDismissible: true
+      step: 5
     }
   ];
-
-  const visibleBoxes = infoBoxes.filter(box => !dismissedBoxes.includes(box.id));
 
   if (loading) {
     return (
@@ -273,7 +246,7 @@ const BusinessDashboard = () => {
           </div>
 
           <div className="space-y-6">
-            {visibleBoxes.map((box, index) => (
+            {infoBoxes.map((box, index) => (
               <div
                 key={box.id}
                 className="group relative bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all duration-200"
@@ -282,17 +255,6 @@ const BusinessDashboard = () => {
                 <div className="absolute -left-3 -top-3 w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
                   {box.step}
                 </div>
-
-                {/* Dismiss Button */}
-                {box.isDismissible && (
-                  <button
-                    onClick={() => dismissBox(box.id)}
-                    className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                    aria-label={t('Dismiss')}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
 
                 <div className="flex items-start space-x-4">
                   <div className="flex-shrink-0">
