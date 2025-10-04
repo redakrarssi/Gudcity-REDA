@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BusinessLayout } from '../../components/business/BusinessLayout';
 import { RedemptionVerification } from '../../components/business/RedemptionVerification';
 import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
@@ -37,6 +37,7 @@ interface DashboardInfoBox {
 const BusinessDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { currency, updateCurrency, formatAmount } = useBusinessCurrency();
   const [businessProfileComplete, setBusinessProfileComplete] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +79,14 @@ const BusinessDashboard = () => {
 
     checkBusinessProfile();
   }, [user]);
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    if (newCurrency === 'other') {
+      navigate('/business/settings');
+    } else {
+      updateCurrency(newCurrency);
+    }
+  };
 
 
   const infoBoxes: DashboardInfoBox[] = [
@@ -153,7 +162,7 @@ const BusinessDashboard = () => {
               </label>
               <select
                 value={currency}
-                onChange={(e) => updateCurrency(e.target.value)}
+                onChange={(e) => handleCurrencyChange(e.target.value)}
                 className="w-full px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 <option value="USD" className="text-gray-900">USD - $</option>
@@ -162,6 +171,7 @@ const BusinessDashboard = () => {
                 <option value="AED" className="text-gray-900">AED - د.إ</option>
                 <option value="SAR" className="text-gray-900">SAR - ر.س</option>
                 <option value="QAR" className="text-gray-900">QAR - ر.ق</option>
+                <option value="other" className="text-gray-900">{t('Other...')}</option>
               </select>
             </div>
           </div>
