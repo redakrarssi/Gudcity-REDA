@@ -1,6 +1,7 @@
 @import './styles/animations.css';
 @import './styles/darkMode.css';
 @import './styles/rtl.css';
+@import './styles/doodleBackground.css';
 
 @tailwind base;
 @tailwind components;

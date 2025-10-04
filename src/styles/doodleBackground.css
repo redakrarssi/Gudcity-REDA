@@ -1,0 +1,93 @@
+/* Loyalty Doodle Background Pattern */
+.loyalty-doodle-bg {
+  background-image: url('../assets/loyalty-doodle-pattern.svg');
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  background-position: 0 0;
+  background-attachment: fixed;
+}
+
+/* Responsive scaling for different screen sizes */
+@media (max-width: 768px) {
+  .loyalty-doodle-bg {
+    background-size: 150px 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .loyalty-doodle-bg {
+    background-size: 120px 120px;
+  }
+}
+
+/* Subtle animation for the pattern */
+.loyalty-doodle-bg-animated {
+  background-image: url('../assets/loyalty-doodle-pattern.svg');
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  background-position: 0 0;
+  background-attachment: fixed;
+  animation: doodleFloat 20s ease-in-out infinite;
+}
+
+@keyframes doodleFloat {
+  0%, 100% {
+    background-position: 0 0;
+  }
+  25% {
+    background-position: 50px 25px;
+  }
+  50% {
+    background-position: 0 50px;
+  }
+  75% {
+    background-position: -25px 25px;
+  }
+}
+
+/* Overlay for better text readability */
+.loyalty-doodle-overlay {
+  position: relative;
+}
+
+.loyalty-doodle-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(0.5px);
+  z-index: 0;
+}
+
+.loyalty-doodle-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Dark mode variant */
+@media (prefers-color-scheme: dark) {
+  .loyalty-doodle-bg {
+    opacity: 0.3;
+  }
+  
+  .loyalty-doodle-overlay::before {
+    background: rgba(0, 0, 0, 0.85);
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .loyalty-doodle-bg {
+    opacity: 0.2;
+  }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .loyalty-doodle-bg-animated {
+    animation: none;
+  }
+}

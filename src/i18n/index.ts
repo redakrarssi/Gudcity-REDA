@@ -56,8 +56,8 @@ const resources = {
       'Passwords do not match': 'Passwords do not match',
       'Password must be at least 6 characters': 'Password must be at least 6 characters',
       'Please accept the terms and conditions': 'Please accept the terms and conditions',
-      'Registration failed. Please try again.': 'Registration failed. Please try again.',
-      'An error occurred during registration. Please try again later.': 'An error occurred during registration. Please try again later.',
+      'Registration failed. Please try again.': 'Registration failed Please try again',
+      'An error occurred during registration. Please try again later.': 'An error occurred during registration Please try again later',
       Password: 'Password',
       dashboard: 'Dashboard',
       home: 'Home',
@@ -71,7 +71,7 @@ const resources = {
         manageAccountSettings: 'Manage your account settings',
         loadingSettings: 'Loading settings...',
         errorLoadingSettings: 'Error loading settings',
-        couldNotLoadSettings: 'Could not load your settings. Please try again.',
+        couldNotLoadSettings: 'Could not load your settings Please try again',
 
         // Sections
         personalSettings: 'Personal',
@@ -90,7 +90,7 @@ const resources = {
         save: 'Save',
         saving: 'Saving...',
         settingsUpdatedSuccessfully: 'Your settings have been updated successfully',
-        errorUpdatingSettings: 'Error updating settings. Please try again.',
+        errorUpdatingSettings: 'Error updating settings Please try again',
 
         // Regional settings
         regionalSettings: 'Regional Settings',
@@ -345,7 +345,7 @@ const resources = {
         checkYourNotifications: 'Check your notifications to join new loyalty programs and get rewards!',
         youAreCurrentlyEnrolled: 'You are currently enrolled in {{count}} program{{count !== 1 ? "s" : ""}}.',
         yourUniquePromoCode: 'Your unique promo code for {{businessName}}:',
-        thisIsOneTimeUseCode: 'This is a one-time use code unique to your account. Share with friends to earn bonus points when they use it!',
+        thisIsOneTimeUseCode: 'This is a one-time use code unique to your account Share with friends to earn bonus points when they use it!',
         yourPromoCode: 'Your Promo Code',
         redeeming: 'Redeeming {{rewardName}}...',
         yourLoyaltyProgram: 'your loyalty program'
@@ -406,7 +406,7 @@ const resources = {
         monthsLeft: '{{months}} months left',
         daysLeft: '{{days}} days left',
         lastDay: 'Last day!',
-        failedToLoadPromotions: 'Failed to load promotions. Please try again.',
+        failedToLoadPromotions: 'Failed to load promotions Please try again',
         discount: 'DISCOUNT',
         pointsType: 'POINTS',
         cashback: 'CASHBACK',
@@ -434,12 +434,12 @@ const resources = {
         noPromoCodesAvailable: 'No promo codes available at the moment',
         showYourQrCardToReceive: 'Show your QR card at participating businesses to receive special offers',
         securityInformation: 'Security Information',
-        yourQrCodeIsUnique: 'Your QR code is unique to you and securely signed. It updates automatically to protect your account.',
-        failedToLoadLoyaltyCard: 'Failed to load loyalty card. Please try again.',
+        yourQrCodeIsUnique: 'Your QR code is unique to you and securely signed It updates automatically to protect your account',
+        failedToLoadLoyaltyCard: 'Failed to load loyalty card Please try again',
         successfullyJoinedProgram: 'Successfully joined the program!',
-        failedToJoinProgram: 'Failed to join program. Please try again.',
+        failedToJoinProgram: 'Failed to join program Please try again',
         successfullyClaimedPromo: 'Successfully claimed promo code!',
-        failedToClaimPromo: 'Failed to claim promo code. Please try again.',
+        failedToClaimPromo: 'Failed to claim promo code Please try again',
         myLoyaltyCard: 'My Loyalty Card',
         scanMyLoyaltyCard: 'Scan my loyalty card: {{cardNumber}}',
         customer: 'Customer',
@@ -494,12 +494,12 @@ const resources = {
         // Programs Page
         'Loyalty Programs': 'Loyalty Programs',
         'Create Program': 'Create Program',
-        'Failed to load loyalty programs. Please try again.': 'Failed to load loyalty programs. Please try again.',
-        'Failed to delete program. Please try again.': 'Failed to delete program. Please try again.',
+        'Failed to load loyalty programs. Please try again.': 'Failed to load loyalty programs Please try again',
+        'Failed to delete program. Please try again.': 'Failed to delete program Please try again',
         'An error occurred while deleting the program.': 'An error occurred while deleting the program.',
-        'Failed to update program. Please try again.': 'Failed to update program. Please try again.',
+        'Failed to update program. Please try again.': 'Failed to update program Please try again',
         'Could not create program: Missing business information': 'Could not create program: Missing business information',
-        'Could not connect to database. Please try again later.': 'Could not connect to database. Please try again later.',
+        'Could not connect to database. Please try again later.': 'Could not connect to database Please try again later',
         'Program creation failed - check console for details': 'Program creation failed - check console for details',
         'Error creating program: {{error}}': 'Error creating program: {{error}}',
         'An error occurred': 'An error occurred',
@@ -514,7 +514,7 @@ const resources = {
         'Delete': 'Delete',
         'Edit': 'Edit',
         'No Programs Found': 'No Programs Found',
-        'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.',
+        'You haven\'t created any loyalty programs yet. Create your first program to start rewarding your customers.': 'You haven\'t created any loyalty programs yet Create your first program to start rewarding your customers',
         '{{value}} = 1 point': '{{value}} = 1 point',
         '= 1 point': '= 1 point',
         '= 1 stamp': '= 1 stamp',
@@ -537,7 +537,7 @@ const resources = {
         'Create Your Loyalty Program': 'Create Your Loyalty Program',
         'Give your program a memorable name and clear description to attract customers': 'Give your program a memorable name and clear description to attract customers',
         'Program Name': 'Program Name',
-        exampleProgramName: 'e.g. Coffee Lovers Club',
+        exampleProgramName: 'e.g Coffee Lovers Club',
         'Program Description': 'Program Description',
         programDescriptionPlaceholder: 'Describe what makes your loyalty program special...',
         'Create Exciting Rewards': 'Create Exciting Rewards',
@@ -546,7 +546,7 @@ const resources = {
         'Points Required': 'Points Required',
         'Stamps Required': 'Stamps Required',
         'Reward Description': 'Reward Description',
-        exampleReward: 'e.g. Free Coffee',
+        exampleReward: 'e.g Free Coffee',
         'Add Another Reward Tier': 'Add Another Reward Tier',
         'points': 'points',
         'stamps': 'stamps',
@@ -626,11 +626,11 @@ const resources = {
         'Points Balance': 'Points Balance',
         'Tips to Grow Your Business': 'Tips to Grow Your Business',
         'Increase Customer Retention': 'Increase Customer Retention',
-        'Consider adding a tier to your loyalty program that rewards frequent visitors. Offer exclusive benefits for customers who visit more than 5 times per month.': 'Consider adding a tier to your loyalty program that rewards frequent visitors. Offer exclusive benefits for customers who visit more than 5 times per month.',
+        'Consider adding a tier to your loyalty program that rewards frequent visitors. Offer exclusive benefits for customers who visit more than 5 times per month.': 'Consider adding a tier to your loyalty program that rewards frequent visitors Offer exclusive benefits for customers who visit more than 5 times per month',
         'Optimize Reward Structure': 'Optimize Reward Structure',
-        'Your "Free Coffee" reward is the most popular. Consider creating additional variations or tiers of this reward to increase engagement.': 'Your "Free Coffee" reward is the most popular. Consider creating additional variations or tiers of this reward to increase engagement.',
+        'Your "Free Coffee" reward is the most popular. Consider creating additional variations or tiers of this reward to increase engagement.': 'Your "Free Coffee" reward is the most popular Consider creating additional variations or tiers of this reward to increase engagement',
         'Reclaim Lost Customers': 'Reclaim Lost Customers',
-        'You have 48 customers who haven\'t visited in 30+ days. Consider sending a limited-time bonus offer to bring them back.': 'You have 48 customers who haven\'t visited in 30+ days. Consider sending a limited-time bonus offer to bring them back.',
+        'You have 48 customers who haven\'t visited in 30+ days. Consider sending a limited-time bonus offer to bring them back.': 'You have 48 customers who haven\'t visited in 30+ days Consider sending a limited-time bonus offer to bring them back',
         'Avg: {{value}} per customer': 'Avg: {{value}} per customer',
         'Rate: {{value}}%': 'Rate: {{value}}%',
         'Retention: {{value}}%': 'Retention: {{value}}%',
@@ -681,17 +681,17 @@ const resources = {
         'No active promo codes available': 'No active promo codes available',
         'Create promo codes in the Promotions page first': 'Create promo codes in the Promotions page first',
         'Please log in to view customers': 'Please log in to view customers',
-        'Failed to load customers. Please try again.': 'Failed to load customers. Please try again.',
+        'Failed to load customers. Please try again.': 'Failed to load customers Please try again',
         'Birthday wish sent': 'Birthday wish sent',
         'Gift sent: {{giftType}}': 'Gift sent: {{giftType}}',
         'Special Promotion Code! 🎉': 'Special Promotion Code! 🎉',
-        'You\'ve received a special {{discount}} discount code: {{promoCode}}. Use it on your next visit to {{programName}}!': 'You\'ve received a special {{discount}} discount code: {{promoCode}}. Use it on your next visit to {{programName}}!',
+        'You\'ve received a special {{discount}} discount code: {{promoCode}}. Use it on your next visit to {{programName}}!': 'You\'ve received a special {{discount}} discount code: {{promoCode}} Use it on your next visit to {{programName}}!',
         'Promotion code sent: {{promoCode}} ({{discount}} discount)': 'Promotion code sent: {{promoCode}} ({{discount}} discount)',
         'Promotion code {{promoCode}} sent successfully to {{name}}! They will receive it as a notification.': 'Promotion code {{promoCode}} sent successfully to {{name}}! They will receive it as a notification.',
-        'Failed to send promotion code. Please try again.': 'Failed to send promotion code. Please try again.',
+        'Failed to send promotion code. Please try again.': 'Failed to send promotion code Please try again',
         'Promo code sent successfully to {{name}}!': 'Promo code sent successfully to {{name}}!',
         'Failed to send promo code: {{error}}': 'Failed to send promo code: {{error}}',
-        'Failed to send promo code. Please try again.': 'Failed to send promo code. Please try again.',
+        'Failed to send promo code. Please try again.': 'Failed to send promo code Please try again',
         'Message sent successfully': 'Message sent successfully',
         'Unknown Program': 'Unknown Program',
         
@@ -707,7 +707,7 @@ const resources = {
         'scans': 'scans',
         'Scan Settings': 'Scan Settings',
         'Select Program': 'Select Program',
-        'No programs found. Please create a loyalty program first.': 'No programs found. Please create a loyalty program first.',
+        'No programs found. Please create a loyalty program first.': 'No programs found Please create a loyalty program first',
         'Points to Award': 'Points to Award',
         'Milestone reached!': 'Milestone reached!',
         'scans completed!': 'scans completed!',
@@ -733,13 +733,13 @@ const resources = {
         'Unknown': 'Unknown',
         'Scanner Guide': 'Scanner Guide',
         'Scan Customer QR': 'Scan Customer QR',
-        'Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.': 'Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.',
+        'Scan customer QR codes to award points to their loyalty cards. Points will be added automatically.': 'Scan customer QR codes to award points to their loyalty cards Points will be added automatically',
         'Scan Promotion Codes': 'Scan Promotion Codes',
-        'Scan promotion codes to apply discounts or special offers at checkout.': 'Scan promotion codes to apply discounts or special offers at checkout.',
-        'Enter customer IDs or promotion codes manually when scanning is not possible.': 'Enter customer IDs or promotion codes manually when scanning is not possible.',
+        'Scan promotion codes to apply discounts or special offers at checkout.': 'Scan promotion codes to apply discounts or special offers at checkout',
+        'Enter customer IDs or promotion codes manually when scanning is not possible.': 'Enter customer IDs or promotion codes manually when scanning is not possible',
         'Your browser does not support camera access': 'Your browser does not support camera access',
         'Your browser does not support QR code scanning': 'Your browser does not support QR code scanning',
-        'Camera access requires HTTPS. Please access this site using https:// instead of http://': 'Camera access requires HTTPS. Please access this site using https:// instead of http://',
+        'Camera access requires HTTPS. Please access this site using https:// instead of http://': 'Camera access requires HTTPS Please access this site using https:// instead of http://',
         'QR Scanner Unavailable': 'QR Scanner Unavailable',
         'The QR scanner could not be initialized': 'The QR scanner could not be initialized',
         'Try accessing this page using HTTPS instead of HTTP': 'Try accessing this page using HTTPS instead of HTTP',
@@ -871,7 +871,7 @@ const resources = {
         'Your new promotion is now live': 'Your new promotion is now live',
         'Create New Promotion': 'Create New Promotion',
         'Promotion Name': 'Promotion Name',
-        'e.g. Summer Special': 'e.g. Summer Special',
+        'e.g. Summer Special': 'e.g Summer Special',
         'Promotion Type': 'Promotion Type',
         'Description': 'Description',
         '(optional)': '(optional)',
@@ -902,8 +902,8 @@ const resources = {
         'All enrolled customers will receive red alert notifications': 'All enrolled customers will receive red alert notifications',
         'To confirm deletion, type exactly:': 'To confirm deletion, type exactly:',
         'Type the confirmation text here...': 'Type the confirmation text here...',
-        '✓ Confirmation text matches. You can now delete the program.': '✓ Confirmation text matches. You can now delete the program.',
-        '✗ Confirmation text does not match. Please type exactly as shown above.': '✗ Confirmation text does not match. Please type exactly as shown above.'
+        '✓ Confirmation text matches. You can now delete the program.': '✓ Confirmation text matches You can now delete the program',
+        '✗ Confirmation text does not match. Please type exactly as shown above.': '✗ Confirmation text does not match Please type exactly as shown above'
       },
       
       // Forms & Validation
@@ -941,13 +941,13 @@ const resources = {
         help: 'Help & Support',
         loadingSettings: 'Loading settings...',
         errorLoadingSettings: 'Error Loading Settings',
-        couldNotLoadSettings: 'We couldn\'t load your settings. Please try refreshing the page or contact support if the problem persists.',
+        couldNotLoadSettings: 'We couldn\'t load your settings Please try refreshing the page or contact support if the problem persists',
         personalInformation: 'Personal Information',
         edit: 'Edit',
         cancel: 'Cancel',
         save: 'Save',
         settingsUpdatedSuccessfully: 'Your settings have been successfully updated',
-        errorUpdatingSettings: 'There was an error updating your settings. Please try again.',
+        errorUpdatingSettings: 'There was an error updating your settings Please try again',
         fullName: 'Full Name',
         emailAddress: 'Email Address',
         phoneNumber: 'Phone Number',
@@ -997,7 +997,11 @@ const resources = {
         qrCard: 'QR Card',
         settings: 'Settings',
         logout: 'Logout',
-        rewards: 'Rewards'
+        rewards: 'Rewards',
+        section: {
+          menu: 'Menu',
+          account: 'Account'
+        }
       },
       
       // Notification Center
@@ -1054,7 +1058,7 @@ const resources = {
         qrCodeScanned: 'QR Code Scanned',
         qrCodeScannedBy: 'Your QR code was scanned by {{businessName}}',
         programDiscontinued: 'Program Discontinued',
-        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}}. Your points and rewards from this program are no longer available.',
+        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}} Your points and rewards from this program are no longer available',
         newEnrollmentIn: 'New enrollment in {{programName}}',
         aReward: 'a reward',
         // Extended notification messages
@@ -1116,8 +1120,8 @@ const resources = {
         
         // Validation Messages
         'Please enter both email and password': 'Please enter both email and password',
-        'Invalid email or password. Please check your credentials and try again.': 'Invalid email or password. Please check your credentials and try again.',
-        'An error occurred during login. Please try again later.': 'An error occurred during login. Please try again later.',
+        'Invalid email or password. Please check your credentials and try again.': 'Invalid email or password Please check your credentials and try again',
+        'An error occurred during login. Please try again later.': 'An error occurred during login Please try again later',
         'If you continue to experience issues, try using one of the demo accounts above.': 'If you continue to experience issues, try using one of the demo accounts above.',
         'Please fill in all required fields': 'Please fill in all required fields',
         'Please enter a valid email address': 'Please enter a valid email address',
@@ -1126,9 +1130,9 @@ const resources = {
         'Business name is required': 'Business name is required',
         'Business phone is required': 'Business phone is required',
         'You must accept the terms and conditions': 'You must accept the terms and conditions',
-        'Registration failed. Email address may already be in use. Please try a different email or contact support.': 'Registration failed. Email address may already be in use. Please try a different email or contact support.',
-        'An error occurred during registration. Please try again later.': 'An error occurred during registration. Please try again later.',
-        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': 'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.'
+        'Registration failed. Email address may already be in use. Please try a different email or contact support.': 'Registration failed Email address may already be in use Please try a different email or contact support',
+        'An error occurred during registration. Please try again later.': 'An error occurred during registration Please try again later',
+        'Make sure to use a unique email address that is not already registered. If problems persist, you can try logging in with the demo accounts instead.': 'Make sure to use a unique email address that is not already registered If problems persist, you can try logging in with the demo accounts instead'
       },
       
       // Additional common translations
@@ -1143,13 +1147,6 @@ const resources = {
         arabic: 'Arabic',
         spanish: 'Spanish',
         french: 'French'
-      },
-      // Menu section headers
-      menu: {
-        section: {
-          menu: 'Menu',
-          account: 'Account'
-        }
       },
       
       // Landing Page
@@ -1206,9 +1203,9 @@ const resources = {
         programEnrollmentRequest: 'Program Enrollment Request',
         loyaltyCardCreated: 'Loyalty Card Created',
         yourLoyaltyCardReady: 'Your loyalty card for {{programName}} at {{businessName}} is ready',
-        businessWantsToEnroll: '{{businessName}} would like to enroll you in their {{programName}} loyalty program. Would you like to join?',
+        businessWantsToEnroll: '{{businessName}} would like to enroll you in their {{programName}} loyalty program Would you like to join?',
         programDiscontinued: 'Program Discontinued',
-        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}}. Your points and rewards from this program are no longer available.',
+        programDiscontinuedMessage: 'The loyalty program "{{programName}}" has been discontinued by {{businessName}} Your points and rewards from this program are no longer available',
         
         // Promo Codes
         newPromoCodeFrom: 'New Promo Code from {{businessName}}',
@@ -1236,7 +1233,7 @@ const resources = {
         rewardDelivered: 'Reward Delivered',
         businessDeliveredYourReward: '{{businessName}} has delivered your reward: {{rewardName}}',
         deliveryConfirmed: 'Delivery Confirmed',
-        yourRewardHasBeenDelivered: 'Your reward has been delivered by {{businessName}}. Enjoy your {{rewardName}}!',
+        yourRewardHasBeenDelivered: 'Your reward has been delivered by {{businessName}} Enjoy your {{rewardName}}!',
         
         // Business Notifications
         enrolledIn: 'enrolled in',

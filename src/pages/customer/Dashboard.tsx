@@ -26,6 +26,16 @@ const CustomerDashboard = () => {
   const enrolledProgramsQuery = useEnrolledPrograms();
   const topPrograms = (enrolledProgramsQuery.data || []).slice(0, 3);
 
+  // Debug: Log the enrolled programs data to understand the structure
+  useEffect(() => {
+    if (enrolledProgramsQuery.data) {
+      console.log('Enrolled Programs Data:', enrolledProgramsQuery.data);
+      console.log('Total Points Calculation:', enrolledProgramsQuery.data
+        .filter(program => program.status === 'ACTIVE' && program.program.status === 'ACTIVE')
+        .reduce((total, program) => total + (Number(program.currentPoints) || 0), 0));
+    }
+  }, [enrolledProgramsQuery.data]);
+
   // Load promotions (top 3)
   useEffect(() => {
     const loadPromotions = async () => {
@@ -80,17 +90,21 @@ const CustomerDashboard = () => {
               <p className="text-blue-100 mt-1 text-sm md:text-base opacity-90">
                 {t('scanQRCode', 'Scan your QR code to earn rewards')}
               </p>
-              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 align-pill">
-                <BadgeCheck className="w-4 h-4 text-blue-100 mr-1.5" />
+              <div className="mt-3 flex items-center gap-3">
+                <div className="inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 align-pill">
+                  <BadgeCheck className="w-4 h-4 text-blue-100 mr-1.5" />
                 <span className="text-blue-50 text-sm">
-                  {(enrolledProgramsQuery.data || []).length} {t('programs', 'programs')}
+                  {(enrolledProgramsQuery.data || [])
+                    .filter(program => program.status === 'ACTIVE' && program.program.status === 'ACTIVE')
+                    .reduce((total, program) => total + (Number(program.currentPoints) || 0), 0)} {t('points', 'points')}
                 </span>
-              </div>
-              <div className="mt-3 inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 ml-2 align-pill">
-                <span className="w-2 h-2 bg-amber-300 rounded-full mr-2"></span>
-                <span className="text-blue-50 text-sm">
-                  {unreadCount} {t('notifications.notifications', 'notifications')}
-                </span>
+                </div>
+                <div className="inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/20 align-pill">
+                  <span className="w-2 h-2 bg-amber-300 rounded-full mr-2"></span>
+                  <span className="text-blue-50 text-sm">
+                    {unreadCount} {t('notifications.notifications', 'notifications')}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="md:order-2 md:ml-6 mt-4 md:mt-0 flex w-full md:w-auto flex-col items-center md:items-center">
