@@ -7,22 +7,24 @@
       "config": {
         "distDir": "dist"
       }
+    },
+    {
+      "src": "api/auth/login.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/auth/register.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/db/initialize.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/users/by-email.ts",
+      "use": "@vercel/node@3"
     }
   ],
-  "functions": {
-    "api/auth/login.ts": {
-      "runtime": "@vercel/node@3"
-    },
-    "api/auth/register.ts": {
-      "runtime": "@vercel/node@3"
-    },
-    "api/db/initialize.ts": {
-      "runtime": "@vercel/node@3"
-    },
-    "api/users/by-email.ts": {
-      "runtime": "@vercel/node@3"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
