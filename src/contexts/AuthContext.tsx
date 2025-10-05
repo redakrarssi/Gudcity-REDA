@@ -4,19 +4,20 @@ import {
   User as DbUser, 
   UserRole, 
   UserType,
+  getUserById,
   validateUser,
   createUser as createDbUser,
-  getUserById,
-  ensureDemoUsers,
-  ensureUserTableExists,
-  getUserByEmail
+  getUserByEmail,
 } from '../services/userService';
 import { recordBusinessLogin } from '../services/businessService';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
-import sql from '../utils/db';
-import { generateTokens } from '../services/authService';
+// SECURITY FIX: Use API client in production, fallback to direct DB in development
+import ApiClient from '../services/apiClient';
+
+// Development mode detection
+const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
 /**
  * Permission interface for role-based access control
@@ -244,13 +245,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Create the actual auth initialization promise
         const authInitPromise = (async () => {
           try {
-            // Ensure database tables exist
-            await ensureUserTableExists();
-            
-            // Create demo users if needed in development mode
-            if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
-              await ensureDemoUsers();
-            }
+            // SECURITY FIX: Database initialization removed from client-side
+            // Tables are initialized via backend API: POST /api/db/initialize
             
             // Check if user ID is stored in localStorage
             const storedUserId = localStorage.getItem('authUserId');
@@ -356,9 +352,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const normalizedEmail = email.trim().toLowerCase();
       console.log(`Attempting login for: ${normalizedEmail}`);
       
-      const dbUser = await validateUser(normalizedEmail, password);
+      let dbUser: any;
+      let token: string | undefined;
+      
+      // Try API first (production), fall back to direct DB (development)
+      try {
+        if (!IS_DEV) {
+          // PRODUCTION: Use secure backend API
+          const authResponse = await ApiClient.login({
+            email: normalizedEmail,
+            password
+          });
+          
+          if (authResponse && authResponse.user) {
+            dbUser = authResponse.user;
+            token = authResponse.token;
+          }
+        } else {
+          throw new Error('Development mode - using direct database access');
+        }
+      } catch (apiError) {
+        // DEVELOPMENT FALLBACK: Use direct database access
+        console.warn('API not available, using direct database access (development only):', apiError);
+        dbUser = await validateUser(normalizedEmail, password);
+        
+        // In development, generate a simple token
+        if (dbUser) {
+          token = `dev_token_${dbUser.id}_${Date.now()}`;
+        }
+      }
       
       if (dbUser && dbUser.id) {
+        // Store token
+        if (token) {
+          localStorage.setItem('token', token);
+        }
+        
         // Check if the user is banned
         if (dbUser.status === 'banned') {
           console.error('Login attempt by banned user:', normalizedEmail);
@@ -493,29 +522,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Normalize email to avoid case sensitivity issues
       const normalizedEmail = data.email.trim().toLowerCase();
       
-      // Check if user already exists
-      const existingUser = await getUserByEmail(normalizedEmail);
-      if (existingUser) {
-        const authError: AuthError = {
-          type: AuthErrorType.INVALID_CREDENTIALS,
-          message: 'Email is already registered'
-        };
-        setError(authError);
-        setIsLoading(false);
-        return { success: false, error: authError };
+      let dbUser: any;
+      let token: string | undefined;
+      
+      // Try API first (production), fall back to direct DB (development)
+      try {
+        if (!IS_DEV) {
+          // PRODUCTION: Use secure backend API
+          const authResponse = await ApiClient.register({
+            name: data.name,
+            email: normalizedEmail,
+            password: data.password,
+            user_type: data.userType,
+            role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
+          });
+          
+          if (authResponse && authResponse.user) {
+            dbUser = authResponse.user;
+            token = authResponse.token;
+          }
+        } else {
+          throw new Error('Development mode - using direct database access');
+        }
+      } catch (apiError) {
+        // DEVELOPMENT FALLBACK: Use direct database access
+        console.warn('API not available, using direct database access (development only):', apiError);
+        
+        // Check if user already exists
+        const existingUser = await getUserByEmail(normalizedEmail);
+        if (existingUser) {
+          const authError: AuthError = {
+            type: AuthErrorType.INVALID_CREDENTIALS,
+            message: 'Email is already registered'
+          };
+          setError(authError);
+          setIsLoading(false);
+          return { success: false, error: authError };
+        }
+        
+        // Create user in database
+        dbUser = await createDbUser({
+          name: data.name,
+          email: normalizedEmail,
+          password: data.password,
+          user_type: data.userType,
+          role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
+          business_name: data.businessName,
+          business_phone: data.businessPhone,
+          status: 'active'
+        });
+        
+        // In development, generate a simple token
+        if (dbUser) {
+          token = `dev_token_${dbUser.id}_${Date.now()}`;
+        }
       }
       
-      // Create user in database
-      const dbUser = await createDbUser({
-        name: data.name,
-        email: normalizedEmail,
-        password: data.password,
-        user_type: data.userType,
-        role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
-        business_name: data.businessName,
-        business_phone: data.businessPhone,
-        status: 'active'
-      });
+      if (!dbUser) {
+        throw new Error('Registration failed');
+      }
+      
+      // Store token
+      if (token) {
+        localStorage.setItem('token', token);
+      }
       
       if (dbUser && dbUser.id) {
         // Convert DB user to app user

@@ -555,25 +555,26 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
   }
 }
 
-// Ensure the refresh_tokens table exists when module loads
-(async function ensureRefreshTokensTable() {
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        revoked BOOLEAN DEFAULT FALSE,
-        revoked_at TIMESTAMP
-      )
-    `;
-    console.log('Refresh tokens table initialized');
-  } catch (error) {
-    console.error('Error creating refresh tokens table:', error);
-  }
-})();
+// SECURITY FIX: Database initialization removed from client-side
+// This table is created via backend API: POST /api/db/initialize
+// (async function ensureRefreshTokensTable() {
+//   try {
+//     await sql`
+//       CREATE TABLE IF NOT EXISTS refresh_tokens (
+//         id SERIAL PRIMARY KEY,
+//         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+//         token TEXT NOT NULL,
+//         expires_at TIMESTAMP NOT NULL,
+//         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+//         revoked BOOLEAN DEFAULT FALSE,
+//         revoked_at TIMESTAMP
+//       )
+//     `;
+//     console.log('Refresh tokens table initialized');
+//   } catch (error) {
+//     console.error('Error creating refresh tokens table:', error);
+//   }
+// })();
 
 // Note: Token blacklisting, JWT secret rotation, and related security features
 // have been moved to server-side only. These operations are now handled by:

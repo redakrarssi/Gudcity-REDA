@@ -916,5 +916,6 @@ export class CustomerService {
   }
 }
 
-// Initialize interactions table when service is imported
-CustomerService.ensureInteractionsTable().catch(console.error); 
+// SECURITY FIX: Database initialization removed from client-side
+// This table is created via backend API: POST /api/db/initialize
+// CustomerService.ensureInteractionsTable().catch(console.error); 

@@ -19,16 +19,15 @@ export function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
     // In browser environment, try to get from secure cookies
     // This would typically be done through a server-side API call
-    // For now, we'll fall back to localStorage but with encryption
+    // SECURITY FIX: Do NOT use encryption keys in client-side code
+    // Encryption should be handled server-side only
     const encryptedToken = localStorage.getItem('encrypted_token');
     if (encryptedToken) {
-      try {
-        const encryptionKey = process.env.VITE_COOKIE_ENCRYPTION_KEY || 'default-key';
-        return TokenEncryption.decryptToken(encryptedToken, encryptionKey);
-      } catch (error) {
-        console.error('Failed to decrypt token:', error);
-        return null;
-      }
+      // If token is encrypted, it must be decrypted server-side
+      // For now, try to get unencrypted token from other storage
+      console.warn('Encrypted token found but client-side decryption is disabled for security.');
+      console.warn('Token encryption/decryption should be handled by server-side API.');
+      return null;
     }
   }
   
@@ -67,17 +66,15 @@ function generateTokenFromUserData(): string | null {
     const tokenPayload = `${authUserId}:${userData.email}:${userData.role || 'user'}`;
     const token = btoa(tokenPayload);
     
-    // SECURITY: Save the generated token with encryption
-    try {
-      const encryptionKey = process.env.VITE_COOKIE_ENCRYPTION_KEY || 'default-key';
-      const encryptedToken = TokenEncryption.encryptToken(token, encryptionKey);
-      localStorage.setItem('encrypted_token', encryptedToken);
-      console.log('Generated and encrypted auth token from user data');
-    } catch (error) {
-      console.error('Failed to encrypt token:', error);
-      // Fallback to unencrypted storage (not recommended for production)
-      localStorage.setItem('token', token);
-    }
+    // SECURITY FIX: Do NOT encrypt tokens client-side
+    // Client-side encryption with accessible keys provides NO security
+    // Store token in localStorage (will be sent via HTTPS anyway)
+    // True security comes from HTTPS, httpOnly cookies, and short expiry times
+    localStorage.setItem('token', token);
+    console.log('Generated auth token from user data');
+    
+    // Note: For production, tokens should be stored in httpOnly cookies set by server
+    // and localStorage should only be used as a fallback for development
     
     return token;
   } catch (error) {

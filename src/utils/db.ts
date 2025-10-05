@@ -3,8 +3,50 @@ import { neon, neonConfig } from '@neondatabase/serverless';
 // Configure Neon
 neonConfig.fetchConnectionCache = true;
 
-// Database URL from environment variables
-const DATABASE_URL = import.meta.env.VITE_DATABASE_URL || '';
+// SECURITY FIX: Environment-aware database URL access
+// - Production: Use process.env.DATABASE_URL (secure, server-side only)
+// - Development: Allow VITE_ prefix for local development only
+// - Browser: Use secure fallback with warning
+
+const DATABASE_URL = (() => {
+  const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+  const isBrowser = typeof window !== 'undefined';
+  
+  // PRODUCTION: Always use secure environment variables
+  if (!isDevelopment) {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+    }
+    return '';
+  }
+  
+  // DEVELOPMENT: Allow both secure and Vite env access
+  if (isBrowser) {
+    // Browser in development: Try secure first, then Vite as fallback
+    const secureUrl = import.meta.env.DATABASE_URL || import.meta.env.POSTGRES_URL;
+    const viteUrl = import.meta.env.VITE_DATABASE_URL || import.meta.env.VITE_POSTGRES_URL;
+    
+    if (secureUrl) {
+      console.info('🔒 Using secure DATABASE_URL (no VITE_ prefix)');
+      return secureUrl;
+    }
+    
+    if (viteUrl) {
+      console.warn('⚠️ Using VITE_DATABASE_URL for development - not secure for production!');
+      return viteUrl;
+    }
+    
+    console.error('❌ No DATABASE_URL found. Create .env file with DATABASE_URL=...');
+    return '';
+  }
+  
+  // Node.js context: Use process.env (secure)
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+  }
+  
+  return '';
+})();
 
 // Check if database URL is available
 const hasDbUrl = !!DATABASE_URL;
@@ -130,7 +172,10 @@ class DbConnectionManager {
     // Lazy initialize if the instance is missing
     if (!this.neonInstance) {
       if (!hasDbUrl) {
-        throw new Error('Database URL not configured (VITE_DATABASE_URL)');
+        throw new Error(
+          'Database URL not configured. ' +
+          'Set VITE_DATABASE_URL or VITE_POSTGRES_URL environment variable.'
+        );
       }
       this.initConnection();
     }
