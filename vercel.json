@@ -66,5 +66,19 @@
   ],
   "env": {
     "NODE_ENV": "production"
+  },
+  "functions": {
+    "api/auth/login.ts": {
+      "maxDuration": 30
+    },
+    "api/auth/register.ts": {
+      "maxDuration": 30
+    },
+    "api/db/initialize.ts": {
+      "maxDuration": 30
+    },
+    "api/users/by-email.ts": {
+      "maxDuration": 30
+    }
   }
 }
