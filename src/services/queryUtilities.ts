@@ -82,7 +82,88 @@ export function validateAnalyticsInputs(
 }
 
 /**
+ * SECURITY: Allowlist of valid table names for analytics queries
+ */
+const ALLOWED_ANALYTICS_TABLES = [
+  'business_analytics',
+  'customer_analytics',
+  'program_analytics',
+  'transaction_analytics',
+  'redemption_analytics',
+  'engagement_analytics',
+  'revenue_analytics',
+  'retention_analytics',
+  'customer_segments',
+  'product_performance'
+] as const;
+
+/**
+ * SECURITY: Allowlist of valid field names for analytics queries
+ */
+const ALLOWED_ANALYTICS_FIELDS = [
+  'id', 'business_id', 'customer_id', 'program_id', 'period_type', 'period_start', 'period_end',
+  'active_customers', 'new_customers', 'churn_rate', 'repeat_visit_rate', 'avg_visit_frequency',
+  'customer_lifetime_value', 'total_revenue', 'revenue_growth', 'avg_order_value',
+  'total_customers', 'points_issued', 'points_redeemed', 'redemption_rate',
+  'avg_transaction_value', 'segment_name', 'segment_size', 'avg_spend', 'visit_frequency',
+  'loyalty_score', 'product_name', 'total_users', 'active_users', 'user_growth',
+  'business_growth', 'program_growth', 'transaction_volume', 'avg_user_value',
+  'feature_name', 'interaction_count', 'day_number', 'retention_rate', 'created_at', 'updated_at'
+] as const;
+
+/**
+ * SECURITY: Allowlist of valid ORDER BY clauses
+ */
+const ALLOWED_ORDER_BY = [
+  'period_start DESC',
+  'period_start ASC',
+  'period_end DESC',
+  'period_end ASC',
+  'created_at DESC',
+  'created_at ASC',
+  'updated_at DESC',
+  'updated_at ASC',
+  'total_revenue DESC',
+  'total_revenue ASC',
+  'id DESC',
+  'id ASC'
+] as const;
+
+/**
+ * SECURITY: Validate table name against allowlist
+ */
+function validateTableName(table: string): string {
+  if (!ALLOWED_ANALYTICS_TABLES.includes(table as any)) {
+    throw new Error(`Invalid table name: ${table}. Must be one of: ${ALLOWED_ANALYTICS_TABLES.join(', ')}`);
+  }
+  return table;
+}
+
+/**
+ * SECURITY: Validate field names against allowlist
+ */
+function validateFieldNames(fields: string[]): string[] {
+  for (const field of fields) {
+    if (!ALLOWED_ANALYTICS_FIELDS.includes(field as any)) {
+      throw new Error(`Invalid field name: ${field}. Must be one of allowed analytics fields`);
+    }
+  }
+  return fields;
+}
+
+/**
+ * SECURITY: Validate ORDER BY clause against allowlist
+ */
+function validateOrderBy(orderBy: string): string {
+  if (!ALLOWED_ORDER_BY.includes(orderBy as any)) {
+    throw new Error(`Invalid ORDER BY clause: ${orderBy}. Must be one of: ${ALLOWED_ORDER_BY.join(', ')}`);
+  }
+  return orderBy;
+}
+
+/**
  * Generic function to fetch business analytics data by type
+ * SECURITY: Now includes input validation with allowlists
  */
 export async function fetchBusinessMetrics<T extends SqlRow>(
   businessId: string,
@@ -92,31 +173,48 @@ export async function fetchBusinessMetrics<T extends SqlRow>(
   orderBy: string = 'period_start DESC',
   limit: number = 1
 ): Promise<T[]> {
+  // SECURITY: Validate all inputs
+  const validatedBusinessId = validateBusinessId(businessId);
+  const validatedPeriod = validatePeriod(period);
+  const validatedTable = validateTableName(table);
+  const validatedFields = validateFieldNames(fields);
+  const validatedOrderBy = validateOrderBy(orderBy);
+  
+  // SECURITY: Validate limit is a safe number
+  const validatedLimit = Math.max(0, Math.min(1000, Math.floor(limit))); // Cap at 1000
+  
+  // Build field list - safe because validated
+  const fieldList = validatedFields.join(', ');
+  
   // Create dynamic query with proper handling of the LIMIT clause
-  // This fixes the syntax error with $2 parameter
-  if (limit > 0) {
-    return sql<T[]>`
-      SELECT ${fields.join(', ')}
-      FROM ${table}
-      WHERE business_id = ${businessId}
-      AND period_type = ${period}
-      ORDER BY ${orderBy}
-      LIMIT ${limit}
+  // SECURITY NOTE: We're using sql.query() with parameterized placeholders
+  // Table names, fields, and ORDER BY are validated against allowlists, so string concatenation is safe here
+  if (validatedLimit > 0) {
+    const query = `
+      SELECT ${fieldList}
+      FROM ${validatedTable}
+      WHERE business_id = $1
+      AND period_type = $2
+      ORDER BY ${validatedOrderBy}
+      LIMIT $3
     `;
+    return sql.query(query, [validatedBusinessId, validatedPeriod, validatedLimit]) as Promise<T[]>;
   } else {
     // When limit is 0 or negative, don't include the LIMIT clause at all
-    return sql<T[]>`
-      SELECT ${fields.join(', ')}
-      FROM ${table}
-      WHERE business_id = ${businessId}
-      AND period_type = ${period}
-      ORDER BY ${orderBy}
+    const query = `
+      SELECT ${fieldList}
+      FROM ${validatedTable}
+      WHERE business_id = $1
+      AND period_type = $2
+      ORDER BY ${validatedOrderBy}
     `;
+    return sql.query(query, [validatedBusinessId, validatedPeriod]) as Promise<T[]>;
   }
 }
 
 /**
  * Generic function to fetch platform analytics data by type
+ * SECURITY: Now includes input validation with allowlists
  */
 export async function fetchPlatformMetrics<T extends SqlRow>(
   period: 'day' | 'week' | 'month' | 'year',
@@ -125,24 +223,39 @@ export async function fetchPlatformMetrics<T extends SqlRow>(
   orderBy: string = 'period_start DESC',
   limit: number = 1
 ): Promise<T[]> {
+  // SECURITY: Validate all inputs
+  const validatedPeriod = validatePeriod(period);
+  const validatedTable = validateTableName(table);
+  const validatedFields = validateFieldNames(fields);
+  const validatedOrderBy = validateOrderBy(orderBy);
+  
+  // SECURITY: Validate limit is a safe number
+  const validatedLimit = Math.max(0, Math.min(1000, Math.floor(limit))); // Cap at 1000
+  
+  // Build field list - safe because validated
+  const fieldList = validatedFields.join(', ');
+  
   // Create dynamic query with proper handling of the LIMIT clause
-  // Apply the same fix as in fetchBusinessMetrics
-  if (limit > 0) {
-    return sql<T[]>`
-      SELECT ${fields.join(', ')}
-      FROM ${table}
-      WHERE period_type = ${period}
-      ORDER BY ${orderBy}
-      LIMIT ${limit}
+  // SECURITY NOTE: We're using sql.query() with parameterized placeholders
+  // Table names, fields, and ORDER BY are validated against allowlists, so string concatenation is safe here
+  if (validatedLimit > 0) {
+    const query = `
+      SELECT ${fieldList}
+      FROM ${validatedTable}
+      WHERE period_type = $1
+      ORDER BY ${validatedOrderBy}
+      LIMIT $2
     `;
+    return sql.query(query, [validatedPeriod, validatedLimit]) as Promise<T[]>;
   } else {
     // When limit is 0 or negative, don't include the LIMIT clause at all
-    return sql<T[]>`
-      SELECT ${fields.join(', ')}
-      FROM ${table}
-      WHERE period_type = ${period}
-      ORDER BY ${orderBy}
+    const query = `
+      SELECT ${fieldList}
+      FROM ${validatedTable}
+      WHERE period_type = $1
+      ORDER BY ${validatedOrderBy}
     `;
+    return sql.query(query, [validatedPeriod]) as Promise<T[]>;
   }
 }
 

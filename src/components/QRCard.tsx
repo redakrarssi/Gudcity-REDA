@@ -235,8 +235,20 @@ export const QRCard: React.FC<QRCardProps> = ({
     const id = setTimeout(() => {
       try {
         if (qrSvgRef.current) {
-          const svg = qrSvgRef.current.outerHTML;
-          const encoded = encodeURIComponent(svg)
+          // SECURITY FIX: Use XMLSerializer instead of outerHTML to avoid XSS
+          // XMLSerializer is safer as it properly encodes and doesn't execute scripts
+          const serializer = new XMLSerializer();
+          const svg = serializer.serializeToString(qrSvgRef.current);
+          
+          // SECURITY: Additional sanitization - remove any script tags or event handlers
+          // that might have been injected (defense in depth)
+          const sanitizedSvg = svg
+            .replace(/<script[^>]*>.*?<\/script>/gi, '')  // Remove script tags
+            .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
+            .replace(/javascript:/gi, '')                // Remove javascript: protocol
+            .replace(/data:text\/html/gi, '');           // Remove data:text/html
+          
+          const encoded = encodeURIComponent(sanitizedSvg)
             // Ensure proper encoding for Safari
             .replace(/\(/g, '%28')
             .replace(/\)/g, '%29');
@@ -244,6 +256,7 @@ export const QRCard: React.FC<QRCardProps> = ({
         }
       } catch (e) {
         // Fallback silently; component will render solid-color QR
+        console.warn('Failed to create QR mask URL:', e);
         setMaskUrl(null);
       }
     }, 0);

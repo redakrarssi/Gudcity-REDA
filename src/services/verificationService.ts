@@ -246,6 +246,29 @@ export async function completePasswordReset(token: string, newPassword: string):
       // Update the user's password
       await updateUser(verificationToken.user_id, { password: newPassword });
       
+      // SECURITY: Revoke all tokens for this user after password reset
+      // This forces re-authentication with the new password
+      try {
+        console.log(`🚫 Revoking all tokens for user ${verificationToken.user_id} after password reset`);
+        
+        // Call the server-side API to revoke tokens
+        await fetch('/api/auth/revoke-tokens', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: verificationToken.user_id,
+            reason: 'Password reset'
+          })
+        });
+        
+        console.log(`✅ All tokens revoked for user ${verificationToken.user_id}`);
+      } catch (revokeError) {
+        console.error(`⚠️ Error revoking tokens (non-critical): ${revokeError}`);
+        // Don't fail the password reset if token revocation fails
+      }
+      
       return true;
     } catch (error) {
       console.error('Error completing password reset:', error);

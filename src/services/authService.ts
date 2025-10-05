@@ -416,41 +416,24 @@ export async function hashPassword(password: string): Promise<string> {
       return hashedPassword;
 
     } catch (bcryptError) {
-      console.warn('bcrypt hashing failed, attempting fallback:', bcryptError);
+      console.error('❌ CRITICAL: bcrypt hashing failed:', bcryptError);
       
-      // Fallback method: Use crypto-based hashing
-      try {
-        if (!cryptoUtils || typeof cryptoUtils.createSha256Hash !== 'function') {
-          throw new Error('Crypto utilities not available');
-        }
-
-        // Generate a cryptographically secure salt for SHA-256 fallback
-        const timestamp = Date.now().toString();
-        let randomValue: string;
-        
-        // Use crypto.randomBytes if available for secure random generation
-        try {
-          const crypto = await import('crypto');
-          randomValue = crypto.randomBytes(16).toString('hex');
-        } catch {
-          // Final fallback: use performance timing (avoid Math.random)
-          const performanceNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
-          randomValue = (timestamp + performanceNow.toString()).slice(-16);
-        }
-        
-        const salt = `${timestamp}_${randomValue}`;
-        const saltedPassword = `${salt}:${password}`;
-        
-        const sha256Hash = await cryptoUtils.createSha256Hash(saltedPassword);
-        const fallbackHash = `sha256:${salt}:${sha256Hash}`;
-
-        console.warn('⚠️ Using SHA-256 fallback for password hashing');
-        return fallbackHash;
-
-      } catch (cryptoError) {
-        console.error('Crypto fallback also failed:', cryptoError);
-        throw new Error('All password hashing methods failed - system configuration error');
-      }
+      // SECURITY FIX: DO NOT fallback to weak hashing methods like SHA-256
+      // SHA-256 is NOT suitable for password hashing because:
+      // 1. It's too fast - vulnerable to brute force attacks
+      // 2. It doesn't have built-in salting in the standard implementation
+      // 3. It's not designed for password hashing (unlike bcrypt/scrypt/argon2)
+      
+      // Instead of falling back, fail fast with a clear error
+      console.error('❌ Password hashing system is not properly configured');
+      console.error('❌ Ensure bcryptjs is properly installed: npm install bcryptjs');
+      console.error('❌ This is a critical security requirement - cannot proceed with insecure fallback');
+      
+      throw new Error(
+        'Password hashing failed: bcrypt unavailable. ' +
+        'Cannot proceed with insecure fallback. ' +
+        'Please ensure bcryptjs is properly installed and configured.'
+      );
     }
 
   } catch (error) {

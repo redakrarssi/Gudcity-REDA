@@ -197,6 +197,39 @@ export async function executeSecureQuery<T = any>(
 }
 
 /**
+ * SECURITY: Allowlist of valid column selections
+ */
+const ALLOWED_COLUMN_PATTERNS = [
+  '*',
+  /^[a-zA-Z_][a-zA-Z0-9_]*(\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*$/, // Simple column list
+  /^COUNT\([a-zA-Z_*][a-zA-Z0-9_]*\)$/i, // COUNT function
+  /^[a-zA-Z_][a-zA-Z0-9_]*\s+AS\s+[a-zA-Z_][a-zA-Z0-9_]*$/i // Column with alias
+];
+
+/**
+ * SECURITY: Validate column selection
+ */
+function validateColumns(columns: string): string {
+  if (columns === '*') {
+    return columns;
+  }
+  
+  // Check if columns match any allowed pattern
+  const isValid = ALLOWED_COLUMN_PATTERNS.some(pattern => {
+    if (typeof pattern === 'string') {
+      return pattern === columns;
+    }
+    return pattern.test(columns);
+  });
+  
+  if (!isValid) {
+    throw new Error('Invalid column specification. Use simple column names, comma-separated lists, or COUNT(*) only.');
+  }
+  
+  return columns;
+}
+
+/**
  * Secure SELECT query builder
  * @param table Table name
  * @param columns Columns to select (default: '*')
@@ -212,12 +245,15 @@ export async function secureSelect<T = any>(
   params: any[] = [],
   paramTypes: DbInputType[] = []
 ): Promise<T[]> {
-  // Validate table name (prevent injection through table name)
+  // SECURITY: Validate table name (prevent injection through table name)
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
     throw new Error('Invalid table name');
   }
+  
+  // SECURITY: Validate columns parameter
+  const validatedColumns = validateColumns(columns);
 
-  let query = `SELECT ${columns} FROM ${table}`;
+  let query = `SELECT ${validatedColumns} FROM ${table}`;
   
   if (whereClause && params.length > 0) {
     query += ` WHERE ${whereClause}`;

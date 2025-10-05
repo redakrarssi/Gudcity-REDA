@@ -275,6 +275,9 @@ export class UserSettingsService {
       try {
         await sql.begin();
         
+        // SECURITY: Record password change timestamp
+        const passwordChangedAt = new Date();
+        
         await sql`
           UPDATE users SET
             password = ${newPasswordHash},
@@ -285,6 +288,30 @@ export class UserSettingsService {
         
         await sql.commit();
         console.log(`✅ Password updated successfully for user ${userId}`);
+        
+        // SECURITY: Revoke all tokens for this user after password change
+        // This forces re-authentication with the new password
+        try {
+          console.log(`🚫 Revoking all tokens for user ${userId} after password change`);
+          
+          // Call the server-side API to revoke tokens
+          await fetch('/api/auth/revoke-tokens', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userIdNum,
+              reason: 'Password changed'
+            })
+          });
+          
+          console.log(`✅ All tokens revoked for user ${userId}`);
+        } catch (revokeError) {
+          console.error(`⚠️ Error revoking tokens (non-critical): ${revokeError}`);
+          // Don't fail the password update if token revocation fails
+        }
+        
         return true;
       } catch (updateError) {
         console.error(`❌ Error during password update transaction: ${updateError}`);

@@ -3,6 +3,7 @@ import { auth } from '../middleware/auth';
 import sql from '../utils/db';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
+import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
 
 const router = Router();
 
@@ -228,7 +229,18 @@ router.get('/businesses', auth, requireAdmin, async (_req: Request, res: Respons
  */
 router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const businessId = req.params.id;
+    // SECURITY: Validate business ID input
+    const businessIdParam = req.params.id;
+    
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+    
+    // SECURITY: Parse and validate as integer
+    const businessIdNumber = parseInt(businessIdParam, 10);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
     
     // Get base business info
     const businessResult = await sql<any[]>`
@@ -238,7 +250,7 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
         u.created_at as registered_at
       FROM users u
       LEFT JOIN businesses b ON b.user_id = u.id
-      WHERE (u.id = ${businessId} OR b.id = ${businessId}) AND u.user_type = 'business'
+      WHERE (u.id = ${businessIdNumber} OR b.id = ${businessIdNumber}) AND u.user_type = 'business'
       LIMIT 1
     `;
 
@@ -259,7 +271,7 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
           'New loyalty program created' as description,
           created_at as event_date
         FROM loyalty_programs
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${businessIdNumber}
         ORDER BY created_at DESC
       `,
       
@@ -274,7 +286,7 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
           COUNT(*) as transaction_count,
           SUM(amount) as daily_revenue
         FROM business_transactions
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${businessIdNumber}
         GROUP BY DATE(transaction_date)
         ORDER BY DATE(transaction_date) DESC
         LIMIT 30
@@ -289,7 +301,7 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
           CONCAT('Login from ', COALESCE(device, ip_address, 'unknown device')) as description,
           login_time as event_date
         FROM business_daily_logins
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${businessIdNumber}
         ORDER BY login_time DESC
         LIMIT 20
       `,
@@ -303,7 +315,7 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
           description,
           created_at as event_date
         FROM promo_codes
-        WHERE business_id = ${businessId}
+        WHERE business_id = ${businessIdNumber}
         ORDER BY created_at DESC
       `
     ]);
@@ -338,7 +350,8 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
     });
   } catch (error) {
     console.error('Error fetching business timeline:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 
@@ -348,18 +361,30 @@ router.get('/businesses/:id/timeline', auth, requireAdmin, async (req: Request, 
  */
 router.get('/businesses/:id/analytics', auth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const businessId = req.params.id;
+    // SECURITY: Validate business ID input
+    const businessIdParam = req.params.id;
+    
+    if (!businessIdParam) {
+      return res.status(400).json({ error: 'Business ID is required' });
+    }
+    
+    // SECURITY: Parse and validate as integer (will be re-validated in service)
+    const businessIdNumber = parseInt(businessIdParam, 10);
+    if (isNaN(businessIdNumber) || businessIdNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid business ID format' });
+    }
     
     // Get analytics data directly from the service
     const analyticsData = await BusinessAnalyticsService.getBusinessAnalytics(
-      businessId,
+      String(businessIdNumber), // Service expects string
       'month'
     );
     
     res.json(analyticsData);
   } catch (error) {
     console.error('Error fetching business analytics:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const { statusCode, response } = createSecureErrorResponse(error, isDevelopmentEnvironment());
+    res.status(statusCode).json(response);
   }
 });
 

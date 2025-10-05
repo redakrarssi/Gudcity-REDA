@@ -646,8 +646,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         }
       }
 
-      // Make sure the scanner element is empty
-      scannerElement.innerHTML = '';
+      // SECURITY FIX: Use replaceChildren() instead of innerHTML for clearing
+      // This is safer as it doesn't parse HTML and prevents potential XSS
+      scannerElement.replaceChildren();
       
       // Verify HTML5Qrcode is available
       if (typeof Html5Qrcode !== 'function') {
@@ -697,8 +698,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
           // Try a different approach on retry
           const scannerDiv = document.getElementById(scannerDivId);
           if (scannerDiv) {
-            // Make sure it's empty
-            scannerDiv.innerHTML = '';
+            // SECURITY FIX: Use replaceChildren() instead of innerHTML for clearing
+            // This is safer as it doesn't parse HTML and prevents potential XSS
+            scannerDiv.replaceChildren();
             // Try to create with a more defensive approach
             scannerRef.current = new Html5Qrcode(scannerDivId, { verbose: false });
             return !!scannerRef.current;

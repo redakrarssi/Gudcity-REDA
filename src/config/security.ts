@@ -90,7 +90,43 @@ export const SECURITY_CONFIG = {
   },
 
   // Content Security Policy
+  // SECURITY FIX: Removed 'unsafe-inline' and 'unsafe-eval' to prevent XSS attacks
   CSP: {
+    // Production CSP (strict - no unsafe directives)
+    PRODUCTION_DIRECTIVES: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'"], // SECURITY: Removed 'unsafe-inline' and 'unsafe-eval'
+      'style-src': ["'self'", "https://fonts.googleapis.com"], // SECURITY: Removed 'unsafe-inline' for production
+      'img-src': ["'self'", "data:", "https:", "blob:"], // Allow data: for QR codes
+      'connect-src': ["'self'", "https:", "wss:"],
+      'font-src': ["'self'", "https://fonts.gstatic.com"],
+      'object-src': ["'none'"],
+      'media-src': ["'self'", "https:"],
+      'frame-src': ["'none'"], // Prevent clickjacking
+      'worker-src': ["'self'", "blob:"],
+      'form-action': ["'self'"],
+      'base-uri': ["'self'"],
+      'manifest-src': ["'self'"],
+      'frame-ancestors': ["'none'"], // Additional clickjacking protection
+      'upgrade-insecure-requests': [] // Force HTTPS
+    },
+    // Development CSP (more permissive for hot reload)
+    DEVELOPMENT_DIRECTIVES: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "localhost:*", "127.0.0.1:*"],
+      'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      'img-src': ["'self'", "data:", "https:", "blob:"],
+      'connect-src': ["'self'", "https:", "wss:", "ws:", "localhost:*", "127.0.0.1:*"],
+      'font-src': ["'self'", "https://fonts.gstatic.com"],
+      'object-src': ["'none'"],
+      'media-src': ["'self'", "https:"],
+      'frame-src': ["'none'"],
+      'worker-src': ["'self'", "blob:"],
+      'form-action': ["'self'"],
+      'base-uri': ["'self'"],
+      'manifest-src': ["'self'"]
+    },
+    // Legacy fallback for gradual migration (to be removed)
     DIRECTIVES: {
       'default-src': ["'self'"],
       'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],

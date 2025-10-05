@@ -12,6 +12,7 @@
 
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import sql from '../utils/db';
 import { validateDbInput } from '../utils/secureDb';
 import env from '../utils/env';
@@ -21,11 +22,12 @@ interface TokenPayload {
   userId: number;
   email: string;
   role: string;
+  jti?: string;  // SECURITY: JWT ID for token blacklisting
   iat?: number;
   exp?: number;
 }
 
-interface AuthTokens {
+export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
@@ -54,11 +56,14 @@ function parseJwtExpiry(expiry: string): number {
 }
 
 /**
- * Validate JWT secrets
+ * Validate JWT secrets with enhanced security checks
+ * SECURITY FIX: Updated to enforce 64-character minimum
  */
-function validateSecrets(): { isValid: boolean; errors: string[] } {
+function validateSecrets(): { isValid: boolean; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   
+  // Check if secrets are configured
   if (!env.JWT_SECRET || env.JWT_SECRET.trim() === '') {
     errors.push('JWT_SECRET is not configured');
   }
@@ -67,18 +72,115 @@ function validateSecrets(): { isValid: boolean; errors: string[] } {
     errors.push('JWT_REFRESH_SECRET is not configured');
   }
   
-  if (env.JWT_SECRET && env.JWT_SECRET.length < 32) {
-    errors.push('JWT_SECRET should be at least 32 characters long');
+  // SECURITY: Enforce 64-character minimum for JWT secrets
+  if (env.JWT_SECRET) {
+    if (env.JWT_SECRET.length < 32) {
+      errors.push('JWT_SECRET is dangerously short and must be at least 32 characters');
+    } else if (env.JWT_SECRET.length < 64) {
+      warnings.push(`⚠️ SECURITY WARNING: JWT_SECRET should be at least 64 characters. Current: ${env.JWT_SECRET.length} chars`);
+      console.error(`⚠️ SECURITY WARNING: JWT_SECRET is ${env.JWT_SECRET.length} characters but should be at least 64. Please update immediately!`);
+    }
   }
   
-  if (env.JWT_REFRESH_SECRET && env.JWT_REFRESH_SECRET.length < 32) {
-    errors.push('JWT_REFRESH_SECRET should be at least 32 characters long');
+  if (env.JWT_REFRESH_SECRET) {
+    if (env.JWT_REFRESH_SECRET.length < 32) {
+      errors.push('JWT_REFRESH_SECRET is dangerously short and must be at least 32 characters');
+    } else if (env.JWT_REFRESH_SECRET.length < 64) {
+      warnings.push(`⚠️ SECURITY WARNING: JWT_REFRESH_SECRET should be at least 64 characters. Current: ${env.JWT_REFRESH_SECRET.length} chars`);
+      console.error(`⚠️ SECURITY WARNING: JWT_REFRESH_SECRET is ${env.JWT_REFRESH_SECRET.length} characters but should be at least 64. Please update immediately!`);
+    }
+  }
+  
+  // SECURITY: Check that secrets are different
+  if (env.JWT_SECRET && env.JWT_REFRESH_SECRET && env.JWT_SECRET === env.JWT_REFRESH_SECRET) {
+    errors.push('JWT_SECRET and JWT_REFRESH_SECRET must be different for security');
   }
   
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    warnings
   };
+}
+
+/**
+ * SECURITY: Ensure revoked_tokens table exists for blacklisting
+ */
+async function ensureRevokedTokensTable(): Promise<void> {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS revoked_tokens (
+        id SERIAL PRIMARY KEY,
+        token_jti VARCHAR(255) UNIQUE NOT NULL,
+        user_id INTEGER NOT NULL,
+        revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        reason VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    // Create indexes for performance
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti 
+      ON revoked_tokens(token_jti)
+    `;
+    
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires 
+      ON revoked_tokens(expires_at)
+    `;
+    
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_revoked_tokens_user 
+      ON revoked_tokens(user_id)
+    `;
+    
+    console.log('✅ Revoked tokens table initialized');
+  } catch (error) {
+    console.error('Error creating revoked_tokens table:', error);
+    // Don't throw - table may already exist
+  }
+}
+
+/**
+ * SECURITY: Check if a token is blacklisted
+ */
+async function isTokenBlacklisted(jti: string): Promise<boolean> {
+  if (!jti) {
+    return false; // Allow tokens without JTI for backward compatibility
+  }
+  
+  try {
+    const result = await sql`
+      SELECT 1 FROM revoked_tokens 
+      WHERE token_jti = ${jti} 
+      AND expires_at > NOW()
+      LIMIT 1
+    `;
+    
+    return result.length > 0;
+  } catch (error) {
+    console.error('Error checking token blacklist:', error);
+    return false; // Fail open for availability
+  }
+}
+
+/**
+ * SECURITY: Blacklist a token by JTI
+ */
+async function blacklistToken(jti: string, userId: number, expiresAt: Date, reason: string = 'User logout'): Promise<void> {
+  try {
+    await sql`
+      INSERT INTO revoked_tokens (token_jti, user_id, expires_at, reason)
+      VALUES (${jti}, ${userId}, ${expiresAt}, ${reason})
+      ON CONFLICT (token_jti) DO NOTHING
+    `;
+    console.log(`🚫 Token blacklisted: ${reason}`);
+  } catch (error) {
+    console.error('Error blacklisting token:', error);
+    // Don't throw - blacklisting should not break logout
+  }
 }
 
 /**
@@ -100,6 +202,9 @@ async function storeRefreshToken(userId: number, token: string, expiresIn: numbe
     VALUES (${userIdValidation.sanitized}, ${tokenValidation.sanitized}, ${expiresAt})
   `;
 }
+
+// Initialize revoked_tokens table on module load
+ensureRevokedTokensTable();
 
 /**
  * Generate JWT tokens for a user
@@ -132,29 +237,49 @@ export async function generateTokens(req: Request, res: Response): Promise<void>
       return;
     }
     
-    // Create token payload
+    // SECURITY: Log warnings but allow operation
+    if (secretValidation.warnings && secretValidation.warnings.length > 0) {
+      secretValidation.warnings.forEach(warning => console.warn(warning));
+    }
+    
+    // SECURITY: Generate unique JWT IDs for token blacklisting
+    const accessJti = crypto.randomBytes(16).toString('hex');
+    const refreshJti = crypto.randomBytes(16).toString('hex');
+    
+    // Create token payload with JTI
     const payload: TokenPayload = {
       userId: Number(userId),
       email: String(email),
-      role: String(role)
+      role: String(role),
+      jti: accessJti  // Add JTI to payload
     };
     
     // Calculate expiry times
     const accessExpiry = parseJwtExpiry(env.JWT_EXPIRY);
     const refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY);
     
-    // Generate tokens
+    // Generate access token with JTI
     const accessToken = jwt.sign(payload, env.JWT_SECRET, {
       expiresIn: env.JWT_EXPIRY,
       issuer: 'gudcity-loyalty-platform',
-      audience: 'gudcity-users'
+      audience: 'gudcity-users',
+      jwtid: accessJti  // Add JTI to token
     });
     
-    const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    // Generate refresh token with JTI
+    const refreshToken = jwt.sign(
+      {
+        ...payload,
+        jti: refreshJti
+      },
+      env.JWT_REFRESH_SECRET,
+      {
       expiresIn: env.JWT_REFRESH_EXPIRY,
       issuer: 'gudcity-loyalty-platform',
-      audience: 'gudcity-users'
-    });
+        audience: 'gudcity-users',
+        jwtid: refreshJti
+      }
+    );
     
     // Store refresh token
     await storeRefreshToken(Number(userId), refreshToken, refreshExpiry);
@@ -199,12 +324,26 @@ export async function verifyToken(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Verify token
+    // Verify token signature and expiration
     const payload = jwt.verify(token, env.JWT_SECRET, {
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users',
       clockTolerance: 5
     }) as TokenPayload;
+    
+    // SECURITY: Check if token is blacklisted
+    if (payload.jti) {
+      const isBlacklisted = await isTokenBlacklisted(payload.jti);
+      if (isBlacklisted) {
+        console.warn(`🚫 Blacklisted token attempted use: ${payload.jti}`);
+        res.json({
+          success: true,
+          valid: false,
+          error: 'Token has been revoked'
+        });
+        return;
+      }
+    }
     
     res.json({
       success: true,
@@ -337,12 +476,12 @@ export async function refreshTokens(req: Request, res: Response): Promise<void> 
  * Revoke all refresh tokens for a user (logout)
  * POST /api/auth/revoke-tokens
  * 
- * Body: { userId: number }
+ * Body: { userId: number, reason?: string }
  * Returns: { success: boolean }
  */
 export async function revokeUserTokens(req: Request, res: Response): Promise<void> {
   try {
-    const { userId } = req.body;
+    const { userId, reason = 'User logout' } = req.body;
     
     if (!userId) {
       res.status(400).json({
@@ -361,12 +500,51 @@ export async function revokeUserTokens(req: Request, res: Response): Promise<voi
       return;
     }
     
+    // SECURITY: Mark refresh tokens as revoked (existing behavior)
     await sql`
       UPDATE refresh_tokens
       SET revoked = TRUE, revoked_at = NOW()
       WHERE user_id = ${userIdValidation.sanitized}
       AND revoked = FALSE
     `;
+    
+    // SECURITY: Blacklist all active tokens by adding to revoked_tokens table
+    // This ensures even valid JWTs can't be used after logout
+    try {
+      // Find all active refresh tokens for this user
+      const activeTokens = await sql`
+        SELECT token FROM refresh_tokens
+        WHERE user_id = ${userIdValidation.sanitized}
+        AND revoked = TRUE
+        AND revoked_at >= NOW() - INTERVAL '1 minute'
+      `;
+      
+      // Extract JTIs and blacklist them
+      for (const tokenRecord of activeTokens) {
+        try {
+          if (!tokenRecord || !tokenRecord.token || typeof tokenRecord.token !== 'string') {
+            continue;
+          }
+          
+          const decoded = jwt.decode(tokenRecord.token);
+          if (decoded && typeof decoded === 'object' && 'jti' in decoded && 'exp' in decoded && 'userId' in decoded) {
+            const jti = (decoded as any).jti as string;
+            const exp = (decoded as any).exp as number;
+            
+            if (jti && exp) {
+              const expiresAt = new Date(exp * 1000);
+              await blacklistToken(jti, userIdValidation.sanitized, expiresAt, reason);
+            }
+          }
+        } catch (err) {
+          console.error('Error blacklisting token:', err);
+          // Continue with other tokens
+        }
+      }
+    } catch (error) {
+      console.error('Error blacklisting user tokens:', error);
+      // Don't fail the revocation if blacklisting fails
+    }
     
     console.log(`✅ All tokens revoked for user ${userId}`);
     

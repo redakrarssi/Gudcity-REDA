@@ -40,8 +40,15 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(self)" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(self), payment=(), usb=(), magnetometer=(), gyroscope=()" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" },
+        { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
+        { 
+          "key": "Content-Security-Policy", 
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; font-src 'self' https://fonts.gstatic.com; object-src 'none'; media-src 'self' https:; frame-src 'none'; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; manifest-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" 
+        }
       ]
     }
   ],
