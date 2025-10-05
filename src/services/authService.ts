@@ -500,54 +500,18 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
       }
     }
 
-    // Method 2: SHA-256 with salt verification (our fallback format: sha256:salt:hash)
-    if (hashedPassword.startsWith('sha256:')) {
-      try {
-        const parts = hashedPassword.split(':');
-        if (parts.length !== 3) {
-          console.error('Invalid SHA-256 hash format');
-          return false;
-        }
-
-        const [, salt, hash] = parts;
-        if (!salt || !hash) {
-          console.error('Missing salt or hash in SHA-256 format');
-          return false;
-        }
-
-        const saltedPassword = `${salt}:${plainPassword}`;
-        const computedHash = await cryptoUtils.createSha256Hash(saltedPassword);
-        const isValid = computedHash === hash;
-        
-        console.log('✅ Password verified with SHA-256 fallback:', isValid ? 'valid' : 'invalid');
-        return isValid;
-
-      } catch (sha256Error) {
-        console.error('SHA-256 fallback verification failed:', sha256Error);
-        return false;
-      }
-    }
-
-    // Method 3: Legacy SHA-256 hash (plain hash without salt)
-    try {
-      if (!cryptoUtils || typeof cryptoUtils.createSha256Hash !== 'function') {
-        console.error('Crypto utilities not available for legacy hash verification');
-        return false;
-      }
-
-      const sha256Hash = await cryptoUtils.createSha256Hash(plainPassword);
-      const isValid = sha256Hash === hashedPassword;
-      
-      if (isValid) {
-        console.warn('⚠️ Password verified with legacy SHA-256 (consider upgrading to bcrypt)');
-      }
-      
-      return isValid;
-
-    } catch (legacyError) {
-      console.error('Legacy SHA-256 verification failed:', legacyError);
-      return false;
-    }
+    // SECURITY FIX: Removed SHA-256 fallback methods
+    // SHA-256 is NOT suitable for password hashing because:
+    // 1. It's too fast - vulnerable to brute force attacks
+    // 2. It doesn't have built-in salting in the standard implementation
+    // 3. It's not designed for password hashing (unlike bcrypt/scrypt/argon2)
+    
+    // If we reach here, the password hash is not in a supported format
+    console.error('❌ SECURITY: Unsupported password hash format detected');
+    console.error('❌ Only bcrypt hashes are supported for security reasons');
+    console.error('❌ Please reset your password to use the secure bcrypt format');
+    
+    return false;
 
   } catch (error) {
     console.error('Password verification error:', error);

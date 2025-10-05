@@ -190,14 +190,14 @@ router.get('/feedback/business/:businessId', auth, async (req: Request, res: Res
 /**
  * Get feedback history for a customer
  */
-router.get('/feedback/customer/:customerId', auth, async (req: Request, res: Response) => {
+// SECURITY FIX: Import proper authorization middleware
+import { requireSelfOrAdmin } from '../middleware/authorization';
+
+router.get('/feedback/customer/:customerId', auth, requireSelfOrAdmin, async (req: Request, res: Response) => {
   try {
     const customerId = validateUserId(req.params.customerId);
     
-    // Verify the requesting user has permission to access this data
-    if (req.user?.id !== customerId && req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized access to customer feedback' });
-    }
+    // SECURITY FIX: Authorization is now handled by requireSelfOrAdmin middleware
     
     // Get feedback history for this customer
     const feedbackHistory = await sql`

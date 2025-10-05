@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/authService';
 import { getUserById } from '../services/userService';
+// SECURITY FIX: Import token blacklist checking
+import { isTokenBlacklisted } from '../services/tokenBlacklistService';
 
 // Extend the Express Request type to include user property
 declare global {
@@ -64,6 +66,19 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
         code: 'AUTH_TOKEN_INVALID',
         message: 'The provided authentication token is invalid or has expired'
       });
+    }
+    
+    // SECURITY FIX: Check if token is blacklisted
+    if (payload.jti) {
+      const isBlacklisted = await isTokenBlacklisted(payload.jti);
+      if (isBlacklisted) {
+        console.error('AUTH ERROR: Token has been revoked');
+        return res.status(401).json({ 
+          error: 'Token has been revoked', 
+          code: 'AUTH_TOKEN_REVOKED',
+          message: 'This authentication token has been revoked and is no longer valid'
+        });
+      }
     }
     
     // Validate payload contains required fields

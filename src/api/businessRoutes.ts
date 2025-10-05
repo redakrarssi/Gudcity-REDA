@@ -14,6 +14,13 @@ import { handleAwardPoints } from './awardPointsHandler';
 // Import security utilities
 import { filterBusinessData, createFilterOptionsFromRequest } from '../utils/dataFilter';
 import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
+// SECURITY FIX: Import authorization middleware
+import { 
+  requireBusinessOwnership, 
+  requireAdmin, 
+  requireBusinessCustomerRelationship,
+  AuthRequest 
+} from '../middleware/authorization';
 
 const router = Router();
 
@@ -69,8 +76,9 @@ router.all('/award-points', (req: Request, res: Response) => {
 
 /**
  * Get business information by ID
+ * SECURITY FIX: Added business ownership verification to prevent IDOR
  */
-router.get('/businesses/:id', auth, async (req: Request, res: Response) => {
+router.get('/businesses/:id', auth, requireBusinessOwnership, async (req: Request, res: Response) => {
   try {
     const businessId = validateBusinessId(req.params.id);
     
@@ -108,7 +116,7 @@ interface BusinessEnrollmentResult {
   id: string;
   name: string;
 }
-router.get('/businesses/:id/enrolled-customers', auth, async (req: Request, res: Response) => {
+router.get('/businesses/:id/enrolled-customers', auth, requireBusinessOwnership, async (req: Request, res: Response) => {
   try {
     const { id: businessIdParam } = req.params;
     const { programId: programIdParam } = req.query;

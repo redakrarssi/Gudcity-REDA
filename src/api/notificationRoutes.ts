@@ -8,6 +8,8 @@ import { ensureEnrollmentProcedureExists } from '../utils/db';
 import { ApprovalRequestType } from '../types/customerNotification';
 import { emitNotification, emitApprovalRequest } from '../server';
 import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
+// SECURITY FIX: Import authorization middleware
+import { requireSelfOrAdmin, requireBusinessCustomerRelationship } from '../middleware/authorization';
 
 const router = Router();
 
@@ -56,8 +58,9 @@ router.get('/notifications/unread', auth, async (req: Request, res: Response) =>
 
 /**
  * Mark a notification as read
+ * SECURITY FIX: Added authorization to prevent users from marking others' notifications as read
  */
-router.put('/notifications/:id/read', auth, async (req: Request, res: Response) => {
+router.put('/notifications/:id/read', auth, requireSelfOrAdmin, async (req: Request, res: Response) => {
   try {
     const notificationId = req.params.id;
     const customerId = validateUserId(req.user?.id);
@@ -97,8 +100,9 @@ router.get('/approval-requests', auth, async (req: Request, res: Response) => {
 
 /**
  * Respond to an approval request
+ * SECURITY FIX: Added authorization to prevent unauthorized approval responses
  */
-router.put('/approval-requests/:id/respond', auth, async (req: Request, res: Response) => {
+router.put('/approval-requests/:id/respond', auth, requireSelfOrAdmin, async (req: Request, res: Response) => {
   try {
     const { approved } = req.body;
     

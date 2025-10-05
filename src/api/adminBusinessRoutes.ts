@@ -4,16 +4,13 @@ import sql from '../utils/db';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { BusinessAnalyticsService } from '../services/businessAnalyticsService';
 import { createSecureErrorResponse, isDevelopmentEnvironment } from '../utils/secureErrorResponse';
+// SECURITY FIX: Import proper authorization middleware
+import { requireAdmin } from '../middleware/authorization';
 
 const router = Router();
 
-// Admin-only guard for sensitive endpoints
-function requireAdmin(req: Request, res: Response, next: Function) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  next();
-}
+// SECURITY FIX: Using proper authorization middleware from authorization.ts
+// The requireAdmin function is now imported from the proper authorization middleware
 
 /**
  * Get comprehensive business data for admin panel
