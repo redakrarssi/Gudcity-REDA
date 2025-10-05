@@ -355,25 +355,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       let dbUser: any;
       let token: string | undefined;
       
-      // Try API first (production), fall back to direct DB (development)
-      try {
-        if (!IS_DEV) {
-          // PRODUCTION: Use secure backend API
-          const authResponse = await ApiClient.login({
-            email: normalizedEmail,
-            password
-          });
-          
-          if (authResponse && authResponse.user) {
-            dbUser = authResponse.user;
-            token = authResponse.token;
-          }
+      // PRODUCTION: Always use secure backend API
+      if (!IS_DEV) {
+        const authResponse = await ApiClient.login({
+          email: normalizedEmail,
+          password
+        });
+        
+        if (authResponse && authResponse.user) {
+          dbUser = authResponse.user;
+          token = authResponse.token;
         } else {
-          throw new Error('Development mode - using direct database access');
+          throw new Error('Invalid login response from server');
         }
-      } catch (apiError) {
-        // DEVELOPMENT FALLBACK: Use direct database access
-        console.warn('API not available, using direct database access (development only):', apiError);
+      } else {
+        // DEVELOPMENT: Use direct database access only in development
+        console.warn('Development mode - using direct database access');
         dbUser = await validateUser(normalizedEmail, password);
         
         // In development, generate a simple token
