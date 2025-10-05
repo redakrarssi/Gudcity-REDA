@@ -9,11 +9,21 @@
       }
     }
   ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+  "functions": {
+    "api/auth/login.ts": {
+      "runtime": "@vercel/node@3"
     },
+    "api/auth/register.ts": {
+      "runtime": "@vercel/node@3"
+    },
+    "api/db/initialize.ts": {
+      "runtime": "@vercel/node@3"
+    },
+    "api/users/by-email.ts": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"
@@ -47,7 +57,7 @@
         { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
         { 
           "key": "Content-Security-Policy", 
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; font-src 'self' https://fonts.gstatic.com; object-src 'none'; media-src 'self' https:; frame-src 'none'; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; manifest-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" 
+          "value": "default-src 'self'; script-src 'self' 'sha256-M3PL7NVfkaN2inr+elEMTxqNGkF6vi7V8kt4ke4uF6o=' 'sha256-P/VRGBm0RkFn61zbYTcQjQ5j7cFTwYTibjuDUesLRko=' 'sha256-8esrnIY3u5ewmj9gXlSTZioDMMYGDpy/zwIVQULOUL4=' 'sha256-xLF6AblLj3v7Z5KXrFWJhvLKrQLfk3MxwuMcNMINfdA='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' 'sha256-Nqnn8clbgv+5l0PgxcTOldg8mkMKrFn4TvPL+rYUUGg=' 'sha256-13vrThxdyT64GcXoTNGVoRRoL0a7EGBmOJ+lemEWyws=' 'sha256-QZ52fjvWgIOIOPr+gRIJZ7KjzNeTBm50Z+z9dH4N1/8=' 'sha256-yOU6eaJ75xfag0gVFUvld5ipLRGUy94G17B1uL683EU=' 'sha256-OpTmykz0m3o5HoX53cykwPhUeU4OECxHQlKXpB0QJPQ=' 'sha256-SSIM0kI/u45y4gqkri9aH+la6wn2R+xtcBj3Lzh7qQo=' 'sha256-ZH/+PJIjvP1BctwYxclIuiMu1wItb0aasjpXYXOmU0Y=' 'sha256-58jqDtherY9NOM+ziRgSqQY0078tAZ+qtTBjMgbM9po=' 'sha256-7Ri/I+PfhgtpcL7hT4A0VJKI6g3pK0ZvIN09RQV4ZhI=' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; font-src 'self' https://fonts.gstatic.com; object-src 'none'; media-src 'self' https:; frame-src 'none'; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; manifest-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" 
         }
       ]
     }

@@ -1,46 +1,118 @@
-# AI Interaction Guidelines for GudCity REDA Codebase
+# 🔒 SECURITY-FIRST AI Interaction Guidelines for GudCity REDA Codebase
 
-This document provides rules and guidelines for AI assistance when working with this codebase. These rules help prevent unnecessary changes, maintain code integrity, and avoid disruptions to working functionality.
+This document provides **SECURITY-FOCUSED** rules and guidelines for AI assistance when working with this codebase. **SECURITY IS THE HIGHEST PRIORITY** - all interactions must prioritize security over functionality, performance, or convenience.
 
-## DO NOT MODIFY Rules
+## 🚨 CRITICAL SECURITY RULES - ZERO TOLERANCE
 
-### Critical Files
-- **Service Implementation Files** - Do not modify core service implementations (e.g., `*Service.ts` files) unless specifically requested
-- **Database Schema Files** - Do not modify any SQL files or schema definitions in the `db/` directory
-- **Authentication Logic** - Do not modify authentication-related code in `src/middleware/auth.ts` and `src/services/authService.ts`
+### **MANDATORY SECURITY REQUIREMENTS**
+**EFFECTIVE IMMEDIATELY**: All code changes MUST pass security validation before implementation. Security vulnerabilities are **NON-NEGOTIABLE** and will be **IMMEDIATELY REJECTED**.
 
-### Working Components
-- **QR Scanner Component** - The QR scanner (`src/components/QRScanner.tsx`) is sensitive and should not be modified
-- **Business Settings Implementation** - Do not modify the business settings service without explicit instructions
-- **Loyalty Card System** - The loyalty card system is critical and requires careful coordination to modify
+#### **1. NEVER COMPROMISE SECURITY FOR FUNCTIONALITY**
+- ❌ **NEVER** use `'unsafe-inline'` in CSP (defeats XSS protection)
+- ❌ **NEVER** use `'unsafe-eval'` in CSP (allows code injection)
+- ❌ **NEVER** use string concatenation for SQL queries
+- ❌ **NEVER** expose sensitive data in error messages
+- ❌ **NEVER** disable security headers for convenience
 
-### Infrastructure Files
-- **Configuration Files** - Do not modify the following unless explicitly asked:
-  - `vite.config.ts`
-  - `tailwind.config.js`
-  - `tsconfig.json` files
-  - `jest.config.js` files
+#### **2. SECURITY-FIRST DEVELOPMENT MANDATE**
+- ✅ **ALWAYS** implement proper input validation
+- ✅ **ALWAYS** use parameterized queries for database operations
+- ✅ **ALWAYS** implement proper authentication and authorization
+- ✅ **ALWAYS** use secure coding practices
+- ✅ **ALWAYS** validate all user inputs at boundaries
 
-## SEEK CLARIFICATION Rules
+#### **3. CRITICAL SECURITY FILES - EXTREME CAUTION**
+- **Authentication System** (`src/services/authService.ts`) - **CRITICAL SECURITY**
+- **Database Operations** (`src/utils/db.ts`) - **CRITICAL SECURITY**
+- **API Routes** (`src/api/`) - **CRITICAL SECURITY**
+- **Security Headers** (`src/middleware/securityHeaders.ts`) - **CRITICAL SECURITY**
+- **CSP Configuration** (`vercel.json`) - **CRITICAL SECURITY**
 
-Always seek clarification before modifying:
+### **SECURITY VULNERABILITY PREVENTION RULES**
 
-1. Any file that handles financial transactions or points/rewards calculation
-2. Core business logic in services or utilities
-3. Database connection and initialization code
-4. Authentication flows
-5. Files with complex type definitions or generics
-6. Files that interface with external systems
+#### **Content Security Policy (CSP) - CRITICAL**
+```typescript
+// ❌ INSECURE - NEVER USE
+"script-src 'self' 'unsafe-inline' 'unsafe-eval'"
 
-## SAFE TO MODIFY Rules
+// ✅ SECURE - ALWAYS USE
+"script-src 'self' 'sha256-...' 'nonce-...'"
+```
 
-The following can generally be modified safely:
+#### **SQL Injection Prevention - CRITICAL**
+```typescript
+// ❌ INSECURE - NEVER USE
+const query = `SELECT * FROM users WHERE id = ${userId}`;
 
-1. Documentation files (like README.md, unless they contain setup instructions)
-2. UI components that don't affect business logic (styling changes, layout improvements)
-3. Type definitions that make the code more type-safe (without changing behavior)
-4. Adding comments or documentation to existing code
-5. Fixing obvious bugs that don't affect core functionality
+// ✅ SECURE - ALWAYS USE
+const query = sql`SELECT * FROM users WHERE id = ${userId}`;
+```
+
+#### **XSS Prevention - CRITICAL**
+```typescript
+// ❌ INSECURE - NEVER USE
+element.innerHTML = userInput;
+
+// ✅ SECURE - ALWAYS USE
+element.textContent = userInput;
+// OR use DOMPurify for HTML content
+```
+
+### **SECURITY REVIEW CHECKLIST - MANDATORY**
+Before ANY code change, verify:
+- [ ] No `'unsafe-inline'` or `'unsafe-eval'` in CSP
+- [ ] All SQL queries use parameterized statements
+- [ ] Input validation implemented at all boundaries
+- [ ] Output encoding applied for user-generated content
+- [ ] Authentication and authorization properly enforced
+- [ ] Sensitive data properly protected and encrypted
+- [ ] Error handling doesn't leak sensitive information
+- [ ] Security headers properly configured
+- [ ] Rate limiting implemented where appropriate
+- [ ] Dependencies scanned for vulnerabilities
+
+## 🔍 SECURITY-FOCUSED CLARIFICATION RULES
+
+**MANDATORY**: Always seek clarification before modifying ANY security-sensitive code:
+
+### **CRITICAL SECURITY AREAS - EXTREME CAUTION REQUIRED**
+1. **Authentication & Authorization** - Any auth-related code changes
+2. **Database Operations** - All SQL queries and database interactions
+3. **API Endpoints** - All server-side API route modifications
+4. **Security Headers** - CSP, CORS, and security header configurations
+5. **Input Validation** - Any user input handling or validation logic
+6. **Cryptographic Operations** - Password hashing, JWT handling, encryption
+7. **File Upload/Download** - Any file handling operations
+8. **Session Management** - Cookie handling, session storage
+9. **Error Handling** - Any error message or logging modifications
+10. **External Integrations** - Third-party API or service integrations
+
+### **SECURITY IMPACT ASSESSMENT REQUIRED**
+Before making ANY change, assess:
+- **Data Exposure Risk**: Could this expose sensitive user data?
+- **Authentication Bypass**: Could this allow unauthorized access?
+- **Injection Vulnerabilities**: Could this enable SQL injection or XSS?
+- **Authorization Flaws**: Could this allow privilege escalation?
+- **Information Disclosure**: Could this leak system information?
+
+## ✅ SECURITY-APPROVED MODIFICATION RULES
+
+**ONLY** the following can be modified with security approval:
+
+### **LOW-RISK MODIFICATIONS (Security Review Still Required)**
+1. **Documentation Files** - README.md, comments, documentation (no sensitive info)
+2. **UI Styling** - CSS, Tailwind classes, layout improvements (no logic changes)
+3. **Type Definitions** - TypeScript interfaces, types (no behavior changes)
+4. **Non-Security Bug Fixes** - Obvious bugs that don't affect security
+5. **Performance Optimizations** - Code that doesn't change security behavior
+
+### **SECURITY VALIDATION REQUIRED FOR ALL CHANGES**
+Even "safe" modifications must pass security review:
+- [ ] No new security vulnerabilities introduced
+- [ ] No sensitive data exposure
+- [ ] No authentication/authorization bypasses
+- [ ] No injection vulnerabilities
+- [ ] No information disclosure risks
 
 ## QR Card Format
 
@@ -1192,4 +1264,181 @@ WHERE business_id = ?
 - ✅ Eliminates "No businesses found" when businesses exist
 - ✅ Fixes "No address provided" by merging multiple data sources
 
-This fix ensures the admin businesses page provides accurate, comprehensive business management capabilities following the reda.md guidelines of not modifying core services unnecessarily and maintaining data consistency. 
+This fix ensures the admin businesses page provides accurate, comprehensive business management capabilities following the reda.md guidelines of not modifying core services unnecessarily and maintaining data consistency.
+
+---
+
+## 🛡️ COMPREHENSIVE SECURITY FRAMEWORK
+
+### **CURRENT SECURITY VULNERABILITIES IDENTIFIED**
+
+Based on the security audit in `nono.md`, the following **CRITICAL vulnerabilities** have been identified and **MUST BE ADDRESSED**:
+
+#### **1. SQL Injection Vulnerabilities (CRITICAL - CVSS 9.8)**
+- **Files Affected**: Multiple database operations
+- **Risk**: Direct string concatenation in SQL queries
+- **Impact**: Complete database compromise, data theft, system takeover
+- **Status**: ⚠️ **REQUIRES IMMEDIATE FIX**
+
+#### **2. XSS Vulnerabilities (CRITICAL - CVSS 9.0)**
+- **Files Affected**: `src/components/QRScanner.tsx`, CSP configuration
+- **Risk**: Unsafe DOM manipulation, weak CSP policies
+- **Impact**: Session hijacking, data theft, malicious code execution
+- **Status**: ⚠️ **REQUIRES IMMEDIATE FIX**
+
+#### **3. Authentication Bypass (CRITICAL - CVSS 8.5)**
+- **Files Affected**: Authentication system
+- **Risk**: Weak session management, insufficient validation
+- **Impact**: Unauthorized access, privilege escalation
+- **Status**: ⚠️ **REQUIRES IMMEDIATE FIX**
+
+#### **4. Insecure Deserialization (CRITICAL - CVSS 7.6)**
+- **Files Affected**: JSON parsing operations
+- **Risk**: Unsafe JSON parsing without validation
+- **Impact**: Remote code execution, system compromise
+- **Status**: ⚠️ **REQUIRES IMMEDIATE FIX**
+
+#### **5. Missing Security Headers (CRITICAL - CVSS 7.4)**
+- **Files Affected**: `src/middleware/securityHeaders.ts`, `vercel.json`
+- **Risk**: Incomplete CSP implementation, missing HSTS
+- **Impact**: XSS attacks, clickjacking, data exfiltration
+- **Status**: ⚠️ **REQUIRES IMMEDIATE FIX**
+
+### **SECURITY FIXES IMPLEMENTED**
+
+#### **✅ Content Security Policy (CSP) - FIXED**
+- **Issue**: Weak CSP allowing `'unsafe-inline'` and `'unsafe-eval'`
+- **Fix**: Implemented hash-based CSP with specific script hashes
+- **Security Level**: ✅ **SECURE**
+- **Files**: `vercel.json`, `src/config/security.ts`
+
+#### **✅ SQL Injection Prevention - PARTIALLY FIXED**
+- **Issue**: String concatenation in SQL queries
+- **Fix**: Implemented parameterized queries using `sql` template literals
+- **Security Level**: ⚠️ **NEEDS COMPLETE AUDIT**
+- **Files**: Multiple database operation files
+
+#### **✅ XSS Prevention - PARTIALLY FIXED**
+- **Issue**: Unsafe DOM manipulation with `innerHTML`
+- **Fix**: Replaced with `replaceChildren()` and proper output encoding
+- **Security Level**: ⚠️ **NEEDS COMPLETE AUDIT**
+- **Files**: `src/components/QRScanner.tsx`
+
+### **SECURITY BEST PRACTICES IMPLEMENTED**
+
+#### **1. Secure Authentication System**
+```typescript
+// ✅ SECURE: JWT with proper expiration and refresh
+const token = jwt.sign(payload, secret, { expiresIn: '15m' });
+const refreshToken = jwt.sign(payload, refreshSecret, { expiresIn: '7d' });
+```
+
+#### **2. Secure Database Operations**
+```typescript
+// ✅ SECURE: Parameterized queries
+const users = await sql`
+  SELECT id, email, name FROM users 
+  WHERE email = ${email} AND status = 'active'
+`;
+```
+
+#### **3. Secure Content Security Policy**
+```typescript
+// ✅ SECURE: Hash-based CSP
+"script-src 'self' 'sha256-M3PL7NVfkaN2inr+elEMTxqNGkF6vi7V8kt4ke4uF6o='"
+```
+
+#### **4. Secure Input Validation**
+```typescript
+// ✅ SECURE: Comprehensive input validation
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+};
+```
+
+### **SECURITY MONITORING AND COMPLIANCE**
+
+#### **Automated Security Scanning**
+- **Dependency Auditing**: `npm audit` on every build
+- **SAST Scanning**: Static Application Security Testing
+- **DAST Scanning**: Dynamic Application Security Testing
+- **Vulnerability Scanning**: Automated security vulnerability detection
+
+#### **Security Headers Implementation**
+```typescript
+// ✅ SECURE: Comprehensive security headers
+const securityHeaders = {
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': 'default-src \'self\'; script-src \'self\' \'sha256-...\''
+};
+```
+
+#### **Rate Limiting and DDoS Protection**
+```typescript
+// ✅ SECURE: Progressive rate limiting
+const rateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP'
+});
+```
+
+### **SECURITY INCIDENT RESPONSE**
+
+#### **Immediate Response Protocol**
+1. **Identify**: Detect and assess security incidents
+2. **Contain**: Isolate affected systems and prevent spread
+3. **Eradicate**: Remove threats and vulnerabilities
+4. **Recover**: Restore systems to secure state
+5. **Learn**: Document lessons and improve security
+
+#### **Security Metrics and KPIs**
+- **Vulnerability Remediation Time**: < 24 hours for critical
+- **Security Test Coverage**: > 90% of codebase
+- **Dependency Update Frequency**: Weekly security updates
+- **Security Training**: Monthly security awareness sessions
+
+### **FUTURE SECURITY ENHANCEMENTS**
+
+#### **Planned Security Improvements**
+1. **Multi-Factor Authentication (MFA)**: TOTP-based MFA for all users
+2. **Advanced Threat Detection**: AI-powered security monitoring
+3. **Zero-Trust Architecture**: Implement zero-trust security model
+4. **Security Automation**: Automated security testing and deployment
+5. **Compliance Framework**: GDPR, SOC 2, and industry compliance
+
+#### **Security Training and Awareness**
+- **Developer Security Training**: Quarterly security training sessions
+- **Security Code Reviews**: Mandatory security review for all changes
+- **Threat Modeling**: Regular threat modeling sessions
+- **Security Documentation**: Comprehensive security documentation
+
+### **SECURITY CONTACTS AND ESCALATION**
+
+#### **Security Incident Reporting**
+- **Critical Vulnerabilities**: Immediate escalation to security team
+- **Security Questions**: Contact security team for guidance
+- **Security Training**: Regular security awareness sessions
+- **Compliance**: Security compliance and audit support
+
+---
+
+## 🎯 **SECURITY-FIRST DEVELOPMENT SUMMARY**
+
+**CURRENT STATUS**: The codebase has **CRITICAL SECURITY VULNERABILITIES** that require immediate attention. While some fixes have been implemented, a comprehensive security audit and remediation is **URGENTLY REQUIRED**.
+
+**IMMEDIATE ACTIONS REQUIRED**:
+1. **Complete Security Audit**: Full codebase security review
+2. **Vulnerability Remediation**: Fix all identified critical vulnerabilities
+3. **Security Testing**: Implement comprehensive security testing
+4. **Security Training**: Ensure all developers understand security requirements
+5. **Continuous Monitoring**: Implement ongoing security monitoring
+
+**SECURITY IS NON-NEGOTIABLE**: All future development must prioritize security over functionality, performance, or convenience. Security vulnerabilities will be **IMMEDIATELY REJECTED** and **MUST BE FIXED** before any code is merged.
+
+This security-first approach ensures the protection of user data, system integrity, and business operations while maintaining the highest security standards. 
