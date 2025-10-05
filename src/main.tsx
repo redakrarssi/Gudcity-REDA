@@ -91,9 +91,15 @@ const AppLoading = () => (
   </div>
 );
 
-// Initialize the database and app when it starts
-initDb();
-startAppInitialization();
+// Initialize the database and app when it starts (development only)
+const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
+if (IS_DEV) {
+  initDb();
+  startAppInitialization();
+} else {
+  // In production, only initialize app without database access
+  console.log('Production mode: Skipping client-side database initialization');
+}
 
 // Log app version and initialization
   console.log(`Vcarda App v${import.meta.env.VITE_APP_VERSION || '1.0.0'}`);
