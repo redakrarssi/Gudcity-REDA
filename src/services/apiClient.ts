@@ -7,7 +7,7 @@
 // In local development, API routes don't exist yet
 // In production (Vercel), they're serverless functions
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
-const API_BASE_URL = IS_DEV ? '' : (import.meta.env.VITE_API_URL || '/api');
+const API_BASE_URL = IS_DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
 interface ApiResponse<T = any> {
   data?: T;
