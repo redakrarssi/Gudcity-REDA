@@ -70,8 +70,16 @@ async function recordFailedLogin(email: string, ipAddress?: string): Promise<voi
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', process.env.VITE_APP_URL || '*');
+  // CORS headers - Allow requests from the same origin
+  const origin = req.headers.origin || req.headers.referer || '*';
+  const allowedOrigins = [
+    process.env.VITE_APP_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    'https://gudcity-reda.vercel.app'
+  ].filter(Boolean);
+  
+  const isAllowedOrigin = allowedOrigins.some(allowed => origin.includes(allowed as string));
+  res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? origin : allowedOrigins[0] || '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
