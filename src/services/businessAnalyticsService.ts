@@ -1,4 +1,4 @@
-import { ProductionSafeService } from '../utils/productionApiClient';
+import sql from '../utils/db';
 import { CustomerService } from './customerService';
 import { PromoService } from './promoService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
@@ -51,8 +51,52 @@ export class BusinessAnalyticsService {
     try {
       console.log(`Fetching analytics for business ${businessId} for period: ${period}`);
       
-      // Use ProductionSafeService to handle API vs DB access
-      return await ProductionSafeService.getBusinessAnalytics(parseInt(businessId), period);
+      // Calculate date range based on period
+      const { startDate, endDate } = this.getDateRange(period);
+      
+      // Execute all queries in parallel for better performance
+      const [
+        totalPoints,
+        totalRedemptions,
+        activeCustomers,
+        retentionRate,
+        redemptionRate,
+        popularRewards,
+        customerEngagement,
+        pointsDistribution,
+        totalPrograms,
+        totalPromoCodes,
+        averagePointsPerCustomer,
+        topPerformingPrograms
+      ] = await Promise.all([
+        this.getTotalPoints(businessId, startDate, endDate),
+        this.getTotalRedemptions(businessId, startDate, endDate),
+        this.getActiveCustomers(businessId, startDate, endDate),
+        this.getRetentionRate(businessId, startDate, endDate),
+        this.getRedemptionRate(businessId, startDate, endDate),
+        this.getPopularRewards(businessId, startDate, endDate),
+        this.getCustomerEngagement(businessId, startDate, endDate),
+        this.getPointsDistribution(businessId, startDate, endDate),
+        this.getTotalPrograms(businessId),
+        this.getTotalPromoCodes(businessId),
+        this.getAveragePointsPerCustomer(businessId, startDate, endDate),
+        this.getTopPerformingPrograms(businessId, startDate, endDate)
+      ]);
+      
+      return {
+        totalPoints,
+        totalRedemptions,
+        activeCustomers,
+        retentionRate,
+        redemptionRate,
+        popularRewards,
+        customerEngagement,
+        pointsDistribution,
+        totalPrograms,
+        totalPromoCodes,
+        averagePointsPerCustomer,
+        topPerformingPrograms
+      };
     } catch (error) {
       console.error('Error fetching business analytics:', error);
       throw error;

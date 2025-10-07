@@ -1,11 +1,20 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import { sql } from '../../../src/utils/db';
+/**
+ * Vercel Serverless API: Get User by ID
+ * This runs on the backend with secure database access
+ */
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { neon } from '@neondatabase/serverless';
+
+// SERVER-SIDE ONLY: Access database without VITE_ prefix
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.VITE_APP_URL || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -15,29 +24,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!sql) {
+    return res.status(500).json({ error: 'Database not configured' });
+  }
+
   try {
     const { id } = req.query;
 
-    if (!id) {
-      return res.status(400).json({ error: 'Missing user ID' });
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ error: 'Valid user ID is required' });
     }
 
-    const userId = parseInt(id as string);
-
-    const result = await sql`
-      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
-      FROM users WHERE id = ${userId}
+    // Get user from database (without password)
+    const users = await sql`
+      SELECT 
+        id, email, name, user_type, role, status,
+        created_at, last_login, phone, address,
+        business_name, business_address, business_phone,
+        tier, loyalty_points, total_spent
+      FROM users 
+      WHERE id = ${Number(id)}
+      LIMIT 1
     `;
-    
-    if (!result || result.length === 0) {
+
+    if (users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    const user = result[0];
-    
-    res.status(200).json(user);
+
+    // Return user data (password is not selected)
+    return res.status(200).json({ user: users[0] });
+
   } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
+    console.error('Get user by ID error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
   }
 }

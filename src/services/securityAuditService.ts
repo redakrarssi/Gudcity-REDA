@@ -4,7 +4,7 @@
  * following reda.md guidelines for security best practices
  */
 
-import { ProductionSafeService } from '../utils/productionApiClient';
+import sql from '../utils/db';
 
 export interface SecurityAuditEvent {
   id?: number;
@@ -44,17 +44,25 @@ export class SecurityAuditService {
     userAgent?: string
   ): Promise<void> {
     try {
-      // Use ProductionSafeService to handle API vs DB access
-      await ProductionSafeService.logSecurityEvent({
-        userId: parseInt(userId),
-        event: eventType,
-        ipAddress,
-        userAgent,
-        metadata: {
-          resourceId,
-          details
-        }
-      });
+      await sql`
+        INSERT INTO security_audit_logs (
+          action_type,
+          resource_id,
+          user_id,
+          ip_address,
+          user_agent,
+          details,
+          timestamp
+        ) VALUES (
+          ${eventType},
+          ${resourceId},
+          ${userId},
+          ${ipAddress || 'unknown'},
+          ${userAgent || 'unknown'},
+          ${JSON.stringify(details || {})},
+          NOW()
+        )
+      `;
 
       console.log(`🔍 Security Event Logged: ${eventType} for user ${userId}`);
     } catch (error) {

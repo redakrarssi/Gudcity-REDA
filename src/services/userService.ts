@@ -1,4 +1,4 @@
-import { ProductionSafeService } from '../utils/productionApiClient';
+import sql from '../utils/db';
 import env from '../utils/env';
 import * as cryptoUtils from '../utils/cryptoUtils';
 import { revokeAllUserTokens } from './authService';
@@ -113,8 +113,26 @@ export async function getUserById(id: number): Promise<User | null> {
       return null;
     }
     
-    // Use ProductionSafeService to handle API vs DB access
-    return await ProductionSafeService.getUserById(id);
+    const result = await sql`
+      SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
+      FROM users WHERE id = ${id}
+    `;
+    
+    if (!result || result.length === 0) {
+      console.log(`No user found with ID: ${id}`);
+      return null;
+    }
+    
+    const user = result[0];
+    console.log(`User found with ID ${id}:`, { 
+      id: user.id, 
+      name: user.name, 
+      email: user.email,
+      role: user.role,
+      user_type: user.user_type
+    });
+    
+    return user as User;
   } catch (error) {
     console.error(`Error fetching user with id ${id}:`, error);
     if (error instanceof Error) {

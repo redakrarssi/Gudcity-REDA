@@ -98,13 +98,13 @@ export class ProductionSafeService {
   }
 
   static async getUnreadNotifications(customerId: number): Promise<any[]> {
-    return apiRequest(`/api/customers/${customerId}/unread-notifications`, {
+    return apiRequest(`/api/customers/${customerId}/notifications?unread=true`, {
       method: 'GET',
     });
   }
 
   static async getPendingApprovals(customerId: number): Promise<any[]> {
-    return apiRequest(`/api/customers/${customerId}/pending-approvals`, {
+    return apiRequest(`/api/customers/${customerId}/approvals`, {
       method: 'GET',
     });
   }
@@ -214,30 +214,6 @@ export class ProductionSafeService {
   /**
    * Redemption Notifications API calls
    */
-  static async getBusinessSettings(businessId: number): Promise<any> {
-    return apiRequest(`/api/businesses/${businessId}/settings`, {
-      method: 'GET',
-    });
-  }
-
-  static async getCustomerEnrolledPrograms(customerId: number): Promise<any[]> {
-    return apiRequest(`/api/customers/${customerId}/programs`, {
-      method: 'GET',
-    });
-  }
-
-  static async getUserById(userId: number): Promise<any> {
-    return apiRequest(`/api/users/${userId}`, {
-      method: 'GET',
-    });
-  }
-
-  static async getBusinessAnalytics(businessId: number, period: string): Promise<any> {
-    return apiRequest(`/api/businesses/${businessId}/analytics?period=${period}`, {
-      method: 'GET',
-    });
-  }
-
   static async getBusinessRedemptionNotifications(businessId: number): Promise<any[]> {
     return apiRequest(`/api/businesses/${businessId}/redemptions`, {
       method: 'GET',
