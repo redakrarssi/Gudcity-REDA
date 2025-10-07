@@ -3,7 +3,7 @@ import { createStandardCustomerQRCode, StandardQrCodeData } from '../utils/stand
 import { User } from './userService';
 import { v4 as uuidv4 } from 'uuid';
 import { createHmac } from '../utils/cryptoUtils';
-import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import db from '../utils/databaseConnector';
 import { logger } from '../utils/logger';
 import QrDataManager from '../utils/qrDataManager';
@@ -387,21 +387,8 @@ export class UserQrCodeService {
    */
   static async getCustomerEnrolledPrograms(userId: string): Promise<any[]> {
     try {
-      // Use tagged template literals instead of sql.query
-      const result = await sql`
-        SELECT 
-          cp.id, 
-          cp.program_id, 
-          lp.name as program_name, 
-          lp.description, 
-          cp.current_points,
-          cp.enrolled_at
-        FROM customer_programs cp
-        JOIN loyalty_programs lp ON cp.program_id = lp.id
-        WHERE cp.customer_id = ${userId}
-      `;
-
-      return result;
+      // Use ProductionSafeService to handle API vs DB access
+      return await ProductionSafeService.getCustomerEnrolledPrograms(parseInt(userId));
     } catch (error) {
       logger.error('Error getting customer enrolled programs:', error);
       // Return empty array instead of null to avoid UI errors
