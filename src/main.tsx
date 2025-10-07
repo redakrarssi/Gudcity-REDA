@@ -69,6 +69,10 @@ import './utils/serverMock';
 import { suppressBrowserExtensionErrors } from './utils/browserSupport';
 suppressBrowserExtensionErrors();
 
+// CRITICAL FIX: Suppress harmless browser extension errors
+import { suppressBrowserExtensionErrors as suppressExtensionErrors } from './utils/browserExtensionFix';
+suppressExtensionErrors();
+
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';

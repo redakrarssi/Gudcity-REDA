@@ -174,9 +174,19 @@ class DbConnectionManager {
     const isBrowser = typeof window !== 'undefined';
     
     if (isProduction && isBrowser) {
+      // Provide helpful error with guidance
+      const stack = new Error().stack;
+      console.error('🚫 PRODUCTION SECURITY: Direct DB access blocked', {
+        environment: 'production',
+        context: 'browser',
+        solution: 'Use ProductionSafeService from src/utils/productionApiClient.ts',
+        calledFrom: stack
+      });
+      
       throw new Error(
         'SECURITY: Direct database access blocked in production. ' +
-        'Use API endpoints instead of direct database queries.'
+        'Use API endpoints via ProductionSafeService instead. ' +
+        'Import from: src/utils/productionApiClient.ts'
       );
     }
     

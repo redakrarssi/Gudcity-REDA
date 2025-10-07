@@ -12,6 +12,8 @@ import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 // SECURITY FIX: Use API client in production, fallback to direct DB in development
 import ApiClient from '../services/apiClient';
+// CRITICAL FIX: Import generateTokens function for JWT token generation
+import { generateTokens } from '../services/authService';
 
 // Development mode detection
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';

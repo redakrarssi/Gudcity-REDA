@@ -9,6 +9,10 @@
       "memory": 1024,
       "maxDuration": 30
     },
+    "api/auth/generate-tokens.ts": {
+      "memory": 512,
+      "maxDuration": 10
+    },
     "api/db/initialize.ts": {
       "memory": 1024,
       "maxDuration": 60
