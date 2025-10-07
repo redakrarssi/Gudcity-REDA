@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:full": "node dev-server.js",
     "build": "vite build && node scripts/patch-vendor-charts.js",
     "build:vercel": "node scripts/vercel-build.js",
     "postbuild": "node scripts/disable-sound.js",

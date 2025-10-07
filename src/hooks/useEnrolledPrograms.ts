@@ -1,9 +1,7 @@
 import { useAuth } from '../contexts/AuthContext';
 import { CustomerProgram, LoyaltyProgram, Business, RewardTier } from '../types/loyalty';
 import { useDataLoader } from './useDataLoader';
-import db from '../utils/databaseConnector';
 import { logger } from '../utils/logger';
-import sql from '../utils/db';
 
 // Combined data structure for enrolled programs
 export interface EnrolledProgramData extends CustomerProgram {
@@ -27,50 +25,22 @@ export function useEnrolledPrograms() {
         throw new Error('Authentication required');
       }
       
-      // Convert user ID to integer for database query
-      const userIdNumber = parseInt(userId, 10);
-      if (isNaN(userIdNumber)) {
-        throw new Error('Invalid user ID');
-      }
-      
       try {
-        // Use a parameterized query with safe SQL interpolation
-        const query = sql`
-          SELECT 
-            cp.id, 
-            cp.customer_id AS "customerId", 
-            cp.program_id AS "programId", 
-            cp.current_points AS "currentPoints", 
-            cp.enrolled_at AS "enrolledAt",
-            cp.status AS "enrollmentStatus",
-            lp.id AS "program_id", 
-            lp.business_id AS "program_businessId",
-            lp.name AS "program_name", 
-            lp.description AS "program_description", 
-            lp.type AS "program_type", 
-            1.0 AS "program_pointValue", -- Use constant value instead of problematic columns
-            365 AS "program_expirationDays", -- Add default value
-            lp.status AS "program_status",
-            lp.created_at AS "program_createdAt", 
-            lp.updated_at AS "program_updatedAt",
-            b.id AS "business_id",
-            b.name AS "business_name",
-            '' AS "business_category", -- Default empty string for missing column
-            '' AS "business_address", -- Default empty string for potentially missing column
-            '' AS "business_city", -- Default empty string for potentially missing column
-            '' AS "business_state", -- Default empty string for potentially missing column
-            '' AS "business_country" -- Default empty string for potentially missing column
-          FROM program_enrollments cp
-          JOIN loyalty_programs lp ON (cp.program_id::int = lp.id)
-          JOIN users b ON lp.business_id = b.id
-          WHERE (cp.customer_id::int = ${userIdNumber})
-          AND cp.status = 'ACTIVE'
-          AND lp.status = 'ACTIVE'
-          ORDER BY cp.current_points DESC
-        `;
+        // Use API call instead of direct database access
+        const response = await fetch(`/api/customers/${userId}/programs`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
-        // Execute the query
-        const result = await query;
+        if (!response.ok) {
+          throw new Error(`API call failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const result = data.programs || [];
         
         if (!result || result.length === 0) {
           return [];
@@ -152,20 +122,22 @@ async function batchFetchRewardTiers(programIds: any[]): Promise<Map<string | nu
   const rewardTiersMap = new Map<string | number, RewardTier[]>();
   
   try {
-    // Create the SQL query using tagged template literals
-    const query = sql`
-      SELECT 
-        id, 
-        program_id AS "programId", 
-        points_required AS "pointsRequired", 
-        reward
-      FROM reward_tiers
-      WHERE program_id = ANY(${programIds})
-      ORDER BY program_id, points_required ASC
-    `;
+    // Use API call instead of direct database access
+    const response = await fetch('/api/customers/reward-tiers', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ programIds })
+    });
     
-    // Execute the query directly
-    const rewards = await query;
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const rewards = data.rewardTiers || [];
     
     // Group rewards by program ID
     rewards.forEach(reward => {

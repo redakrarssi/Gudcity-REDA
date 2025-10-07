@@ -5,7 +5,6 @@ import {
   UserRole, 
   UserType,
   getUserById,
-  validateUser,
   createUser as createDbUser,
   getUserByEmail,
 } from '../services/userService';
@@ -270,7 +269,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             
             // Validate user status
-            if (!validateUser(dbUser)) {
+            if (!dbUser || !dbUser.id) {
               console.warn('User account is not valid:', dbUser);
               localStorage.removeItem('authUserId');
               localStorage.removeItem('authUserData');
@@ -355,31 +354,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       let dbUser: any;
       let token: string | undefined;
       
-      // Try API first (production), fall back to direct DB (development)
+      // Use secure backend API for all environments
       try {
-        if (!IS_DEV) {
-          // PRODUCTION: Use secure backend API
-          const authResponse = await ApiClient.login({
-            email: normalizedEmail,
-            password
-          });
-          
-          if (authResponse && authResponse.user) {
-            dbUser = authResponse.user;
-            token = authResponse.token;
-          }
-        } else {
-          throw new Error('Development mode - using direct database access');
+        const authResponse = await ApiClient.login({
+          email: normalizedEmail,
+          password
+        });
+        
+        if (authResponse && authResponse.user) {
+          dbUser = authResponse.user;
+          token = authResponse.token;
         }
       } catch (apiError) {
-        // DEVELOPMENT FALLBACK: Use direct database access
-        console.warn('API not available, using direct database access (development only):', apiError);
-        dbUser = await validateUser(normalizedEmail, password);
-        
-        // In development, generate a simple token
-        if (dbUser) {
-          token = `dev_token_${dbUser.id}_${Date.now()}`;
-        }
+        console.error('API login failed:', apiError);
+        throw new Error('Login failed: ' + (apiError as Error).message);
       }
       
       if (dbUser && dbUser.id) {
@@ -721,7 +709,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Refreshing user data for ID:', user.id);
       const dbUser = await getUserById(user.id as number);
-      if (dbUser && validateUser(dbUser)) {
+      if (dbUser && dbUser.id) {
         const updatedUser = convertDbUserToUser(dbUser);
         setUser(updatedUser);
         

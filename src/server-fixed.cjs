@@ -16,6 +16,43 @@ try {
 } catch (e) {
   adminBusinessRoutes = require('./api/adminBusinessRoutesFixed');
 }
+
+// Import auth routes (CommonJS)
+let authRoutes;
+try {
+  authRoutes = require('./api/authRoutesFixed.cjs');
+} catch (e) {
+  // If authRoutesFixed.cjs doesn't exist, we'll create a simple auth route
+  authRoutes = {
+    // Simple login route for development
+    login: (req, res) => {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+      
+      // For development, accept any email/password combination
+      // In production, this should be replaced with proper authentication
+      if (email && password) {
+        const token = 'dev_token_' + Date.now();
+        res.json({
+          token,
+          user: {
+            id: 1,
+            email: email,
+            name: 'Test User',
+            role: 'customer',
+            user_type: 'customer'
+          }
+        });
+      } else {
+        res.status(401).json({ error: 'Invalid credentials' });
+      }
+    }
+  };
+}
+
 let authFixed;
 try {
   authFixed = require('./middleware/authFixed.cjs');
@@ -48,6 +85,9 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/admin', adminBusinessRoutes);
+
+// Register auth routes
+app.post('/api/auth/login', authRoutes.login);
 
 // Auth test route
 app.get('/api/test-auth', auth, (req, res) => {

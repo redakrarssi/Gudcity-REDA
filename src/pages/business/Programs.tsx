@@ -11,7 +11,7 @@ import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { DeleteButton, PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
 import { PERMISSIONS, isBusinessOwner, hasPermission } from '../../utils/permissions';
 import { getBusinessIdString } from '../../utils/businessContext';
-import sql, { verifyConnection } from '../../utils/db';
+import { verifyConnection } from '../../utils/db';
 
 const Programs = () => {
   const { t } = useTranslation();
@@ -241,10 +241,6 @@ const Programs = () => {
         }
         
         try {
-          // Test basic query
-          const testResult = await sql`SELECT 1 as test`;
-          console.log('Database test query result:', testResult);
-          
           // Create new program with validated business ID
         const newProgram = await LoyaltyProgramService.createProgram({
           ...program,

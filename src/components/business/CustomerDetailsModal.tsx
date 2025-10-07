@@ -23,7 +23,6 @@ import { CustomerService } from '../../services/customerService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { PromoService } from '../../services/promoService';
 import LoyaltyCardService from '../../services/loyaltyCardService';
-import sql from '../../utils/db';
 import type { Customer } from '../../services/customerService';
 import type { LoyaltyProgram } from '../../types/loyalty';
 import { Button } from '@/components/ui/button';
@@ -265,24 +264,25 @@ export const CustomerDetailsModal: FC<CustomerDetailsModalProps> = ({
               // Generate a card number
               const cardNumber = `C${customerId}-${selectedProgramId}-${Date.now().toString().slice(-6)}`;
               
-              // Create card directly in the database
-              await sql`
-                INSERT INTO loyalty_cards (
-                  customer_id, business_id, program_id, card_number, 
-                  card_type, tier, points_multiplier, points,
-                  points_to_next, benefits, status, is_active, 
-                  created_at, updated_at
-                ) VALUES (
-                  ${customerId}, ${businessId}, ${selectedProgramId}, ${cardNumber},
-                  ${program.type || 'POINTS'}, 'STANDARD', 1.0, 0,
-                  1000, ARRAY['Basic rewards', 'Birthday gift'], 'active', true,
-                  NOW(), NOW()
-                )
-                ON CONFLICT (customer_id, program_id) DO UPDATE SET
-                  status = 'active',
-                  is_active = true,
-                  updated_at = NOW()
-              `;
+              // Create card using API
+              const response = await fetch(`/api/customers/${customerId}/cards`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  programId: selectedProgramId,
+                  businessId: businessId
+                })
+              });
+              
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to create loyalty card');
+              }
+              
+              const result = await response.json();
               console.log('Created loyalty card using direct SQL');
             }
           }
