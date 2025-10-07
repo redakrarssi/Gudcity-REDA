@@ -5,8 +5,8 @@
  * Runs both the frontend (Vite) and backend (API) servers for local development
  */
 
-const { spawn } = require('child_process');
-const path = require('path');
+import { spawn } from 'child_process';
+import path from 'path';
 
 console.log('🚀 Starting development servers...');
 

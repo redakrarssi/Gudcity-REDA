@@ -14,11 +14,12 @@ dotenv.config();
 
 console.log('🚀 Starting API server for admin businesses...');
 
-// Check if environment variables are set
+// Ensure a JWT secret exists in development to avoid hard exits
 if (!process.env.VITE_JWT_SECRET) {
-  console.error('❌ Error: VITE_JWT_SECRET is not set in environment variables');
-  console.log('⚙️ Run node src/server-fix.mjs first to set up the environment variables');
-  process.exit(1);
+  const devSecret = 'dev-secret-' + Math.random().toString(36).slice(2);
+  process.env.VITE_JWT_SECRET = devSecret;
+  process.env.JWT_SECRET = process.env.JWT_SECRET || devSecret;
+  console.warn('⚠️ VITE_JWT_SECRET was missing. A temporary development secret has been set.');
 }
 
 // Import and start the server

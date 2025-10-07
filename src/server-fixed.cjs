@@ -5,9 +5,29 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { Pool } = require('pg');
 
 // Load environment variables
 dotenv.config();
+
+// Database connection (Postgres)
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+let pgPool = null;
+if (!DATABASE_URL) {
+  console.error('DATABASE_URL not configured on backend');
+} else {
+  try {
+    pgPool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+  } catch (e) {
+    console.error('Failed to initialize Postgres pool:', e);
+  }
+}
 
 // Import admin routes (CommonJS)
 let adminBusinessRoutes;
@@ -17,39 +37,123 @@ try {
   adminBusinessRoutes = require('./api/adminBusinessRoutesFixed');
 }
 
-// Import auth routes (CommonJS)
+// Simple in-memory rate limiting (dev) for auth endpoints
+const rateLimitStore = new Map();
+function checkRateLimit(identifier) {
+  const now = Date.now();
+  const entry = rateLimitStore.get(identifier);
+  if (entry) {
+    if (entry.lockedUntil && entry.lockedUntil > now) {
+      return { allowed: false, lockedUntil: entry.lockedUntil };
+    }
+    if (now > entry.resetAt) {
+      rateLimitStore.set(identifier, { count: 1, resetAt: now + 60000 });
+      return { allowed: true };
+    }
+    entry.count++;
+    if (entry.count > 5) {
+      entry.lockedUntil = now + 300000;
+      return { allowed: false, lockedUntil: entry.lockedUntil };
+    }
+    return { allowed: true };
+  }
+  rateLimitStore.set(identifier, { count: 1, resetAt: now + 60000 });
+  return { allowed: true };
+}
+
+// Import auth routes (CommonJS) or securely implement login here
 let authRoutes;
 try {
   authRoutes = require('./api/authRoutesFixed.cjs');
 } catch (e) {
-  // If authRoutesFixed.cjs doesn't exist, we'll create a simple auth route
+  // If authRoutesFixed.cjs doesn't exist, create a secure login handler here
   authRoutes = {
-    // Simple login route for development
-    login: (req, res) => {
-      const { email, password } = req.body;
-      
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-      }
-      
-      // For development, accept any email/password combination
-      // In production, this should be replaced with proper authentication
-      if (email && password) {
-        const token = 'dev_token_' + Date.now();
-        res.json({
+    login: async (req, res) => {
+      try {
+        const { email, password } = req.body || {};
+        if (!email || !password) {
+          return res.status(400).json({ error: 'Email and password are required' });
+        }
+
+        if (!pgPool) {
+          return res.status(500).json({ error: 'Database not configured' });
+        }
+
+        const rate = checkRateLimit(String(email).toLowerCase());
+        if (!rate.allowed) {
+          return res.status(429).json({
+            error: 'Account temporarily locked due to multiple failed attempts',
+            lockedUntil: rate.lockedUntil,
+          });
+        }
+
+        const result = await pgPool.query(
+          'SELECT id, email, name, user_type, role, password, status FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+          [email]
+        );
+
+        if (!result.rows || result.rows.length === 0) {
+          try {
+            await pgPool.query(
+              'INSERT INTO failed_logins (email, ip_address, attempted_at) VALUES ($1, $2, NOW())',
+              [email, req.headers['x-forwarded-for'] || req.ip || 'unknown']
+            );
+          } catch {}
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const user = result.rows[0];
+
+        if (user.status === 'inactive' || user.status === 'suspended') {
+          return res.status(403).json({ error: 'Account is inactive or suspended' });
+        }
+
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          try {
+            await pgPool.query(
+              'INSERT INTO failed_logins (email, ip_address, attempted_at) VALUES ($1, $2, NOW())',
+              [email, req.headers['x-forwarded-for'] || req.ip || 'unknown']
+            );
+          } catch {}
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        rateLimitStore.delete(String(email).toLowerCase());
+
+        const secret = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
+        const jti = crypto.randomBytes(16).toString('hex');
+        const token = jwt.sign({
+          userId: user.id,
+          email: user.email,
+          role: user.role || user.user_type,
+          jti,
+        }, secret, { expiresIn: '24h' });
+
+        try {
+          await pgPool.query(
+            'INSERT INTO auth_tokens (user_id, token, jti, expires_at) VALUES ($1, $2, $3, NOW() + INTERVAL \'24 hours\') ON CONFLICT (jti) DO NOTHING',
+            [user.id, token, jti]
+          );
+        } catch (e2) {
+          console.warn('Error storing token (continuing):', e2?.message);
+        }
+
+        return res.json({
           token,
           user: {
-            id: 1,
-            email: email,
-            name: 'Test User',
-            role: 'customer',
-            user_type: 'customer'
-          }
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role || user.user_type,
+            user_type: user.user_type,
+          },
         });
-      } else {
-        res.status(401).json({ error: 'Invalid credentials' });
+      } catch (err) {
+        console.error('Login error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
       }
-    }
+    },
   };
 }
 

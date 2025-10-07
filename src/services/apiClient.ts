@@ -97,7 +97,7 @@ export interface AuthResponse {
 }
 
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-  return apiRequest<AuthResponse>('/auth/login', {
+  return apiRequest<AuthResponse>(IS_DEV ? '/api/auth/login' : '/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });

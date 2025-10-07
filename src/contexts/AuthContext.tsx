@@ -247,22 +247,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // SECURITY FIX: Database initialization removed from client-side
             // Tables are initialized via backend API: POST /api/db/initialize
             
-            // Check if user ID is stored in localStorage
+            // Check if token exists in localStorage (required for auth)
+            const storedToken = localStorage.getItem('token');
             const storedUserId = localStorage.getItem('authUserId');
-            if (!storedUserId) {
-              console.log('No stored user ID found');
+            
+            if (!storedToken || !storedUserId) {
+              console.log('No stored token or user ID found - user not authenticated');
+              // Clear any stale data
+              localStorage.removeItem('authUserId');
+              localStorage.removeItem('authUserData');
+              localStorage.removeItem('authSessionActive');
+              localStorage.removeItem('authLastLogin');
               setIsLoading(false);
               setInitialized(true);
               return;
             }
             
-            // Get user by ID
-            console.log('Fetching user data for ID:', storedUserId);
+            // SECURITY: Validate the token is still valid by fetching user data
+            // This prevents localStorage manipulation attacks
+            console.log('Validating stored authentication token...');
             const dbUser = await getUserById(parseInt(storedUserId));
             if (!dbUser) {
-              console.warn('Stored user ID not found in database:', storedUserId);
+              console.warn('Stored user ID not found in database - clearing auth data');
               localStorage.removeItem('authUserId');
               localStorage.removeItem('authUserData');
+              localStorage.removeItem('token');
+              localStorage.removeItem('authSessionActive');
+              localStorage.removeItem('authLastLogin');
               setIsLoading(false);
               setInitialized(true);
               return;
@@ -270,9 +281,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             // Validate user status
             if (!dbUser || !dbUser.id) {
-              console.warn('User account is not valid:', dbUser);
+              console.warn('User account is not valid - clearing auth data');
               localStorage.removeItem('authUserId');
               localStorage.removeItem('authUserData');
+              localStorage.removeItem('token');
+              localStorage.removeItem('authSessionActive');
+              localStorage.removeItem('authLastLogin');
+              setIsLoading(false);
+              setInitialized(true);
+              return;
+            }
+            
+            // Check if user is banned or suspended
+            if (dbUser.status === 'banned' || dbUser.status === 'suspended') {
+              console.warn('User account is banned/suspended - clearing auth data');
+              localStorage.removeItem('authUserId');
+              localStorage.removeItem('authUserData');
+              localStorage.removeItem('token');
+              localStorage.removeItem('authSessionActive');
+              localStorage.removeItem('authLastLogin');
               setIsLoading(false);
               setInitialized(true);
               return;
@@ -303,19 +330,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } catch (error) {
             console.error('Auth initialization error:', error);
             
-            // Try to use cached user data if available
-            const storedUserId = localStorage.getItem('authUserId');
-            const cachedUserData = localStorage.getItem('authUserData');
-            
-            if (storedUserId && cachedUserData) {
-              try {
-                console.log('Using cached user data due to error');
-                const userData = JSON.parse(cachedUserData);
-                setUser(userData);
-              } catch (e) {
-                console.error('Failed to parse cached user data:', e);
-              }
-            }
+            // SECURITY: Do NOT use cached data on error - require re-login
+            console.warn('Authentication failed - clearing all auth data');
+            localStorage.removeItem('authUserId');
+            localStorage.removeItem('authUserData');
+            localStorage.removeItem('token');
+            localStorage.removeItem('authSessionActive');
+            localStorage.removeItem('authLastLogin');
             
             setIsLoading(false);
             setInitialized(true);

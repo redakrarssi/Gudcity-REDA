@@ -5,6 +5,46 @@ import { resolve } from 'path';
 // import { compression } from 'vite-plugin-compression2';
 import { splitVendorChunkPlugin } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { spawn, ChildProcess } from 'child_process';
+
+// Auto-start API server during Vite dev for local development convenience
+function autoStartApiServerPlugin() {
+  let apiProcess: ChildProcess | undefined;
+
+  const startApi = () => {
+    if (apiProcess) return;
+    try {
+      apiProcess = spawn('node', ['start-api-server.cjs'], {
+        stdio: 'inherit',
+        cwd: process.cwd(),
+        shell: false,
+      });
+      apiProcess.on('exit', () => {
+        apiProcess = undefined;
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to auto-start API server:', e);
+    }
+  };
+
+  return {
+    name: 'auto-start-api-server',
+    apply: 'serve' as const,
+    configureServer(server: any) {
+      // Allow disabling via env var if needed
+      if (process.env.NO_AUTO_API === '1') return;
+      startApi();
+      server.httpServer?.once('close', () => {
+        if (apiProcess && !apiProcess.killed) {
+          try {
+            apiProcess.kill();
+          } catch {}
+        }
+      });
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -57,6 +97,8 @@ export default defineConfig({
       gzipSize: true,
       brotliSize: true,
     }) : null,
+    // Auto-start local API server when running `vite` in development
+    autoStartApiServerPlugin(),
   ].filter(Boolean),
   
   resolve: {
