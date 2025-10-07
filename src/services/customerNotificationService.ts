@@ -1,6 +1,6 @@
 // Customer Notification Service
 
-import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { v4 as uuidv4 } from 'uuid';
 import * as serverFunctions from '../server';
 import { logger } from '../utils/logger';
@@ -132,31 +132,8 @@ export class CustomerNotificationService {
    */
   static async getCustomerNotifications(customerId: string): Promise<CustomerNotification[]> {
     try {
-      // Check if the table exists first
-      const tableExists = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'customer_notifications'
-        );
-      `;
-      
-      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
-        console.warn('Table customer_notifications does not exist');
-        return [];
-      }
-      
-      const results = await sql`
-        SELECT 
-          cn.*,
-          b.name as business_name
-        FROM customer_notifications cn
-        JOIN users b ON cn.business_id = b.id
-        WHERE cn.customer_id = ${normalizeCustomerId(customerId)}
-        ORDER BY cn.created_at DESC
-      `;
-
-      return results.map(this.mapNotification);
+      // Use ProductionSafeService to handle API vs DB access
+      return await ProductionSafeService.getCustomerNotifications(parseInt(customerId));
     } catch (error) {
       console.error('Error fetching customer notifications:', error);
       return [];
@@ -169,33 +146,8 @@ export class CustomerNotificationService {
    */
   static async getUnreadNotifications(customerId: string): Promise<CustomerNotification[]> {
     try {
-      // Check if the table exists first
-      const tableExists = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'customer_notifications'
-        );
-      `;
-      
-      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
-        console.warn('Table customer_notifications does not exist');
-        return [];
-      }
-      
-      const results = await sql`
-        SELECT 
-          cn.*,
-          b.name as business_name,
-          COALESCE(lp.name, (cn.data::jsonb)->>'programName') as program_name
-        FROM customer_notifications cn
-        JOIN users b ON cn.business_id = b.id
-        LEFT JOIN loyalty_programs lp ON ((cn.data::jsonb)->>'programId')::int = lp.id
-        WHERE cn.customer_id = ${normalizeCustomerId(customerId)} AND cn.is_read = FALSE
-        ORDER BY cn.created_at DESC
-      `;
-
-      return results.map(this.mapNotification);
+      // Use ProductionSafeService to handle API vs DB access
+      return await ProductionSafeService.getUnreadNotifications(parseInt(customerId));
     } catch (error) {
       console.error('Error fetching unread notifications:', error);
       return [];
@@ -376,33 +328,8 @@ export class CustomerNotificationService {
    */
   static async getPendingApprovals(customerId: string): Promise<ApprovalRequest[]> {
     try {
-      // Check if the table exists first
-      const tableExists = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'customer_approval_requests'
-        );
-      `;
-      
-      if (!tableExists || !tableExists[0] || tableExists[0].exists === false) {
-        console.warn('Table customer_approval_requests does not exist');
-        return [];
-      }
-      
-      const results = await sql`
-        SELECT 
-          ar.*,
-          b.name as business_name
-        FROM customer_approval_requests ar
-        JOIN users b ON ar.business_id = b.id
-        WHERE ar.customer_id = ${parseInt(customerId)} 
-          AND ar.status = 'PENDING'
-          AND ar.expires_at > NOW()
-        ORDER BY ar.requested_at DESC
-      `;
-
-      return results.map(this.mapApprovalRequest);
+      // Use ProductionSafeService to handle API vs DB access
+      return await ProductionSafeService.getPendingApprovals(parseInt(customerId));
     } catch (error) {
       console.error('Error fetching pending approvals:', error);
       return [];

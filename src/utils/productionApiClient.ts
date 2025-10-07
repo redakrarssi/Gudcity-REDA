@@ -98,13 +98,13 @@ export class ProductionSafeService {
   }
 
   static async getUnreadNotifications(customerId: number): Promise<any[]> {
-    return apiRequest(`/api/customers/${customerId}/notifications?unread=true`, {
+    return apiRequest(`/api/customers/${customerId}/unread-notifications`, {
       method: 'GET',
     });
   }
 
   static async getPendingApprovals(customerId: number): Promise<any[]> {
-    return apiRequest(`/api/customers/${customerId}/approvals`, {
+    return apiRequest(`/api/customers/${customerId}/pending-approvals`, {
       method: 'GET',
     });
   }
@@ -214,6 +214,12 @@ export class ProductionSafeService {
   /**
    * Redemption Notifications API calls
    */
+  static async getBusinessSettings(businessId: number): Promise<any> {
+    return apiRequest(`/api/businesses/${businessId}/settings`, {
+      method: 'GET',
+    });
+  }
+
   static async getBusinessRedemptionNotifications(businessId: number): Promise<any[]> {
     return apiRequest(`/api/businesses/${businessId}/redemptions`, {
       method: 'GET',
