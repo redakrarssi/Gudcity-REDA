@@ -17,6 +17,22 @@
       "use": "@vercel/node@3"
     },
     {
+      "src": "api/auth/generate-tokens.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/auth/refresh-token.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/auth/verify-token.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/auth/revoke-tokens.ts",
+      "use": "@vercel/node@3"
+    },
+    {
       "src": "api/db/initialize.ts",
       "use": "@vercel/node@3"
     },
@@ -26,6 +42,14 @@
     },
     {
       "src": "api/users/[id].ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/test.ts",
+      "use": "@vercel/node@3"
+    },
+    {
+      "src": "api/health.ts",
       "use": "@vercel/node@3"
     }
   ],

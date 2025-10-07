@@ -70,22 +70,73 @@ async function recordFailedLogin(email: string, ipAddress?: string): Promise<voi
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log(`Login API called: ${req.method} ${req.url}`);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', process.env.VITE_APP_URL || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS request');
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    console.error(`Method not allowed: ${req.method} for ${req.url}`);
+    return res.status(405).json({ 
+      error: 'Method not allowed',
+      method: req.method,
+      allowed: ['POST', 'OPTIONS']
+    });
   }
 
   if (!sql) {
+    console.error('Database not configured - DATABASE_URL missing');
     return res.status(500).json({ error: 'Database not configured' });
+  }
+
+  if (!JWT_SECRET) {
+    console.error('JWT_SECRET not configured');
+    return res.status(500).json({ error: 'JWT secret not configured' });
+  }
+
+  // Ensure database tables exist
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS auth_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        jti VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        token_type VARCHAR(50) DEFAULT 'access',
+        revoked BOOLEAN DEFAULT FALSE,
+        revoked_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    await sql`
+      CREATE TABLE IF NOT EXISTS failed_logins (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        ip_address VARCHAR(45),
+        attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    console.log('Database tables verified/created');
+  } catch (dbError) {
+    console.error('Database initialization error:', dbError);
+    return res.status(500).json({ 
+      error: 'Database initialization failed',
+      message: process.env.NODE_ENV === 'development' ? (dbError as Error).message : undefined
+    });
   }
 
   try {
@@ -151,12 +202,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Store token in database for blacklist checking
     try {
       await sql`
-        INSERT INTO auth_tokens (user_id, token, jti, expires_at)
+        INSERT INTO auth_tokens (user_id, token, jti, expires_at, token_type)
         VALUES (
           ${user.id},
           ${token},
           ${jti},
-          NOW() + INTERVAL '24 hours'
+          NOW() + INTERVAL '24 hours',
+          'access'
         )
         ON CONFLICT (jti) DO NOTHING
       `;
