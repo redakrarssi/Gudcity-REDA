@@ -8,20 +8,30 @@
 // In production (Vercel), they're serverless functions at /api/*
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
-// FIXED: Use proper API base URL configuration
+// CRITICAL FIX: Proper API base URL configuration to prevent double /api/ prefix
+// NOTE: All endpoints in this file already include /api/ prefix, so base URL should be domain only
 const API_BASE_URL = (() => {
-  // 1. Check explicit VITE_API_URL first
+  // 1. Check explicit VITE_API_URL first (should be empty or domain only, NOT /api)
   const explicitApiUrl = import.meta.env.VITE_API_URL;
   if (explicitApiUrl && explicitApiUrl.trim()) {
-    return explicitApiUrl.replace(/\/$/, ''); // Remove trailing slash
+    const url = explicitApiUrl.replace(/\/$/, ''); // Remove trailing slash
+    // PREVENT DOUBLE /api/ PREFIX: If VITE_API_URL is set to /api, ignore it
+    // because endpoints already include /api/ prefix
+    if (url === '/api' || url.endsWith('/api')) {
+      console.warn('⚠️ VITE_API_URL is set to "/api" but endpoints already include /api/ prefix. Using empty string instead.');
+      return '';
+    }
+    return url;
   }
   
-  // 2. In production, use same-origin API (recommended for Vercel)
+  // 2. In production, use same-origin (domain only, no /api prefix)
+  // This is correct because endpoints like '/api/auth/login' already have /api/
   if (!IS_DEV && typeof window !== 'undefined') {
     return window.location.origin;
   }
   
   // 3. Development fallback - empty string works with Vite proxy
+  // Vite proxies /api/* to localhost:3000/api/*
   return '';
 })();
 

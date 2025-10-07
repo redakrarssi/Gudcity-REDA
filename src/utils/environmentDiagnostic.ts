@@ -75,8 +75,13 @@ export function diagnoseEnvironment(): EnvironmentDiagnostic {
   // Recommendations
   const recommendations: string[] = [];
   
-  if (environment === 'production' && !explicitUrl) {
-    recommendations.push('Set VITE_API_URL in Vercel environment variables for explicit API URL');
+  // CRITICAL: Check for double /api/ prefix issue
+  if (explicitUrl && (explicitUrl === '/api' || explicitUrl.endsWith('/api'))) {
+    recommendations.push('⚠️ CRITICAL: VITE_API_URL is set to "/api" but endpoints already include /api/ prefix. This will cause double /api/api/ URLs! Set VITE_API_URL to empty string or remove it entirely.');
+  }
+  
+  if (environment === 'production' && explicitUrl && !explicitUrl.startsWith('http')) {
+    recommendations.push('VITE_API_URL should be a full domain (https://...) or empty, not a path like "/api"');
   }
   
   if (missing.length > 0) {

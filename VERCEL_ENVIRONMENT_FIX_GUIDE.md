@@ -53,8 +53,11 @@ Environment: ✅ Production ✅ Preview ✅ Development
 #### **Variable 5: VITE_API_URL**
 ```
 Name: VITE_API_URL
-Value: /api
+Value: [LEAVE EMPTY or DELETE THIS VARIABLE]
 Environment: ✅ Production ✅ Preview ✅ Development
+
+⚠️ CRITICAL: DO NOT set this to "/api" - it will cause double /api/api/ URLs!
+The endpoints already include /api/ prefix, so VITE_API_URL should be empty.
 ```
 
 #### **Variable 6: VITE_APP_URL**
@@ -191,7 +194,7 @@ Copy this checklist and verify each item:
 - [ ] **POSTGRES_URL** - Set for all environments  
 - [ ] **JWT_SECRET** - 64+ character string, all environments
 - [ ] **JWT_REFRESH_SECRET** - Different 64+ character string, all environments
-- [ ] **VITE_API_URL** - Set to `/api` for all environments
+- [ ] **VITE_API_URL** - DELETED or EMPTY (NOT "/api")
 - [ ] **VITE_APP_URL** - Set to actual domain for all environments
 - [ ] **NODE_ENV** - Set to `production` for all environments
 - [ ] **All variables checked** ✅ Production ✅ Preview ✅ Development
