@@ -75,7 +75,6 @@ import { HelmetProvider } from 'react-helmet-async';
 import { QueryClientProvider } from '@tanstack/react-query';
 import './i18n';
 import './index.css';
-import initDb from './utils/initDb';
 import { startAppInitialization } from './utils/initApp';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { reportWebVitals } from './utils/performance';
@@ -91,8 +90,17 @@ const AppLoading = () => (
   </div>
 );
 
-// Initialize the database and app when it starts
-initDb();
+// SECURITY: Database initialization moved to API endpoints
+// In production, database is initialized server-side only
+// Development initialization is handled by the local API server
+const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
+
+if (IS_DEV) {
+  console.log('Development mode: Database initialization handled by local API server');
+} else {
+  console.log('Production mode: Database access restricted to API endpoints only');
+}
+
 startAppInitialization();
 
 // Log app version and initialization

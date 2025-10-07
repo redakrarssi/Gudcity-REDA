@@ -1,20 +1,20 @@
-import initDb, { initializeDatabase } from './initDb';
-
 /**
  * Initialize the application
- * - Creates database tables if they don't exist
- * - Performs other startup tasks
+ * SECURITY: Database initialization moved to server-side API endpoints
  */
 export async function initializeApp(): Promise<boolean> {
   try {
     console.log('Initializing application...');
     
-    // Initialize database schema
-    try {
-      await initializeDatabase();
-      console.log('Database schema initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize database schema:', error);
+    // SECURITY: Database initialization is now handled server-side only
+    // In production: Database is initialized via /api/db/initialize endpoint
+    // In development: Database is initialized by the local API server
+    const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+    
+    if (isProduction) {
+      console.log('Production mode: Database initialization handled by server-side API endpoints');
+    } else {
+      console.log('Development mode: Database initialization handled by local API server');
     }
     
     console.log('Application initialization complete');

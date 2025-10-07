@@ -4,9 +4,7 @@ import {
   User as DbUser, 
   UserRole, 
   UserType,
-  getUserById,
   createUser as createDbUser,
-  getUserByEmail,
 } from '../services/userService';
 import { recordBusinessLogin } from '../services/businessService';
 import { UserQrCodeService } from '../services/userQrCodeService';
@@ -575,7 +573,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('API not available, using direct database access (development only):', apiError);
         
         // Check if user already exists
-        const existingUser = await getUserByEmail(normalizedEmail);
+        // Use API endpoint for production security
+        const existingUser = await ApiClient.getUserByEmail(normalizedEmail);
         if (existingUser) {
           const authError: AuthError = {
             type: AuthErrorType.INVALID_CREDENTIALS,
@@ -746,7 +745,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('Refreshing user data for ID:', user.id);
-      const dbUser = await getUserById(user.id as number);
+      const dbUser = await ApiClient.getUserById(user.id as number);
       if (dbUser && dbUser.id) {
         const updatedUser = convertDbUserToUser(dbUser);
         setUser(updatedUser);
