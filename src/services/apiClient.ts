@@ -97,14 +97,14 @@ export interface AuthResponse {
 }
 
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-  return apiRequest<AuthResponse>(IS_DEV ? '/api/auth/login' : '/auth/login', {
+  return apiRequest<AuthResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });
 }
 
 export async function apiRegister(data: RegisterData): Promise<AuthResponse> {
-  return apiRequest<AuthResponse>('/auth/register', {
+  return apiRequest<AuthResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -134,7 +134,7 @@ export interface User {
 }
 
 export async function apiGetUserByEmail(email: string): Promise<User> {
-  const response = await apiRequest<{ user: User }>('/users/by-email', {
+  const response = await apiRequest<{ user: User }>('/api/users/by-email', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
@@ -142,14 +142,14 @@ export async function apiGetUserByEmail(email: string): Promise<User> {
 }
 
 export async function apiGetUserById(id: number): Promise<User> {
-  const response = await apiRequest<{ user: User }>(`/users/${id}`, {
+  const response = await apiRequest<{ user: User }>(`/api/users/${id}`, {
     method: 'GET',
   });
   return response.user;
 }
 
 export async function apiUpdateUser(id: number, data: Partial<User>): Promise<User> {
-  const response = await apiRequest<{ user: User }>(`/users/${id}`, {
+  const response = await apiRequest<{ user: User }>(`/api/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
@@ -166,7 +166,7 @@ export async function apiInitializeDatabase(adminToken?: string): Promise<{ mess
     headers['Authorization'] = `Bearer ${adminToken}`;
   }
 
-  return apiRequest('/db/initialize', {
+  return apiRequest('/api/db/initialize', {
     method: 'POST',
     headers,
   });
@@ -177,7 +177,7 @@ export async function apiInitializeDatabase(adminToken?: string): Promise<{ mess
 // ====================
 
 export async function apiGetBusinessCustomers(businessId: string): Promise<any[]> {
-  const response = await apiRequest<{ customers: any[] }>(`/customers/business/${businessId}`, {
+  const response = await apiRequest<{ customers: any[] }>(`/api/customers/business/${businessId}`, {
     method: 'GET',
   });
   return response.customers;
@@ -188,14 +188,14 @@ export async function apiGetBusinessCustomers(businessId: string): Promise<any[]
 // ====================
 
 export async function apiCheckAccountLockout(email: string): Promise<{ locked: boolean; lockedUntil?: number }> {
-  return apiRequest('/security/check-lockout', {
+  return apiRequest('/api/security/check-lockout', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
 }
 
 export async function apiRecordFailedLogin(email: string, ipAddress?: string): Promise<void> {
-  await apiRequest('/security/record-failed-login', {
+  await apiRequest('/api/security/record-failed-login', {
     method: 'POST',
     body: JSON.stringify({ email, ipAddress }),
   });
