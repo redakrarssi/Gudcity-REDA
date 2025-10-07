@@ -14,18 +14,38 @@ const { Pool } = require('pg');
 dotenv.config();
 
 // Database connection (Postgres)
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const DATABASE_URL = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL || process.env.POSTGRES_URL;
 let pgPool = null;
+
+console.log('🔍 Database configuration check:');
+console.log('- DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('- VITE_DATABASE_URL exists:', !!process.env.VITE_DATABASE_URL);
+console.log('- Final DATABASE_URL:', DATABASE_URL ? 'configured' : 'NOT CONFIGURED');
+
 if (!DATABASE_URL) {
-  console.error('DATABASE_URL not configured on backend');
+  console.error('❌ DATABASE_URL not configured. Please set DATABASE_URL or VITE_DATABASE_URL in your environment.');
+  console.log('Expected format: postgres://user:password@host:port/database?sslmode=require');
 } else {
   try {
     pgPool = new Pool({
       connectionString: DATABASE_URL,
       ssl: { rejectUnauthorized: false },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
+    
+    // Test the connection
+    pgPool.query('SELECT NOW()', (err, result) => {
+      if (err) {
+        console.error('❌ Database connection test failed:', err.message);
+      } else {
+        console.log('✅ Database connection successful at:', result.rows[0].now);
+      }
+    });
+    
   } catch (e) {
-    console.error('Failed to initialize Postgres pool:', e);
+    console.error('❌ Failed to initialize Postgres pool:', e);
   }
 }
 
