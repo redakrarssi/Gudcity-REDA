@@ -4,10 +4,11 @@
  * NO DATABASE ACCESS - Only API calls
  */
 
-// In local development, API routes don't exist yet
-// In production (Vercel), they're serverless functions
+// In local development, API routes are proxied by Vite
+// In production (Vercel), they're serverless functions at /api/*
+// IMPORTANT: Endpoints already include /api prefix, so base URL should be empty
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
-const API_BASE_URL = IS_DEV ? '' : (import.meta.env.VITE_API_URL || '');
+const API_BASE_URL = '';
 
 interface ApiResponse<T = any> {
   data?: T;
