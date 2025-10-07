@@ -169,6 +169,17 @@ class DbConnectionManager {
   }
 
   public getInstance(): any {
+    // SECURITY: Block direct database access in production
+    const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+    const isBrowser = typeof window !== 'undefined';
+    
+    if (isProduction && isBrowser) {
+      throw new Error(
+        'SECURITY: Direct database access blocked in production. ' +
+        'Use API endpoints instead of direct database queries.'
+      );
+    }
+    
     // Lazy initialize if the instance is missing
     if (!this.neonInstance) {
       if (!hasDbUrl) {

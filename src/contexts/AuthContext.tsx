@@ -263,70 +263,87 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               return;
             }
             
-            // SECURITY: Validate the token is still valid by fetching user data
-            // This prevents localStorage manipulation attacks
+            // SECURITY: Validate the token is still valid by calling API endpoint
+            // This prevents localStorage manipulation attacks and ensures production security
             console.log('Validating stored authentication token...');
-            const dbUser = await getUserById(parseInt(storedUserId));
-            if (!dbUser) {
-              console.warn('Stored user ID not found in database - clearing auth data');
-              localStorage.removeItem('authUserId');
-              localStorage.removeItem('authUserData');
-              localStorage.removeItem('token');
-              localStorage.removeItem('authSessionActive');
-              localStorage.removeItem('authLastLogin');
-              setIsLoading(false);
-              setInitialized(true);
-              return;
-            }
             
-            // Validate user status
-            if (!dbUser || !dbUser.id) {
-              console.warn('User account is not valid - clearing auth data');
-              localStorage.removeItem('authUserId');
-              localStorage.removeItem('authUserData');
-              localStorage.removeItem('token');
-              localStorage.removeItem('authSessionActive');
-              localStorage.removeItem('authLastLogin');
-              setIsLoading(false);
-              setInitialized(true);
-              return;
-            }
-            
-            // Check if user is banned or suspended
-            if (dbUser.status === 'banned' || dbUser.status === 'suspended') {
-              console.warn('User account is banned/suspended - clearing auth data');
-              localStorage.removeItem('authUserId');
-              localStorage.removeItem('authUserData');
-              localStorage.removeItem('token');
-              localStorage.removeItem('authSessionActive');
-              localStorage.removeItem('authLastLogin');
-              setIsLoading(false);
-              setInitialized(true);
-              return;
-            }
-            
-            // Convert DB user to app user
-            const appUser = convertDbUserToUser(dbUser);
-            
-            // Store user data in localStorage for quick access on page refresh
-            localStorage.setItem('authUserData', JSON.stringify(appUser));
-            localStorage.setItem('authLastLogin', new Date().toISOString());
-            
-            // If business user, record login
-            if (appUser.role === 'business') {
-              try {
-                await recordBusinessLogin(Number(appUser.id));
-              } catch (loginError) {
-                console.error('Error recording business login:', loginError);
-                // Non-critical error, continue
+            try {
+              // Use API endpoint instead of direct database access
+              const dbUser = await ApiClient.getUserById(parseInt(storedUserId));
+              
+              if (!dbUser) {
+                console.warn('Stored user ID not found in database - clearing auth data');
+                localStorage.removeItem('authUserId');
+                localStorage.removeItem('authUserData');
+                localStorage.removeItem('token');
+                localStorage.removeItem('authSessionActive');
+                localStorage.removeItem('authLastLogin');
+                setIsLoading(false);
+                setInitialized(true);
+                return;
               }
+              
+              // Validate user status
+              if (!dbUser || !dbUser.id) {
+                console.warn('User account is not valid - clearing auth data');
+                localStorage.removeItem('authUserId');
+                localStorage.removeItem('authUserData');
+                localStorage.removeItem('token');
+                localStorage.removeItem('authSessionActive');
+                localStorage.removeItem('authLastLogin');
+                setIsLoading(false);
+                setInitialized(true);
+                return;
+              }
+              
+              // Check if user is banned or suspended
+              if (dbUser.status === 'banned' || dbUser.status === 'suspended') {
+                console.warn('User account is banned/suspended - clearing auth data');
+                localStorage.removeItem('authUserId');
+                localStorage.removeItem('authUserData');
+                localStorage.removeItem('token');
+                localStorage.removeItem('authSessionActive');
+                localStorage.removeItem('authLastLogin');
+                setIsLoading(false);
+                setInitialized(true);
+                return;
+              }
+              
+              // Convert DB user to app user
+              const appUser = convertDbUserToUser(dbUser);
+              
+              // Store user data in localStorage for quick access on page refresh
+              localStorage.setItem('authUserData', JSON.stringify(appUser));
+              localStorage.setItem('authLastLogin', new Date().toISOString());
+              
+              // If business user, record login
+              if (appUser.role === 'business') {
+                try {
+                  await recordBusinessLogin(Number(appUser.id));
+                } catch (loginError) {
+                  console.error('Error recording business login:', loginError);
+                  // Non-critical error, continue
+                }
+              }
+              
+              // Set user in state
+              console.log('User authenticated successfully:', appUser.name);
+              setUser(appUser);
+              setIsLoading(false);
+              setInitialized(true);
+              
+            } catch (apiError) {
+              console.error('API validation failed:', apiError);
+              // SECURITY: Clear auth data if API validation fails
+              console.warn('Authentication validation failed - clearing all auth data');
+              localStorage.removeItem('authUserId');
+              localStorage.removeItem('authUserData');
+              localStorage.removeItem('token');
+              localStorage.removeItem('authSessionActive');
+              localStorage.removeItem('authLastLogin');
+              setIsLoading(false);
+              setInitialized(true);
             }
-            
-            // Set user in state
-            console.log('User authenticated successfully:', appUser.name);
-            setUser(appUser);
-            setIsLoading(false);
-            setInitialized(true);
           } catch (error) {
             console.error('Auth initialization error:', error);
             
