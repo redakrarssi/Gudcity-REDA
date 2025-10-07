@@ -1,34 +1,27 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+  "functions": {
+    "api/auth/login.ts": {
+      "memory": 1024,
+      "maxDuration": 30
     },
-    {
-      "src": "api/auth/login.ts",
-      "use": "@vercel/node@3"
+    "api/auth/register.ts": {
+      "memory": 1024,
+      "maxDuration": 30
     },
-    {
-      "src": "api/auth/register.ts",
-      "use": "@vercel/node@3"
+    "api/db/initialize.ts": {
+      "memory": 1024,
+      "maxDuration": 60
     },
-    {
-      "src": "api/db/initialize.ts",
-      "use": "@vercel/node@3"
+    "api/users/by-email.ts": {
+      "memory": 512,
+      "maxDuration": 15
     },
-    {
-      "src": "api/users/by-email.ts",
-      "use": "@vercel/node@3"
-    },
-    {
-      "src": "api/users/[id].ts",
-      "use": "@vercel/node@3"
+    "api/users/[id].ts": {
+      "memory": 512,
+      "maxDuration": 15
     }
-  ],
+  },
   "rewrites": [
     {
       "source": "/((?!api).*)",

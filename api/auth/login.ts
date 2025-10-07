@@ -70,6 +70,14 @@ async function recordFailedLogin(email: string, ipAddress?: string): Promise<voi
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('🚀 Login API called:', {
+    method: req.method,
+    url: req.url,
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString()
+  });
+
   // CORS headers - Allow requests from the same origin
   const origin = req.headers.origin || req.headers.referer || '*';
   const allowedOrigins = [
@@ -83,17 +91,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  console.log('🔐 CORS configuration:', {
+    requestOrigin: origin,
+    allowedOrigins,
+    isAllowedOrigin,
+    finalCorsHeader: isAllowedOrigin ? origin : allowedOrigins[0] || '*'
+  });
 
   if (req.method === 'OPTIONS') {
+    console.log('✅ Handling preflight request');
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
+    console.log('❌ Invalid method:', req.method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Enhanced database configuration check
+  console.log('💾 Database configuration check:', {
+    databaseUrl: DATABASE_URL ? '✅ Present' : '❌ Missing',
+    jwtSecret: JWT_SECRET ? '✅ Present' : '❌ Missing',
+    sqlConnection: sql ? '✅ Connected' : '❌ Not connected',
+    environmentVars: {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      VERCEL_URL: process.env.VERCEL_URL,
+      VITE_APP_URL: process.env.VITE_APP_URL
+    }
+  });
+
   if (!sql) {
-    return res.status(500).json({ error: 'Database not configured' });
+    console.error('❌ Database connection failed:', {
+      DATABASE_URL: DATABASE_URL ? 'Present but invalid' : 'Not provided',
+      POSTGRES_URL: process.env.POSTGRES_URL ? 'Present' : 'Not provided'
+    });
+    return res.status(500).json({ 
+      error: 'Database not configured',
+      details: 'DATABASE_URL environment variable is required'
+    });
+  }
+
+  if (!JWT_SECRET) {
+    console.error('❌ JWT configuration failed');
+    return res.status(500).json({ 
+      error: 'Authentication not configured',
+      details: 'JWT_SECRET environment variable is required'
+    });
   }
 
   try {

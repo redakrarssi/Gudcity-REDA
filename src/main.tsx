@@ -73,6 +73,7 @@ import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import { QueryClientProvider } from '@tanstack/react-query';
+import './utils/environmentDiagnostic'; // Auto-run environment diagnostic
 import './i18n';
 import './index.css';
 import { startAppInitialization } from './utils/initApp';

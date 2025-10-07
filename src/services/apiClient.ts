@@ -6,9 +6,32 @@
 
 // In local development, API routes are proxied by Vite
 // In production (Vercel), they're serverless functions at /api/*
-// IMPORTANT: Endpoints already include /api prefix, so base URL should be empty
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
-const API_BASE_URL = '';
+
+// FIXED: Use proper API base URL configuration
+const API_BASE_URL = (() => {
+  // 1. Check explicit VITE_API_URL first
+  const explicitApiUrl = import.meta.env.VITE_API_URL;
+  if (explicitApiUrl && explicitApiUrl.trim()) {
+    return explicitApiUrl.replace(/\/$/, ''); // Remove trailing slash
+  }
+  
+  // 2. In production, use same-origin API (recommended for Vercel)
+  if (!IS_DEV && typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  
+  // 3. Development fallback - empty string works with Vite proxy
+  return '';
+})();
+
+console.log(`🔗 API Configuration:`, {
+  isDev: IS_DEV,
+  baseUrl: API_BASE_URL,
+  explicitUrl: import.meta.env.VITE_API_URL,
+  mode: import.meta.env.MODE,
+  origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
+});
 
 interface ApiResponse<T = any> {
   data?: T;
@@ -42,27 +65,53 @@ async function apiRequest<T = any>(
   };
 
   try {
+    console.log(`🌐 Making API request:`, { method: config.method || 'GET', url, headers: config.headers });
+    
     const response = await fetch(url, config);
     
-    // Handle non-JSON responses (like 404 or connection refused)
+    console.log(`📡 API Response:`, { 
+      status: response.status, 
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+      url 
+    });
+    
+    // Handle 404 errors specifically
+    if (response.status === 404) {
+      throw new Error(`API endpoint not found: ${url} (404)`);
+    }
+    
+    // Handle non-JSON responses (like HTML error pages)
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`API endpoint not available: ${url}`);
+      const textResponse = await response.text();
+      console.error(`❌ Non-JSON response from ${url}:`, textResponse.substring(0, 200));
+      throw new Error(`API endpoint returned non-JSON response: ${url} (${response.status})`);
     }
     
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || 'API request failed');
+      throw new Error(data.error || data.message || `API request failed: ${response.status} ${response.statusText}`);
     }
 
     return data;
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
+    console.error(`❌ API Error [${endpoint}]:`, {
+      error: (error as Error).message,
+      url,
+      baseUrl: API_BASE_URL,
+      isDev: IS_DEV,
+      stack: (error as Error).stack
+    });
     
-    // In development, if API is not available, throw a helpful error
-    if (IS_DEV && (error as Error).message.includes('Failed to fetch')) {
-      throw new Error('Backend API not available in development. Using direct database access fallback.');
+    // Enhanced error messages for debugging
+    if ((error as Error).message.includes('Failed to fetch')) {
+      if (IS_DEV) {
+        throw new Error(`Network error in development. Check if API server is running at localhost:3000. Original error: ${(error as Error).message}`);
+      } else {
+        throw new Error(`Network error in production. Check if serverless functions are deployed correctly. URL: ${url}`);
+      }
     }
     
     throw error;
