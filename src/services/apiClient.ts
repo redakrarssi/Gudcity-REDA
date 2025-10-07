@@ -47,7 +47,8 @@ async function apiRequest<T = any>(
     // Handle non-JSON responses (like 404 or connection refused)
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`API endpoint not available: ${url}`);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`API endpoint not available: ${url} (Status: ${response.status}, Response: ${errorText})`);
     }
     
     const data = await response.json();

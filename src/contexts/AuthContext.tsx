@@ -403,7 +403,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (apiError) {
         console.error('API login failed:', apiError);
-        throw new Error('Login failed: ' + (apiError as Error).message);
+        
+        // Provide more specific error messages based on the error type
+        if (apiError instanceof Error) {
+          if (apiError.message.includes('API endpoint not available')) {
+            throw new Error('Authentication service is temporarily unavailable. Please try again later.');
+          } else if (apiError.message.includes('Failed to fetch')) {
+            throw new Error('Network error. Please check your connection and try again.');
+          } else {
+            throw new Error('Login failed: ' + apiError.message);
+          }
+        } else {
+          throw new Error('Login failed: Unknown error occurred');
+        }
       }
       
       if (dbUser && dbUser.id) {

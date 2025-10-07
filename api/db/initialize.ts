@@ -76,6 +76,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           token TEXT NOT NULL,
           jti VARCHAR(255) UNIQUE NOT NULL,
           expires_at TIMESTAMP NOT NULL,
+          token_type VARCHAR(50) DEFAULT 'access',
+          revoked BOOLEAN DEFAULT FALSE,
+          revoked_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `;
