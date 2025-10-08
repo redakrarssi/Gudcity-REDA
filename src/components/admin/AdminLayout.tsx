@@ -56,64 +56,74 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDbStatus, setShowDbStatus] = useState(false);
 
+  // Safe translation function with fallback
+  const safeTranslate = (key: string): string => {
+    try {
+      return t(key);
+    } catch (error) {
+      console.warn(`Translation error for key "${key}":`, error);
+      return key; // Return the key as fallback
+    }
+  };
+
   const menuItems = [
     { 
-      name: t('Dashboard'), 
+      name: safeTranslate('Dashboard'), 
       icon: <Home className="w-5 h-5" />, 
       path: '/admin' 
     },
     { 
-      name: t('Users'), 
+      name: safeTranslate('Users'), 
       icon: <Users className="w-5 h-5" />, 
       path: '/admin/users' 
     },
     { 
-      name: t('Businesses'), 
+      name: safeTranslate('Businesses'), 
       icon: <Building className="w-5 h-5" />, 
       path: '/admin/businesses' 
     },
     { 
-      name: t('Analytics'), 
+      name: safeTranslate('Analytics'), 
       icon: <BarChart3 className="w-5 h-5" />, 
       path: '/admin/analytics' 
     },
     { 
-      name: t('Approvals'), 
+      name: safeTranslate('Approvals'), 
       icon: <ShieldAlert className="w-5 h-5" />, 
       path: '/admin/approvals' 
     },
     { 
-      name: t('Page Manager'), 
+      name: safeTranslate('Page Manager'), 
       icon: <Layout className="w-5 h-5" />, 
       path: '/admin/page-manager' 
     },
     { 
-      name: t('Pricing Plans'), 
+      name: safeTranslate('Pricing Plans'), 
       icon: <DollarSign className="w-5 h-5" />, 
       path: '/admin/pricing-plans' 
     },
     { 
-      name: t('Global Settings'), 
+      name: safeTranslate('Global Settings'), 
       icon: <Globe className="w-5 h-5" />, 
       path: '/admin/global-settings' 
     },
     { 
-      name: t('System Logs'), 
+      name: safeTranslate('System Logs'), 
       icon: <FileText className="w-5 h-5" />, 
       path: '/admin/system-logs' 
     },
     { 
-      name: t('Permissions'), 
+      name: safeTranslate('Permissions'), 
       icon: <Shield className="w-5 h-5" />, 
       path: '/admin/permissions' 
     },
     { 
-      name: t('Email Templates'), 
+      name: safeTranslate('Email Templates'), 
       icon: <Mail className="w-5 h-5" />, 
       path: '/admin/email-templates' 
     },
     { 
-      name: t('Database Diagnostics'), 
+      name: safeTranslate('Database Diagnostics'), 
       icon: <Database className="w-5 h-5" />, 
       path: '/admin/database-diagnostics' 
     }
@@ -157,7 +167,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       currentPath += `/${path}`;
       const breadcrumbName = path.charAt(0).toUpperCase() + path.slice(1);
       breadcrumbs.push({
-        name: t(breadcrumbName),
+        name: safeTranslate(breadcrumbName),
         path: index === paths.length - 1 ? '' : currentPath
       });
     });

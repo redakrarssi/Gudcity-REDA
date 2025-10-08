@@ -1,3 +1,4 @@
+import { ProductionSafeService } from '../utils/productionApiClient';
 import type { 
   Notification, 
   NotificationType,
@@ -621,6 +622,10 @@ export class NotificationService {
     error?: string;
   }> {
     try {
+      if (ProductionSafeService.shouldUseApi()) {
+        const notifications = await ProductionSafeService.getBusinessRedemptionNotifications(Number(businessId));
+        return { success: true, notifications };
+      }
       // Ensure table exists first
       await sql`
         CREATE TABLE IF NOT EXISTS redemption_notifications (
@@ -689,6 +694,30 @@ export class NotificationService {
         notifications: [],
         error: 'Failed to fetch redemption notifications'
       };
+    }
+  }
+
+  static async getBusinessNotifications(businessId: string): Promise<{ success: boolean; notifications: any[]; error?: string }> {
+    try {
+      if (ProductionSafeService.shouldUseApi()) {
+        const notifications = await ProductionSafeService.getBusinessNotifications(Number(businessId));
+        return { success: true, notifications };
+      }
+      return { success: true, notifications: [] };
+    } catch (error) {
+      return { success: false, notifications: [], error: (error as Error).message };
+    }
+  }
+
+  static async getPendingApprovals(businessId: string): Promise<{ success: boolean; approvals: any[]; error?: string }> {
+    try {
+      if (ProductionSafeService.shouldUseApi()) {
+        const approvals = await ProductionSafeService.getPendingApprovals(Number(businessId));
+        return { success: true, approvals };
+      }
+      return { success: true, approvals: [] };
+    } catch (error) {
+      return { success: false, approvals: [], error: (error as Error).message };
     }
   }
   

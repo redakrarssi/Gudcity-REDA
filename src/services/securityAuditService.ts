@@ -5,6 +5,7 @@
  */
 
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 export interface SecurityAuditEvent {
   id?: number;
@@ -44,6 +45,16 @@ export class SecurityAuditService {
     userAgent?: string
   ): Promise<void> {
     try {
+      if (ProductionSafeService.shouldUseApi()) {
+        await ProductionSafeService.logSecurityEvent({
+          event: eventType,
+          userId: Number(userId),
+          ipAddress,
+          userAgent,
+          metadata: { resourceId, ...(details || {}) }
+        });
+        return;
+      }
       await sql`
         INSERT INTO security_audit_logs (
           action_type,

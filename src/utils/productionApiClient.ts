@@ -78,7 +78,7 @@ export class ProductionSafeService {
     if (!this.shouldUseApi()) return; // Skip in development
     
     try {
-      await apiRequest('/api/security/log-event', {
+      await apiRequest('/api/security/audit', {
         method: 'POST',
         body: JSON.stringify(data),
       });
@@ -164,13 +164,13 @@ export class ProductionSafeService {
    * Business Settings API calls
    */
   static async getBusinessSettings(businessId: number): Promise<any> {
-    return apiRequest(`/api/businesses/${businessId}/settings`, {
+    return apiRequest(`/api/business/${businessId}/settings`, {
       method: 'GET',
     });
   }
 
   static async updateBusinessSettings(businessId: number, settings: any): Promise<any> {
-    return apiRequest(`/api/businesses/${businessId}/settings`, {
+    return apiRequest(`/api/business/${businessId}/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
     });
@@ -180,9 +180,47 @@ export class ProductionSafeService {
    * Business Analytics API calls
    */
   static async getBusinessAnalytics(businessId: number): Promise<any> {
-    return apiRequest(`/api/businesses/${businessId}/analytics`, {
+    return apiRequest(`/api/business/${businessId}/analytics`, {
       method: 'GET',
     });
+  }
+
+  // Individual analytics
+  static async getTotalPoints(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/points?businessId=${businessId}`, { method: 'GET' });
+  }
+  static async getTotalRedemptions(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/redemptions?businessId=${businessId}`, { method: 'GET' });
+  }
+  static async getActiveCustomers(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/customers?businessId=${businessId}&type=active`, { method: 'GET' });
+  }
+  static async getRetentionRate(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/retention?businessId=${businessId}`, { method: 'GET' });
+  }
+  static async getRedemptionRate(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/redemptions?businessId=${businessId}&metric=rate`, { method: 'GET' });
+  }
+  static async getPopularRewards(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/redemptions?businessId=${businessId}&type=popular`, { method: 'GET' });
+  }
+  static async getCustomerEngagement(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/engagement?businessId=${businessId}`, { method: 'GET' });
+  }
+  static async getPointsDistribution(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/points?businessId=${businessId}&type=distribution`, { method: 'GET' });
+  }
+  static async getTotalPrograms(businessId: number): Promise<any> {
+    return apiRequest(`/api/business/${businessId}/programs/count`, { method: 'GET' });
+  }
+  static async getTotalPromoCodes(businessId: number): Promise<any> {
+    return apiRequest(`/api/business/${businessId}/promo-codes/count`, { method: 'GET' });
+  }
+  static async getAveragePointsPerCustomer(businessId: number): Promise<any> {
+    return apiRequest(`/api/analytics/points?businessId=${businessId}&metric=average`, { method: 'GET' });
+  }
+  static async getTopPerformingPrograms(businessId: number): Promise<any> {
+    return apiRequest(`/api/business/${businessId}/programs/top-performing`, { method: 'GET' });
   }
 
   /**
@@ -215,9 +253,15 @@ export class ProductionSafeService {
    * Redemption Notifications API calls
    */
   static async getBusinessRedemptionNotifications(businessId: number): Promise<any[]> {
-    return apiRequest(`/api/businesses/${businessId}/redemptions`, {
-      method: 'GET',
-    });
+    return apiRequest(`/api/business/${businessId}/redemption-notifications`, { method: 'GET' });
+  }
+
+  static async getBusinessNotifications(businessId: number): Promise<any[]> {
+    return apiRequest(`/api/business/${businessId}/notifications`, { method: 'GET' });
+  }
+
+  static async getPendingApprovals(businessId: number): Promise<any[]> {
+    return apiRequest(`/api/business/${businessId}/approvals/pending`, { method: 'GET' });
   }
 }
 

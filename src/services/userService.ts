@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import env from '../utils/env';
 import * as cryptoUtils from '../utils/cryptoUtils';
 import { revokeAllUserTokens } from './authService';
@@ -111,6 +112,16 @@ export async function getUserById(id: number): Promise<User | null> {
     if (!id || isNaN(id)) {
       console.error(`Invalid user ID: ${id}`);
       return null;
+    }
+    // Use API in production/browser to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const apiUser = await ProductionSafeService.getUserById(id);
+        return apiUser as User;
+      } catch (e) {
+        console.error('Failed to fetch user via API:', e);
+        return null;
+      }
     }
     
     const result = await sql`

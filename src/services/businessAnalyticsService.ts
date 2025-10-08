@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { CustomerService } from './customerService';
 import { PromoService } from './promoService';
 import { LoyaltyProgramService } from './loyaltyProgramService';
@@ -49,6 +50,11 @@ export class BusinessAnalyticsService {
     period: 'day' | 'week' | 'month' | 'year' = 'month'
   ): Promise<BusinessAnalyticsData> {
     try {
+      // In production/browser, fetch from API to avoid direct DB access
+      if (ProductionSafeService.shouldUseApi()) {
+        const data = await ProductionSafeService.getBusinessAnalytics(Number(businessId));
+        return data as BusinessAnalyticsData;
+      }
       console.log(`Fetching analytics for business ${businessId} for period: ${period}`);
       
       // Calculate date range based on period

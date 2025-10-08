@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 // Types for business settings
 export interface BusinessHours {
@@ -72,6 +73,42 @@ export class BusinessSettingsService {
    */
   static async getBusinessSettings(businessId: string | number): Promise<BusinessSettings | null> {
     try {
+      if (ProductionSafeService.shouldUseApi()) {
+        const data = await ProductionSafeService.getBusinessSettings(Number(businessId));
+        if (!data) return null;
+        // Expect API to return { profile, settings }
+        const profile = data.profile || {};
+        const settings = data.settings || {};
+        return {
+          id: profile.id || 0,
+          businessId: Number(businessId),
+          name: profile.business_name || profile.name || '',
+          phone: profile.phone || '',
+          email: profile.email || '',
+          address: profile.address_line1 || '',
+          businessName: profile.business_name || profile.name || '',
+          description: profile.description || '',
+          website: profile.website_url || '',
+          logo: profile.logo_url || '',
+          language: profile.language || 'en',
+          country: profile.country || '',
+          currency: profile.currency || 'EUR',
+          timezone: profile.timezone || 'UTC',
+          taxId: profile.tax_id || '',
+          businessHours: profile.business_hours || {},
+          paymentSettings: profile.payment_settings || { acceptsCard: true, acceptsCash: true, acceptsOnline: false, serviceFeePercent: 0 },
+          loyaltySettings: {
+            pointsPerDollar: Number(settings.points_per_dollar ?? 10),
+            pointsExpiryDays: Number(settings.points_expiry_days ?? 365),
+            minimumPointsRedemption: Number(settings.minimum_points_redemption ?? 100),
+            welcomeBonus: Number(settings.welcome_bonus ?? 50)
+          },
+          notificationSettings: profile.notification_settings || { email: true, push: true, sms: false, customerActivity: true, promotionStats: true, systemUpdates: true },
+          integrations: profile.integrations || { pos: false, accounting: false, marketing: false, crm: false },
+          createdAt: profile.created_at || new Date().toISOString(),
+          updatedAt: profile.updated_at || new Date().toISOString()
+        };
+      }
       const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
       
       // First get business profile data
@@ -228,6 +265,33 @@ export class BusinessSettingsService {
     settings: Partial<BusinessSettings>
   ): Promise<BusinessSettings | null> {
     try {
+      if (ProductionSafeService.shouldUseApi()) {
+        const result = await ProductionSafeService.updateBusinessSettings(Number(businessId), { 
+          profile: {
+            business_name: settings.businessName || settings.name,
+            email: settings.email,
+            phone: settings.phone,
+            address_line1: settings.address,
+            language: settings.language,
+            country: settings.country,
+            currency: settings.currency,
+            timezone: settings.timezone,
+            tax_id: settings.taxId,
+            business_hours: settings.businessHours,
+            payment_settings: settings.paymentSettings,
+            notification_settings: settings.notificationSettings,
+            integrations: settings.integrations
+          },
+          settings: settings.loyaltySettings ? {
+            points_per_dollar: settings.loyaltySettings.pointsPerDollar,
+            points_expiry_days: settings.loyaltySettings.pointsExpiryDays,
+            minimum_points_redemption: settings.loyaltySettings.minimumPointsRedemption,
+            welcome_bonus: settings.loyaltySettings.welcomeBonus
+          } : undefined
+        });
+        // Re-fetch
+        return await this.getBusinessSettings(businessId);
+      }
       const businessIdNum = typeof businessId === 'string' ? parseInt(businessId) : businessId;
       
       console.log('Updating business settings for ID:', businessIdNum);

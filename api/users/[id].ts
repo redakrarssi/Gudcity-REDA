@@ -3,30 +3,23 @@
  * This runs on the backend with secure database access
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { neon } from '@neondatabase/serverless';
+import { requireSql } from '../_lib/db';
+import { verifyAuth, cors, rateLimitFactory } from '../_lib/auth';
 
-// SERVER-SIDE ONLY: Access database without VITE_ prefix
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
+const allow = rateLimitFactory(300, 60_000);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', process.env.VITE_APP_URL || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  cors(res, (req.headers.origin as string) || undefined);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET' && req.method !== 'PUT') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const rlKey = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'ip';
+  if (!allow(rlKey)) return res.status(429).json({ error: 'Too many requests' });
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const user = await verifyAuth(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-  if (!sql) {
-    return res.status(500).json({ error: 'Database not configured' });
-  }
+  const sql = requireSql();
 
   try {
     const { id } = req.query;
@@ -60,5 +53,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
+  }
+
+  // Update (optional)
+  try {
+    if (req.method === 'PUT') {
+      const { name, email, phone } = req.body || {};
+      const { id } = req.query;
+      if (!id || isNaN(Number(id))) return res.status(400).json({ error: 'Valid user ID is required' });
+      await sql`UPDATE users SET 
+        name = COALESCE(${name}, name),
+        email = COALESCE(${email}, email),
+        phone = COALESCE(${phone}, phone),
+        updated_at = NOW()
+        WHERE id = ${Number(id)}
+      `;
+      const rows = await sql`SELECT id, email, name, user_type, role, status, created_at, last_login, phone, address, business_name, business_address, business_phone, tier, loyalty_points, total_spent FROM users WHERE id = ${Number(id)} LIMIT 1`;
+      return res.status(200).json({ user: rows?.[0] || null });
+    }
+
+  } catch (error) {
+    console.error('Update user error:', error);
+    return res.status(500).json({ error: 'Failed to update user' });
   }
 }

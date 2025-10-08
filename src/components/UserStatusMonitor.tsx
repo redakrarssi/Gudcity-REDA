@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getUserById } from '../services/userService';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 /**
  * UserStatusMonitor - Monitors user status changes in real-time
@@ -19,9 +19,35 @@ const UserStatusMonitor: React.FC = () => {
       return;
     }
 
+    const lastResult = { value: null as any, ts: 0 };
     const checkUserStatus = async () => {
       try {
-        const currentUser = await getUserById(user.id);
+        // Cache for 30s and add retry with backoff; only logout on 404
+        const now = Date.now();
+        if (lastResult.ts && now - lastResult.ts < 30000) {
+          return;
+        }
+        let attempt = 0;
+        const maxAttempts = 3;
+        let currentUser: any = null;
+        while (attempt < maxAttempts) {
+          try {
+            currentUser = await ProductionSafeService.getUserById(user.id as number);
+            break;
+          } catch (err: any) {
+            const message = err?.message || '';
+            // If 404, user does not exist -> logout
+            if (message.includes('404') || message.includes('Not Found')) {
+              currentUser = null;
+              break;
+            }
+            // Network/other errors: backoff and retry
+            await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt)));
+            attempt++;
+          }
+        }
+        lastResult.value = currentUser;
+        lastResult.ts = now;
         
         if (!currentUser) {
           console.error('🚫 USER STATUS MONITOR: User account no longer exists, logging out');
@@ -60,7 +86,7 @@ const UserStatusMonitor: React.FC = () => {
         }
       } catch (error) {
         console.error('USER STATUS MONITOR ERROR:', error);
-        // Don't take any action on errors to avoid disrupting user experience
+        // Do not logout on transient errors
       }
     };
 
