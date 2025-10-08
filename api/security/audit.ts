@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!allow(rlKey)) return res.status(429).json({ error: 'Too many requests' });
 
   const user = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  if (!user) return res.status(200).json({ ok: true, skipped: true });
 
   try {
     const sql = requireSql();
@@ -23,8 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     res.status(200).json({ ok: true });
   } catch (e) {
-    console.error('Security audit log error:', e);
-    res.status(500).json({ error: 'Failed to log security event' });
+    console.warn('Security audit log failed (non-blocking):', e);
+    res.status(200).json({ ok: true, logged: false });
   }
 }
 

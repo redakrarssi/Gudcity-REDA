@@ -90,11 +90,16 @@ const UserStatusMonitor: React.FC = () => {
       }
     };
 
-    // Initial status check
+    // Initial status check (do not force immediate API call in dev)
     lastKnownStatus.current = user.status;
+    const isProd = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
+    if (isProd) {
+      // Warm-up fetch once in production only
+      checkUserStatus();
+    }
 
-    // Set up periodic checking every 30 seconds
-    intervalRef.current = setInterval(checkUserStatus, 30000);
+    // Set up periodic checking every 60 seconds to reduce pressure
+    intervalRef.current = setInterval(checkUserStatus, 60000);
 
     // Also check on window focus (when user returns to tab)
     const handleFocus = () => {
