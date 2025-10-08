@@ -1,6 +1,6 @@
 import type { VercelRequest } from '@vercel/node';
 import jwt from 'jsonwebtoken';
-import { requireSql } from './db';
+import { requireSql } from './db.js';
 
 export interface AuthUser {
   id: number;

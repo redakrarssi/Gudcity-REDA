@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireSql } from '../_lib/db';
-import { verifyAuth, cors, rateLimitFactory } from '../_lib/auth';
+import { requireSql } from '../_lib/db.js';
+import { verifyAuth, cors, rateLimitFactory } from '../_lib/auth.js';
 
 const allow = rateLimitFactory(300, 60_000);
 
