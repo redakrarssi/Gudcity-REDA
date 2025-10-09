@@ -25,27 +25,27 @@
       "memory": 512,
       "maxDuration": 15
     },
-    "api/businesses/*/programs.ts": {
+    "api/business/[businessId]/[[...segments]].ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/business/[businessId]/programs/index.ts": {
       "memory": 512,
       "maxDuration": 20
     },
-    "api/customers/*/cards.ts": {
+    "api/customers/[customerId]/cards.ts": {
       "memory": 512,
       "maxDuration": 20
     },
-    "api/customers/*/programs.ts": {
+    "api/customers/[customerId]/programs.ts": {
       "memory": 512,
       "maxDuration": 20
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/((?!api).*)",
-      "dest": "/index.html"
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
