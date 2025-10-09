@@ -211,28 +211,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('Initializing authentication...');
         
         // CRITICAL FIX: Set a timeout to ensure the app doesn't get stuck loading
+        // INCREASED TIMEOUT: Changed from 3-5s to 30-45s to prevent premature logout
         const isProduction = window.location.hostname === 'gudcity-reda.vercel.app';
-        const timeout = isProduction ? 3000 : 5000; // 3s in prod, 5s in dev
+        const timeout = isProduction ? 30000 : 45000; // 30s in prod, 45s in dev
         
         // Create a promise that resolves after the timeout
         const timeoutPromise = new Promise<void>(resolve => {
           setTimeout(() => {
             console.warn(`Authentication initialization timed out after ${timeout}ms`);
             
-            // Check if we have a stored user ID before giving up
+            // Check if we have a stored user ID and token - if yes, trust the cached session
             const storedUserId = localStorage.getItem('authUserId');
-            if (storedUserId) {
-              console.log('Using cached user data due to timeout');
+            const storedToken = localStorage.getItem('token');
+            
+            if (storedUserId && storedToken) {
+              console.log('✅ Using cached user session due to timeout - session is valid');
               // Try to use cached user data if available
               const cachedUserData = localStorage.getItem('authUserData');
               if (cachedUserData) {
                 try {
                   const userData = JSON.parse(cachedUserData);
                   setUser(userData);
+                  console.log('✅ User session restored from cache:', userData.name);
                 } catch (e) {
                   console.error('Failed to parse cached user data:', e);
                 }
               }
+            } else {
+              console.log('No valid cached session found after timeout');
             }
             
             setIsLoading(false);
@@ -332,23 +338,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setIsLoading(false);
               setInitialized(true);
               
-            } catch (apiError) {
+            } catch (apiError: any) {
               console.error('API validation failed:', apiError);
-              // SECURITY: Clear auth data if API validation fails
+              
+              // Check if it's a network error or temporary issue
+              const errorMessage = apiError?.message || '';
+              const isNetworkError = errorMessage.includes('network') || 
+                                    errorMessage.includes('timeout') || 
+                                    errorMessage.includes('fetch') ||
+                                    apiError?.code === 'ECONNABORTED';
+              
+              // If it's a network error and we have cached data, use it
+              if (isNetworkError && storedUserId && storedToken) {
+                console.warn('⚠️ Network error during auth validation - using cached session');
+                const cachedUserData = localStorage.getItem('authUserData');
+                if (cachedUserData) {
+                  try {
+                    const userData = JSON.parse(cachedUserData);
+                    setUser(userData);
+                    console.log('✅ Session restored from cache due to network error');
+                    setIsLoading(false);
+                    setInitialized(true);
+                    return;
+                  } catch (e) {
+                    console.error('Failed to parse cached user data:', e);
+                  }
+                }
+              }
+              
+              // Only clear auth data for authentication failures (401, 403, banned)
+              const isAuthError = errorMessage.includes('401') || 
+                                 errorMessage.includes('403') || 
+                                 errorMessage.includes('banned') || 
+                                 errorMessage.includes('suspended');
+              
+              if (isAuthError) {
               console.warn('Authentication validation failed - clearing all auth data');
               localStorage.removeItem('authUserId');
               localStorage.removeItem('authUserData');
               localStorage.removeItem('token');
               localStorage.removeItem('authSessionActive');
               localStorage.removeItem('authLastLogin');
+              } else {
+                console.warn('⚠️ Temporary error during auth validation - keeping session');
+              }
+              
               setIsLoading(false);
               setInitialized(true);
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error('Auth initialization error:', error);
             
-            // SECURITY: Do NOT use cached data on error - require re-login
-            console.warn('Authentication failed - clearing all auth data');
+            // Check if we have cached session data
+            const storedUserId = localStorage.getItem('authUserId');
+            const storedToken = localStorage.getItem('token');
+            const cachedUserData = localStorage.getItem('authUserData');
+            
+            // If we have cached data, try to use it instead of immediately logging out
+            if (storedUserId && storedToken && cachedUserData) {
+              console.warn('⚠️ Error during auth initialization - attempting to use cached session');
+              try {
+                const userData = JSON.parse(cachedUserData);
+                setUser(userData);
+                console.log('✅ Session restored from cache after initialization error');
+                setIsLoading(false);
+                setInitialized(true);
+                return;
+              } catch (parseError) {
+                console.error('Failed to parse cached user data:', parseError);
+              }
+            }
+            
+            // Only clear auth data if we have no valid cached session
+            console.warn('Authentication failed with no valid cache - clearing all auth data');
             localStorage.removeItem('authUserId');
             localStorage.removeItem('authUserData');
             localStorage.removeItem('token');

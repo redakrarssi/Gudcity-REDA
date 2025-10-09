@@ -45,15 +45,15 @@ async function generateTokens(user) {
       role: user.role || 'customer'
     };
     
-    // Generate tokens with proper error handling
+    // Generate tokens with proper error handling and EXTENDED expiration times
     const accessToken = jwt.sign(payload, env.JWT_SECRET, { 
-      expiresIn: env.JWT_EXPIRY || '1h',
+      expiresIn: env.JWT_EXPIRY || '8h', // Increased from 1h to 8h for better user experience
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'
     });
     
     const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, { 
-      expiresIn: env.JWT_REFRESH_EXPIRY || '7d',
+      expiresIn: env.JWT_REFRESH_EXPIRY || '30d', // Increased from 7d to 30d for better user experience
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'
     });
@@ -61,7 +61,7 @@ async function generateTokens(user) {
     // Store refresh token in database for validation later
     try {
       // Parse the refresh token expiry
-      const refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY || '7d');
+      const refreshExpiry = parseJwtExpiry(env.JWT_REFRESH_EXPIRY || '30d'); // Updated to match new default
       await storeRefreshToken(user.id, refreshToken, refreshExpiry);
     } catch (storeError) {
       console.error('Error storing refresh token:', storeError);

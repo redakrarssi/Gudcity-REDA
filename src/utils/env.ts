@@ -10,8 +10,8 @@ const env = defineEnv({
   // Authentication - CRITICAL: No default secrets allowed
   JWT_SECRET: import.meta.env.VITE_JWT_SECRET || '',
   JWT_REFRESH_SECRET: import.meta.env.VITE_JWT_REFRESH_SECRET || '',
-  JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '1h',
-  JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '7d',
+  JWT_EXPIRY: import.meta.env.VITE_JWT_EXPIRY || '8h', // Increased from 1h to 8h for better user experience
+  JWT_REFRESH_EXPIRY: import.meta.env.VITE_JWT_REFRESH_EXPIRY || '30d', // Increased from 7d to 30d
   
   // QR Code Security
   QR_SECRET_KEY: import.meta.env.VITE_QR_SECRET_KEY || '',

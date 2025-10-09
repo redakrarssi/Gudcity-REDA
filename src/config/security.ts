@@ -9,8 +9,8 @@ export const SECURITY_CONFIG = {
     // Minimum secret length requirements
     MIN_SECRET_LENGTH: 32,
     // Token expiration times
-    ACCESS_TOKEN_EXPIRY: '1h',
-    REFRESH_TOKEN_EXPIRY: '7d',
+    ACCESS_TOKEN_EXPIRY: '8h', // Increased from 1h to 8h for better user experience
+    REFRESH_TOKEN_EXPIRY: '30d', // Increased from 7d to 30d
     // Algorithm
     ALGORITHM: 'HS256',
     // Issuer and audience for additional security

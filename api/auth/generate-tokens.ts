@@ -14,9 +14,9 @@ const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
 const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
 
-// JWT expiry times
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '1h';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
+// JWT expiry times - INCREASED for better user experience
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '8h'; // Increased from 1h to 8h
+const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '30d'; // Increased from 7d to 30d
 
 /**
  * Parse JWT expiry string to seconds

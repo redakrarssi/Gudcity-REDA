@@ -19,6 +19,13 @@ const UserStatusMonitor: React.FC = () => {
       return;
     }
 
+    // DEVELOPMENT SAFETY: Disable UserStatusMonitor in development to prevent interference
+    const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    if (isDev) {
+      console.log('🔧 UserStatusMonitor: Disabled in development mode to prevent session interference');
+      return;
+    }
+
     const lastResult = { value: null as any, ts: 0 };
     const checkUserStatus = async () => {
       try {
@@ -93,13 +100,18 @@ const UserStatusMonitor: React.FC = () => {
     // Initial status check (do not force immediate API call in dev)
     lastKnownStatus.current = user.status;
     const isProd = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
-    if (isProd) {
-      // Warm-up fetch once in production only
-      checkUserStatus();
-    }
+    
+    // CRITICAL FIX: Delay initial check to prevent interference with auth initialization
+    // The AuthContext timeout is set to 30-45 seconds, so we should wait longer before checking
+    setTimeout(() => {
+      if (isProd) {
+        // Warm-up fetch once in production only
+        checkUserStatus();
+      }
+    }, 60000); // Wait 60 seconds before first check
 
-    // Set up periodic checking every 60 seconds to reduce pressure
-    intervalRef.current = setInterval(checkUserStatus, 60000);
+    // Set up periodic checking every 5 minutes to reduce pressure and prevent false logouts
+    intervalRef.current = setInterval(checkUserStatus, 300000); // 5 minutes instead of 60 seconds
 
     // Also check on window focus (when user returns to tab)
     const handleFocus = () => {
