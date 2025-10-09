@@ -29,6 +29,10 @@
       "memory": 1024,
       "maxDuration": 30
     },
+    "api/promotions/available.ts": {
+      "memory": 512,
+      "maxDuration": 15
+    },
     "api/business/[businessId]/[[...segments]].ts": {
       "memory": 1024,
       "maxDuration": 30

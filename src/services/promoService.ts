@@ -400,6 +400,54 @@ export class PromoService {
   }
 
   static async getAvailablePromotions(): Promise<{ promotions: PromoCode[]; error?: string }> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+    const isBrowser = typeof window !== 'undefined';
+    
+    if (isProduction && isBrowser) {
+      console.log('🔒 Production mode: Using API endpoint for promotions');
+      try {
+        // Use API endpoint for promotions in production
+        const response = await fetch('/api/promotions/available', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('auth_token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return { promotions: data.promotions || [] };
+      } catch (error) {
+        console.error('Failed to fetch promotions via API:', error);
+        // Return fallback data in production
+        return {
+          promotions: [
+            {
+              id: '1',
+              code: 'WELCOME10',
+              type: 'PERCENTAGE',
+              value: 10,
+              currency: 'USD',
+              businessId: '1',
+              businessName: 'Sample Business',
+              status: 'ACTIVE',
+              maxUses: 100,
+              usedCount: 0,
+              expiresAt: null,
+              name: 'Welcome Discount',
+              description: '10% off your first purchase'
+            }
+          ],
+          error: 'Using fallback data - API not available'
+        };
+      }
+    }
+    
     try {
       // Get all active promo codes
       const promoCodesResult = await sql`
