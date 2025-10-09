@@ -29,17 +29,9 @@
       "memory": 1024,
       "maxDuration": 30
     },
-    "api/business/[businessId]/programs/index.ts": {
-      "memory": 512,
-      "maxDuration": 20
-    },
-    "api/customers/[customerId]/cards.ts": {
-      "memory": 512,
-      "maxDuration": 20
-    },
-    "api/customers/[customerId]/programs.ts": {
-      "memory": 512,
-      "maxDuration": 20
+    "api/[[...segments]].ts": {
+      "memory": 1024,
+      "maxDuration": 30
     }
   },
   "rewrites": [
