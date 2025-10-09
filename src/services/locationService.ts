@@ -6,6 +6,7 @@ import type {
   LocationStats
 } from '../types/location';
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 export class LocationService {
   private static readonly EARTH_RADIUS = 6371; // Earth's radius in kilometers
@@ -16,6 +17,15 @@ export class LocationService {
   static async addBusinessLocation(
     location: Omit<BusinessLocation, 'id'>
   ): Promise<{ success: boolean; location?: BusinessLocation; error?: string }> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      console.log('🔒 Production mode: Location services should use API endpoints');
+      return {
+        success: false,
+        error: 'Location services not yet implemented via API. Contact administrator.'
+      };
+    }
+    
     try {
       // Insert into database
       const result = await sql`

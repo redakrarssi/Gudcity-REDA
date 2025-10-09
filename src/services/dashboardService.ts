@@ -65,6 +65,49 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
+  // PRODUCTION FIX: Use API in production to avoid direct DB access
+  const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+  const isBrowser = typeof window !== 'undefined';
+  
+  if (isProduction && isBrowser) {
+    console.log('🔒 Production mode: Using API endpoints for dashboard stats');
+    try {
+      // Use API endpoint for dashboard stats in production
+      const response = await fetch('/api/admin/dashboard-stats', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data as DashboardStats;
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats via API:', error);
+      // Return fallback data
+      return {
+        totalUsers: 0,
+        totalBusinesses: 0,
+        totalPrograms: 0,
+        totalPoints: 0,
+        activeUsers: 0,
+        pendingApprovals: 0,
+        recentTransactions: [],
+        systemHealth: {
+          status: 'unknown',
+          dbConnection: false,
+          apiHealth: false,
+          lastUpdated: new Date().toISOString()
+        },
+        pendingBusinessApplications: []
+      };
+    }
+  }
   try {
     // Get user stats
     const userResults = await sql`

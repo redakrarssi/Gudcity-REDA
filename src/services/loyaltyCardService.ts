@@ -1232,6 +1232,18 @@ export class LoyaltyCardService {
     transactionRef: string = '',
     businessId: string = ''
   ): Promise<{ success: boolean; error?: string; diagnostics?: any }> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+    const isBrowser = typeof window !== 'undefined';
+    
+    if (isProduction && isBrowser) {
+      console.log('🔒 Production mode: Point awarding should use API endpoints');
+      return {
+        success: false,
+        error: 'Point awarding not available in production. Please use business dashboard.',
+        diagnostics: { productionSafety: 'Direct DB access blocked' }
+      };
+    }
     if (!cardId) {
       console.error('Error awarding points: No card ID provided');
       return { success: false, error: 'No card ID provided' };
