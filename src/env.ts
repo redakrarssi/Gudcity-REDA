@@ -5,7 +5,20 @@
 // - Fallback to localhost only when no window context is available (e.g. tests)
 export const API_BASE_URL = (() => {
   const explicit = (import.meta.env.VITE_API_URL || '').trim();
-  if (explicit) return explicit;
+  if (explicit) {
+    // Normalize and prevent double /api prefix issues
+    const normalized = explicit.replace(/\/$/, '');
+    // If explicitly set to "/api" (or ends with it), use same-origin domain only
+    // because all callers already prefix endpoints with "/api/..."
+    if (normalized === '/api' || normalized.endsWith('/api')) {
+      if (typeof window !== 'undefined' && window.location) {
+        return window.location.origin.replace(/\/$/, '');
+      }
+      // Node/test fallback: empty means use relative URLs (handled by proxy/router)
+      return '';
+    }
+    return normalized;
+  }
 
   // Support alternate backend URL keys (deployment flexibility)
   const alt = (import.meta.env.VITE_PUBLIC_API_URL || import.meta.env.VITE_BACKEND_URL || '').trim();
