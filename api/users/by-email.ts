@@ -3,18 +3,14 @@
  * This runs on the backend with secure database access
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { neon } from '@neondatabase/serverless';
+import { requireSql } from '../_lib/db.js';
+import { verifyAuth, cors, rateLimitFactory } from '../_lib/auth.js';
 
-// SERVER-SIDE ONLY: Access database without VITE_ prefix
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
+const allow = rateLimitFactory(300, 60_000);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', process.env.VITE_APP_URL || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  cors(res, (req.headers.origin as string) || undefined);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -24,11 +20,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!sql) {
-    return res.status(500).json({ error: 'Database not configured' });
+  // Rate limiting
+  const rlKey = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'ip';
+  if (!allow(rlKey)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  // Authentication (optional - depends on your requirements)
+  const user = await verifyAuth(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
   }
 
   try {
+    const sql = requireSql();
     const { email } = req.body;
 
     if (!email) {
