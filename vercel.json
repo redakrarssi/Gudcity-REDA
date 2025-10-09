@@ -24,12 +24,28 @@
     "api/users/[id].ts": {
       "memory": 512,
       "maxDuration": 15
+    },
+    "api/businesses/*/programs.ts": {
+      "memory": 512,
+      "maxDuration": 20
+    },
+    "api/customers/*/cards.ts": {
+      "memory": 512,
+      "maxDuration": 20
+    },
+    "api/customers/*/programs.ts": {
+      "memory": 512,
+      "maxDuration": 20
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/((?!api).*)",
-      "destination": "/index.html"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/((?!api).*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
