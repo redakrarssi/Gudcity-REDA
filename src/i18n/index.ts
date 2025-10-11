@@ -1314,7 +1314,6 @@ const resources = {
       and: 'و',
       privacyPolicy: 'سياسة الخصوصية',
       previous: 'السابق',
-      next: 'التالي',
       processing: 'جاري المعالجة...',
       alreadyHaveAccount: 'هل لديك حساب بالفعل؟',
       'Please fill in all required fields': 'يرجى ملء جميع الحقول المطلوبة',
