@@ -5,23 +5,17 @@ import { WEBSOCKET_EVENTS } from './constants';
 // Flag to disable socket connections - useful for development or when server is unavailable
 const DISABLE_SOCKETS = process.env.NODE_ENV === 'development';
 
-// Detect if we're in production (Vercel deployment)
-const IS_PRODUCTION = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
-
 // Create a singleton socket instance if not disabled
 let socket: Socket | null = null;
 
 // Only create the socket if not disabled
 if (!DISABLE_SOCKETS) {
-  // In production, prefer polling over WebSocket since Vercel serverless doesn't support persistent WebSockets
-  const transports = IS_PRODUCTION ? ['polling', 'websocket'] : ['websocket', 'polling'];
-
   socket = io(API_BASE_URL, {
     autoConnect: false, // Don't connect automatically, we'll do it explicitly
     reconnectionAttempts: 3, // Reduced number of attempts
     reconnectionDelay: 2000,
     timeout: 5000, // Shorter timeout
-    transports
+    transports: ['websocket', 'polling']
   });
 }
 
@@ -102,18 +96,12 @@ export const connectUserSocket = (userId: string) => {
       socket.on('connect_error', (error) => {
         console.error('Socket connection error:', error);
         isConnecting = false;
-
-        // In production, if WebSocket fails, we might want to log this but not fail completely
-        if (IS_PRODUCTION) {
-          console.warn('WebSocket connection failed in production, continuing with polling fallback');
-          connectionFailed = false; // Allow fallback to polling
-        } else {
-          // After multiple failed attempts in development, mark as failed to prevent further attempts
-          if (socket) {
-            console.warn('Socket connection failed, disabling reconnection');
-            connectionFailed = true;
-            socket.disconnect(); // Disconnect to prevent further attempts
-          }
+        
+        // After multiple failed attempts, mark as failed to prevent further attempts
+        if (socket) {
+          console.warn('Socket connection failed, disabling reconnection');
+          connectionFailed = true;
+          socket.disconnect(); // Disconnect to prevent further attempts
         }
       });
     } else {

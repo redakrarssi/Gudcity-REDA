@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyAuth } from '../_lib/auth';
+import { verifyAuth } from '../_lib/auth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // SSE headers - compatible with Vercel serverless
+  // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -21,36 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const send = (event: string, data: any) => {
-    try {
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    } catch (error) {
-      console.error('Error sending SSE event:', error);
-      // Connection may have closed
-    }
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
   // Initial event
-  send('connected', { ok: true, ts: Date.now(), userId: user.id });
+  send('connected', { ok: true, ts: Date.now() });
 
-  // Heartbeat every 25 seconds (Vercel timeout is 30s)
-  const interval = setInterval(() => {
-    send('heartbeat', { ts: Date.now(), userId: user.id });
-  }, 25000);
-
-  // Handle connection close
-  const cleanup = () => {
-    clearInterval(interval);
-    send('disconnected', { ts: Date.now(), userId: user.id });
-  };
-
-  req.on('close', cleanup);
-  req.on('aborted', cleanup);
-
-  // Keep connection alive for maximum Vercel timeout (30 seconds)
-  setTimeout(() => {
-    cleanup();
-    res.end();
-  }, 30000);
+  // Simple heartbeat
+  const interval = setInterval(() => send('ping', { ts: Date.now() }), 25000);
+  req.on('close', () => clearInterval(interval));
 }
 

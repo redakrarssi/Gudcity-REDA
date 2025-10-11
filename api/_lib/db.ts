@@ -1,8 +1,5 @@
 import { neon } from '@neondatabase/serverless';
 
-// Fix .js import issue for production
-export { getSql, requireSql };
-
 // SERVER-SIDE ONLY: Resolve DB URL (support local dev fallbacks too)
 const DATABASE_URL =
   process.env.DATABASE_URL ||
