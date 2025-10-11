@@ -4,7 +4,7 @@ import { QRCard } from '../../components/QRCard';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEnrolledPrograms } from '../../hooks/useEnrolledPrograms';
-import { PromoService } from '../../services/promoService';
+import { ProductionSafePromoService } from '../../services/productionSafePromoService';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import type { PromoCode } from '../../types/promo';
 import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
@@ -40,7 +40,7 @@ const CustomerDashboard = () => {
   useEffect(() => {
     const loadPromotions = async () => {
       try {
-        const { promotions } = await PromoService.getAvailablePromotions();
+        const { promotions } = await ProductionSafePromoService.getAvailablePromotions();
         setPromos((promotions || []).slice(0, 3));
       } catch (e) {
         setPromos([]);
