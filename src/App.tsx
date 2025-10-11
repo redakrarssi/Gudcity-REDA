@@ -45,6 +45,7 @@ import Register from './pages/auth/Register';
 import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
+import UserDataConnectionMonitor from './components/UserDataConnectionMonitor';
 import { FallbackProvider } from './components/FallbackIndicator';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { BusinessCurrencyProvider } from './contexts/BusinessCurrencyContext';
@@ -188,6 +189,9 @@ function App() {
               
               {/* Show database connection alert */}
               <DatabaseConnectionAlert />
+              
+              {/* Show user data connection monitor */}
+              <UserDataConnectionMonitor showDetails={false} className="fixed top-4 right-4 z-50" />
 
               <Routes>
                 <Route path="/" element={
