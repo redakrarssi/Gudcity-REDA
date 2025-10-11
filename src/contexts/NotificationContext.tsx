@@ -4,8 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { connectUserSocket, listenForUserEvents } from '../utils/socket';
 import { WEBSOCKET_EVENTS } from '../utils/constants';
-import { ProductionSafeCustomerNotificationService } from '../services/productionSafeCustomerNotificationService';
-import { ProductionSafeNotificationService } from '../services/productionSafeNotificationService';
+import { CustomerNotificationService } from '../services/customerNotificationService';
+import { NotificationService } from '../services/notificationService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { queryClient, queryKeys } from '../utils/queryClient';
 import { deleteCustomerNotification, deleteAllNotifications } from '../services/customerNotificationDelete';
@@ -105,8 +105,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const fetchNotifications = async () => {
       try {
         // Fetch customer notifications
-        const notificationsData = await ProductionSafeCustomerNotificationService.getCustomerNotifications(user.id.toString());
-        const approvalsData = await ProductionSafeCustomerNotificationService.getPendingApprovals(user.id.toString());
+        const notificationsData = await CustomerNotificationService.getCustomerNotifications(user.id.toString());
+        const approvalsData = await CustomerNotificationService.getPendingApprovals(user.id.toString());
         
         setNotifications(notificationsData);
         setApprovalRequests(approvalsData);
@@ -121,14 +121,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             ? user.business_owner_id.toString()
             : user.id.toString();
           console.log('🔔 Fetching business notifications for:', user.id.toString());
-          const businessNotifications = await ProductionSafeNotificationService.getBusinessRedemptionNotifications(businessId);
-          if (Array.isArray(businessNotifications)) {
-            console.log('✅ Business notifications loaded:', businessNotifications.length);
-            setBusinessNotifications(businessNotifications);
-            const businessUnread = businessNotifications.filter((n: any) => n.status === 'PENDING').length;
+          const businessNotificationsResult = await NotificationService.getBusinessRedemptionNotifications(businessId);
+          if (businessNotificationsResult.success) {
+            console.log('✅ Business notifications loaded:', businessNotificationsResult.notifications.length);
+            setBusinessNotifications(businessNotificationsResult.notifications);
+            const businessUnread = businessNotificationsResult.notifications.filter(n => n.status === 'PENDING').length;
             setBusinessUnreadCount(businessUnread);
           } else {
-            console.error('❌ Failed to load business notifications');
+            console.error('❌ Failed to load business notifications:', businessNotificationsResult.error);
           }
         }
         

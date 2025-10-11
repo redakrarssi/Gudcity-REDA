@@ -1,9 +1,7 @@
 import type { PromoCode, PromoCodeRedemption, PromoCodeStats } from '../types/promo';
 import { CurrencyService } from './currencyService';
 import type { CurrencyCode } from '../types/currency';
-import { ProductionSafeService } from '../utils/productionApiClient';
-// PRODUCTION FIX: Removed direct database access
-// import sql from '../utils/db';
+import sql from '../utils/db';
 
 interface RedemptionResponse {
   success: boolean;
@@ -27,16 +25,10 @@ export class PromoService {
     name: string = '',
     description: string = ''
   ): Promise<{ code: PromoCode; error?: string }> {
-    // PRODUCTION FIX: Use ProductionSafeService for API-first approach
-    if (ProductionSafeService.shouldUseApi()) {
-      throw new Error('PromoService.generateCode() not yet implemented via API. Contact administrator.');
-    }
-    
     try {
       const code = await this.generateUniqueCode();
       
-      // DEVELOPMENT ONLY: Direct database access (blocked in production)
-      const sql = (await import('../utils/db')).default;
+      // Insert the new promo code into the database
       const result = await sql`
         INSERT INTO promo_codes (
           business_id,

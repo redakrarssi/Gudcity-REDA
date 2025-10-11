@@ -1,7 +1,7 @@
 // Environment variables with typed structure
-// CRITICAL FIX: API base URL resolver for VERCEL PRODUCTION
-// - Domain only (no /api suffix) since endpoints already include /api/ prefix
-// - Prevents double /api/api/ prefix that causes 404 errors on Vercel
+// Robust API base URL resolver:
+// - Prefer explicit VITE_API_URL when provided
+// - In browsers, default to same-origin '/api' to avoid CORS and localhost issues in production
 // - Fallback to localhost only when no window context is available (e.g. tests)
 export const API_BASE_URL = (() => {
   const explicit = (import.meta.env.VITE_API_URL || '').trim();
@@ -25,30 +25,13 @@ export const API_BASE_URL = (() => {
   if (alt) return alt;
 
   if (typeof window !== 'undefined' && window.location) {
-    // CRITICAL FIX: Return domain only (no /api suffix) to prevent double prefix
-    // Endpoints already include /api/ prefix, so this prevents /api/api/ URLs
+    // Use same-origin API path to prevent cross-origin CORS errors in production
     const origin = window.location.origin.replace(/\/$/, '');
-    return origin;  // Fixed: was `${origin}/api` which caused double prefix
+    return `${origin}/api`;
   }
   // Node/test fallback
   return 'http://localhost:3000';
 })();
-
-// DIAGNOSTIC: Verify API URL configuration is correct
-if (typeof window !== 'undefined') {
-  const testEndpoint = '/api/auth/login';
-  const fullUrl = `${API_BASE_URL}${testEndpoint}`;
-  
-  // Detect double /api/ prefix
-  if (fullUrl.includes('/api/api/')) {
-    console.error('🚨 CRITICAL: Double /api/ prefix detected!');
-    console.error('❌ Generated URL:', fullUrl);
-    console.error('💡 This will cause 404 errors on Vercel production');
-    console.error('🔧 Fix: API_BASE_URL should be domain only, not include /api');
-  } else {
-    console.log('✅ API URL configuration correct:', fullUrl);
-  }
-}
 
 // Other environment configurations
 export const APP_ENV = import.meta.env.VITE_APP_ENV || 'development';

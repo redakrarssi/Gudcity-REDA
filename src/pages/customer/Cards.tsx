@@ -4,8 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CustomerLayout } from '../../components/customer/CustomerLayout';
 import CardDetailsModal from '../../components/customer/CardDetailsModal';
 import { CreditCard, Coffee, Gift, Award, Clock, RotateCw, QrCode, Zap, ChevronDown, Shield, Crown, Check, AlertCircle, Info, Tag, Copy, X, Bell, RefreshCw, Sparkles, BadgeCheck } from 'lucide-react';
-import { ProductionSafeLoyaltyCardService } from '../../services/productionSafeLoyaltyCardService';
-import { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
+import LoyaltyCardService, { LoyaltyCard, CardActivity } from '../../services/loyaltyCardService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToEvents, Event } from '../../utils/telemetry';
@@ -200,7 +199,7 @@ const CustomerCards = () => {
       await syncEnrollments();
       
       // Then get all customer cards with enhanced point verification
-      const cards = await ProductionSafeLoyaltyCardService.getCustomerCards(String(user.id));
+      const cards = await LoyaltyCardService.getCustomerCards(String(user.id));
       
       // Debug: Log each card's points for troubleshooting
       cards.forEach(card => {
@@ -210,7 +209,7 @@ const CustomerCards = () => {
       // Fetch activities for each card
       const activities: Record<string, CardActivity[]> = {};
       for (const card of cards) {
-        const cardActivities = await ProductionSafeLoyaltyCardService.getCardActivities(card.id);
+        const cardActivities = await LoyaltyCardService.getCardActivities(card.id);
         activities[card.id] = cardActivities;
       }
       setCardActivities(activities);
