@@ -78,6 +78,12 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "DATABASE_URL": "postgres://your_db_user:your_db_password@your_host:5432/your_database?sslmode=require",
+    "JWT_SECRET": "your_secure_jwt_secret_minimum_32_characters_long",
+    "JWT_REFRESH_SECRET": "your_secure_jwt_refresh_secret_minimum_32_characters_long",
+    "QR_SECRET_KEY": "your_secure_qr_secret_key_minimum_64_characters_long",
+    "QR_ENCRYPTION_KEY": "your_secure_qr_encryption_key_minimum_64_characters_long",
+    "QR_ENCRYPTION_ENABLED": "true"
   }
 }

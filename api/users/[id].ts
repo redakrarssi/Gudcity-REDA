@@ -29,18 +29,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Get user from database (without password)
-    const users = await sql`
-      SELECT 
-        id, email, name, user_type, role, status,
-        created_at, last_login, phone, address,
-        business_name, business_address, business_phone,
-        tier, loyalty_points, total_spent
-      FROM users 
-      WHERE id = ${Number(id)}
-      LIMIT 1
-    `;
+    let users;
+    try {
+      users = await sql`
+        SELECT
+          id, email, name, user_type, role, status,
+          created_at, last_login, phone, address,
+          business_name, business_address, business_phone,
+          tier, loyalty_points, total_spent
+        FROM users
+        WHERE id = ${Number(id)}
+        LIMIT 1
+      `;
+    } catch (dbError) {
+      console.error('Database query failed:', dbError);
+      return res.status(500).json({
+        error: 'Database connection failed',
+        message: process.env.NODE_ENV === 'development' ? (dbError as Error).message : undefined
+      });
+    }
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
