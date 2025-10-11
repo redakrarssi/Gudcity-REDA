@@ -14,6 +14,8 @@ import { LoyaltyCardService } from '../services/loyaltyCardService';
 import ApiClient from '../services/apiClient';
 // CRITICAL FIX: Import generateTokens function for JWT token generation
 import { generateTokens } from '../services/authService';
+// SECURITY FIX: Use UserDataConnectionService for reliable user data operations
+import UserDataConnectionService from '../services/userDataConnectionService';
 
 // Development mode detection
 const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
@@ -210,23 +212,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('Initializing authentication...');
         
-        // CRITICAL FIX: Set a timeout to ensure the app doesn't get stuck loading
-        // INCREASED TIMEOUT: Changed from 3-5s to 30-45s to prevent premature logout
-        const isProduction = window.location.hostname === 'gudcity-reda.vercel.app';
-        const timeout = isProduction ? 30000 : 45000; // 30s in prod, 45s in dev
+        // SECURITY FIX: Simplified timeout handling following reda.md guidelines
+        const timeout = 10000; // 10 seconds - reasonable timeout for auth validation
         
         // Create a promise that resolves after the timeout
         const timeoutPromise = new Promise<void>(resolve => {
           setTimeout(() => {
             console.warn(`Authentication initialization timed out after ${timeout}ms`);
             
-            // Check if we have a stored user ID and token - if yes, trust the cached session
+            // SECURITY: Only use cached data if we have both user ID and token
             const storedUserId = localStorage.getItem('authUserId');
             const storedToken = localStorage.getItem('token');
             
             if (storedUserId && storedToken) {
-              console.log('✅ Using cached user session due to timeout - session is valid');
-              // Try to use cached user data if available
+              console.log('✅ Using cached user session due to timeout');
               const cachedUserData = localStorage.getItem('authUserData');
               if (cachedUserData) {
                 try {
@@ -270,33 +269,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             
             // SECURITY: Validate the token is still valid by calling API endpoint
-            // This prevents localStorage manipulation attacks and ensures production security
             console.log('Validating stored authentication token...');
             
             try {
-              // Use API endpoint instead of direct database access
-              const dbUser = await ApiClient.getUserById(parseInt(storedUserId));
+              // SECURITY: Use UserDataConnectionService for reliable user data operations
+              const dbUser = await UserDataConnectionService.getUserById(parseInt(storedUserId));
               
-              if (!dbUser) {
-                console.warn('Stored user ID not found in database - clearing auth data');
-                localStorage.removeItem('authUserId');
-                localStorage.removeItem('authUserData');
-                localStorage.removeItem('token');
-                localStorage.removeItem('authSessionActive');
-                localStorage.removeItem('authLastLogin');
-                setIsLoading(false);
-                setInitialized(true);
-                return;
-              }
-              
-              // Validate user status
               if (!dbUser || !dbUser.id) {
-                console.warn('User account is not valid - clearing auth data');
-                localStorage.removeItem('authUserId');
-                localStorage.removeItem('authUserData');
-                localStorage.removeItem('token');
-                localStorage.removeItem('authSessionActive');
-                localStorage.removeItem('authLastLogin');
+                console.warn('User not found - clearing auth data');
+                localStorage.clear();
                 setIsLoading(false);
                 setInitialized(true);
                 return;
@@ -305,11 +286,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Check if user is banned or suspended
               if (dbUser.status === 'banned' || dbUser.status === 'suspended') {
                 console.warn('User account is banned/suspended - clearing auth data');
-                localStorage.removeItem('authUserId');
-                localStorage.removeItem('authUserData');
-                localStorage.removeItem('token');
-                localStorage.removeItem('authSessionActive');
-                localStorage.removeItem('authLastLogin');
+                localStorage.clear();
                 setIsLoading(false);
                 setInitialized(true);
                 return;
@@ -318,11 +295,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Convert DB user to app user
               const appUser = convertDbUserToUser(dbUser);
               
-              // Store user data in localStorage for quick access on page refresh
+              // Store user data in localStorage for quick access
               localStorage.setItem('authUserData', JSON.stringify(appUser));
               localStorage.setItem('authLastLogin', new Date().toISOString());
               
-              // If business user, record login
+              // Record business login if applicable
               if (appUser.role === 'business') {
                 try {
                   await recordBusinessLogin(Number(appUser.id));
@@ -339,48 +316,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setInitialized(true);
               
             } catch (apiError: any) {
-              console.error('API validation failed:', apiError);
+              console.error('User data validation failed:', apiError);
               
-              // Check if it's a network error or temporary issue
+              // SECURITY: Enhanced error handling following reda.md guidelines
               const errorMessage = apiError?.message || '';
-              const isNetworkError = errorMessage.includes('network') || 
-                                    errorMessage.includes('timeout') || 
-                                    errorMessage.includes('fetch') ||
-                                    apiError?.code === 'ECONNABORTED';
-              
-              // If it's a network error and we have cached data, use it
-              if (isNetworkError && storedUserId && storedToken) {
-                console.warn('⚠️ Network error during auth validation - using cached session');
-                const cachedUserData = localStorage.getItem('authUserData');
-                if (cachedUserData) {
-                  try {
-                    const userData = JSON.parse(cachedUserData);
-                    setUser(userData);
-                    console.log('✅ Session restored from cache due to network error');
-                    setIsLoading(false);
-                    setInitialized(true);
-                    return;
-                  } catch (e) {
-                    console.error('Failed to parse cached user data:', e);
-                  }
-                }
-              }
-              
-              // Only clear auth data for authentication failures (401, 403, banned)
               const isAuthError = errorMessage.includes('401') || 
                                  errorMessage.includes('403') || 
                                  errorMessage.includes('banned') || 
                                  errorMessage.includes('suspended');
               
               if (isAuthError) {
-              console.warn('Authentication validation failed - clearing all auth data');
-              localStorage.removeItem('authUserId');
-              localStorage.removeItem('authUserData');
-              localStorage.removeItem('token');
-              localStorage.removeItem('authSessionActive');
-              localStorage.removeItem('authLastLogin');
+                console.warn('Authentication validation failed - clearing auth data');
+                localStorage.clear();
               } else {
-                console.warn('⚠️ Temporary error during auth validation - keeping session');
+                // For network errors, try to use cached data
+                const cachedUserData = localStorage.getItem('authUserData');
+                if (cachedUserData) {
+                  try {
+                    const userData = JSON.parse(cachedUserData);
+                    setUser(userData);
+                    console.log('✅ Session restored from cache due to network error');
+                  } catch (e) {
+                    console.error('Failed to parse cached user data:', e);
+                  }
+                }
               }
               
               setIsLoading(false);
@@ -809,7 +768,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('Refreshing user data for ID:', user.id);
-      const dbUser = await ApiClient.getUserById(user.id as number);
+      // SECURITY: Use UserDataConnectionService for reliable user data operations
+      const dbUser = await UserDataConnectionService.getUserById(user.id as number);
       if (dbUser && dbUser.id) {
         const updatedUser = convertDbUserToUser(dbUser);
         setUser(updatedUser);

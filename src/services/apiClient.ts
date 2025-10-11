@@ -86,12 +86,20 @@ async function apiRequest<T = any>(
       url 
     });
     
-    // Handle 404 errors specifically
+    // SECURITY: Handle different response types following reda.md guidelines
     if (response.status === 404) {
       throw new Error(`API endpoint not found: ${url} (404)`);
     }
     
-    // Handle non-JSON responses (like HTML error pages)
+    if (response.status === 401) {
+      throw new Error(`Authentication required: ${url} (401)`);
+    }
+    
+    if (response.status === 403) {
+      throw new Error(`Access forbidden: ${url} (403)`);
+    }
+    
+    // Handle non-JSON responses
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       const textResponse = await response.text();
@@ -115,12 +123,12 @@ async function apiRequest<T = any>(
       stack: (error as Error).stack
     });
     
-    // Enhanced error messages for debugging
+    // SECURITY: Enhanced error handling following reda.md guidelines
     if ((error as Error).message.includes('Failed to fetch')) {
       if (IS_DEV) {
-        throw new Error(`Network error in development. Check if API server is running at localhost:3000. Original error: ${(error as Error).message}`);
+        throw new Error(`Network error in development. Check if API server is running. Original error: ${(error as Error).message}`);
       } else {
-        throw new Error(`Network error in production. Check if serverless functions are deployed correctly. URL: ${url}`);
+        throw new Error(`Network error in production. Check serverless functions deployment. URL: ${url}`);
       }
     }
     

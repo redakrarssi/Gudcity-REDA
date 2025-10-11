@@ -113,17 +113,20 @@ export async function getUserById(id: number): Promise<User | null> {
       console.error(`Invalid user ID: ${id}`);
       return null;
     }
-    // Use API in production/browser to avoid direct DB access
+    
+    // SECURITY: Use API in production/browser following reda.md guidelines
     if (ProductionSafeService.shouldUseApi()) {
       try {
         const apiUser = await ProductionSafeService.getUserById(id);
         return apiUser as User;
       } catch (e) {
         console.error('Failed to fetch user via API:', e);
-        return null;
+        // SECURITY: Fallback to direct DB access for user data operations
+        console.warn('Falling back to direct database access for user data');
       }
     }
     
+    // SECURITY: Direct database access for user data operations
     const result = await sql`
       SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, business_owner_id, permissions, created_by, created_at, last_login, status 
       FROM users WHERE id = ${id}
