@@ -18,6 +18,101 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const sql = requireSql();
 
   try {
+    // Handle customer routes: /api/customers/:customerId/notifications
+    if (segments.length === 3 && segments[0] === 'customers' && segments[2] === 'notifications' && req.method === 'GET') {
+      const customerId = segments[1];
+      if (!customerId || isNaN(Number(customerId))) {
+        return res.status(400).json({ error: 'Valid customerId required' });
+      }
+
+      // Verify user can access this customer data
+      if (user.id !== Number(customerId) && user.role !== 'admin' && user.role !== 'business') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const rows = await sql`
+        SELECT 
+          cn.id,
+          cn.customer_id,
+          cn.business_id,
+          cn.type,
+          cn.title,
+          cn.message,
+          cn.data,
+          cn.is_read,
+          cn.created_at,
+          cn.read_at,
+          cn.expires_at,
+          u.name AS business_name
+        FROM customer_notifications cn
+        JOIN users u ON u.id = cn.business_id
+        WHERE cn.customer_id = ${Number(customerId)}
+        ORDER BY cn.created_at DESC
+      `;
+
+      const notifications = rows.map((r: any) => ({
+        id: String(r.id),
+        customerId: String(r.customer_id),
+        businessId: String(r.business_id),
+        type: r.type,
+        title: r.title,
+        message: r.message,
+        data: r.data ? (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) : undefined,
+        isRead: !!r.is_read,
+        createdAt: r.created_at,
+        readAt: r.read_at || undefined,
+        expiresAt: r.expires_at || undefined,
+        businessName: r.business_name || undefined,
+      }));
+
+      return res.status(200).json({ notifications });
+    }
+
+    // Handle customer routes: /api/customers/:customerId/approvals
+    if (segments.length === 3 && segments[0] === 'customers' && segments[2] === 'approvals' && req.method === 'GET') {
+      const customerId = segments[1];
+      if (!customerId || isNaN(Number(customerId))) {
+        return res.status(400).json({ error: 'Valid customerId required' });
+      }
+
+      // Verify user can access this customer data
+      if (user.id !== Number(customerId) && user.role !== 'admin' && user.role !== 'business') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const approvals = await sql`
+        SELECT 
+          id,
+          customer_id,
+          business_id,
+          request_type,
+          entity_id,
+          status,
+          data,
+          requested_at,
+          response_at,
+          expires_at
+        FROM approval_requests
+        WHERE customer_id = ${Number(customerId)}
+        ORDER BY requested_at DESC
+      `;
+
+      const formatted = approvals.map((r: any) => ({
+        id: String(r.id),
+        customerId: String(r.customer_id),
+        businessId: String(r.business_id),
+        requestType: r.request_type,
+        entityId: String(r.entity_id),
+        status: r.status,
+        data: r.data ? (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) : undefined,
+        requestedAt: r.requested_at,
+        responseAt: r.response_at || undefined,
+        expiresAt: r.expires_at,
+      }));
+
+      return res.status(200).json({ approvals: formatted });
+    }
+
     // Handle customer routes: /api/customers/:customerId/cards
     if (segments.length === 3 && segments[0] === 'customers' && segments[2] === 'cards' && req.method === 'GET') {
       const customerId = segments[1];
