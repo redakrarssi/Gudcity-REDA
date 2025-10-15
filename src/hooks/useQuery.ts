@@ -4,6 +4,21 @@ import { withRetry } from '../utils/withRetry';
 import { queryKeys } from '../utils/queryClient';
 import { FallbackIndicator } from '../components/FallbackIndicator';
 
+// Ensure all requests include Authorization header for protected endpoints
+async function authorizedJsonGet(endpoint: string): Promise<any> {
+  const token = localStorage.getItem('token');
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(endpoint, { headers });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${endpoint} (${response.status})`);
+  }
+  return response.json();
+}
+
 /**
  * Custom hook that enhances React Query with retry logic, 
  * error handling, and offline support
@@ -61,10 +76,8 @@ export function useUserQuery(userId: string | number, options?: any) {
   return useQuery(
     queryKeys.user(userId),
     async () => {
-      // Implement user data fetching
-      const response = await fetch(`/api/users/${userId}`);
-      if (!response.ok) throw new Error('Failed to fetch user data');
-      return response.json();
+      // Use authorized request to access protected user endpoint
+      return authorizedJsonGet(`/api/users/${userId}`);
     },
     options
   );
@@ -75,10 +88,8 @@ export function useCustomerProgramsQuery(customerId: string | number, options?: 
   return useQuery(
     queryKeys.customers.programs(customerId),
     async () => {
-      // Implement program data fetching
-      const response = await fetch(`/api/customers/${customerId}/programs`);
-      if (!response.ok) throw new Error('Failed to fetch customer programs');
-      return response.json();
+      // Authorized fetch for protected customer programs endpoint
+      return authorizedJsonGet(`/api/customers/${customerId}/programs`);
     },
     options
   );
@@ -89,10 +100,8 @@ export function useTransactionHistoryQuery(customerId: string | number, options?
   return useQuery(
     queryKeys.transactions.byCustomer(customerId),
     async () => {
-      // Implement transaction history fetching
-      const response = await fetch(`/api/transactions/customer/${customerId}`);
-      if (!response.ok) throw new Error('Failed to fetch transaction history');
-      return response.json();
+      // Authorized fetch for protected transactions endpoint
+      return authorizedJsonGet(`/api/transactions/customer/${customerId}`);
     },
     options
   );
@@ -103,10 +112,8 @@ export function useCustomerPointsQuery(customerId: string | number, options?: an
   return useQuery(
     queryKeys.customers.points(customerId),
     async () => {
-      // Implement points data fetching
-      const response = await fetch(`/api/customers/${customerId}/points`);
-      if (!response.ok) throw new Error('Failed to fetch customer points');
-      return response.json();
+      // Authorized fetch for protected customer points endpoint
+      return authorizedJsonGet(`/api/customers/${customerId}/points`);
     },
     options
   );
@@ -117,10 +124,8 @@ export function useCustomerDashboardQuery(customerId: string | number, options?:
   return useQuery(
     queryKeys.dashboard.customerSummary(customerId),
     async () => {
-      // Implement dashboard data fetching
-      const response = await fetch(`/api/customers/${customerId}/dashboard`);
-      if (!response.ok) throw new Error('Failed to fetch dashboard data');
-      return response.json();
+      // Authorized fetch for protected dashboard endpoint
+      return authorizedJsonGet(`/api/customers/${customerId}/dashboard`);
     },
     options
   );
@@ -131,10 +136,8 @@ export function useUpcomingRewardsQuery(customerId: string | number, options?: a
   return useQuery(
     queryKeys.dashboard.upcomingRewards(customerId),
     async () => {
-      // Implement upcoming rewards fetching
-      const response = await fetch(`/api/customers/${customerId}/upcoming-rewards`);
-      if (!response.ok) throw new Error('Failed to fetch upcoming rewards');
-      return response.json();
+      // Authorized fetch for protected upcoming rewards endpoint
+      return authorizedJsonGet(`/api/customers/${customerId}/upcoming-rewards`);
     },
     options
   );
