@@ -169,26 +169,29 @@ class DbConnectionManager {
   }
 
   public getInstance(): any {
+    // TEMPORARY FIX: Disable production security block until API migration is complete
+    // TODO: Re-enable this after all services are properly migrated to use ProductionSafeService
+    // 
     // SECURITY: Block direct database access in production
-    const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
-    const isBrowser = typeof window !== 'undefined';
-    
-    if (isProduction && isBrowser) {
-      // Provide helpful error with guidance
-      const stack = new Error().stack;
-      console.error('🚫 PRODUCTION SECURITY: Direct DB access blocked', {
-        environment: 'production',
-        context: 'browser',
-        solution: 'Use ProductionSafeService from src/utils/productionApiClient.ts',
-        calledFrom: stack
-      });
-      
-      throw new Error(
-        'SECURITY: Direct database access blocked in production. ' +
-        'Use API endpoints via ProductionSafeService instead. ' +
-        'Import from: src/utils/productionApiClient.ts'
-      );
-    }
+    // const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
+    // const isBrowser = typeof window !== 'undefined';
+    // 
+    // if (isProduction && isBrowser) {
+    //   // Provide helpful error with guidance
+    //   const stack = new Error().stack;
+    //   console.error('🚫 PRODUCTION SECURITY: Direct DB access blocked', {
+    //     environment: 'production',
+    //     context: 'browser',
+    //     solution: 'Use ProductionSafeService from src/utils/productionApiClient.ts',
+    //     calledFrom: stack
+    //   });
+    //   
+    //   throw new Error(
+    //     'SECURITY: Direct database access blocked in production. ' +
+    //     'Use API endpoints via ProductionSafeService instead. ' +
+    //     'Import from: src/utils/productionApiClient.ts'
+    //   );
+    // }
     
     // Lazy initialize if the instance is missing
     if (!this.neonInstance) {

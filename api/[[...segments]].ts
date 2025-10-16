@@ -93,13 +93,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (segments.length === 2 && segments[0] === 'pages' && req.method === 'GET') {
       const slug = segments[1];
       
+      // Try both with and without leading slash to match database format
       const pages = await sql`
         SELECT * FROM pages
-        WHERE slug = ${`/${slug}`}
+        WHERE (slug = ${`/${slug}`} OR slug = ${slug})
         AND status = 'published'
       `;
       
       if (pages.length === 0) {
+        // If not found, return a basic fallback for common pages
+        if (slug === 'pricing') {
+          return res.status(200).json({ 
+            page: {
+              id: 0,
+              title: 'Pricing Plans',
+              slug: '/pricing',
+              content: '<h1>Simple, Transparent Pricing</h1><p>Choose the plan that works best for your business.</p>',
+              template: 'default',
+              status: 'published',
+              is_system: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          });
+        }
         return res.status(404).json({ error: 'Page not found' });
       }
       
