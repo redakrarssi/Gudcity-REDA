@@ -309,7 +309,9 @@ export class ProductionSafeService {
    * Page Content API calls
    */
   static async getPageBySlug(slug: string): Promise<any> {
-    return apiRequest(`/api/pages/${encodeURIComponent(slug)}`, { method: 'GET' });
+    // Remove leading slash if present since the API adds it
+    const cleanSlug = slug.startsWith('/') ? slug.substring(1) : slug;
+    return apiRequest(`/api/pages/${encodeURIComponent(cleanSlug)}`, { method: 'GET' });
   }
 
   /**
