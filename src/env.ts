@@ -25,9 +25,10 @@ export const API_BASE_URL = (() => {
   if (alt) return alt;
 
   if (typeof window !== 'undefined' && window.location) {
-    // Use same-origin API path to prevent cross-origin CORS errors in production
+    // Use same-origin domain only to prevent cross-origin CORS errors in production
+    // Endpoints already include /api/ prefix, so we just need the domain
     const origin = window.location.origin.replace(/\/$/, '');
-    return `${origin}/api`;
+    return origin;
   }
   // Node/test fallback
   return 'http://localhost:3000';
