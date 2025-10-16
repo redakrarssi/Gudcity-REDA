@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { NotificationService } from './notificationService';
 import { SqlSecurity } from '../utils/sqlSecurity';
 
@@ -91,6 +92,18 @@ export class CustomerService {
    * Shows customer name and the programs they're enrolled in that belong to this business
    */
   static async getBusinessCustomers(businessId: string): Promise<Customer[]> {
+    // Use API in production/browser to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const response = await ProductionSafeService.getCustomers(parseInt(businessId));
+        return response.customers || [];
+      } catch (error) {
+        console.error('Failed to fetch business customers via API:', error);
+        return [];
+      }
+    }
+
+    // Development: Use direct database access
     try {
       console.log(`🔍 DEBUG: Fetching customers for business ID: ${businessId} (BIG RULE: customers enrolled in AT LEAST ONE program)`);
       console.log(`🔍 DEBUG: Business ID type: ${typeof businessId}, value: "${businessId}"`);

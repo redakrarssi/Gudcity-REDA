@@ -92,6 +92,18 @@ async function verifyPassword(plainPassword: string, hashedPassword: string): Pr
 }
 
 export async function getAllUsers(): Promise<User[]> {
+  // Use API in production/browser to avoid direct DB access
+  if (ProductionSafeService.shouldUseApi()) {
+    try {
+      const response = await ProductionSafeService.getAllUsers();
+      return response.users || [];
+    } catch (error) {
+      console.error('Failed to fetch users via API:', error);
+      return [];
+    }
+  }
+
+  // Development: Use direct database access
   try {
     const users = await sql`
       SELECT id, name, email, role, user_type, business_name, business_phone, avatar_url, created_at, last_login, status 

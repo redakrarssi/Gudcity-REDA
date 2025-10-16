@@ -244,9 +244,86 @@ export class ProductionSafeService {
    */
   static async getAvailablePromotions(businessId?: number): Promise<any[]> {
     const endpoint = businessId 
-      ? `/api/businesses/${businessId}/promotions`
+      ? `/api/promotions?businessId=${businessId}`
       : '/api/promotions';
     return apiRequest(endpoint, { method: 'GET' });
+  }
+
+  /**
+   * Dashboard Stats API calls
+   */
+  static async getDashboardStats(type: 'admin' | 'business' | 'customer', id?: number): Promise<any> {
+    const params = new URLSearchParams({ type });
+    if (id) {
+      if (type === 'business') params.set('businessId', id.toString());
+      if (type === 'customer') params.set('customerId', id.toString());
+    }
+    return apiRequest(`/api/dashboard/stats?${params.toString()}`, { method: 'GET' });
+  }
+
+  /**
+   * Customer Management API calls
+   */
+  static async getCustomers(businessId?: number): Promise<any[]> {
+    const endpoint = businessId 
+      ? `/api/customers?businessId=${businessId}`
+      : '/api/customers';
+    return apiRequest(endpoint, { method: 'GET' });
+  }
+
+  static async enrollCustomer(businessId: number, programId: number, customerId: number): Promise<any> {
+    return apiRequest(`/api/customers?businessId=${businessId}&programId=${programId}`, {
+      method: 'POST',
+      body: JSON.stringify({ customerId, action: 'enroll' }),
+    });
+  }
+
+  /**
+   * Business Programs API calls
+   */
+  static async getBusinessPrograms(businessId: number): Promise<any[]> {
+    return apiRequest(`/api/businesses/programs?businessId=${businessId}`, { method: 'GET' });
+  }
+
+  static async createBusinessProgram(businessId: number, programData: any): Promise<any> {
+    return apiRequest(`/api/businesses/programs?businessId=${businessId}`, {
+      method: 'POST',
+      body: JSON.stringify(programData),
+    });
+  }
+
+  static async updateBusinessProgram(businessId: number, programId: number, programData: any): Promise<any> {
+    return apiRequest(`/api/businesses/programs?businessId=${businessId}&programId=${programId}`, {
+      method: 'PUT',
+      body: JSON.stringify(programData),
+    });
+  }
+
+  static async deleteBusinessProgram(businessId: number, programId: number): Promise<any> {
+    return apiRequest(`/api/businesses/programs?businessId=${businessId}&programId=${programId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Page Content API calls
+   */
+  static async getPageBySlug(slug: string): Promise<any> {
+    return apiRequest(`/api/pages/${encodeURIComponent(slug)}`, { method: 'GET' });
+  }
+
+  /**
+   * User Management API calls (enhanced)
+   */
+  static async getAllUsers(): Promise<any[]> {
+    return apiRequest('/api/users', { method: 'GET' });
+  }
+
+  static async createUser(userData: any): Promise<any> {
+    return apiRequest('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
   }
 
   /**
@@ -262,6 +339,58 @@ export class ProductionSafeService {
 
   static async getPendingApprovals(businessId: number): Promise<any[]> {
     return apiRequest(`/api/business/${businessId}/approvals/pending`, { method: 'GET' });
+  }
+
+  /**
+   * Analytics API calls
+   */
+  static async getBusinessAnalytics(businessId: number, metric?: string, period?: string): Promise<any> {
+    const params = new URLSearchParams({ businessId: businessId.toString() });
+    if (metric) params.set('metric', metric);
+    if (period) params.set('period', period);
+    return apiRequest(`/api/analytics/business?${params.toString()}`, { method: 'GET' });
+  }
+
+  /**
+   * Notifications API calls
+   */
+  static async getNotifications(customerId?: number, businessId?: number, unread?: boolean): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (customerId) params.set('customerId', customerId.toString());
+    if (businessId) params.set('businessId', businessId.toString());
+    if (unread) params.set('unread', 'true');
+    return apiRequest(`/api/notifications?${params.toString()}`, { method: 'GET' });
+  }
+
+  static async createNotification(notificationData: any): Promise<any> {
+    return apiRequest('/api/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData),
+    });
+  }
+
+  static async updateNotification(notificationId: string, updateData: any): Promise<any> {
+    return apiRequest(`/api/notifications?notificationId=${notificationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  /**
+   * Loyalty Cards API calls
+   */
+  static async getLoyaltyCards(customerId?: number, businessId?: number): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (customerId) params.set('customerId', customerId.toString());
+    if (businessId) params.set('businessId', businessId.toString());
+    return apiRequest(`/api/loyalty/cards?${params.toString()}`, { method: 'GET' });
+  }
+
+  static async awardPoints(cardId: number, points: number, description?: string, source?: string): Promise<any> {
+    return apiRequest('/api/loyalty/cards', {
+      method: 'POST',
+      body: JSON.stringify({ cardId, points, description, source }),
+    });
   }
 }
 

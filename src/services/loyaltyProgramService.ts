@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import type { LoyaltyProgram, RewardTier, ProgramType } from '../types/loyalty';
 import { CustomerService } from './customerService';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,6 +18,18 @@ export class LoyaltyProgramService {
    * Get all loyalty programs for a business
    */
   static async getBusinessPrograms(businessId: string): Promise<LoyaltyProgram[]> {
+    // Use API in production/browser to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const response = await ProductionSafeService.getBusinessPrograms(parseInt(businessId));
+        return response.programs || [];
+      } catch (error) {
+        console.error('Failed to fetch business programs via API:', error);
+        return [];
+      }
+    }
+
+    // Development: Use direct database access
     try {
       const result = await sql`
         SELECT * FROM loyalty_programs

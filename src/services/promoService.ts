@@ -1,6 +1,7 @@
 import type { PromoCode, PromoCodeRedemption, PromoCodeStats } from '../types/promo';
 import { CurrencyService } from './currencyService';
 import type { CurrencyCode } from '../types/currency';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import sql from '../utils/db';
 
 interface RedemptionResponse {
@@ -400,6 +401,21 @@ export class PromoService {
   }
 
   static async getAvailablePromotions(): Promise<{ promotions: PromoCode[]; error?: string }> {
+    // Use API in production/browser to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const response = await ProductionSafeService.getAvailablePromotions();
+        return { promotions: response.promotions || [] };
+      } catch (error) {
+        console.error('Error getting promotions from API:', error);
+        return {
+          promotions: [],
+          error: error instanceof Error ? error.message : 'Failed to fetch promotions'
+        };
+      }
+    }
+
+    // Development: Use direct database access
     try {
       // Get all active promo codes
       const promoCodesResult = await sql`

@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { secureUpdate, secureSelect, secureInsert, validateDbInput } from '../utils/secureDb';
 
 // Business types and interfaces

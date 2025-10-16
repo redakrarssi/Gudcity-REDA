@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 export interface Page {
   id: number;
@@ -162,6 +163,18 @@ export async function getPageById(id: number): Promise<Page | null> {
 
 // Get a page by slug
 export async function getPageBySlug(slug: string): Promise<Page | null> {
+  // Use API in production/browser to avoid direct DB access
+  if (ProductionSafeService.shouldUseApi()) {
+    try {
+      const response = await ProductionSafeService.getPageBySlug(slug);
+      return response.page || null;
+    } catch (error) {
+      console.error(`Error getting page with slug ${slug} from API:`, error);
+      return null;
+    }
+  }
+
+  // Development: Use direct database access
   try {
     const pages = await sql`
       SELECT * FROM pages

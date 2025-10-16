@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { User } from './userService';
 import { Business } from './businessService';
 import { BusinessApplication } from './businessService';
@@ -65,46 +66,36 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  // PRODUCTION FIX: Use API in production to avoid direct DB access
-  const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
-  const isBrowser = typeof window !== 'undefined';
-  
-  if (isProduction && isBrowser) {
-    console.log('🔒 Production mode: Using API endpoints for dashboard stats');
+  // Use API in production/browser to avoid direct DB access
+  if (ProductionSafeService.shouldUseApi()) {
     try {
-      // Use API endpoint for dashboard stats in production
-      const response = await fetch('/api/admin/dashboard-stats', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('auth_token')}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      const data = await ProductionSafeService.getDashboardStats('admin');
       return data as DashboardStats;
     } catch (error) {
       console.error('Failed to fetch dashboard stats via API:', error);
       // Return fallback data
       return {
-        totalUsers: 0,
-        totalBusinesses: 0,
-        totalPrograms: 0,
-        totalPoints: 0,
-        activeUsers: 0,
-        pendingApprovals: 0,
-        recentTransactions: [],
-        systemHealth: {
-          status: 'unknown',
-          dbConnection: false,
-          apiHealth: false,
-          lastUpdated: new Date().toISOString()
+        users: {
+          total: 0, customers: 0, businesses: 0, admins: 0, newToday: 0, 
+          newThisWeek: 0, newThisMonth: 0, growthRate: 0
         },
-        pendingBusinessApplications: []
+        businesses: {
+          total: 0, active: 0, inactive: 0, suspended: 0, newToday: 0,
+          newThisWeek: 0, newThisMonth: 0, growthRate: 0
+        },
+        transactions: {
+          total: 0, today: 0, thisWeek: 0, thisMonth: 0, value: 0, growthRate: 0
+        },
+        revenue: {
+          total: 0, platform: 0, business: 0, fees: 0, growthRate: 0
+        },
+        approvals: {
+          pending: 0, pendingBusinesses: []
+        },
+        alerts: {
+          total: 0, critical: 0, warnings: 0, list: []
+        },
+        activities: []
       };
     }
   }
