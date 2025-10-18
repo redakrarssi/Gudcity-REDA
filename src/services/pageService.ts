@@ -15,6 +15,12 @@ export interface Page {
 
 // Ensure the pages table exists
 export async function ensurePagesTableExists(): Promise<void> {
+  // PRODUCTION FIX: Skip table creation in production - handled by server
+  if (ProductionSafeService.shouldUseApi()) {
+    console.log('🔒 Production mode: Table initialization handled by server');
+    return;
+  }
+  
   try {
     console.log('✅ Starting to ensure pages table exists...');
     
@@ -44,6 +50,11 @@ export async function ensurePagesTableExists(): Promise<void> {
 
 // Insert default pages if they don't exist
 async function ensureDefaultPages(): Promise<void> {
+  // PRODUCTION FIX: Skip in production
+  if (ProductionSafeService.shouldUseApi()) {
+    return;
+  }
+  
   try {
     console.log('✅ Starting to ensure default pages...');
     

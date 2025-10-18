@@ -14,6 +14,7 @@ import { formatPoints, validateCardData } from '../utils/validators';
 import { logger } from '../utils/logger';
 import { createCardSyncEvent, createNotificationSyncEvent } from '../utils/realTimeSync';
 import type { LoyaltyCard } from '../types/loyalty';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 // Define the card benefit type
 export type CardBenefit = string;
@@ -802,6 +803,31 @@ export class LoyaltyCardService {
    * Get all loyalty cards for a customer
    */
   static async getCustomerCards(customerId: string): Promise<LoyaltyCard[]> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const result = await ProductionSafeService.getCustomerCards(parseInt(customerId));
+        return (result.cards || []).map((card: any) => ({
+          id: card.id?.toString() || '',
+          customerId: card.customer_id?.toString() || customerId,
+          programId: card.program_id?.toString() || '',
+          businessId: card.business_id?.toString() || '',
+          cardNumber: card.card_number || '',
+          points: parseInt(card.points || '0', 10),
+          pointsBalance: parseInt(card.points_balance || card.points || '0', 10),
+          tier: card.tier || 'STANDARD',
+          status: card.status || 'ACTIVE',
+          programName: card.program_name || '',
+          businessName: card.business_name || '',
+          createdAt: card.created_at || new Date().toISOString(),
+          updatedAt: card.updated_at || new Date().toISOString()
+        }));
+      } catch (error) {
+        console.error('Failed to fetch customer cards via API:', error);
+        return [];
+      }
+    }
+    
     try {
       // Ensure we have a valid customer ID
       if (!customerId) {

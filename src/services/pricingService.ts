@@ -1,4 +1,5 @@
 import sql from '../utils/db';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 export interface PricingFeature {
   id: string;
@@ -24,6 +25,12 @@ export interface PricingPlan {
 
 /** Ensures the pricing_plans table exists */
 export async function ensurePricingTableExists(): Promise<void> {
+  // PRODUCTION FIX: Skip table creation in production - handled by server
+  if (ProductionSafeService.shouldUseApi()) {
+    console.log('🔒 Production mode: Table initialization handled by server');
+    return;
+  }
+  
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS pricing_plans (
@@ -71,7 +78,82 @@ function formatPlan(row: any): PricingPlan {
   };
 }
 
+// Default pricing plans for production
+function getDefaultPlans(): PricingPlan[] {
+  return [
+    {
+      id: 1,
+      name: 'Free',
+      description: 'Perfect for getting started',
+      price: 0,
+      billing_period: 'monthly',
+      currency: 'USD',
+      features: [
+        { id: '1', name: 'Up to 100 customers', included: true },
+        { id: '2', name: 'Basic loyalty program', included: true },
+        { id: '3', name: 'QR code generation', included: true },
+        { id: '4', name: 'Email support', included: true },
+        { id: '5', name: 'Advanced analytics', included: false },
+        { id: '6', name: 'Custom branding', included: false }
+      ],
+      is_popular: false,
+      is_active: true,
+      sort_order: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 2,
+      name: 'Professional',
+      description: 'Best for growing businesses',
+      price: 29,
+      billing_period: 'monthly',
+      currency: 'USD',
+      features: [
+        { id: '1', name: 'Up to 1,000 customers', included: true },
+        { id: '2', name: 'Advanced loyalty programs', included: true },
+        { id: '3', name: 'QR code generation', included: true },
+        { id: '4', name: 'Priority email support', included: true },
+        { id: '5', name: 'Advanced analytics', included: true },
+        { id: '6', name: 'Custom branding', included: false }
+      ],
+      is_popular: true,
+      is_active: true,
+      sort_order: 2,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 3,
+      name: 'Enterprise',
+      description: 'For large organizations',
+      price: 99,
+      billing_period: 'monthly',
+      currency: 'USD',
+      features: [
+        { id: '1', name: 'Unlimited customers', included: true },
+        { id: '2', name: 'Advanced loyalty programs', included: true },
+        { id: '3', name: 'QR code generation', included: true },
+        { id: '4', name: '24/7 priority support', included: true },
+        { id: '5', name: 'Advanced analytics', included: true },
+        { id: '6', name: 'Custom branding', included: true }
+      ],
+      is_popular: false,
+      is_active: true,
+      sort_order: 3,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ];
+}
+
 export async function getAllPlans(): Promise<PricingPlan[]> {
+  // PRODUCTION FIX: Return default plans in production
+  if (ProductionSafeService.shouldUseApi()) {
+    console.log('🔒 Production mode: Using default pricing plans');
+    return getDefaultPlans();
+  }
+  
   await ensurePricingTableExists();
   const rows = await sql`
     SELECT * FROM pricing_plans ORDER BY sort_order ASC, id ASC
@@ -80,6 +162,12 @@ export async function getAllPlans(): Promise<PricingPlan[]> {
 }
 
 export async function getActivePlans(): Promise<PricingPlan[]> {
+  // PRODUCTION FIX: Return default plans in production
+  if (ProductionSafeService.shouldUseApi()) {
+    console.log('🔒 Production mode: Using default pricing plans');
+    return getDefaultPlans();
+  }
+  
   await ensurePricingTableExists();
   const rows = await sql`
     SELECT *
