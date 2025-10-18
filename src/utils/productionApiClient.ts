@@ -394,6 +394,133 @@ export class ProductionSafeService {
       body: JSON.stringify({ cardId, points, description, source }),
     });
   }
+
+  /**
+   * QR Code Operations API calls
+   */
+  static async generateQRCode(type: 'customer' | 'loyalty' | 'promo', customerId?: number, businessId?: number, programId?: number, promoCodeId?: number): Promise<any> {
+    return apiRequest('/api/qr/generate', {
+      method: 'POST',
+      body: JSON.stringify({ type, customerId, businessId, programId, promoCodeId }),
+    });
+  }
+
+  static async validateQRCode(qrData: any, businessId: number): Promise<any> {
+    return apiRequest('/api/qr/validate', {
+      method: 'POST',
+      body: JSON.stringify({ qrData, businessId }),
+    });
+  }
+
+  static async logQRScan(qrData: any, businessId: number, customerId?: number, points?: number): Promise<any> {
+    return apiRequest('/api/qr/scan', {
+      method: 'POST',
+      body: JSON.stringify({ qrData, businessId, customerId, points }),
+    });
+  }
+
+  /**
+   * Transaction Operations API calls
+   */
+  static async getTransactions(customerId?: number, businessId?: number, type?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (customerId) params.set('customerId', customerId.toString());
+    if (businessId) params.set('businessId', businessId.toString());
+    if (type) params.set('type', type);
+    return apiRequest(`/api/transactions?${params.toString()}`, { method: 'GET' });
+  }
+
+  static async awardPointsTransaction(customerId: number, businessId: number, programId: number, points: number, description?: string): Promise<any> {
+    return apiRequest('/api/transactions', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'award', customerId, businessId, programId, points, description }),
+    });
+  }
+
+  static async redeemPoints(customerId: number, businessId: number, programId: number, points: number, description?: string): Promise<any> {
+    return apiRequest('/api/transactions', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'redeem', customerId, businessId, programId, points, description }),
+    });
+  }
+
+  /**
+   * Approvals Management API calls
+   */
+  static async getApprovals(status?: string, type?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (type) params.set('type', type);
+    return apiRequest(`/api/approvals?${params.toString()}`, { method: 'GET' });
+  }
+
+  static async getPendingApprovals(): Promise<any[]> {
+    return apiRequest('/api/approvals?type=pending', { method: 'GET' });
+  }
+
+  static async updateApproval(approvalId: number, status: 'approved' | 'rejected', notes?: string): Promise<any> {
+    return apiRequest(`/api/approvals/${approvalId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, notes }),
+    });
+  }
+
+  /**
+   * User Settings API calls
+   */
+  static async getUserSettings(userId: number): Promise<any> {
+    return apiRequest(`/api/users/${userId}/settings`, { method: 'GET' });
+  }
+
+  static async updateUserSettings(userId: number, settings: any): Promise<any> {
+    return apiRequest(`/api/users/${userId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  /**
+   * Customer Settings API calls  
+   */
+  static async getCustomerSettings(customerId: number): Promise<any> {
+    return apiRequest(`/api/users/${customerId}/settings`, { method: 'GET' });
+  }
+
+  static async updateCustomerSettings(customerId: number, settings: any): Promise<any> {
+    return apiRequest(`/api/users/${customerId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  /**
+   * Business API calls (enhanced)
+   */
+  static async getBusinessById(businessId: number): Promise<any> {
+    return apiRequest(`/api/users/${businessId}`, { method: 'GET' });
+  }
+
+  static async updateBusiness(businessId: number, data: any): Promise<any> {
+    return apiRequest(`/api/users/${businessId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Additional helper methods
+   */
+  static async enrollInProgram(customerId: number, businessId: number, programId: number): Promise<any> {
+    return this.enrollCustomer(businessId, programId, customerId);
+  }
+
+  static async getCustomerById(customerId: number): Promise<any> {
+    return apiRequest(`/api/users/${customerId}`, { method: 'GET' });
+  }
+
+  static async getBusinessCustomers(businessId: number): Promise<any[]> {
+    return this.getCustomers(businessId);
+  }
 }
 
 export default ProductionSafeService;

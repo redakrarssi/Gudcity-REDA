@@ -11,7 +11,8 @@ import { useBusinessCurrency } from '../../contexts/BusinessCurrencyContext';
 import { DeleteButton, PermissionGate, RestrictedFeatureNotice } from '../../components/common/PermissionGate';
 import { PERMISSIONS, isBusinessOwner, hasPermission } from '../../utils/permissions';
 import { getBusinessIdString } from '../../utils/businessContext';
-import { verifyConnection } from '../../utils/db';
+// Do not check DB connection from browser in production; rely on API
+import { ProductionSafeService } from '../../utils/productionApiClient';
 
 const Programs = () => {
   const { t } = useTranslation();
@@ -231,13 +232,15 @@ const Programs = () => {
         
         console.log('Creating program with business ID:', businessId);
         
-        // Test database connection first
-        const isConnected = await verifyConnection();
-        console.log('Database connection status:', isConnected);
-        
-        if (!isConnected) {
-          setError(t('business.Could not connect to database. Please try again later.'));
-          return;
+        // In production, rely on API availability; in dev you already have DB
+        if (ProductionSafeService.shouldUseApi()) {
+          // Quick ping: fetch programs list via API to validate availability
+          try {
+            await ProductionSafeService.getBusinessPrograms(parseInt(businessId));
+          } catch (e) {
+            setError(t('business.Could not connect to API. Please try again later.'));
+            return;
+          }
         }
         
         try {

@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
-import sql from '../../utils/db';
+// Removed direct DB import to avoid production security block
 import { 
   reportEnrollmentError, 
   EnrollmentErrorCode, 

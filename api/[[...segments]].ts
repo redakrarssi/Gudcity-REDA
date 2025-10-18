@@ -879,6 +879,450 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // Route: /api/qr/generate - Generate QR code
+    if (segments.length === 2 && segments[0] === 'qr' && segments[1] === 'generate' && req.method === 'POST') {
+      const { type, customerId, businessId, programId, promoCodeId } = (req.body || {}) as any;
+
+      if (!type || !['customer', 'loyalty', 'promo'].includes(type)) {
+        return res.status(400).json({ error: 'Valid type required (customer, loyalty, promo)' });
+      }
+
+      // Verify access
+      if (type === 'customer' && user!.id !== parseInt(String(customerId)) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if ((type === 'loyalty' || type === 'promo') && user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Generate QR code data
+      const qrData = {
+        type,
+        customerId: customerId ? parseInt(String(customerId)) : undefined,
+        businessId: businessId ? parseInt(String(businessId)) : undefined,
+        programId: programId ? parseInt(String(programId)) : undefined,
+        promoCodeId: promoCodeId ? parseInt(String(promoCodeId)) : undefined,
+        timestamp: new Date().toISOString(),
+        id: `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+
+      return res.status(200).json({ success: true, qrData });
+    }
+
+    // Route: /api/qr/validate - Validate QR code
+    if (segments.length === 2 && segments[0] === 'qr' && segments[1] === 'validate' && req.method === 'POST') {
+      const { qrData, businessId } = (req.body || {}) as any;
+
+      if (!qrData || !businessId) {
+        return res.status(400).json({ error: 'qrData and businessId required' });
+      }
+
+      // Verify business access
+      if (user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Basic validation
+      const isValid = qrData && qrData.type && qrData.id;
+
+      return res.status(200).json({ valid: isValid, message: isValid ? 'QR code is valid' : 'Invalid QR code' });
+    }
+
+    // Route: /api/qr/scan - Log QR scan
+    if (segments.length === 2 && segments[0] === 'qr' && segments[1] === 'scan' && req.method === 'POST') {
+      const { qrData, businessId, customerId, points } = (req.body || {}) as any;
+
+      if (!qrData || !businessId) {
+        return res.status(400).json({ error: 'qrData and businessId required' });
+      }
+
+      // Verify business access
+      if (user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Log the scan
+      const scanLog = await sql`
+        INSERT INTO qr_scan_logs (
+          scan_type, scanned_by, scanned_data, customer_id, 
+          points_awarded, success, created_at
+        ) VALUES (
+          ${qrData.type || 'CUSTOMER_CARD'}, ${parseInt(String(businessId))}, 
+          ${JSON.stringify(qrData)}, ${customerId ? parseInt(String(customerId)) : null},
+          ${points || 0}, TRUE, NOW()
+        )
+        RETURNING id
+      `;
+
+      return res.status(200).json({ success: true, scanLogId: scanLog[0]?.id });
+    }
+
+    // Route: /api/transactions - Get transactions or award/redeem points
+    if (segments.length === 1 && segments[0] === 'transactions') {
+      if (req.method === 'GET') {
+        const { customerId, businessId, type } = req.query as any;
+
+        if (customerId) {
+          if (user!.id !== parseInt(String(customerId)) && user!.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+
+          let query = `
+            SELECT pt.*, u.name as business_name, lp.name as program_name
+            FROM point_transactions pt
+            LEFT JOIN users u ON pt.business_id = u.id
+            LEFT JOIN loyalty_programs lp ON pt.program_id = lp.id
+            WHERE pt.customer_id = ${parseInt(String(customerId))}
+          `;
+
+          if (type) query += ` AND pt.transaction_type = '${type}'`;
+          query += ` ORDER BY pt.created_at DESC LIMIT 50`;
+
+          const transactions = await sql.unsafe(query);
+          return res.status(200).json({ transactions });
+        }
+
+        if (businessId) {
+          if (user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+
+          const transactions = await sql`
+            SELECT pt.*, u.name as customer_name, lp.name as program_name
+            FROM point_transactions pt
+            LEFT JOIN users u ON pt.customer_id = u.id
+            LEFT JOIN loyalty_programs lp ON pt.program_id = lp.id
+            WHERE pt.business_id = ${parseInt(String(businessId))}
+            ORDER BY pt.created_at DESC LIMIT 100
+          `;
+
+          return res.status(200).json({ transactions });
+        }
+
+        return res.status(400).json({ error: 'customerId or businessId required' });
+      }
+
+      if (req.method === 'POST') {
+        const { action, customerId, businessId, programId, points, description } = (req.body || {}) as any;
+
+        if (!action || !['award', 'redeem'].includes(action)) {
+          return res.status(400).json({ error: 'Valid action required (award or redeem)' });
+        }
+
+        if (!customerId || !businessId || !programId || !points || Number(points) <= 0) {
+          return res.status(400).json({ error: 'customerId, businessId, programId, and positive points required' });
+        }
+
+        // Verify business access
+        if (user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        // Check if customer is enrolled
+        const enrollment = await sql`
+          SELECT lc.* FROM loyalty_cards lc
+          WHERE lc.customer_id = ${parseInt(String(customerId))}
+            AND lc.business_id = ${parseInt(String(businessId))}
+            AND lc.program_id = ${parseInt(String(programId))}
+            AND lc.status = 'ACTIVE'
+        `;
+
+        if (enrollment.length === 0) {
+          return res.status(400).json({ error: 'Customer not enrolled in this program' });
+        }
+
+        const card = enrollment[0];
+
+        if (action === 'award') {
+          // Award points
+          await sql`
+            UPDATE loyalty_cards
+            SET points = points + ${parseInt(String(points))},
+                points_balance = COALESCE(points_balance, 0) + ${parseInt(String(points))},
+                total_points_earned = COALESCE(total_points_earned, 0) + ${parseInt(String(points))},
+                updated_at = NOW()
+            WHERE id = ${card.id}
+          `;
+
+          // Record transaction
+          await sql`
+            INSERT INTO point_transactions (
+              customer_id, business_id, program_id, points, 
+              transaction_type, description, created_at
+            ) VALUES (
+              ${parseInt(String(customerId))}, ${parseInt(String(businessId))}, 
+              ${parseInt(String(programId))}, ${parseInt(String(points))},
+              'AWARD', ${description || 'Points awarded'}, NOW()
+            )
+          `;
+
+          // Log activity
+          await sql`
+            INSERT INTO card_activities (
+              card_id, activity_type, points, description, created_at
+            ) VALUES (
+              ${card.id}, 'POINTS_AWARDED', ${parseInt(String(points))},
+              ${description || 'Points awarded'}, NOW()
+            )
+          `;
+
+          return res.status(200).json({ success: true, points: parseInt(String(points)), message: 'Points awarded successfully' });
+        } else {
+          // Redeem points
+          if (card.points_balance < parseInt(String(points))) {
+            return res.status(400).json({ error: 'Insufficient points balance' });
+          }
+
+          await sql`
+            UPDATE loyalty_cards
+            SET points_balance = points_balance - ${parseInt(String(points))},
+                updated_at = NOW()
+            WHERE id = ${card.id}
+          `;
+
+          // Record transaction
+          await sql`
+            INSERT INTO point_transactions (
+              customer_id, business_id, program_id, points,
+              transaction_type, description, created_at
+            ) VALUES (
+              ${parseInt(String(customerId))}, ${parseInt(String(businessId))},
+              ${parseInt(String(programId))}, ${-parseInt(String(points))},
+              'REDEEM', ${description || 'Points redeemed'}, NOW()
+            )
+          `;
+
+          // Log activity
+          await sql`
+            INSERT INTO card_activities (
+              card_id, activity_type, points, description, created_at
+            ) VALUES (
+              ${card.id}, 'POINTS_REDEEMED', ${parseInt(String(points))},
+              ${description || 'Points redeemed'}, NOW()
+            )
+          `;
+
+          return res.status(200).json({ success: true, points: parseInt(String(points)), message: 'Points redeemed successfully' });
+        }
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Route: /api/approvals - Approval management
+    if (segments.length === 1 && segments[0] === 'approvals') {
+      if (req.method === 'GET') {
+        const { status, type } = req.query as any;
+
+        if (user!.role !== 'admin') {
+          return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        let query = 'SELECT * FROM business_applications WHERE 1=1';
+        if (status) query += ` AND status = '${status}'`;
+        if (type === 'pending') query += ` AND status = 'pending'`;
+        query += ' ORDER BY created_at DESC LIMIT 100';
+
+        const approvals = await sql.unsafe(query);
+        return res.status(200).json({ approvals });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Route: /api/approvals/:id - Update approval
+    if (segments.length === 2 && segments[0] === 'approvals' && req.method === 'PUT') {
+      const approvalId = segments[1];
+
+      if (user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { status, notes } = (req.body || {}) as any;
+
+      if (!status || !['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Valid status required (approved or rejected)' });
+      }
+
+      const updated = await sql`
+        UPDATE business_applications
+        SET status = ${status},
+            reviewed_at = NOW(),
+            notes = ${notes || ''}
+        WHERE id = ${parseInt(approvalId)}
+        RETURNING *
+      `;
+
+      if (updated.length === 0) {
+        return res.status(404).json({ error: 'Approval not found' });
+      }
+
+      return res.status(200).json({ approval: updated[0] });
+    }
+
+    // Route: /api/business/:id/settings - Business settings
+    if (segments.length === 3 && segments[0] === 'business' && segments[2] === 'settings') {
+      const businessId = segments[1];
+
+      if (user!.id !== parseInt(businessId) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.method === 'GET') {
+        const business = await sql`
+          SELECT 
+            id, name, business_name, business_phone, email, avatar_url,
+            business_type, currency, timezone, notification_preferences
+          FROM users
+          WHERE id = ${parseInt(businessId)} AND user_type = 'business'
+        `;
+
+        if (business.length === 0) {
+          return res.status(404).json({ error: 'Business not found' });
+        }
+
+        return res.status(200).json({ settings: business[0] });
+      }
+
+      if (req.method === 'PUT') {
+        const { 
+          business_name, business_phone, business_type, 
+          currency, timezone, notification_preferences 
+        } = (req.body || {}) as any;
+
+        const updated = await sql`
+          UPDATE users
+          SET 
+            business_name = COALESCE(${business_name}, business_name),
+            business_phone = COALESCE(${business_phone}, business_phone),
+            business_type = COALESCE(${business_type}, business_type),
+            currency = COALESCE(${currency}, currency),
+            timezone = COALESCE(${timezone}, timezone),
+            notification_preferences = COALESCE(${notification_preferences ? JSON.stringify(notification_preferences) : null}, notification_preferences),
+            updated_at = NOW()
+          WHERE id = ${parseInt(businessId)} AND user_type = 'business'
+          RETURNING *
+        `;
+
+        if (updated.length === 0) {
+          return res.status(404).json({ error: 'Business not found' });
+        }
+
+        return res.status(200).json({ settings: updated[0] });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Route: /api/analytics/business - Business analytics
+    if (segments.length === 2 && segments[0] === 'analytics' && segments[1] === 'business' && req.method === 'GET') {
+      const { businessId } = req.query as any;
+
+      if (!businessId) {
+        return res.status(400).json({ error: 'businessId required' });
+      }
+
+      if (user!.id !== parseInt(String(businessId)) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const [
+        totalCustomers,
+        totalPrograms,
+        totalPointsAwarded,
+        totalRedemptions,
+        avgPointsPerCustomer
+      ] = await Promise.all([
+        sql`SELECT COUNT(DISTINCT customer_id) as count FROM loyalty_cards WHERE business_id = ${parseInt(String(businessId))} AND status = 'ACTIVE'`,
+        sql`SELECT COUNT(*) as count FROM loyalty_programs WHERE business_id = ${parseInt(String(businessId))} AND is_active = true`,
+        sql`SELECT COALESCE(SUM(points), 0) as total FROM loyalty_cards WHERE business_id = ${parseInt(String(businessId))} AND status = 'ACTIVE'`,
+        sql`SELECT COUNT(*) as count FROM redemptions r JOIN loyalty_cards lc ON r.card_id = lc.id WHERE lc.business_id = ${parseInt(String(businessId))}`,
+        sql`SELECT COALESCE(AVG(points), 0) as avg FROM loyalty_cards WHERE business_id = ${parseInt(String(businessId))} AND status = 'ACTIVE'`
+      ]);
+
+      return res.status(200).json({
+        totalCustomers: parseInt(totalCustomers[0]?.count || '0'),
+        totalPrograms: parseInt(totalPrograms[0]?.count || '0'),
+        totalPointsAwarded: parseInt(totalPointsAwarded[0]?.total || '0'),
+        totalRedemptions: parseInt(totalRedemptions[0]?.count || '0'),
+        avgPointsPerCustomer: parseFloat(avgPointsPerCustomer[0]?.avg || '0')
+      });
+    }
+
+    // Route: /api/security/audit - Log security event
+    if (segments.length === 2 && segments[0] === 'security' && segments[1] === 'audit' && req.method === 'POST') {
+      const { event, metadata, ipAddress, userAgent } = (req.body || {}) as any;
+
+      if (!event) {
+        return res.status(400).json({ error: 'event is required' });
+      }
+
+      // Log security event
+      await sql`
+        INSERT INTO security_audit_logs (
+          user_id, event, ip_address, user_agent, metadata, created_at
+        ) VALUES (
+          ${user!.id}, ${event}, ${ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress},
+          ${userAgent || req.headers['user-agent']}, ${JSON.stringify(metadata || {})}, NOW()
+        )
+      `;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // Route: /api/users/:id/settings - User settings
+    if (segments.length === 3 && segments[0] === 'users' && segments[2] === 'settings') {
+      const userId = segments[1];
+
+      if (user!.id !== parseInt(userId) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (req.method === 'GET') {
+        const userSettings = await sql`
+          SELECT 
+            id, name, email, avatar_url, phone, timezone,
+            notification_preferences, language, currency
+          FROM users
+          WHERE id = ${parseInt(userId)}
+        `;
+
+        if (userSettings.length === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.status(200).json({ settings: userSettings[0] });
+      }
+
+      if (req.method === 'PUT') {
+        const { name, avatar_url, phone, timezone, notification_preferences, language, currency } = (req.body || {}) as any;
+
+        const updated = await sql`
+          UPDATE users
+          SET 
+            name = COALESCE(${name}, name),
+            avatar_url = COALESCE(${avatar_url}, avatar_url),
+            phone = COALESCE(${phone}, phone),
+            timezone = COALESCE(${timezone}, timezone),
+            notification_preferences = COALESCE(${notification_preferences ? JSON.stringify(notification_preferences) : null}, notification_preferences),
+            language = COALESCE(${language}, language),
+            currency = COALESCE(${currency}, currency),
+            updated_at = NOW()
+          WHERE id = ${parseInt(userId)}
+          RETURNING *
+        `;
+
+        if (updated.length === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.status(200).json({ settings: updated[0] });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     return res.status(404).json({ error: 'Not found' });
   } catch (error) {
     console.error('Catch-all API error:', error);

@@ -5,7 +5,8 @@ import { UserQrCodeService } from '../services/userQrCodeService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { QrCodeService } from '../services/qrCodeService';
 import { Clock, RefreshCw, Shield, CreditCard, BadgeCheck, Tag, AlertCircle, CheckCircle2, Copy, Share2 } from 'lucide-react';
-import sql from '../utils/db';
+// Removed direct DB usage in production; all data comes from APIs or fallbacks
+import { ProductionSafeService } from '../utils/productionApiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { QrCardGenerator } from '../utils/qrCardGenerator';
 import { logger } from '../utils/logger';
@@ -73,10 +74,30 @@ export const QRCard: React.FC<QRCardProps> = ({
     // Initialize QR code
     const initQrCode = async () => {
       try {
-        // First ensure the customer has a valid QR code with the correct structure
+        // In production/browser, avoid any direct DB flow and use API/fallback
+        if (ProductionSafeService.shouldUseApi()) {
+          // Use a safe fallback QR payload immediately (works with scanner)
+          const fallback = {
+            type: 'customer',
+            customerId: userId,
+            cardNumber: UserQrCodeService.generateConsistentCardNumber(userId),
+            name: displayName,
+            timestamp: Date.now()
+          };
+          setCardNumber(fallback.cardNumber);
+          if (onCardReady) onCardReady(fallback.cardNumber);
+          setQrData(JSON.stringify(fallback));
+          setLoading(false);
+          // Attempt to enhance with loyalty cards (for counts/UI) via API
+          try {
+            const cards = await LoyaltyCardService.getCustomerCards(userId);
+            setEnrolledPrograms(cards || []);
+          } catch {}
+          return;
+        }
+
+        // Development: ensure & fetch via DB-backed services
         await QrCardGenerator.ensureCustomerHasQrCode(userId);
-        
-        // Then fetch the QR code
         await fetchQrCode();
       } catch (error) {
         logger.error('Error in QR card initialization:', error);
@@ -322,11 +343,34 @@ export const QRCard: React.FC<QRCardProps> = ({
       setLoading(true);
       setError(null);
       
-      // Get the primary QR code for this customer from storage service
-      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(
-        userId,
-        'CUSTOMER_CARD'
-      );
+      if (ProductionSafeService.shouldUseApi()) {
+        // In production, avoid DB: attempt to derive a usable QR from loyalty cards
+        try {
+          const loyaltyCards = await LoyaltyCardService.getCustomerCards(userId);
+          if (loyaltyCards && loyaltyCards.length > 0) {
+            const first = loyaltyCards[0];
+            if (first.cardNumber) {
+              setCardNumber(first.cardNumber);
+              if (onCardReady) onCardReady(first.cardNumber);
+            }
+          }
+        } catch {}
+
+        // Always provide a safe JSON payload for the on-screen QR
+        const fallbackData = {
+          type: 'customer',
+          customerId: userId,
+          cardNumber: UserQrCodeService.generateConsistentCardNumber(userId),
+          name: displayName,
+          timestamp: Date.now()
+        };
+        setQrData(JSON.stringify(fallbackData));
+        setLoading(false);
+        return;
+      }
+
+      // Development path: use storage service directly
+      const qrCode = await QrCodeStorageService.getCustomerPrimaryQrCode(userId, 'CUSTOMER_CARD');
       
       if (!qrCode || !qrCode.qr_image_url) {
         // If no QR code found or no image URL, create a new one

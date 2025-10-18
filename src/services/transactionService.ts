@@ -3,6 +3,7 @@ import sql from '../utils/db';
 import { NotificationService } from './notificationService';
 import { PointsValidator, PointsAuditor } from '../utils/pointsValidation';
 import { BusinessRuleValidator } from '../utils/businessRuleValidator';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 export class TransactionService {
   // Mock data stores
@@ -25,6 +26,31 @@ export class TransactionService {
     businessName?: string,
     programName?: string
   ): Promise<{ success: boolean; error?: string; points?: number; warnings?: string[] }> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const result = await ProductionSafeService.awardPointsTransaction(
+          parseInt(customerId),
+          parseInt(businessId),
+          parseInt(programId),
+          points,
+          `Points awarded${businessName ? ` by ${businessName}` : ''}`
+        );
+        return {
+          success: result.success || false,
+          points: result.points || points,
+          warnings: []
+        };
+      } catch (error: any) {
+        console.error('Failed to award points via API:', error);
+        return {
+          success: false,
+          error: error.message || 'Failed to award points',
+          warnings: []
+        };
+      }
+    }
+
     try {
       // Comprehensive validation
       const validationResult = await PointsValidator.validatePointsTransactionComplete(

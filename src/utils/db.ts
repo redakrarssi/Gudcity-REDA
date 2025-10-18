@@ -169,27 +169,54 @@ class DbConnectionManager {
   }
 
   public getInstance(): any {
-    // SECURITY: Block direct database access in production
+    // SECURITY: STRICT - Block ALL direct database access in production browser
     const isProduction = !import.meta.env.DEV && import.meta.env.MODE !== 'development';
     const isBrowser = typeof window !== 'undefined';
     
     if (isProduction && isBrowser) {
-      // Provide helpful error with guidance
+      // Get caller information for debugging
       const stack = new Error().stack;
-      console.error('🚫 PRODUCTION SECURITY: Direct DB access blocked', {
+      const callerInfo = stack?.split('\n')[2]?.trim() || 'unknown';
+      
+      // Log security block event
+      console.error('🚫 PRODUCTION SECURITY: Direct database access BLOCKED', {
         environment: 'production',
         context: 'browser',
-        solution: 'Use ProductionSafeService from src/utils/productionApiClient.ts',
-        calledFrom: stack
+        calledFrom: callerInfo,
+        timestamp: new Date().toISOString(),
+        message: 'All database operations must go through API endpoints in production'
       });
       
+      // Log to console for visibility
+      console.error(`
+╔════════════════════════════════════════════════════════════╗
+║  ⛔ SECURITY: Direct Database Access Blocked               ║
+╚════════════════════════════════════════════════════════════╝
+
+❌ ERROR: Attempted to access database directly from browser in production
+
+📍 Location: ${callerInfo}
+
+✅ SOLUTION: Use ProductionSafeService instead
+   Import: import { ProductionSafeService } from '../utils/productionApiClient';
+   
+   Examples:
+   - ProductionSafeService.awardPointsTransaction(...)
+   - ProductionSafeService.getCustomerCards(...)
+   - ProductionSafeService.getTransactions(...)
+   
+🔒 Security: Database credentials must NEVER be exposed to the browser
+      `);
+      
+      // Throw error to prevent execution
       throw new Error(
-        'SECURITY: Direct database access blocked in production. ' +
-        'Use API endpoints via ProductionSafeService instead. ' +
-        'Import from: src/utils/productionApiClient.ts'
+        'SECURITY VIOLATION: Direct database access is prohibited in production. ' +
+        'All database operations must use secure API endpoints via ProductionSafeService. ' +
+        'See console for details and migration guide.'
       );
     }
     
+    // DEVELOPMENT ONLY: Allow direct database access
     // Lazy initialize if the instance is missing
     if (!this.neonInstance) {
       if (!hasDbUrl) {

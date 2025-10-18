@@ -5,6 +5,7 @@ import {
   getBusinessApplicationById,
   updateBusinessApplicationStatus
 } from './businessService';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 // Approval types
 export type ApprovalType = 'business' | 'program' | 'user' | 'payout';
@@ -26,6 +27,17 @@ export interface Approval {
 
 // Get all approvals across all types
 export async function getAllApprovals(): Promise<Approval[]> {
+  // PRODUCTION FIX: Use API in production to avoid direct DB access
+  if (ProductionSafeService.shouldUseApi()) {
+    try {
+      const result = await ProductionSafeService.getApprovals();
+      return result.approvals || result || [];
+    } catch (error) {
+      console.error('Failed to fetch approvals via API:', error);
+      return [];
+    }
+  }
+
   try {
     console.log('Fetching all approvals...');
     
@@ -103,6 +115,17 @@ export async function updateApprovalStatus(
   status: ApprovalStatus, 
   notes?: string
 ): Promise<boolean> {
+  // PRODUCTION FIX: Use API in production to avoid direct DB access
+  if (ProductionSafeService.shouldUseApi()) {
+    try {
+      const result = await ProductionSafeService.updateApproval(id, status, notes);
+      return result && result.approval ? true : false;
+    } catch (error) {
+      console.error('Failed to update approval via API:', error);
+      return false;
+    }
+  }
+
   try {
     console.log(`Updating approval of type ${type} with id ${id} to status: ${status}`);
     
