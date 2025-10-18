@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { createNotificationSyncEvent, createEnrollmentSyncEvent } from '../utils/realTimeSync';
 import type { CustomerNotification, ApprovalRequest, NotificationPreference, CustomerNotificationType } from '../types/customerNotification';
 import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
+import { ProductionSafeService } from '../utils/productionApiClient';
 
 /**
  * Service for managing customer notifications and approval requests
@@ -131,6 +132,17 @@ export class CustomerNotificationService {
    * @param customerId The customer ID
    */
   static async getCustomerNotifications(customerId: string): Promise<CustomerNotification[]> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const result = await ProductionSafeService.getNotifications(parseInt(customerId));
+        return (result.notifications || []).map((notif: any) => this.mapNotification(notif));
+      } catch (error) {
+        console.error('Failed to fetch notifications via API:', error);
+        return [];
+      }
+    }
+    
     try {
       // Check if the table exists first
       const tableExists = await sql`
@@ -168,6 +180,17 @@ export class CustomerNotificationService {
    * @param customerId The customer ID
    */
   static async getUnreadNotifications(customerId: string): Promise<CustomerNotification[]> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const result = await ProductionSafeService.getNotifications(parseInt(customerId), undefined, true);
+        return (result.notifications || []).map((notif: any) => this.mapNotification(notif));
+      } catch (error) {
+        console.error('Failed to fetch unread notifications via API:', error);
+        return [];
+      }
+    }
+    
     try {
       // Check if the table exists first
       const tableExists = await sql`
@@ -207,6 +230,17 @@ export class CustomerNotificationService {
    * @param notificationId The notification ID
    */
   static async markAsRead(notificationId: string): Promise<boolean> {
+    // PRODUCTION FIX: Use API in production to avoid direct DB access
+    if (ProductionSafeService.shouldUseApi()) {
+      try {
+        const result = await ProductionSafeService.updateNotification(notificationId, { is_read: true });
+        return result && result.notification ? true : false;
+      } catch (error) {
+        console.error('Failed to mark notification as read via API:', error);
+        return false;
+      }
+    }
+    
     try {
       const result = await sql`
         UPDATE customer_notifications
