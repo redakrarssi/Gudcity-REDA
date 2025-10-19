@@ -1,4 +1,4 @@
-import type { VercelRequest } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 import { requireSql } from './db.js';
 
@@ -6,28 +6,57 @@ export interface AuthUser {
   id: number;
   email?: string;
   role?: string;
+  businessId?: number;
+}
+
+// Extended request interface with authenticated user
+export interface AuthenticatedRequest extends VercelRequest {
+  user?: AuthUser;
 }
 
 export async function verifyAuth(req: VercelRequest): Promise<AuthUser | null> {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
-  if (!token) return null;
+  
+  if (!token) {
+    console.log('[Auth] No token provided in request');
+    return null;
+  }
+  
   const secret = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
-  if (!secret) return null;
+  if (!secret) {
+    console.error('[Auth] JWT_SECRET not configured');
+    return null;
+  }
 
   try {
     const payload = jwt.verify(token, secret) as any;
+    
     // Optional blacklist check
     try {
       const sql = requireSql();
       if (payload?.jti) {
         const rows = await sql`SELECT 1 FROM revoked_tokens WHERE jti = ${payload.jti} LIMIT 1`;
-        if (rows && rows.length > 0) return null;
+        if (rows && rows.length > 0) {
+          console.log('[Auth] Token is blacklisted:', payload.jti);
+          return null;
+        }
       }
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[Auth] Failed to check token blacklist:', err);
+    }
 
-    return { id: Number(payload.userId), email: payload.email, role: payload.role };
-  } catch (_) {
+    const user: AuthUser = {
+      id: Number(payload.userId),
+      email: payload.email,
+      role: payload.role,
+      businessId: payload.businessId ? Number(payload.businessId) : undefined,
+    };
+
+    console.log('[Auth] User authenticated:', { userId: user.id, role: user.role });
+    return user;
+  } catch (error) {
+    console.log('[Auth] Token verification failed:', (error as Error).message);
     return null;
   }
 }
@@ -72,5 +101,121 @@ export function rateLimitFactory(limit: number, windowMs: number) {
     entry.count++;
     return entry.count <= limit;
   };
+}
+
+/**
+ * Authentication middleware for API endpoints
+ * Verifies JWT token and attaches user to request
+ */
+export async function authMiddleware(
+  req: AuthenticatedRequest,
+  res: VercelResponse,
+  next?: () => void
+): Promise<boolean> {
+  const user = await verifyAuth(req);
+  
+  if (!user) {
+    console.log('[AuthMiddleware] Authentication failed for:', req.url);
+    res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required',
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return false;
+  }
+  
+  // Attach user to request
+  req.user = user;
+  
+  // Log authenticated request
+  console.log('[AuthMiddleware] Authenticated request:', {
+    url: req.url,
+    method: req.method,
+    userId: user.id,
+    role: user.role,
+  });
+  
+  if (next) next();
+  return true;
+}
+
+/**
+ * Role-based authorization helper
+ * Checks if authenticated user has required role
+ */
+export function requireRole(allowedRoles: string[]) {
+  return (req: AuthenticatedRequest, res: VercelResponse, next?: () => void): boolean => {
+    if (!req.user) {
+      console.log('[RequireRole] No user attached to request');
+      res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      });
+      return false;
+    }
+    
+    const userRole = req.user.role || 'customer';
+    
+    if (!allowedRoles.includes(userRole)) {
+      console.log('[RequireRole] Access denied:', {
+        userId: req.user.id,
+        userRole,
+        requiredRoles: allowedRoles,
+      });
+      res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Insufficient permissions',
+          details: {
+            required: allowedRoles,
+            current: userRole,
+          },
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      });
+      return false;
+    }
+    
+    console.log('[RequireRole] Access granted:', {
+      userId: req.user.id,
+      role: userRole,
+    });
+    
+    if (next) next();
+    return true;
+  };
+}
+
+/**
+ * Check if user can access resource (owns it or is admin)
+ */
+export function canAccessResource(
+  req: AuthenticatedRequest,
+  resourceUserId: number | string
+): boolean {
+  if (!req.user) return false;
+  
+  const userId = req.user.id;
+  const userRole = req.user.role || 'customer';
+  
+  // Admin can access any resource
+  if (userRole === 'admin') return true;
+  
+  // User can access their own resource
+  return userId === Number(resourceUserId);
 }
 

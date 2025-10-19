@@ -1,17 +1,16 @@
 /**
- * Vercel Serverless API: Get User by Email
- * POST /api/users/by-email
+ * Vercel Serverless API: User Logout
+ * This runs on the backend with secure database access
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { AuthenticatedRequest, authMiddleware } from '../_lib/auth';
-import { getUserByEmail } from '../_services/userServerService';
+import { logoutUser } from '../_services/authServerService';
 import { successResponse, ErrorResponses } from '../_services/responseFormatter';
 import { standardRateLimit } from '../_middleware/rateLimit';
-import { validationMiddleware } from '../_middleware/validation';
 import { cors } from '../_lib/auth';
 
 export default async function handler(req: AuthenticatedRequest, res: VercelResponse) {
-  console.log('[UserByEmail API] Request received:', { method: req.method, url: req.url });
+  console.log('[Logout API] Request received:', { method: req.method, url: req.url });
   
   // Handle CORS
   cors(res, req.headers.origin);
@@ -35,44 +34,30 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     return;
   }
 
-  // Input validation
-  const schema = {
-    email: {
-      type: 'email' as const,
-      required: true,
-      max: 255,
-      sanitize: true,
-    },
-  };
-
-  if (!validationMiddleware(schema)(req, res)) {
-    return;
-  }
-
   try {
-    const { email } = req.body;
+    const userId = req.user!.id;
+    const token = req.headers.authorization?.split(' ')[1] || '';
 
-    const user = await getUserByEmail(email);
-    
-    if (!user) {
-      return res.status(404).json(ErrorResponses.notFound('User'));
-    }
+    // Logout user and revoke token via server service
+    await logoutUser(userId, token);
 
-    // Only allow users to see their own data or admins to see any
-    if (req.user!.email !== email && req.user!.role !== 'admin') {
-      return res.status(403).json(ErrorResponses.forbidden());
-    }
+    console.log('[Logout API] Logout successful:', { userId });
 
-    return res.status(200).json(successResponse(user));
+    return res.status(200).json(
+      successResponse({
+        message: 'Logged out successfully',
+      })
+    );
 
   } catch (error) {
-    console.error('[UserByEmail API] Error:', error);
+    console.error('[Logout API] Logout error:', error);
     
     return res.status(500).json(
       ErrorResponses.serverError(
-        'Failed to get user',
+        'Logout failed',
         process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
       )
     );
   }
 }
+

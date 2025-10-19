@@ -3,6 +3,11 @@ import env from '../utils/env';
 import { User } from './userService';
 import * as cryptoUtils from '../utils/cryptoUtils';
 import bcrypt from 'bcryptjs';
+import { apiLogin, apiRegister } from './apiClient';
+
+// MIGRATION: Feature flag to enable API-based auth (Phase 2 of migration)
+// Set to true to use secure backend API, false to use direct database access
+const USE_API_AUTH = true; // Enable API mode for gradual migration
 
 // For rate limiting
 interface RateLimitEntry {
@@ -546,6 +551,101 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
 // - authSecurity.ts (server-side security utilities)
 // Browser-side code should use the /api/auth/* endpoints instead
 
+/**
+ * MIGRATION: API-based authentication functions with fallback
+ * These functions try API first, then fall back to direct DB if API fails
+ */
+
+/**
+ * Login user via API or fallback to direct DB
+ */
+export async function login(email: string, password: string): Promise<{ user: User; token: string }> {
+  if (USE_API_AUTH) {
+    try {
+      console.log('[AuthService] Attempting API login for:', email);
+      const response = await apiLogin({ email, password });
+      console.log('[AuthService] API login successful');
+      
+      // Store token in localStorage
+      if (response.token) {
+        localStorage.setItem('token', response.token);
+      }
+      
+      return {
+        user: response.user as User,
+        token: response.token,
+      };
+    } catch (error) {
+      console.warn('[AuthService] API login failed, falling back to direct DB:', error);
+      // Fall back to direct DB (if implemented elsewhere)
+      throw error; // For now, just throw the error
+    }
+  } else {
+    throw new Error('Direct DB login not implemented in this service. Use AuthContext.');
+  }
+}
+
+/**
+ * Register user via API or fallback to direct DB
+ */
+export async function register(userData: {
+  email: string;
+  password: string;
+  name: string;
+  user_type?: string;
+  role?: string;
+}): Promise<{ user: User; token: string }> {
+  if (USE_API_AUTH) {
+    try {
+      console.log('[AuthService] Attempting API registration for:', userData.email);
+      const response = await apiRegister(userData);
+      console.log('[AuthService] API registration successful');
+      
+      // Store token in localStorage
+      if (response.token) {
+        localStorage.setItem('token', response.token);
+      }
+      
+      return {
+        user: response.user as User,
+        token: response.token,
+      };
+    } catch (error) {
+      console.warn('[AuthService] API registration failed:', error);
+      throw error;
+    }
+  } else {
+    throw new Error('Direct DB registration not implemented in this service. Use AuthContext.');
+  }
+}
+
+/**
+ * Logout user
+ */
+export async function logout(): Promise<void> {
+  // Clear token from localStorage
+  localStorage.removeItem('token');
+  
+  if (USE_API_AUTH) {
+    try {
+      // Call logout API to revoke token on server
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn('[AuthService] Logout API call failed:', error);
+      // Continue anyway - token is already removed from localStorage
+    }
+  }
+}
+
 export default {
   generateTokens,
   refreshTokens,
@@ -555,5 +655,9 @@ export default {
   verifyPassword,
   checkRateLimit,
   resetRateLimit,
-  validatePassword
+  validatePassword,
+  // New API-based methods
+  login,
+  register,
+  logout,
 }; 

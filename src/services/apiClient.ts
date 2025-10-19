@@ -47,12 +47,68 @@ interface ApiResponse<T = any> {
   data?: T;
   error?: string;
   message?: string;
+  success?: boolean;
 }
 
-// Helper: Make API request
+// Enhanced API client configuration
+interface ApiClientConfig {
+  maxRetries?: number;
+  retryDelay?: number;
+  timeout?: number;
+}
+
+const API_CONFIG: ApiClientConfig = {
+  maxRetries: 3,
+  retryDelay: 1000,
+  timeout: 30000, // 30 seconds
+};
+
+// Request/Response interceptors
+type RequestInterceptor = (config: RequestInit) => RequestInit | Promise<RequestInit>;
+type ResponseInterceptor = (response: Response) => Response | Promise<Response>;
+
+const requestInterceptors: RequestInterceptor[] = [];
+const responseInterceptors: ResponseInterceptor[] = [];
+
+/**
+ * Add request interceptor
+ */
+export function addRequestInterceptor(interceptor: RequestInterceptor): void {
+  requestInterceptors.push(interceptor);
+}
+
+/**
+ * Add response interceptor
+ */
+export function addResponseInterceptor(interceptor: ResponseInterceptor): void {
+  responseInterceptors.push(interceptor);
+}
+
+/**
+ * Sleep helper for retry logic
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Check if error is retryable
+ */
+function isRetryableError(error: Error): boolean {
+  const retryableErrors = [
+    'Failed to fetch',
+    'Network request failed',
+    'NetworkError',
+    'TimeoutError',
+  ];
+  return retryableErrors.some(msg => error.message.includes(msg));
+}
+
+// Helper: Make API request with retry logic
 async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryCount = 0
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
@@ -66,7 +122,7 @@ async function apiRequest<T = any>(
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  const config: RequestInit = {
+  let config: RequestInit = {
     ...options,
     headers: {
       ...defaultHeaders,
@@ -74,10 +130,32 @@ async function apiRequest<T = any>(
     },
   };
 
+  // Apply request interceptors
+  for (const interceptor of requestInterceptors) {
+    config = await interceptor(config);
+  }
+
   try {
-    console.log(`🌐 Making API request:`, { method: config.method || 'GET', url, headers: config.headers });
+    console.log(`🌐 Making API request (attempt ${retryCount + 1}):`, { 
+      method: config.method || 'GET', 
+      url,
+    });
     
-    const response = await fetch(url, config);
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    
+    let response = await fetch(url, {
+      ...config,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    // Apply response interceptors
+    for (const interceptor of responseInterceptors) {
+      response = await interceptor(response);
+    }
     
     console.log(`📡 API Response:`, { 
       status: response.status, 
@@ -102,23 +180,36 @@ async function apiRequest<T = any>(
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || `API request failed: ${response.status} ${response.statusText}`);
+      const errorMessage = data.error?.message || data.error || data.message || 
+        `API request failed: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
     }
 
+    // Handle both old and new response formats
+    if (data.success !== undefined) {
+      return data.success ? data.data : data;
+    }
     return data;
+    
   } catch (error) {
-    console.error(`❌ API Error [${endpoint}]:`, {
+    console.error(`❌ API Error [${endpoint}] (attempt ${retryCount + 1}):`, {
       error: (error as Error).message,
       url,
       baseUrl: API_BASE_URL,
       isDev: IS_DEV,
-      stack: (error as Error).stack
     });
     
+    // Retry logic for retryable errors
+    if (retryCount < API_CONFIG.maxRetries! && isRetryableError(error as Error)) {
+      console.log(`🔄 Retrying request in ${API_CONFIG.retryDelay}ms...`);
+      await sleep(API_CONFIG.retryDelay! * (retryCount + 1)); // Exponential backoff
+      return apiRequest<T>(endpoint, options, retryCount + 1);
+    }
+    
     // Enhanced error messages for debugging
-    if ((error as Error).message.includes('Failed to fetch')) {
+    if ((error as Error).message.includes('Failed to fetch') || (error as Error).name === 'AbortError') {
       if (IS_DEV) {
-        throw new Error(`Network error in development. Check if API server is running at localhost:3000. Original error: ${(error as Error).message}`);
+        throw new Error(`Network error in development. Check if API server is running. Original error: ${(error as Error).message}`);
       } else {
         throw new Error(`Network error in production. Check if serverless functions are deployed correctly. URL: ${url}`);
       }
@@ -126,6 +217,63 @@ async function apiRequest<T = any>(
     
     throw error;
   }
+}
+
+/**
+ * Build query string from parameters
+ */
+function buildQueryString(params: Record<string, any>): string {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      searchParams.append(key, String(value));
+    }
+  });
+  const queryString = searchParams.toString();
+  return queryString ? `?${queryString}` : '';
+}
+
+/**
+ * Enhanced API request methods with query parameter support
+ */
+export async function apiGet<T = any>(
+  endpoint: string,
+  params?: Record<string, any>
+): Promise<T> {
+  const queryString = params ? buildQueryString(params) : '';
+  return apiRequest<T>(`${endpoint}${queryString}`, { method: 'GET' });
+}
+
+export async function apiPost<T = any>(
+  endpoint: string,
+  body?: any,
+  params?: Record<string, any>
+): Promise<T> {
+  const queryString = params ? buildQueryString(params) : '';
+  return apiRequest<T>(`${endpoint}${queryString}`, {
+    method: 'POST',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+export async function apiPut<T = any>(
+  endpoint: string,
+  body?: any,
+  params?: Record<string, any>
+): Promise<T> {
+  const queryString = params ? buildQueryString(params) : '';
+  return apiRequest<T>(`${endpoint}${queryString}`, {
+    method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+export async function apiDelete<T = any>(
+  endpoint: string,
+  params?: Record<string, any>
+): Promise<T> {
+  const queryString = params ? buildQueryString(params) : '';
+  return apiRequest<T>(`${endpoint}${queryString}`, { method: 'DELETE' });
 }
 
 // ====================
@@ -261,6 +409,57 @@ export async function apiRecordFailedLogin(email: string, ipAddress?: string): P
   });
 }
 
+// ====================
+// Enhanced User APIs
+// ====================
+
+export async function apiSearchUsers(
+  query: string,
+  filters?: {
+    userType?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<any> {
+  return apiPost('/api/users/search', { query, ...filters });
+}
+
+export async function apiGetUsersByType(
+  type: string,
+  options?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<any> {
+  return apiGet('/api/users/list', { type, ...options });
+}
+
+export async function apiDeleteUser(id: number): Promise<void> {
+  await apiDelete(`/api/users/${id}`);
+}
+
+// ====================
+// Enhanced Customer APIs
+// ====================
+
+export async function apiGetCustomerById(customerId: string): Promise<any> {
+  return apiGet(`/api/customers/${customerId}`);
+}
+
+export async function apiUpdateCustomer(customerId: string, updates: any): Promise<any> {
+  return apiPut(`/api/customers/${customerId}`, updates);
+}
+
+export async function apiGetCustomerPrograms(customerId: string): Promise<any> {
+  return apiGet(`/api/customers/${customerId}/programs`);
+}
+
+export async function apiEnrollCustomer(customerId: string, programId: string): Promise<any> {
+  return apiPost('/api/customers/enroll', { customerId, programId });
+}
+
 // Export all API functions
 export const ApiClient = {
   // Auth
@@ -271,12 +470,19 @@ export const ApiClient = {
   getUserByEmail: apiGetUserByEmail,
   getUserById: apiGetUserById,
   updateUser: apiUpdateUser,
+  searchUsers: apiSearchUsers,
+  getUsersByType: apiGetUsersByType,
+  deleteUser: apiDeleteUser,
   
   // Database
   initializeDatabase: apiInitializeDatabase,
   
   // Customers
   getBusinessCustomers: apiGetBusinessCustomers,
+  getCustomerById: apiGetCustomerById,
+  updateCustomer: apiUpdateCustomer,
+  getCustomerPrograms: apiGetCustomerPrograms,
+  enrollCustomer: apiEnrollCustomer,
   
   // Security
   checkAccountLockout: apiCheckAccountLockout,

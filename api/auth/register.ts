@@ -3,133 +3,121 @@
  * This runs on the backend with secure database access
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { neon } from '@neondatabase/serverless';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import { registerUser } from '../_services/authServerService';
+import { successResponse, ErrorResponses } from '../_services/responseFormatter';
+import { validationMiddleware, CommonSchemas } from '../_middleware/validation';
+import { sensitiveRateLimit } from '../_middleware/rateLimit';
+import { cors } from '../_lib/auth';
 
-// SERVER-SIDE ONLY: Access database without VITE_ prefix
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-const JWT_SECRET = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
-
-const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
+// Validation schema for registration
+const registrationSchema = {
+  email: {
+    type: 'email' as const,
+    required: true,
+    max: 255,
+    sanitize: true,
+  },
+  password: {
+    type: 'string' as const,
+    required: true,
+    min: 8,
+    max: 128,
+  },
+  name: {
+    type: 'string' as const,
+    required: true,
+    min: 2,
+    max: 100,
+    sanitize: true,
+  },
+  user_type: {
+    type: 'string' as const,
+    required: false,
+    enum: ['customer', 'business', 'staff', 'admin'],
+  },
+  role: {
+    type: 'string' as const,
+    required: false,
+    enum: ['customer', 'business', 'staff', 'admin', 'owner'],
+  },
+  business_name: {
+    type: 'string' as const,
+    required: false,
+    max: 200,
+    sanitize: true,
+  },
+  business_phone: {
+    type: 'string' as const,
+    required: false,
+    max: 20,
+    sanitize: true,
+  },
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers - Allow requests from the same origin
-  const origin = req.headers.origin || req.headers.referer || '*';
-  const allowedOrigins = [
-    process.env.VITE_APP_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-    'https://gudcity-reda.vercel.app'
-  ].filter(Boolean);
+  console.log('[Register API] Request received:', { method: req.method, url: req.url });
   
-  const isAllowedOrigin = allowedOrigins.some(allowed => origin.includes(allowed as string));
-  res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? origin : allowedOrigins[0] || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
+  // Handle CORS
+  cors(res, req.headers.origin);
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json(ErrorResponses.methodNotAllowed(['POST']));
   }
 
-  if (!sql) {
-    return res.status(500).json({ error: 'Database not configured' });
+  // Rate limiting
+  if (!sensitiveRateLimit.check(req, res)) {
+    return; // Response already sent by rate limiter
+  }
+
+  // Input validation
+  if (!validationMiddleware(registrationSchema)(req, res)) {
+    return; // Response already sent by validator
   }
 
   try {
-    const { email, password, name, user_type, role } = req.body;
+    const { email, password, name, user_type, role, business_name, business_phone } = req.body;
 
-    // Validation
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
-    }
+    // Register user via server service
+    const result = await registerUser({
+      email,
+      password,
+      name,
+      userType: user_type || 'customer',
+      role: role || user_type || 'customer',
+      businessName: business_name,
+      businessPhone: business_phone,
+    });
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-    }
+    console.log('[Register API] User registered successfully:', { userId: result.user.id, email: result.user.email });
 
-    // Check if user already exists
-    const existingUsers = await sql`
-      SELECT id FROM users WHERE LOWER(email) = LOWER(${email})
-    `;
-
-    if (existingUsers.length > 0) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
-    const newUsers = await sql`
-      INSERT INTO users (email, password, name, user_type, role, status, created_at)
-      VALUES (
-        ${email},
-        ${hashedPassword},
-        ${name},
-        ${user_type || 'customer'},
-        ${role || user_type || 'customer'},
-        'active',
-        NOW()
-      )
-      RETURNING id, email, name, user_type, role
-    `;
-
-    if (newUsers.length === 0) {
-      return res.status(500).json({ error: 'Failed to create user' });
-    }
-
-    const newUser = newUsers[0];
-
-    // Generate JWT token
-    const jti = crypto.randomBytes(16).toString('hex');
-    const token = jwt.sign(
-      {
-        userId: newUser.id,
-        email: newUser.email,
-        role: newUser.role || newUser.user_type,
-        jti
-      },
-      JWT_SECRET!,
-      { expiresIn: '24h' }
+    return res.status(201).json(
+      successResponse({
+        token: result.token,
+        user: result.user,
+      })
     );
 
-    // Store token
-    try {
-      await sql`
-        INSERT INTO auth_tokens (user_id, token, jti, expires_at)
-        VALUES (
-          ${newUser.id},
-          ${token},
-          ${jti},
-          NOW() + INTERVAL '24 hours'
-        )
-      `;
-    } catch (error) {
-      console.error('Error storing token:', error);
-    }
-
-    return res.status(201).json({
-      token,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role || newUser.user_type,
-        user_type: newUser.user_type
-      }
-    });
-
   } catch (error) {
-    console.error('Registration error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-    });
+    console.error('[Register API] Registration error:', error);
+    
+    const errorMessage = (error as Error).message;
+    
+    // Handle specific error cases
+    if (errorMessage.includes('already exists')) {
+      return res.status(409).json(
+        ErrorResponses.conflict('Email already registered')
+      );
+    }
+    
+    return res.status(500).json(
+      ErrorResponses.serverError(
+        'Registration failed',
+        process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      )
+    );
   }
 }
