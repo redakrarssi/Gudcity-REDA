@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { createUser, UserRole, UserType } from '../services/userService';
+import ApiClient from '../services/apiClient';
+
+// TODO: These types should be centralized
+type UserRole = 'admin' | 'business' | 'customer' | 'staff';
+type UserType = 'admin' | 'business' | 'customer' | 'staff';
 
 interface UserFormProps {
   onUserAdded?: () => void;
@@ -53,10 +57,11 @@ export const UserForm: React.FC<UserFormProps> = ({ onUserAdded }) => {
         businessPhone: userType === 'business' ? businessPhone : undefined
       };
       
-      const newUser = await createUser(userData);
+      // Use API registration endpoint
+      const response = await ApiClient.register(userData);
       
-      if (newUser) {
-        console.log('User created successfully:', newUser);
+      if (response && response.user) {
+        console.log('User created successfully:', response.user);
         setSuccess(true);
         // Reset form
         setName('');

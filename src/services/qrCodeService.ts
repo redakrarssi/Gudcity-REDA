@@ -1,24 +1,6 @@
-import sql from '../utils/db';
-import { createStandardCustomerQRCode, createStandardPromoQRCode, createStandardLoyaltyCardQRCode } from '../utils/standardQrCodeGenerator';
-import { SqlSecurity } from '../utils/sqlSecurity';
-import { QrCodeStorageService } from './qrCodeStorageService';
-import env from '../utils/env';
-import rateLimiter from '../utils/rateLimiter';
+import { apiProcessQrCode, apiGenerateQrCode, apiValidateQrCode } from './apiClient';
 
-// Import the new validation and error handling utilities
-import { validateQrCodeData, safeValidateQrCode } from '../utils/qrCodeValidator';
-import { 
-  QrCodeError, 
-  QrValidationError, 
-  QrSecurityError, 
-  QrExpirationError,
-  QrBusinessLogicError,
-  QrRateLimitError,
-  logQrCodeError
-} from '../utils/qrCodeErrorHandler';
-import { withRetryableQuery, withRetryableTransaction } from '../utils/dbRetry';
-import { NotificationService } from './notificationService';
-import QrDataManager from '../utils/qrDataManager';
+// Import types
 import {
   QrCodeType,
   QrCodeData,
@@ -34,12 +16,6 @@ import {
   isPromoCodeQrCodeData,
   ensureId
 } from '../types/qrCode';
-import type { NotificationType } from '../types/notification';
-import { LoyaltyCardService } from './loyaltyCardService';
-import { LoyaltyProgramService } from './loyaltyProgramService';
-import { CustomerNotificationService } from './customerNotificationService';
-import { CustomerService } from './customerService';
-import { emitEnrollmentEvent } from '../utils/loyaltyEvents';
 
 /**
  * QR code scan log database record
@@ -56,6 +32,20 @@ export interface QrScanLog {
   success: boolean;
   error_message?: string;
   created_at: Date | string;
+}
+
+/**
+ * QR code processing result
+ */
+export interface QrCodeProcessingResult {
+  success: boolean;
+  message: string;
+  pointsAwarded?: number;
+  customerId?: string;
+  customerName?: string;
+  programName?: string;
+  data?: any;
+  error?: string;
 }
 
 /**
@@ -159,21 +149,17 @@ export class QrCodeService {
    */
   static async getUserQrCode(userId: string): Promise<string | null> {
     try {
-      const userIdInt = SqlSecurity.validateCustomerId(userId);
-      const result = await sql`
-        SELECT id, name, email, user_type FROM users WHERE id = ${userIdInt}
-      `;
-
-      if (result.length === 0) {
-        return null;
+      // Use API to get user info which will determine the type
+      // Try customer QR first
+      const customerQr = await this.getCustomerQrCode(userId);
+      if (customerQr) {
+        return customerQr;
       }
-
-      const user = result[0];
       
-      if (user.user_type === 'customer') {
-        return this.getCustomerQrCode(userId);
-      } else if (user.user_type === 'business') {
-        return this.getBusinessQrCode(userId);
+      // If customer QR fails, try business QR
+      const businessQr = await this.getBusinessQrCode(userId);
+      if (businessQr) {
+        return businessQr;
       }
       
       return null;
@@ -194,40 +180,15 @@ export class QrCodeService {
       return cached.data;
     }
 
-    try {
-      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
-      const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${customerIdInt} AND user_type = 'customer'
-      `;
-
-      if (result.length === 0) {
-        return null;
-      }
-
-      const customer = result[0];
-      
-      const qrData = {
-        type: 'customer',
-        customerId: customer.id.toString(),
-        name: customer.name,
-        email: customer.email,
-        cardNumber: `GC-${customer.id.toString().padStart(6, '0')}-C`,
-        cardType: 'STANDARD',
-        timestamp: Date.now()
-      };
-
-      // Apply encryption to protect sensitive customer data
-      const qrCodeData = await QrDataManager.prepareForGeneration(qrData, {
-        enableEncryption: true,
-        businessId: customerId,
-        forceEncryption: true
-      });
-      
-      // Cache the result
-      this.cache.set(cacheKey, { data: qrCodeData, timestamp: Date.now() });
-      
-      return qrCodeData;
-    } catch (error) {
+      try {
+        const result = await apiGenerateQrCode(customerId);
+        if (result && result.qrData) {
+          const qrDataString = JSON.stringify(result.qrData);
+          this.cache.set(cacheKey, { data: qrDataString, timestamp: Date.now() });
+          return qrDataString;
+        }
+      return null;
+      } catch (error: any) {
       console.error('Error generating customer QR code:', error);
       return null;
     }
@@ -242,25 +203,14 @@ export class QrCodeService {
     
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
       return cached.data;
-            }
+    }
             
-            try {
-                  const businessIdInt = SqlSecurity.validateBusinessId(businessId);
-                  const result = await sql`
-        SELECT id, name, email FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
-      `;
-
-      if (result.length === 0) {
-        return null;
-      }
-
-      const business = result[0];
-      
+    try {
+      // Note: API generate endpoint handles both customer and business
+      // For business QR, we create a simple structure
       const qrData = {
         type: 'business',
-        businessId: business.id.toString(),
-        name: business.name,
-        email: business.email,
+        businessId: businessId,
         timestamp: Date.now()
       };
 
@@ -278,6 +228,8 @@ export class QrCodeService {
   
   /**
    * Get loyalty card QR code for a specific program
+   * Note: This method creates a simple QR code structure. The API will validate
+   * the card when it's scanned by a business.
    */
   static async getLoyaltyCardQrCode(customerId: string, businessId: string, programId: string): Promise<string | null> {
     const cacheKey = `loyalty-qr-${customerId}-${businessId}-${programId}`;
@@ -288,43 +240,13 @@ export class QrCodeService {
     }
 
     try {
-      const customerIdInt = SqlSecurity.validateCustomerId(customerId);
-      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
-      const programIdInt = SqlSecurity.validateProgramId(programId);
-      
-      const result = await sql`
-        SELECT 
-          lc.*,
-          lp.name as program_name,
-          u.name as business_name,
-          customer.name as customer_name
-        FROM loyalty_cards lc
-        JOIN loyalty_programs lp ON lc.program_id = lp.id
-        JOIN users u ON lc.business_id = u.id
-        JOIN users customer ON lc.customer_id = customer.id
-        WHERE lc.customer_id = ${customerIdInt}
-        AND lc.business_id = ${businessIdInt}
-        AND lc.program_id = ${programIdInt}
-        AND lc.is_active = true
-      `;
-
-      if (result.length === 0) {
-          return null;
-        }
-
-      const card = result[0];
-      
+      // Create QR data structure for loyalty card
+      // The server will validate this when it's scanned
       const qrData = {
         type: 'loyaltyCard',
-        cardId: card.id.toString(),
-        customerId: card.customer_id.toString(),
-        programId: card.program_id.toString(),
-        businessId: card.business_id.toString(),
-        cardNumber: card.card_number || `GC-${card.customer_id.toString().padStart(6, '0')}-C`,
-        programName: card.program_name,
-        businessName: card.business_name,
-        customerName: card.customer_name,
-        points: parseInt(card.points) || 0,
+        customerId: customerId,
+        programId: programId,
+        businessId: businessId,
         timestamp: Date.now()
       };
 
@@ -342,10 +264,9 @@ export class QrCodeService {
   
   /**
    * Process a QR code scan
-   * @param scanType The type of QR code scan
-   * @param scannedBy The business ID of the scanner
-   * @param scannedData The data from the QR code
-   * @param options Additional options for processing
+   * @param qrCodeData The QR code data to process
+   * @param businessId The business ID of the scanner
+   * @param pointsToAward Number of points to award (if applicable)
    * @returns Result of the scan processing
    */
   static async processQrCodeScan(
@@ -356,363 +277,34 @@ export class QrCodeService {
     try {
       console.log('Processing QR code scan:', { type: qrCodeData.type, businessId, pointsToAward });
       
-      // 🔓 Decrypt QR data if encrypted for business dashboard processing
-      const decryptedQrData = await QrDataManager.prepareForBusiness(JSON.stringify(qrCodeData));
-      qrCodeData = decryptedQrData;
-      
       // Handle legacy format conversion if needed
       if (!qrCodeData.type && 'customerId' in qrCodeData) {
         console.log('Converting legacy QR code format to customer type');
         (qrCodeData as any).type = 'customer';
       }
       
-      switch (qrCodeData.type) {
-        case 'customer':
-          return await this.processCustomerQrCode(qrCodeData as CustomerQrCodeData, businessId, pointsToAward);
-        
-        case 'loyaltyCard':
-          return await this.processLoyaltyCardQrCode(qrCodeData as LoyaltyCardQrCodeData, businessId, pointsToAward);
-        
-        case 'promoCode':
-          return await this.processPromoCodeQrCode(qrCodeData as PromoCodeQrCodeData, businessId);
-        
-        default:
-          return {
-            success: false,
-            message: `Unknown QR code type: ${qrCodeData.type || 'undefined'}`
-          };
+          const result = await apiProcessQrCode(qrCodeData, pointsToAward);
+          if (result) {
+            return {
+              success: result.success,
+              message: result.message,
+              pointsAwarded: result.pointsAwarded,
+              customerId: result.customerId,
+              customerName: result.customerName,
+              data: result
+            };
       }
-    } catch (error) {
+      
+      return {
+        success: false,
+        message: 'Failed to process QR code'
+      };
+    } catch (error: any) {
       console.error('Error processing QR code scan:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
+        message: error.message || 'Unknown error occurred'
       };
-    }
-  }
-  
-  /**
-   * Process customer QR code scan - FIXED: No automatic point awarding
-   */
-  private static async processCustomerQrCode(
-    qrCodeData: CustomerQrCodeData,
-    businessId: string,
-    pointsToAward: number
-  ): Promise<QrCodeProcessingResult> {
-    try {
-      // Extract customer ID, handling different possible property names for backward compatibility
-      const customerId = String(qrCodeData.customerId || qrCodeData.id || '');
-      
-      if (!customerId) {
-        return {
-          success: false,
-          message: 'Invalid customer QR code - missing customer ID'
-        };
-      }
-
-      // Log the scan in monitoring system
-      try {
-        await this.logScan(
-          'CUSTOMER_CARD',
-          businessId,
-          qrCodeData,
-          true,
-          { customerId: customerId }
-        );
-      } catch (logError) {
-        console.error('Error logging QR code scan:', logError);
-        // Continue processing even if logging fails
-      }
-
-      // Get business information
-      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
-      const business = await sql`
-        SELECT name FROM users WHERE id = ${businessIdInt} AND user_type = 'business'
-      `;
-      
-      const businessName = business.length > 0 ? business[0].name : 'Business';
-
-      // Send immediate notification that QR was scanned
-      try {
-        await CustomerNotificationService.createNotification({
-          customerId: customerId,
-          businessId: businessId,
-          type: 'QR_SCANNED',
-          title: 'QR Code Scanned',
-          message: `Your QR code was scanned by ${businessName}`,
-          requiresAction: false,
-          actionTaken: false,
-          isRead: false,
-          data: {
-            businessName: businessName,
-            scanTime: new Date().toISOString(),
-            location: 'In-store'
-          }
-        });
-      } catch (notificationError) {
-        console.error('Error creating QR scan notification:', notificationError);
-      }
-
-      // Check customer enrollment status with this business
-      const enrollmentStatus = await CustomerService.getCustomerEnrollmentStatus(customerId, businessId);
-      
-      if (!enrollmentStatus.isEnrolled || enrollmentStatus.programIds.length === 0) {
-        // Customer not enrolled - show enrollment options
-        console.log(`Customer ${customerId} not enrolled with business ${businessId}`);
-        
-        // Get available programs for this business
-        const availablePrograms = await sql`
-          SELECT id, name, description, points_multiplier, is_active
-          FROM loyalty_programs 
-          WHERE business_id = ${businessIdInt} AND is_active = true
-          ORDER BY created_at DESC
-        `;
-
-            return {
-              success: true,
-          message: `Customer found but not enrolled. ${availablePrograms.length} programs available for enrollment.`,
-              customerId: customerId,
-              businessId: businessId,
-          pointsAwarded: 0,
-              data: {
-            action: 'ENROLLMENT_REQUIRED',
-            availablePrograms: availablePrograms.map(p => ({
-              id: p.id,
-              name: p.name,
-              description: p.description,
-              pointsMultiplier: p.points_multiplier
-            })),
-            customerName: qrCodeData.name || `Customer ${customerId}`,
-            businessName: businessName
-          }
-        };
-        } else {
-        // Customer is enrolled - SHOW CUSTOMER INFO (do not auto-award points)
-        console.log(`🎯 Customer ${customerId} has ${enrollmentStatus.programIds.length} program(s). Ready for manual point awarding.`);
-        
-        // Get customer's programs for display (do not award points automatically)
-        const customerPrograms = [];
-          for (const programId of enrollmentStatus.programIds) {
-            const card = await LoyaltyCardService.getCustomerCard(customerId, businessId, programId);
-          if (card) {
-            customerPrograms.push({
-                  cardId: card.id,
-                  programId: programId,
-              programName: card.programName || `Program ${programId}`,
-              currentPoints: card.points || 0
-            });
-          }
-        }
-        
-        console.log(`📋 Found ${customerPrograms.length} program(s) for customer ${customerId}`);
-        // NO AUTOMATIC POINT AWARDING - Let business choose in modal
-
-        // Return successful scan result with customer info (no points awarded yet)
-            return {
-              success: true,
-          message: `Customer ${customerId} found. ${customerPrograms.length} program(s) available. Ready to award points.`,
-              customerId: customerId,
-              businessId: businessId,
-          pointsAwarded: 0, // No automatic points awarding
-              data: {
-            action: 'CUSTOMER_IDENTIFIED',
-            customerPrograms: customerPrograms,
-            enrollmentStatus: enrollmentStatus
-          }
-        };
-      }
-    } catch (error) {
-      console.error('Error processing customer QR code:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error processing customer QR code'
-      };
-    }
-  }
-
-  /**
-   * Process loyalty card QR code scan - FIXED: No automatic point awarding
-   */
-  private static async processLoyaltyCardQrCode(
-    qrCodeData: LoyaltyCardQrCodeData,
-    businessId: string,
-    pointsToAward: number
-  ): Promise<any> {
-    try {
-      const customerId = qrCodeData.customerId;
-      const cardId = qrCodeData.cardId;
-      const programId = qrCodeData.programId;
-      const programName = qrCodeData.programName || "Loyalty Program";
-      
-      // Get the business name
-      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
-      const businessResult = await sql`
-        SELECT name FROM users WHERE id = ${businessIdInt}
-      `;
-      
-      const businessName = businessResult.length > 0 
-        ? businessResult[0].name 
-        : 'Business';
-      
-      // FIXED: Do not automatically award points, just return card info
-      console.log(`🎯 Loyalty Card QR scanned: Card ${cardId}, Program ${programId}. Ready for manual point awarding.`);
-      
-      // Get current card info for display (no automatic point awarding)
-      const cardIdInt = SqlSecurity.validateCardId(cardId);
-      const cardInfo = await sql`
-        SELECT lc.*, lp.name as program_name
-        FROM loyalty_cards lc
-        LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
-        WHERE lc.id = ${cardIdInt}
-      `;
-      
-      const success = cardInfo.length > 0; // Just check if card exists
-
-      if (success) {
-        // Return card info for display (no points awarded yet)
-        return {
-          success: true,
-          message: `Loyalty card found. Ready to award points.`,
-          customerId: customerId,
-          businessId: businessId,
-          cardId: cardId,
-          pointsAwarded: 0, // No automatic points
-          data: {
-            action: 'CARD_IDENTIFIED',
-            cardInfo: cardInfo[0],
-            programName: programName
-          }
-        };
-      } else {
-        return {
-          success: false,
-          message: 'Loyalty card not found'
-        };
-      }
-    } catch (error) {
-      console.error('Error processing loyalty card QR code:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error processing loyalty card QR code'
-      };
-    }
-  }
-
-  /**
-   * Process promo code QR code scan
-   */
-  private static async processPromoCodeQrCode(
-    qrCodeData: PromoCodeQrCodeData,
-    businessId: string
-  ): Promise<QrCodeProcessingResult> {
-    try {
-      const promoCode = qrCodeData.promoCode;
-      
-      // Validate promo code
-      const businessIdInt = SqlSecurity.validateBusinessId(businessId);
-      const sanitizedPromoCode = SqlSecurity.sanitizeString(promoCode, 50);
-      
-      const promoResult = await sql`
-        SELECT * FROM promo_codes 
-        WHERE code = ${sanitizedPromoCode} 
-        AND business_id = ${businessIdInt}
-        AND is_active = true
-        AND (expires_at IS NULL OR expires_at > NOW())
-      `;
-
-      if (promoResult.length === 0) {
-        return {
-          success: false,
-          message: 'Invalid or expired promo code'
-        };
-      }
-
-      const promo = promoResult[0];
-
-      return {
-        success: true,
-        message: `Promo code "${promoCode}" scanned successfully!`,
-        data: {
-          action: 'PROMO_CODE_SCANNED',
-          promoCode: promo.code,
-          discount: promo.discount_percentage,
-          description: promo.description
-        }
-      };
-    } catch (error) {
-      console.error('Error processing promo code QR code:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error processing promo code'
-      };
-    }
-  }
-
-  /**
-   * Log a QR code scan for monitoring and analytics
-   */
-  private static async logScan(
-    scanType: string,
-    scannedBy: string,
-    qrCodeData: any,
-    isValid: boolean,
-    metadata: any = {}
-  ): Promise<void> {
-    try {
-      const sanitizedScanType = SqlSecurity.sanitizeString(scanType, 50);
-      const scannedByInt = SqlSecurity.validateBusinessId(scannedBy);
-      const sanitizedQrCodeData = SqlSecurity.sanitizeString(JSON.stringify(qrCodeData), 1000);
-      const sanitizedMetadata = SqlSecurity.sanitizeString(JSON.stringify(metadata), 1000);
-      
-      await sql`
-        INSERT INTO qr_scan_logs (
-          scan_type,
-          scanned_by,
-          qr_code_data,
-          is_valid,
-          metadata,
-          scanned_at
-        ) VALUES (
-          ${sanitizedScanType},
-          ${scannedByInt},
-          ${sanitizedQrCodeData},
-          ${isValid},
-          ${sanitizedMetadata},
-          NOW()
-        )
-      `;
-    } catch (error) {
-      console.error('Error logging QR scan:', error);
-      // Don't throw error to avoid breaking the main flow
-    }
-  }
-
-  /**
-   * Record a QR code scan for analytics
-   */
-  private static async recordQrCodeScan(
-    scanType: string,
-    customerId: string,
-    businessId: string,
-    isValid: boolean,
-    details: any = {}
-  ): Promise<void> {
-    try {
-      await QrCodeStorageService.recordQrCodeScan(
-        `${scanType}-${Date.now()}`,
-        businessId,
-        isValid,
-        {
-          scanType,
-          customerId,
-          businessId,
-          timestamp: new Date().toISOString(),
-          ...details
-        }
-      );
-    } catch (error) {
-      console.error('Error recording QR scan analytics:', error);
-      // Don't throw error to avoid breaking the main flow
     }
   }
 

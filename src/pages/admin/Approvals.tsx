@@ -25,7 +25,7 @@ import {
   getApprovalsByType, 
   updateApprovalStatus 
 } from '../../services/approvalService';
-import { ensureBusinessTablesExist } from '../../services/businessService';
+// TODO: ensureBusinessTablesExist removed during API migration
 
 const AdminApprovals = () => {
   const { t } = useTranslation();
@@ -48,8 +48,8 @@ const AdminApprovals = () => {
       setError(null);
       
       try {
-        // First ensure business tables exist
-        await ensureBusinessTablesExist();
+        // TODO: Table initialization should be handled server-side
+        // await ensureBusinessTablesExist();
         
         // Fetch approvals
         const fetchedApprovals = await getAllApprovals();

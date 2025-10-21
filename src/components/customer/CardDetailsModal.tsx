@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import LoyaltyCardService, { type LoyaltyCard, type CardActivity, type Reward } from '../../services/loyaltyCardService';
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { BusinessSettingsService } from '../../services/businessSettingsService';
-import { getStaffUsers, type User } from '../../services/userService';
+import { type User } from '../../services/userService';
 
 interface CardDetailsModalProps {
 	isOpen: boolean;
@@ -71,12 +71,10 @@ useEffect(() => {
 
 	const loadBusinessDetails = async () => {
 		if (!card?.businessId) return;
-		const [settings, staffList] = await Promise.all([
-			BusinessSettingsService.getBusinessSettings(card.businessId),
-			getStaffUsers(parseInt(card.businessId, 10))
-		]);
+		// TODO: Implement staff fetching through API when endpoint is available
+		const settings = await BusinessSettingsService.getBusinessSettings(card.businessId);
 		setBusinessSettings(settings);
-		setStaff(Array.isArray(staffList) ? staffList : []);
+		setStaff([]); // Temporarily disabled until staff API endpoint is implemented
 	};
 
 	useEffect(() => {

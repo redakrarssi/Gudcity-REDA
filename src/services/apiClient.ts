@@ -460,6 +460,150 @@ export async function apiEnrollCustomer(customerId: string, programId: string): 
   return apiPost('/api/customers/enroll', { customerId, programId });
 }
 
+// ====================
+// Transaction APIs
+// ====================
+
+export async function apiAwardPoints(
+  customerId: string,
+  programId: string,
+  points: number,
+  description?: string
+): Promise<any> {
+  return apiPost('/api/transactions/award-points', {
+    customerId,
+    programId,
+    points,
+    description
+  });
+}
+
+export async function apiGetTransactions(filters?: {
+  customerId?: string;
+  businessId?: string;
+  programId?: string;
+  startDate?: Date;
+  endDate?: Date;
+  type?: 'AWARD' | 'REDEEM';
+}): Promise<any> {
+  return apiGet('/api/transactions/list', filters);
+}
+
+export async function apiGetCustomerTransactions(
+  customerId: string,
+  programId?: string
+): Promise<any> {
+  return apiGet(`/api/transactions/customer/${customerId}`, programId ? { programId } : undefined);
+}
+
+export async function apiRedeemReward(
+  customerId: string,
+  programId: string,
+  rewardId: string,
+  pointsRequired: number
+): Promise<any> {
+  return apiPost('/api/transactions/redeem', {
+    customerId,
+    programId,
+    rewardId,
+    pointsRequired
+  });
+}
+
+// ====================
+// QR Code APIs
+// ====================
+
+export async function apiProcessQrCode(
+  qrData: any,
+  pointsToAward?: number
+): Promise<any> {
+  return apiPost('/api/qr/process', {
+    qrData,
+    pointsToAward
+  });
+}
+
+export async function apiGenerateQrCode(customerId?: string): Promise<any> {
+  return apiPost('/api/qr/generate', {
+    customerId
+  });
+}
+
+export async function apiValidateQrCode(qrData: any): Promise<any> {
+  return apiPost('/api/qr/validate', {
+    qrData
+  });
+}
+
+export async function apiGetQrCodeIntegrity(qrCodeId: string): Promise<any> {
+  return apiGet('/api/qr/integrity', { qrCodeId });
+}
+
+// ====================
+// Notification APIs
+// ====================
+
+export async function apiGetNotifications(filters?: {
+  userId?: string;
+  unreadOnly?: boolean;
+  limit?: number;
+}): Promise<any> {
+  return apiGet('/api/notifications/list', filters);
+}
+
+export async function apiMarkNotificationAsRead(notificationId: string): Promise<any> {
+  return apiPut(`/api/notifications/${notificationId}/read`);
+}
+
+export async function apiDeleteNotification(notificationId: string): Promise<any> {
+  return apiDelete(`/api/notifications/${notificationId}/delete`);
+}
+
+export async function apiGetUnreadNotificationCount(userId?: string): Promise<any> {
+  return apiGet('/api/notifications/unread-count', userId ? { userId } : undefined);
+}
+
+// ====================
+// Loyalty Card APIs
+// ====================
+
+export async function apiGetCustomerCards(customerId: string): Promise<any> {
+  return apiGet(`/api/loyalty/cards/customer/${customerId}`);
+}
+
+export async function apiGetCardById(cardId: string): Promise<any> {
+  return apiGet(`/api/loyalty/cards/${cardId}`);
+}
+
+export async function apiGetCardActivities(cardId: string): Promise<any> {
+  return apiGet(`/api/loyalty/cards/activities?cardId=${cardId}`);
+}
+
+// ====================
+// Loyalty Program APIs
+// ====================
+
+export async function apiGetBusinessPrograms(businessId: string): Promise<any> {
+  return apiGet(`/api/loyalty/programs/list?businessId=${businessId}`);
+}
+
+export async function apiGetProgramById(programId: string): Promise<any> {
+  return apiGet(`/api/loyalty/programs/${programId}`);
+}
+
+export async function apiCreateProgram(businessId: string, programData: any): Promise<any> {
+  return apiPost('/api/loyalty/programs/create', { ...programData, businessId });
+}
+
+export async function apiUpdateProgram(programId: string, updates: any): Promise<any> {
+  return apiPut(`/api/loyalty/programs/${programId}`, updates);
+}
+
+export async function apiDeleteProgram(programId: string): Promise<any> {
+  return apiDelete(`/api/loyalty/programs/${programId}`);
+}
+
 // Export all API functions
 export const ApiClient = {
   // Auth
@@ -487,6 +631,36 @@ export const ApiClient = {
   // Security
   checkAccountLockout: apiCheckAccountLockout,
   recordFailedLogin: apiRecordFailedLogin,
+  
+  // Transactions
+  awardPoints: apiAwardPoints,
+  getTransactions: apiGetTransactions,
+  getCustomerTransactions: apiGetCustomerTransactions,
+  redeemReward: apiRedeemReward,
+  
+  // QR Codes
+  processQrCode: apiProcessQrCode,
+  generateQrCode: apiGenerateQrCode,
+  validateQrCode: apiValidateQrCode,
+  getQrCodeIntegrity: apiGetQrCodeIntegrity,
+  
+  // Notifications
+  getNotifications: apiGetNotifications,
+  markNotificationAsRead: apiMarkNotificationAsRead,
+  deleteNotification: apiDeleteNotification,
+  getUnreadNotificationCount: apiGetUnreadNotificationCount,
+  
+  // Loyalty Cards
+  getCustomerCards: apiGetCustomerCards,
+  getCardById: apiGetCardById,
+  getCardActivities: apiGetCardActivities,
+  
+  // Loyalty Programs
+  getBusinessPrograms: apiGetBusinessPrograms,
+  getProgramById: apiGetProgramById,
+  createProgram: apiCreateProgram,
+  updateProgram: apiUpdateProgram,
+  deleteProgram: apiDeleteProgram,
 };
 
 export default ApiClient;

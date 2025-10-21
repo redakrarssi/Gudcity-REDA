@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Save, AlertCircle, Info, User, Lock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateUser } from '../../services/userService';
+import { UserService } from '../../services/userService';
 
 interface StaffSettingsModalProps {
   isOpen: boolean;
@@ -115,9 +115,9 @@ export const StaffSettingsModal: React.FC<StaffSettingsModalProps> = ({
         updateData.password = formData.newPassword;
       }
       
-      const updatedUser = await updateUser(user.id, updateData);
+      const result = await UserService.updateUser(user.id.toString(), updateData);
       
-      if (updatedUser) {
+      if (result.success) {
         setSuccess(true);
         // Refresh user data in context
         await refreshUser();

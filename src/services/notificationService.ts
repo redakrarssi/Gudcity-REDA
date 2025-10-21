@@ -4,7 +4,15 @@ import type {
   NotificationType,
   NotificationStats 
 } from '../types/notification';
-import sql from '../utils/db';
+import { 
+  apiGetNotifications, 
+  apiMarkNotificationAsRead, 
+  apiDeleteNotification, 
+  apiGetUnreadNotificationCount 
+} from './apiClient';
+
+// SECURITY: Always use API in production, no direct database access
+const USE_API = true;
 
 // Helper function to get translated notification messages
 // This will be used by the notification components to translate messages
@@ -159,41 +167,16 @@ export class NotificationService {
     offset = 0
   ): Promise<{ notifications: Notification[]; error?: string }> {
     try {
-      // Get notifications from database
-      const result = await sql`
-        SELECT 
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          data,
-          is_read,
-          created_at
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
-        ORDER BY created_at DESC
-        LIMIT ${limit}
-        OFFSET ${offset}
-      `;
-      
-      const notifications: Notification[] = result.map(row => ({
-        id: row.id,
-        userId: row.customer_id.toString(),
-        type: row.type as NotificationType,
-        title: row.title,
-        message: row.message,
-        data: row.data ? JSON.parse(row.data) : undefined,
-        isRead: row.is_read,
-        createdAt: row.created_at
-      }));
-
-      return { notifications };
-    } catch (error) {
+      const result = await apiGetNotifications({ userId, limit });
+      if (result && result.notifications) {
+        return { notifications: result.notifications };
+      }
+      return { notifications: [] };
+    } catch (error: any) {
+      console.error('Error getting notifications:', error);
       return { 
         notifications: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error.message || 'Failed to load notifications'
       };
     }
   }
@@ -202,55 +185,19 @@ export class NotificationService {
     userId: string
   ): Promise<{ stats: NotificationStats; error?: string }> {
     try {
-      // Get unread count
-      const unreadResult = await sql`
-        SELECT COUNT(*) as unread_count
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)} AND is_read = false
-      `;
+      const unreadResult = await apiGetUnreadNotificationCount(userId);
+      const unreadCount = (unreadResult && typeof unreadResult.count === 'number') ? unreadResult.count : 0;
       
-      const unreadCount = parseInt(unreadResult[0]?.unread_count || '0');
+      // Get recent notifications via the main notifications API
+      const notificationsResult = await apiGetNotifications({ userId, limit: 5 });
+      const recentNotifications = notificationsResult?.notifications || [];
       
-      // Get recent notifications
-      const recentResult = await sql`
-        SELECT 
-          id,
-          customer_id,
-          business_id,
-          type,
-          title,
-          message,
-          data,
-          is_read,
-          created_at
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
-        ORDER BY created_at DESC
-        LIMIT 5
-      `;
-      
-      const recentNotifications: Notification[] = recentResult.map(row => ({
-        id: row.id,
-        userId: row.customer_id.toString(),
-        type: row.type as NotificationType,
-        title: row.title,
-        message: row.message,
-        data: row.data ? JSON.parse(row.data) : undefined,
-        isRead: row.is_read,
-        createdAt: row.created_at
-      }));
-      
-      // Get category breakdown
-      const categoryResult = await sql`
-        SELECT type, COUNT(*) as count
-        FROM customer_notifications
-        WHERE customer_id = ${parseInt(userId)}
-        GROUP BY type
-      `;
-      
+      // Build category breakdown from recent notifications (basic implementation)
       const categoryBreakdown = {} as Record<NotificationType, number>;
-      categoryResult.forEach(row => {
-        categoryBreakdown[row.type as NotificationType] = parseInt(row.count);
+      recentNotifications.forEach(notif => {
+        if (notif.type) {
+          categoryBreakdown[notif.type] = (categoryBreakdown[notif.type] || 0) + 1;
+        }
       });
       
       return {
@@ -260,14 +207,15 @@ export class NotificationService {
           categoryBreakdown
         }
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error getting notification stats:', error);
       return {
         stats: { 
           totalUnread: 0, 
           recentNotifications: [], 
           categoryBreakdown: {} as Record<NotificationType, number> 
         },
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error.message || 'Failed to load notification stats'
       };
     }
   }
@@ -276,22 +224,13 @@ export class NotificationService {
     notificationId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const result = await sql`
-        UPDATE customer_notifications
-        SET is_read = true, read_at = NOW()
-        WHERE id = ${notificationId}
-        RETURNING id
-      `;
-      
-      if (result.length === 0) {
-        return { success: false, error: 'Notification not found' };
-      }
-      
+      await apiMarkNotificationAsRead(notificationId);
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error marking notification as read:', error);
       return { 
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error.message || 'Failed to mark notification as read'
       };
     }
   }

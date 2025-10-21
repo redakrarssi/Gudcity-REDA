@@ -103,7 +103,7 @@ export class ProductionSafeService {
     });
   }
 
-  static async getPendingApprovals(customerId: number): Promise<any[]> {
+  static async getCustomerPendingApprovals(customerId: number): Promise<any[]> {
     return apiRequest(`/api/customers/${customerId}/approvals`, {
       method: 'GET',
     });
@@ -177,9 +177,9 @@ export class ProductionSafeService {
   }
 
   /**
-   * Business Analytics API calls
+   * Business Analytics API calls (simple version - redirects to flexible version)
    */
-  static async getBusinessAnalytics(businessId: number): Promise<any> {
+  static async getBusinessAnalyticsSimple(businessId: number): Promise<any> {
     return apiRequest(`/api/business/${businessId}/analytics`, {
       method: 'GET',
     });
@@ -339,7 +339,7 @@ export class ProductionSafeService {
     return apiRequest(`/api/business/${businessId}/notifications`, { method: 'GET' });
   }
 
-  static async getPendingApprovals(businessId: number): Promise<any[]> {
+  static async getBusinessPendingApprovals(businessId: number): Promise<any[]> {
     return apiRequest(`/api/business/${businessId}/approvals/pending`, { method: 'GET' });
   }
 

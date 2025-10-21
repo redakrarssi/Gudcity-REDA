@@ -1,14 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Tab } from '@headlessui/react';
-import { 
-  User, 
-  getUsersByType, 
-  deleteUser, 
-  banUser, 
-  restrictUser, 
-  activateUser,
-  ensureDemoUsers
-} from '../../services/userService';
+import { UserService } from '../../services/userService';
+import type { User } from '../../services/apiClient';
+
+// TODO: banUser, restrictUser, activateUser functions need API endpoints
 import { 
   CheckCircle, 
   XCircle, 
@@ -50,23 +45,24 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
     setError(null);
     console.log('Fetching users from database...');
     try {
-      await ensureDemoUsers();
+      // TODO: Demo user creation should be handled server-side
+      // await ensureDemoUsers();
 
       if (mode === 'customersOnly') {
-        const customerData = await getUsersByType('customer');
+        const customerData = await UserService.getUsersByType('customer');
         setCustomers(customerData);
         setBusinesses([]);
         setStaff([]);
       } else {
         // Lazy-fetch only the active segment per tab
         if (activeTab === 0) {
-          const customerData = await getUsersByType('customer');
+          const customerData = await UserService.getUsersByType('customer');
           setCustomers(customerData);
         } else if (activeTab === 1) {
-          const businessData = await getUsersByType('business');
+          const businessData = await UserService.getUsersByType('business');
           setBusinesses(businessData);
         } else if (activeTab === 2) {
-          const staffData = await getUsersByType('staff');
+          const staffData = await UserService.getUsersByType('staff');
           setStaff(staffData);
         }
       }
@@ -106,8 +102,8 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       setActionLoading(id);
       try {
-        const success = await deleteUser(id);
-        if (success) {
+        const result = await UserService.deleteUser(id.toString());
+        if (result.success) {
           // Update the appropriate state based on user type
           if (userType === 'customer') {
             setCustomers(customers.filter(user => user.id !== id));
@@ -143,13 +139,16 @@ export const UserTables: React.FC<UserTableProps> = ({ onRefresh, mode = 'all' }
         reason: action === 'ban' ? 'Violation of terms' : action === 'restrict' ? 'Temporary restriction' : 'Reactivation by admin'
       };
       
-      if (action === 'ban') {
-        success = await banUser(id, audit);
-      } else if (action === 'restrict') {
-        success = await restrictUser(id, audit);
-      } else if (action === 'activate') {
-        success = await activateUser(id, audit);
-      }
+      // TODO: User status management needs API endpoints
+      // if (action === 'ban') {
+      //   success = await banUser(id, audit);
+      // } else if (action === 'restrict') {
+      //   success = await restrictUser(id, audit);
+      // } else if (action === 'activate') {
+      //   success = await activateUser(id, audit);
+      // }
+      console.warn(`User status change (${action}) not yet implemented via API`);
+      success = false; // Temporarily disable until API is available
       
       if (success) {
         // Update the user status in the state

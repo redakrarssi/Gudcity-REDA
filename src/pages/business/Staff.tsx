@@ -19,15 +19,30 @@ import {
   Download
 } from 'lucide-react';
 import { 
-  getStaffUsers, 
-  createStaffUser, 
-  deleteStaffUser, 
-  updateStaffUser,
-  updateStaffPermissions,
-  type User,
-  type StaffPermissions,
-  createDefaultStaffPermissions
+  type User
 } from '../../services/userService';
+
+// TODO: Staff management functions need to be implemented via API
+// These functions were removed during API migration and need new endpoints:
+// - getStaffUsers, createStaffUser, deleteStaffUser, updateStaffUser, updateStaffPermissions
+
+// Temporary type definitions
+type StaffPermissions = Record<string, boolean>;
+const createDefaultStaffPermissions = (): StaffPermissions => ({});
+
+// Temporary stub functions until API endpoints are implemented
+const createStaffUser = async (businessId: number, data: any): Promise<any> => {
+  throw new Error('Staff creation API endpoint not yet implemented');
+};
+const deleteStaffUser = async (staffId: number, businessId: number): Promise<boolean> => {
+  throw new Error('Staff deletion API endpoint not yet implemented');
+};
+const updateStaffUser = async (staffId: number, businessId: number, data: any): Promise<boolean> => {
+  throw new Error('Staff update API endpoint not yet implemented');
+};
+const updateStaffPermissions = async (staffId: number, businessId: number, permissions: StaffPermissions): Promise<boolean> => {
+  throw new Error('Staff permissions API endpoint not yet implemented');
+};
 import { getBusinessId } from '../../utils/businessContext';
 import { CreateStaffModal } from '../../components/business/CreateStaffModal';
 import { EditStaffModal } from '../../components/business/EditStaffModal';
@@ -78,14 +93,14 @@ const Staff: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const businessId = getBusinessId(user);
-      const staff = await getStaffUsers(businessId!);
-      const staffWithPermissions = staff.map(member => ({
-        ...member,
-        permissions: member.permissions || createDefaultStaffPermissions()
-      })) as StaffMember[];
+      // TODO: Implement staff loading via API
+      // const businessId = getBusinessId(user);
+      // const response = await ApiClient.get(`/api/business/${businessId}/staff`);
+      // setStaffMembers(response.staff || []);
       
-      setStaffMembers(staffWithPermissions);
+      // Temporarily show empty list until API endpoint is implemented
+      setStaffMembers([]);
+      setError('Staff management API endpoint is being implemented. This feature will be available soon.');
     } catch (err) {
       console.error('Error loading staff members:', err);
       setError('Failed to load staff members. Please try again.');

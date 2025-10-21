@@ -24,7 +24,9 @@ import {
 import api from '../../api/api';
 import { formatDate, formatRegistrationDuration } from '../../utils/dateUtils';
 import { apiCacheDebugger } from '../../utils/apiCacheDebug';
-import { User, getUsersByType, ensureDemoUsers } from '../../services/userService';
+import { UserService } from '../../services/userService';
+import type { User } from '../../services/apiClient';
+// TODO: ensureDemoUsers removed during API migration
 import { LoyaltyProgramService } from '../../services/loyaltyProgramService';
 import { CustomerService } from '../../services/customerService';
 
@@ -256,9 +258,10 @@ export const BusinessTables: React.FC<BusinessTableProps> = ({ onRefresh, onAnal
 
   // Fallback: use the same mechanism as /admin/users to get business users
   const loadBusinessesFromUsersService = async () => {
-    console.log('Fallback: loading businesses via getUsersByType("business")');
-    await ensureDemoUsers();
-    const users = await getUsersByType('business');
+    console.log('Fallback: loading businesses via UserService.getUsersByType("business")');
+    // TODO: Demo user creation should be handled server-side
+    // await ensureDemoUsers();
+    const users = await UserService.getUsersByType('business');
     // Try to enrich with admin overview for address/phone/customer counts
     let overviewMap: Map<string, any> | undefined;
     try {

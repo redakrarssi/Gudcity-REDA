@@ -4,19 +4,12 @@ import {
   User as DbUser, 
   UserRole, 
   UserType,
-  createUser as createDbUser,
 } from '../services/userService';
-import { recordBusinessLogin } from '../services/businessService';
 import { UserQrCodeService } from '../services/userQrCodeService';
 import { LoyaltyProgramService } from '../services/loyaltyProgramService';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
-// SECURITY FIX: Use API client in production, fallback to direct DB in development
+// SECURITY: All database operations use secure API endpoints
 import ApiClient from '../services/apiClient';
-// CRITICAL FIX: Import generateTokens function for JWT token generation
-import { generateTokens } from '../services/authService';
-
-// Development mode detection
-const IS_DEV = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
 /**
  * Permission interface for role-based access control
@@ -322,16 +315,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               localStorage.setItem('authUserData', JSON.stringify(appUser));
               localStorage.setItem('authLastLogin', new Date().toISOString());
               
-              // If business user, record login
-              if (appUser.role === 'business') {
-                try {
-                  await recordBusinessLogin(Number(appUser.id));
-                } catch (loginError) {
-                  console.error('Error recording business login:', loginError);
-                  // Non-critical error, continue
-                }
-              }
-              
               // Set user in state
               console.log('User authenticated successfully:', appUser.name);
               setUser(appUser);
@@ -514,40 +497,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Don't fail login if logging fails
         }
         
-        // Generate JWT token
-        try {
-          // Create a user object that matches what generateTokens expects
-          const userForToken = {
-            id: appUser.id,
-            email: appUser.email,
-            role: appUser.role
-          };
-          
-          const { accessToken } = await generateTokens(userForToken);
-          
-          // Store token in localStorage with the key expected by API calls
-          localStorage.setItem('token', accessToken);
-          console.log('JWT token saved to localStorage');
-        } catch (tokenError) {
-          console.error('Failed to generate JWT token:', tokenError);
-          // Continue with login even if token generation fails
-        }
-        
         // Store user ID and data in localStorage
         localStorage.setItem('authUserId', String(dbUser.id));
         localStorage.setItem('authUserData', JSON.stringify(appUser));
         localStorage.setItem('authLastLogin', new Date().toISOString());
         localStorage.setItem('authSessionActive', 'true');
-        
-        // Record business login if applicable
-        if (dbUser.user_type === 'business' && dbUser.business_id) {
-          try {
-            await recordBusinessLogin(Number(dbUser.business_id));
-          } catch (error) {
-            console.error('Failed to record business login:', error);
-            // Non-critical error, continue with login
-          }
-        }
         
         console.log('Login successful for:', normalizedEmail);
         setIsLoading(false);
@@ -610,66 +564,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Normalize email to avoid case sensitivity issues
       const normalizedEmail = data.email.trim().toLowerCase();
       
-      let dbUser: any;
-      let token: string | undefined;
+      // SECURITY: Always use secure backend API for all environments
+      // Direct database access has been removed for security
+      const authResponse = await ApiClient.register({
+        name: data.name,
+        email: normalizedEmail,
+        password: data.password,
+        user_type: data.userType,
+        role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
+        business_name: data.businessName,
+        business_phone: data.businessPhone,
+      });
       
-      // Try API first (production), fall back to direct DB (development)
-      try {
-        if (!IS_DEV) {
-          // PRODUCTION: Use secure backend API
-          const authResponse = await ApiClient.register({
-            name: data.name,
-            email: normalizedEmail,
-            password: data.password,
-            user_type: data.userType,
-            role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
-          });
-          
-          if (authResponse && authResponse.user) {
-            dbUser = authResponse.user;
-            token = authResponse.token;
-          }
-        } else {
-          throw new Error('Development mode - using direct database access');
-        }
-      } catch (apiError) {
-        // DEVELOPMENT FALLBACK: Use direct database access
-        console.warn('API not available, using direct database access (development only):', apiError);
-        
-        // Check if user already exists
-        // Use API endpoint for production security
-        const existingUser = await ApiClient.getUserByEmail(normalizedEmail);
-        if (existingUser) {
-          const authError: AuthError = {
-            type: AuthErrorType.INVALID_CREDENTIALS,
-            message: 'Email is already registered'
-          };
-          setError(authError);
-          setIsLoading(false);
-          return { success: false, error: authError };
-        }
-        
-        // Create user in database
-        dbUser = await createDbUser({
-          name: data.name,
-          email: normalizedEmail,
-          password: data.password,
-          user_type: data.userType,
-          role: data.userType === 'admin' ? 'admin' : data.userType === 'business' ? 'business' : 'customer',
-          business_name: data.businessName,
-          business_phone: data.businessPhone,
-          status: 'active'
-        });
-        
-        // In development, generate a simple token
-        if (dbUser) {
-          token = `dev_token_${dbUser.id}_${Date.now()}`;
-        }
+      if (!authResponse || !authResponse.user) {
+        throw new Error('Registration failed: Invalid response from server');
       }
       
-      if (!dbUser) {
-        throw new Error('Registration failed');
-      }
+      const dbUser = authResponse.user;
+      const token = authResponse.token;
       
       // Store token
       if (token) {

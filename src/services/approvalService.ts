@@ -1,11 +1,22 @@
 import sql from '../utils/db';
-import { 
-  BusinessApplication, 
-  getAllBusinessApplications, 
-  getBusinessApplicationById,
-  updateBusinessApplicationStatus
-} from './businessService';
+// TODO: Business application functions need to be implemented via API
+// These functions were removed during API migration
 import { ProductionSafeService } from '../utils/productionApiClient';
+
+// Temporary type definition
+export interface BusinessApplication {
+  id: number;
+  name: string;
+  email: string;
+  business_name: string;
+  business_phone?: string;
+  business_address?: string;
+  status: string;
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by?: number;
+  rejection_reason?: string;
+}
 
 // Approval types
 export type ApprovalType = 'business' | 'program' | 'user' | 'payout';
@@ -41,17 +52,13 @@ export async function getAllApprovals(): Promise<Approval[]> {
   try {
     console.log('Fetching all approvals...');
     
-    // Get business applications
-    const businessApplications = await getAllBusinessApplications();
-    const businessApprovals = businessApplications.map(convertBusinessApplicationToApproval);
+    // TODO: Direct DB access removed - API endpoint required
+    // const businessApplications = await getAllBusinessApplications();
+    // const businessApprovals = businessApplications.map(convertBusinessApplicationToApproval);
     
-    // In a real app, we would fetch other types of approvals here as well
-    // const programApprovals = await getAllProgramApprovals();
-    // const userApprovals = await getAllUserApprovals();
-    // const payoutApprovals = await getAllPayoutApprovals();
-    
-    // For now, just return business approvals
-    return businessApprovals;
+    // Temporarily return empty array until API is available in development
+    console.warn('Direct database access not available - returning empty array');
+    return [];
   } catch (error) {
     console.error('Error fetching all approvals:', error);
     return [];
@@ -65,15 +72,11 @@ export async function getApprovalsByType(type: ApprovalType): Promise<Approval[]
     
     switch (type) {
       case 'business':
-        const businessApplications = await getAllBusinessApplications();
-        return businessApplications.map(convertBusinessApplicationToApproval);
-      // In a real app, we would handle other types here
-      // case 'program':
-      //   return await getAllProgramApprovals();
-      // case 'user':
-      //   return await getAllUserApprovals();
-      // case 'payout':
-      //   return await getAllPayoutApprovals();
+        // TODO: Direct DB access removed - API endpoint required
+        // const businessApplications = await getAllBusinessApplications();
+        // return businessApplications.map(convertBusinessApplicationToApproval);
+        console.warn('Direct database access not available');
+        return [];
       default:
         return [];
     }
@@ -90,15 +93,11 @@ export async function getApprovalById(id: number, type: ApprovalType): Promise<A
     
     switch (type) {
       case 'business':
-        const application = await getBusinessApplicationById(id);
-        return application ? convertBusinessApplicationToApproval(application) : null;
-      // In a real app, we would handle other types here
-      // case 'program':
-      //   return await getProgramApprovalById(id);
-      // case 'user':
-      //   return await getUserApprovalById(id);
-      // case 'payout':
-      //   return await getPayoutApprovalById(id);
+        // TODO: Direct DB access removed - API endpoint required
+        // const application = await getBusinessApplicationById(id);
+        // return application ? convertBusinessApplicationToApproval(application) : null;
+        console.warn('Direct database access not available');
+        return null;
       default:
         return null;
     }
@@ -131,15 +130,11 @@ export async function updateApprovalStatus(
     
     switch (type) {
       case 'business':
-        const result = await updateBusinessApplicationStatus(id, status, notes);
-        return !!result;
-      // In a real app, we would handle other types here
-      // case 'program':
-      //   return await updateProgramApprovalStatus(id, status, notes);
-      // case 'user':
-      //   return await updateUserApprovalStatus(id, status, notes);
-      // case 'payout':
-      //   return await updatePayoutApprovalStatus(id, status, notes);
+        // TODO: Direct DB access removed - API endpoint required
+        // const result = await updateBusinessApplicationStatus(id, status, notes);
+        // return !!result;
+        console.warn('Direct database access not available');
+        return false;
       default:
         return false;
     }
