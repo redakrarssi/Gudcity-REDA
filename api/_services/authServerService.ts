@@ -25,19 +25,34 @@ export async function validateUserCredentials(
   email: string,
   password: string
 ): Promise<{ user: User; token: string } | null> {
-  const sql = requireSql();
-  
   console.log('[AuthServerService] Validating credentials for:', email);
   
+  // Check database connection first
+  let sql;
+  try {
+    sql = requireSql();
+    console.log('[AuthServerService] Database connection established');
+  } catch (dbError) {
+    console.error('[AuthServerService] Database connection failed:', dbError);
+    throw new Error('Database not configured');
+  }
+  
   // Get user from database
-  const users = await sql`
-    SELECT 
-      id, email, name, user_type, role, password, status, business_id,
-      business_name, business_phone, avatar_url, created_at, last_login
-    FROM users 
-    WHERE LOWER(email) = LOWER(${email})
-    LIMIT 1
-  `;
+  let users;
+  try {
+    users = await sql`
+      SELECT 
+        id, email, name, user_type, role, password, status, business_id,
+        business_name, business_phone, avatar_url, created_at, last_login
+      FROM users 
+      WHERE LOWER(email) = LOWER(${email})
+      LIMIT 1
+    `;
+    console.log('[AuthServerService] Database query executed successfully');
+  } catch (queryError) {
+    console.error('[AuthServerService] Database query failed:', queryError);
+    throw new Error(`Database query failed: ${queryError.message}`);
+  }
   
   if (users.length === 0) {
     console.log('[AuthServerService] User not found:', email);
@@ -72,18 +87,25 @@ export async function validateUserCredentials(
   }
   
   // Generate JWT token
-  const jti = crypto.randomBytes(16).toString('hex');
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      email: user.email,
-      role: user.role || user.user_type,
-      businessId: user.business_id,
-      jti,
-    } as TokenPayload,
-    JWT_SECRET!,
-    { expiresIn: JWT_EXPIRY }
-  );
+  let token;
+  try {
+    const jti = crypto.randomBytes(16).toString('hex');
+    token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role || user.user_type,
+        businessId: user.business_id,
+        jti,
+      } as TokenPayload,
+      JWT_SECRET!,
+      { expiresIn: JWT_EXPIRY }
+    );
+    console.log('[AuthServerService] JWT token generated successfully');
+  } catch (jwtError) {
+    console.error('[AuthServerService] JWT token generation failed:', jwtError);
+    throw new Error(`Token generation failed: ${jwtError.message}`);
+  }
   
   // Store token in database for tracking
   try {

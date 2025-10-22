@@ -15,13 +15,99 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const sql = requireSql();
 
   // Handle public routes that don't require auth
-  const publicRoutes = ['promotions', 'pages'];
+  const publicRoutes = ['promotions', 'pages', 'debug'];
   const isPublicRoute = segments.length > 0 && publicRoutes.includes(segments[0]);
 
   const user = !isPublicRoute ? await verifyAuth(req) : null;
   if (!isPublicRoute && !user) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    // Route: /api/debug/health - Debug endpoint for diagnosing login issues
+    if (segments.length === 2 && segments[0] === 'debug' && segments[1] === 'health' && req.method === 'GET') {
+      console.log('[Debug Health] Health check requested');
+      
+      const checks = {
+        timestamp: new Date().toISOString(),
+        environment: {},
+        database: {},
+        tables: {},
+      };
+
+      // Check environment variables
+      try {
+        checks.environment = {
+          NODE_ENV: process.env.NODE_ENV || 'not set',
+          hasJWT_SECRET: !!(process.env.JWT_SECRET || process.env.VITE_JWT_SECRET),
+          hasDATABASE_URL: !!(
+            process.env.DATABASE_URL || 
+            process.env.POSTGRES_URL || 
+            process.env.VITE_DATABASE_URL ||
+            process.env.VITE_POSTGRES_URL
+          ),
+          hasVERCEL_URL: !!process.env.VERCEL_URL,
+        };
+        console.log('[Debug Health] Environment check completed');
+      } catch (envError) {
+        checks.environment = { error: envError.message };
+        console.error('[Debug Health] Environment check failed:', envError);
+      }
+
+      // Check database connection
+      try {
+        const testResult = await sql`SELECT 1 as test`;
+        checks.database = { 
+          connected: true, 
+          testQuery: testResult.length > 0 ? 'success' : 'failed' 
+        };
+        console.log('[Debug Health] Database connection successful');
+      } catch (dbError) {
+        checks.database = { 
+          connected: false, 
+          error: dbError.message 
+        };
+        console.error('[Debug Health] Database check failed:', dbError);
+      }
+
+      // Check required tables
+      if (checks.database.connected) {
+        try {
+          // Check users table
+          try {
+            const userCount = await sql`SELECT COUNT(*) as count FROM users LIMIT 1`;
+            checks.tables.users = { exists: true, count: userCount[0]?.count || 0 };
+          } catch (userError) {
+            checks.tables.users = { exists: false, error: userError.message };
+          }
+
+          // Check auth_tokens table
+          try {
+            const tokenCount = await sql`SELECT COUNT(*) as count FROM auth_tokens LIMIT 1`;
+            checks.tables.auth_tokens = { exists: true, count: tokenCount[0]?.count || 0 };
+          } catch (tokenError) {
+            checks.tables.auth_tokens = { exists: false, error: tokenError.message };
+          }
+
+          console.log('[Debug Health] Table checks completed');
+        } catch (tableError) {
+          checks.tables = { error: tableError.message };
+          console.error('[Debug Health] Table check failed:', tableError);
+        }
+      }
+
+      const allGood = 
+        checks.environment.hasJWT_SECRET &&
+        checks.environment.hasDATABASE_URL &&
+        checks.database.connected &&
+        checks.tables.users?.exists;
+
+      console.log('[Debug Health] Health check completed:', { allGood });
+
+      return res.status(200).json({
+        status: allGood ? 'healthy' : 'unhealthy',
+        checks,
+      });
+    }
+
     // Route: /api/promotions
     if (segments.length === 1 && segments[0] === 'promotions' && req.method === 'GET') {
       const { businessId } = req.query;
