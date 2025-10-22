@@ -5,12 +5,12 @@
  * DELETE /api/users/[id] - Delete user (soft delete)
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { AuthenticatedRequest, authMiddleware, canAccessResource } from '../_lib/auth';
-import { getUserById, updateUser, deleteUser } from '../_services/userServerService';
-import { successResponse, ErrorResponses } from '../_services/responseFormatter';
-import { standardRateLimit } from '../_middleware/rateLimit';
-import { validationMiddleware } from '../_middleware/validation';
-import { cors } from '../_lib/auth';
+import { AuthenticatedRequest, authMiddleware, canAccessResource } from '../_lib/auth.js';
+import { getUserById, updateUser, deleteUser } from '../_services/userServerService.js';
+import { successResponse, ErrorResponses } from '../_services/responseFormatter.js';
+import { standardRateLimit } from '../_middleware/rateLimit.js';
+import { validationMiddleware } from '../_middleware/validation.js';
+import { cors } from '../_lib/auth.js';
 
 export default async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   console.log('[User API] Request received:', { method: req.method, url: req.url });

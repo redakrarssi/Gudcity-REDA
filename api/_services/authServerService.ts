@@ -4,11 +4,11 @@
  * SECURITY: This file runs on the server only - never exposed to browser
  */
 
-import { requireSql } from '../_lib/db';
+import { requireSql } from '../_lib/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import type { User, AuthTokens, TokenPayload } from './types';
+import type { User, AuthTokens, TokenPayload } from './types.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
 const JWT_EXPIRY = '7d'; // Token expires in 7 days
@@ -88,8 +88,9 @@ export async function validateUserCredentials(
   
   // Generate JWT token
   let token;
+  let jti;
   try {
-    const jti = crypto.randomBytes(16).toString('hex');
+    jti = crypto.randomBytes(16).toString('hex');
     token = jwt.sign(
       {
         userId: user.id,

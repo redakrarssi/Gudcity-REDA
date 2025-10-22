@@ -97,14 +97,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Generate access token
-    const accessToken = jwt.sign(payload, JWT_SECRET, {
+    const accessToken = jwt.sign(payload, JWT_SECRET as string, {
       expiresIn: JWT_EXPIRY,
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'
     });
 
     // Generate refresh token
-    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
+    const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET as string, {
       expiresIn: JWT_REFRESH_EXPIRY,
       issuer: 'gudcity-loyalty-platform',
       audience: 'gudcity-users'

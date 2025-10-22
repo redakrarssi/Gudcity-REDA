@@ -4,9 +4,9 @@
  * SECURITY: This file runs on the server only - never exposed to browser
  */
 
-import { requireSql } from '../_lib/db';
+import { requireSql } from '../_lib/db.js';
 import bcrypt from 'bcryptjs';
-import type { User } from './types';
+import type { User } from './types.js';
 
 const BCRYPT_ROUNDS = 12;
 

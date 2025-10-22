@@ -3,7 +3,7 @@
  * Provides consistent API response formatting across all endpoints
  */
 
-import type { ApiResponse, ApiError, ApiMeta } from './types';
+import type { ApiResponse, ApiError, ApiMeta } from './types.js';
 
 /**
  * Create a success response

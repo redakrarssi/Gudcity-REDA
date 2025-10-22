@@ -3,11 +3,11 @@
  * This runs on the backend with secure database access
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { validateUserCredentials } from '../_services/authServerService';
-import { successResponse, ErrorResponses } from '../_services/responseFormatter';
-import { validationMiddleware } from '../_middleware/validation';
-import { authRateLimit } from '../_middleware/rateLimit';
-import { cors } from '../_lib/auth';
+import { validateUserCredentials } from '../_services/authServerService.js';
+import { successResponse, ErrorResponses } from '../_services/responseFormatter.js';
+import { validationMiddleware } from '../_middleware/validation.js';
+import { authRateLimit } from '../_middleware/rateLimit.js';
+import { cors } from '../_lib/auth.js';
 
 // Validation schema for login
 const loginSchema = {

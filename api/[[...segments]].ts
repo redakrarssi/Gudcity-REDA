@@ -28,9 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       const checks = {
         timestamp: new Date().toISOString(),
-        environment: {},
-        database: {},
-        tables: {},
+        environment: {} as any,
+        database: {} as any,
+        tables: {} as any,
       };
 
       // Check environment variables

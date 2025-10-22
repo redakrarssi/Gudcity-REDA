@@ -3,12 +3,12 @@
  * POST /api/users/by-email
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { AuthenticatedRequest, authMiddleware } from '../_lib/auth';
-import { getUserByEmail } from '../_services/userServerService';
-import { successResponse, ErrorResponses } from '../_services/responseFormatter';
-import { standardRateLimit } from '../_middleware/rateLimit';
-import { validationMiddleware } from '../_middleware/validation';
-import { cors } from '../_lib/auth';
+import { AuthenticatedRequest, authMiddleware } from '../_lib/auth.js';
+import { getUserByEmail } from '../_services/userServerService.js';
+import { successResponse, ErrorResponses } from '../_services/responseFormatter.js';
+import { standardRateLimit } from '../_middleware/rateLimit.js';
+import { validationMiddleware } from '../_middleware/validation.js';
+import { cors } from '../_lib/auth.js';
 
 export default async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   console.log('[UserByEmail API] Request received:', { method: req.method, url: req.url });
