@@ -33,6 +33,10 @@
       "memory": 1024,
       "maxDuration": 30
     },
+    "api/analytics/[[...segments]].ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
     "api/[[...segments]].ts": {
       "memory": 1024,
       "maxDuration": 30
