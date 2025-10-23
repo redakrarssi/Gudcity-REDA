@@ -99,9 +99,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Validate credentials via server service
     let result;
     try {
+      console.log('[Login API] Calling validateUserCredentials...');
       result = await validateUserCredentials(email, password);
+      console.log('[Login API] validateUserCredentials result:', result ? 'Success' : 'Failed');
     } catch (authError) {
       console.error('[Login API] Authentication service error:', authError);
+      console.error('[Login API] Error stack:', authError.stack);
+      console.error('[Login API] Error details:', {
+        message: authError.message,
+        name: authError.name,
+        code: authError.code
+      });
       
       // Check if it's a database connection error
       if (authError.message && authError.message.includes('Database not configured')) {
