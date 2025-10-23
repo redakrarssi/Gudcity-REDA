@@ -42,7 +42,7 @@ export async function validateUserCredentials(
   try {
     users = await sql`
       SELECT 
-        id, email, name, user_type, role, password, status, business_id,
+        id, email, name, user_type, role, password, status,
         business_name, business_phone, avatar_url, created_at, last_login
       FROM users 
       WHERE LOWER(email) = LOWER(${email})
@@ -96,7 +96,7 @@ export async function validateUserCredentials(
         userId: user.id,
         email: user.email,
         role: user.role || user.user_type,
-        businessId: user.business_id,
+        businessId: null, // business_id column doesn't exist in users table
         jti,
       } as TokenPayload,
       JWT_SECRET!,
@@ -237,7 +237,7 @@ export async function refreshAuthToken(userId: number): Promise<string> {
   
   // Get user
   const users = await sql`
-    SELECT id, email, role, business_id, status
+    SELECT id, email, role, status
     FROM users
     WHERE id = ${userId}
     LIMIT 1
@@ -260,7 +260,7 @@ export async function refreshAuthToken(userId: number): Promise<string> {
       userId: user.id,
       email: user.email,
       role: user.role,
-      businessId: user.business_id,
+      businessId: null, // business_id column doesn't exist in users table
       jti,
     } as TokenPayload,
     JWT_SECRET!,
