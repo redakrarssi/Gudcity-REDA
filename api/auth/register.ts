@@ -5,7 +5,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { registerUser } from '../_services/authServerService.js';
 import { successResponse, ErrorResponses } from '../_services/responseFormatter.js';
-import { validationMiddleware, CommonSchemas } from '../_middleware/validation.js';
+import { validationMiddleware } from '../_middleware/validation.js';
 import { sensitiveRateLimit } from '../_middleware/rateLimit.js';
 import { cors } from '../_lib/auth.js';
 
@@ -68,6 +68,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json(ErrorResponses.methodNotAllowed(['POST']));
   }
 
+  // Check environment variables
+  const jwtSecret = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.VITE_DATABASE_URL;
+  
+  if (!jwtSecret) {
+    console.error('[Register API] JWT_SECRET not configured');
+    return res.status(500).json(
+      ErrorResponses.serverError('Authentication service not configured')
+    );
+  }
+  
+  if (!databaseUrl) {
+    console.error('[Register API] DATABASE_URL not configured');
+    return res.status(500).json(
+      ErrorResponses.serverError('Database not configured')
+    );
+  }
+
+  // Validate JWT secret strength
+  if (jwtSecret.length < 32) {
+    console.error('[Register API] JWT_SECRET is too weak (minimum 32 characters)');
+    return res.status(500).json(
+      ErrorResponses.serverError('Authentication service configuration error')
+    );
+  }
+
   // Rate limiting
   if (!sensitiveRateLimit.check(req, res)) {
     return; // Response already sent by rate limiter
@@ -80,6 +106,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { email, password, name, user_type, role, business_name, business_phone } = req.body;
+
+    // Additional validation for business users
+    if (user_type === 'business' || role === 'business') {
+      if (!business_name || business_name.trim().length < 2) {
+        return res.status(400).json(
+          ErrorResponses.badRequest('Business name is required for business accounts')
+        );
+      }
+    }
 
     // Register user via server service
     const result = await registerUser({
@@ -110,6 +145,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (errorMessage.includes('already exists')) {
       return res.status(409).json(
         ErrorResponses.conflict('Email already registered')
+      );
+    }
+    
+    // Handle database connection errors
+    if (errorMessage.includes('Database not configured')) {
+      return res.status(500).json(
+        ErrorResponses.serverError('Database connection failed')
+      );
+    }
+    
+    // Handle JWT token generation errors
+    if (errorMessage.includes('Token generation failed')) {
+      return res.status(500).json(
+        ErrorResponses.serverError('Authentication token generation failed')
+      );
+    }
+    
+    // Handle database query errors
+    if (errorMessage.includes('Database query failed')) {
+      return res.status(500).json(
+        ErrorResponses.serverError('Database operation failed')
       );
     }
     

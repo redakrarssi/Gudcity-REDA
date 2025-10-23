@@ -65,6 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
+    // Validate JWT secret strength
+    if (jwtSecret.length < 32) {
+      console.error('[Login API] JWT_SECRET is too weak (minimum 32 characters)');
+      return res.status(500).json(
+        ErrorResponses.serverError('Authentication service configuration error')
+      );
+    }
+
     console.log('[Login API] Environment check passed');
 
     // Rate limiting (5 attempts per 15 minutes)
@@ -107,6 +115,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (authError.message && authError.message.includes('Database not configured')) {
         return res.status(500).json(
           ErrorResponses.serverError('Database connection failed')
+        );
+      }
+      
+      // Check if it's a JWT token generation error
+      if (authError.message && authError.message.includes('Token generation failed')) {
+        return res.status(500).json(
+          ErrorResponses.serverError('Authentication token generation failed')
+        );
+      }
+      
+      // Check if it's a database query error
+      if (authError.message && authError.message.includes('Database query failed')) {
+        return res.status(500).json(
+          ErrorResponses.serverError('Database operation failed')
         );
       }
       

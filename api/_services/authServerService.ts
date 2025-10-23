@@ -27,6 +27,18 @@ export async function validateUserCredentials(
 ): Promise<{ user: User; token: string } | null> {
   console.log('[AuthServerService] Validating credentials for:', email);
   
+  // Validate input parameters
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    throw new Error('Email is required and must be a valid string');
+  }
+  
+  if (!password || typeof password !== 'string' || password.length === 0) {
+    throw new Error('Password is required and must be a valid string');
+  }
+  
+  // Sanitize email
+  const sanitizedEmail = email.trim().toLowerCase();
+  
   // Check database connection first
   let sql;
   try {
@@ -45,7 +57,7 @@ export async function validateUserCredentials(
         id, email, name, user_type, role, password, status, business_id,
         business_name, business_phone, avatar_url, created_at, last_login
       FROM users 
-      WHERE LOWER(email) = LOWER(${email})
+      WHERE LOWER(email) = LOWER(${sanitizedEmail})
       LIMIT 1
     `;
     console.log('[AuthServerService] Database query executed successfully');
@@ -55,7 +67,7 @@ export async function validateUserCredentials(
   }
   
   if (users.length === 0) {
-    console.log('[AuthServerService] User not found:', email);
+    console.log('[AuthServerService] User not found:', sanitizedEmail);
     return null;
   }
   
@@ -63,7 +75,7 @@ export async function validateUserCredentials(
   
   // Check account status
   if (user.status === 'inactive' || user.status === 'suspended' || user.status === 'banned') {
-    console.log('[AuthServerService] Account not active:', { email, status: user.status });
+    console.log('[AuthServerService] Account not active:', { email: sanitizedEmail, status: user.status });
     return null;
   }
   
@@ -71,7 +83,7 @@ export async function validateUserCredentials(
   const isValidPassword = await bcrypt.compare(password, user.password);
   
   if (!isValidPassword) {
-    console.log('[AuthServerService] Invalid password for:', email);
+    console.log('[AuthServerService] Invalid password for:', sanitizedEmail);
     return null;
   }
   
@@ -153,11 +165,40 @@ export async function registerUser(userData: {
   
   const { email, password, name, userType, role, businessName, businessPhone } = userData;
   
-  console.log('[AuthServerService] Registering new user:', { email, userType });
+  // Validate input parameters
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    throw new Error('Email is required and must be a valid string');
+  }
+  
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    throw new Error('Password is required and must be at least 8 characters long');
+  }
+  
+  if (!name || typeof name !== 'string' || name.trim().length < 2) {
+    throw new Error('Name is required and must be at least 2 characters long');
+  }
+  
+  if (!userType || typeof userType !== 'string') {
+    throw new Error('User type is required and must be a valid string');
+  }
+  
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new Error('Invalid email format');
+  }
+  
+  // Sanitize inputs
+  const sanitizedEmail = email.trim().toLowerCase();
+  const sanitizedName = name.trim();
+  const sanitizedBusinessName = businessName ? businessName.trim() : undefined;
+  const sanitizedBusinessPhone = businessPhone ? businessPhone.trim() : undefined;
+  
+  console.log('[AuthServerService] Registering new user:', { email: sanitizedEmail, userType });
   
   // Check if user already exists
   const existing = await sql`
-    SELECT id FROM users WHERE LOWER(email) = LOWER(${email}) LIMIT 1
+    SELECT id FROM users WHERE LOWER(email) = LOWER(${sanitizedEmail}) LIMIT 1
   `;
   
   if (existing.length > 0) {
@@ -168,40 +209,57 @@ export async function registerUser(userData: {
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   
   // Insert user
-  const users = await sql`
-    INSERT INTO users (
-      email, password, name, user_type, role, status, 
-      business_name, business_phone, created_at
-    )
-    VALUES (
-      ${email}, 
-      ${passwordHash}, 
-      ${name}, 
-      ${userType}, 
-      ${role || userType}, 
-      'active',
-      ${businessName || null},
-      ${businessPhone || null},
-      NOW()
-    )
-    RETURNING id, email, name, user_type, role, status, business_name, 
-              business_phone, created_at
-  `;
+  let users;
+  try {
+    users = await sql`
+      INSERT INTO users (
+        email, password, name, user_type, role, status, 
+        business_name, business_phone, created_at
+      )
+      VALUES (
+        ${sanitizedEmail}, 
+        ${passwordHash}, 
+        ${sanitizedName}, 
+        ${userType}, 
+        ${role || userType}, 
+        'active',
+        ${sanitizedBusinessName || null},
+        ${sanitizedBusinessPhone || null},
+        NOW()
+      )
+      RETURNING id, email, name, user_type, role, status, business_name, 
+                business_phone, created_at
+    `;
+  } catch (insertError) {
+    console.error('[AuthServerService] User insertion failed:', insertError);
+    throw new Error(`Database insertion failed: ${insertError.message}`);
+  }
+  
+  if (!users || users.length === 0) {
+    throw new Error('Failed to create user - no data returned');
+  }
   
   const user = users[0];
   
   // Generate JWT token
-  const jti = crypto.randomBytes(16).toString('hex');
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      jti,
-    } as TokenPayload,
-    JWT_SECRET!,
-    { expiresIn: JWT_EXPIRY }
-  );
+  let token;
+  let jti;
+  try {
+    jti = crypto.randomBytes(16).toString('hex');
+    token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        jti,
+      } as TokenPayload,
+      JWT_SECRET!,
+      { expiresIn: JWT_EXPIRY }
+    );
+  } catch (jwtError) {
+    console.error('[AuthServerService] JWT token generation failed:', jwtError);
+    throw new Error(`Token generation failed: ${jwtError.message}`);
+  }
   
   // Store token
   try {
@@ -215,8 +273,10 @@ export async function registerUser(userData: {
         NOW()
       )
     `;
+    console.log('[AuthServerService] Token stored successfully');
   } catch (error) {
     console.warn('[AuthServerService] Failed to store token:', error);
+    // Continue anyway - token is still valid
   }
   
   console.log('[AuthServerService] Registration successful:', { userId: user.id, email: user.email });
