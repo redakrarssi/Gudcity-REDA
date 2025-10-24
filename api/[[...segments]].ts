@@ -33,14 +33,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const customerId = Number(segments[3]);
         
         try {
-          // TODO: Import appropriate service
-          // const loyaltyCardService = await import('../services/loyaltyCardService');
-          // const cards = await loyaltyCardService.getCustomerCards(customerId);
-          
-          // Temporary placeholder response:
+          // Get customer's loyalty cards
+          const cards = await sql`
+            SELECT 
+              lc.id,
+              lc.customer_id,
+              lc.business_id,
+              lc.program_id,
+              lc.card_number,
+              lc.card_type,
+              lc.tier,
+              lc.points,
+              lc.points_balance,
+              lc.total_points_earned,
+              lc.status,
+              lc.created_at,
+              lc.updated_at,
+              lc.qr_code_url,
+              lp.name AS program_name,
+              lp.description AS program_description,
+              u.name AS business_name,
+              u.email AS business_email
+            FROM loyalty_cards lc
+            JOIN loyalty_programs lp ON lp.id = lc.program_id
+            JOIN users u ON u.id = lc.business_id
+            WHERE lc.customer_id = ${customerId}
+              AND lc.status = 'ACTIVE'
+            ORDER BY lc.created_at DESC
+          `;
+
           return res.status(200).json({ 
             success: true,
-            cards: [],
+            cards,
             customerId 
           });
         } catch (error) {
@@ -57,19 +81,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       if (req.method === 'GET') {
         try {
-          // TODO: Import appropriate service
-          // const auditService = await import('../services/securityAuditService');
-          // const logs = await auditService.getAuditLogs();
+          const logs = await sql`
+            SELECT 
+              id, user_id, event, ip_address, user_agent, metadata, created_at
+            FROM security_audit_logs
+            WHERE user_id = ${user!.id}
+            ORDER BY created_at DESC
+            LIMIT 100
+          `;
           
-          // Temporary placeholder response:
           return res.status(200).json({ 
             success: true,
-            logs: [],
+            logs,
             message: 'Audit endpoint ready'
           });
         } catch (error) {
           console.error('Error fetching audit logs:', error);
           return res.status(500).json({ error: 'Failed to fetch audit logs' });
+        }
+      }
+
+      if (req.method === 'POST') {
+        const { event, metadata, ipAddress, userAgent } = (req.body || {}) as any;
+
+        if (!event) {
+          return res.status(400).json({ error: 'event is required' });
+        }
+
+        try {
+          await sql`
+            INSERT INTO security_audit_logs (
+              user_id, event, ip_address, user_agent, metadata, created_at
+            ) VALUES (
+              ${user!.id}, ${event}, ${ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress},
+              ${userAgent || req.headers['user-agent']}, ${JSON.stringify(metadata || {})}, NOW()
+            )
+          `;
+
+          return res.status(200).json({ success: true });
+        } catch (error) {
+          console.error('Error logging security event:', error);
+          return res.status(500).json({ error: 'Failed to log security event' });
         }
       }
     }
@@ -80,14 +132,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       if (req.method === 'GET') {
         try {
-          // TODO: Import appropriate service
-          // const notificationService = await import('../services/notificationService');
-          // const notifications = await notificationService.getUserNotifications(userId);
+          const { customerId, unread, type } = req.query as any;
+          const custId = customerId || user!.id;
+
+          if (user!.role !== 'admin' && user!.id !== parseInt(String(custId))) {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+
+          let whereClause = `WHERE customer_id = ${parseInt(String(custId))}`;
+          if (unread === 'true') whereClause += ` AND is_read = FALSE`;
+          if (type) whereClause += ` AND type = '${type}'`;
+
+          const notifications = await sql`
+            SELECT 
+              id, customer_id, business_id, type, title, message, data,
+              requires_action, action_taken, is_read, priority,
+              expires_at, created_at, read_at, action_taken_at
+            FROM customer_notifications
+            ${sql.raw(whereClause)}
+            ORDER BY created_at DESC
+            LIMIT 50
+          `;
           
-          // Temporary placeholder response:
           return res.status(200).json({ 
             success: true,
-            notifications: [],
+            notifications,
             message: 'Notifications endpoint ready'
           });
         } catch (error) {
@@ -107,14 +176,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const customerId = Number(segments[1]);
         
         try {
-          // TODO: Import appropriate service
-          // const programService = await import('../services/programService');
-          // const programs = await programService.getCustomerPrograms(customerId);
+          // Verify user can access this customer data
+          if (user!.id !== customerId && user!.role !== 'admin' && user!.role !== 'business') {
+            return res.status(403).json({ error: 'Forbidden' });
+          }
+
+          // Get customer's enrolled programs
+          const programs = await sql`
+            SELECT DISTINCT
+              lp.id,
+              lp.name,
+              lp.description,
+              lp.business_id,
+              lp.points_per_dollar,
+              lp.is_active,
+              lp.created_at,
+              u.name AS business_name,
+              u.email AS business_email,
+              lc.id AS card_id,
+              lc.points,
+              lc.points_balance,
+              lc.total_points_earned,
+              lc.card_number,
+              lc.card_type,
+              lc.tier,
+              lc.status AS card_status,
+              lc.created_at AS enrollment_date
+            FROM loyalty_programs lp
+            JOIN loyalty_cards lc ON lc.program_id = lp.id
+            JOIN users u ON u.id = lp.business_id
+            WHERE lc.customer_id = ${customerId}
+              AND lc.status = 'ACTIVE'
+            ORDER BY lc.created_at DESC
+          `;
           
-          // Temporary placeholder response:
           return res.status(200).json({ 
             success: true,
-            programs: [],
+            programs,
             customerId 
           });
         } catch (error) {
@@ -304,6 +402,229 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       
       return res.status(200).json({ page });
+    }
+
+    // Route: /api/dashboard
+    if (segments.length === 1 && segments[0] === 'dashboard' && req.method === 'GET') {
+      const { type, customerId } = req.query;
+      const custId = customerId || user!.id;
+      
+      if (user!.role !== 'admin' && user!.id !== parseInt(String(custId))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      try {
+        const [
+          totalCards,
+          totalPoints,
+          totalRedemptions,
+          enrolledPrograms,
+          recentActivity
+        ] = await Promise.all([
+          sql`SELECT COUNT(*) as count FROM loyalty_cards WHERE customer_id = ${parseInt(String(custId))} AND status = 'ACTIVE'`,
+          sql`SELECT SUM(points) as total FROM loyalty_cards WHERE customer_id = ${parseInt(String(custId))} AND status = 'ACTIVE'`,
+          sql`SELECT COUNT(*) as count FROM redemptions r JOIN loyalty_cards lc ON r.card_id = lc.id WHERE lc.customer_id = ${parseInt(String(custId))}`,
+          sql`
+            SELECT lp.name as program_name, u.name as business_name, lc.points, lc.tier 
+            FROM loyalty_cards lc 
+            JOIN loyalty_programs lp ON lc.program_id = lp.id 
+            JOIN users u ON lp.business_id = u.id 
+            WHERE lc.customer_id = ${parseInt(String(custId))} AND lc.status = 'ACTIVE'
+          `,
+          sql`
+            SELECT ca.*, lp.name as program_name, u.name as business_name 
+            FROM card_activities ca 
+            JOIN loyalty_cards lc ON ca.card_id = lc.id 
+            JOIN loyalty_programs lp ON lc.program_id = lp.id 
+            JOIN users u ON lp.business_id = u.id 
+            WHERE lc.customer_id = ${parseInt(String(custId))} 
+            ORDER BY ca.created_at DESC 
+            LIMIT 10
+          `
+        ]);
+
+        return res.status(200).json({
+          totalCards: parseInt(totalCards[0]?.count || '0'),
+          totalPoints: parseInt(totalPoints[0]?.total || '0'),
+          totalRedemptions: parseInt(totalRedemptions[0]?.count || '0'),
+          enrolledPrograms: enrolledPrograms,
+          recentActivity: recentActivity
+        });
+      } catch (error) {
+        console.error('Dashboard error:', error);
+        return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+      }
+    }
+
+    // Route: /api/cards
+    if (segments.length === 1 && segments[0] === 'cards' && req.method === 'GET') {
+      const { customerId } = req.query;
+      const custId = customerId || user!.id;
+      
+      if (user!.role !== 'admin' && user!.id !== parseInt(String(custId))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      try {
+        const cards = await sql`
+          SELECT 
+            lc.id,
+            lc.customer_id,
+            lc.business_id,
+            lc.program_id,
+            lc.card_number,
+            lc.card_type,
+            lc.tier,
+            lc.points,
+            lc.points_balance,
+            lc.total_points_earned,
+            lc.status,
+            lc.created_at,
+            lc.updated_at,
+            lc.qr_code_url,
+            lp.name AS program_name,
+            lp.description AS program_description,
+            u.name AS business_name,
+            u.email AS business_email
+          FROM loyalty_cards lc
+          JOIN loyalty_programs lp ON lp.id = lc.program_id
+          JOIN users u ON u.id = lc.business_id
+          WHERE lc.customer_id = ${parseInt(String(custId))}
+            AND lc.status = 'ACTIVE'
+          ORDER BY lc.created_at DESC
+        `;
+
+        return res.status(200).json({ cards });
+      } catch (error) {
+        console.error('Cards error:', error);
+        return res.status(500).json({ error: 'Failed to fetch cards' });
+      }
+    }
+
+    // Route: /api/qr-card
+    if (segments.length === 1 && segments[0] === 'qr-card' && req.method === 'GET') {
+      const { customerId } = req.query;
+      const custId = customerId || user!.id;
+      
+      if (user!.role !== 'admin' && user!.id !== parseInt(String(custId))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      try {
+        const qrCodeResult = await sql`
+          SELECT 
+            lc.id,
+            lc.qr_code_url,
+            lc.card_number,
+            lc.points,
+            lc.tier,
+            lp.name as program_name,
+            u.name as business_name
+          FROM loyalty_cards lc
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lc.business_id = u.id
+          WHERE lc.customer_id = ${parseInt(String(custId))}
+            AND lc.status = 'ACTIVE'
+          ORDER BY lc.created_at DESC
+          LIMIT 1
+        `;
+
+        if (qrCodeResult.length === 0) {
+          return res.status(404).json({ error: 'No QR code found for customer' });
+        }
+
+        const qrCode = qrCodeResult[0];
+
+        return res.status(200).json({
+          id: qrCode.id,
+          qrCodeUrl: qrCode.qr_code_url,
+          cardNumber: qrCode.card_number,
+          points: qrCode.points,
+          tier: qrCode.tier,
+          programName: qrCode.program_name,
+          businessName: qrCode.business_name
+        });
+      } catch (error) {
+        console.error('QR Card error:', error);
+        return res.status(500).json({ error: 'Failed to fetch QR code' });
+      }
+    }
+
+    // Route: /api/settings
+    if (segments.length === 1 && segments[0] === 'settings' && req.method === 'GET') {
+      try {
+        const userSettings = await sql`
+          SELECT 
+            id, name, email, avatar_url, phone, timezone,
+            notification_preferences, language, currency, user_type
+          FROM users
+          WHERE id = ${user!.id}
+        `;
+
+        if (userSettings.length === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const settings = userSettings[0];
+
+        return res.status(200).json({
+          id: settings.id,
+          name: settings.name,
+          email: settings.email,
+          avatarUrl: settings.avatar_url,
+          phone: settings.phone,
+          timezone: settings.timezone,
+          notificationPreferences: settings.notification_preferences || {},
+          language: settings.language || 'en',
+          currency: settings.currency || 'USD',
+          userType: settings.user_type
+        });
+      } catch (error) {
+        console.error('Settings error:', error);
+        return res.status(500).json({ error: 'Failed to fetch settings' });
+      }
+    }
+
+    // Route: /api/settings (PUT)
+    if (segments.length === 1 && segments[0] === 'settings' && req.method === 'PUT') {
+      const { 
+        name, 
+        avatar_url, 
+        phone, 
+        timezone, 
+        notification_preferences, 
+        language, 
+        currency 
+      } = (req.body || {}) as any;
+
+      try {
+        const updated = await sql`
+          UPDATE users
+          SET 
+            name = COALESCE(${name}, name),
+            avatar_url = COALESCE(${avatar_url}, avatar_url),
+            phone = COALESCE(${phone}, phone),
+            timezone = COALESCE(${timezone}, timezone),
+            notification_preferences = COALESCE(${notification_preferences ? JSON.stringify(notification_preferences) : null}, notification_preferences),
+            language = COALESCE(${language}, language),
+            currency = COALESCE(${currency}, currency),
+            updated_at = NOW()
+          WHERE id = ${user!.id}
+          RETURNING *
+        `;
+
+        if (updated.length === 0) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.status(200).json({ 
+          success: true,
+          settings: updated[0] 
+        });
+      } catch (error) {
+        console.error('Update settings error:', error);
+        return res.status(500).json({ error: 'Failed to update settings' });
+      }
     }
 
     // Route: /api/dashboard/stats
