@@ -33,6 +33,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     origin: req.headers.origin 
   });
   
+  // Ensure JSON response header for every path
+  res.setHeader('Content-Type', 'application/json');
+
   try {
     // Handle CORS first
     cors(res, req.headers.origin);
