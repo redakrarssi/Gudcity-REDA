@@ -22,6 +22,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isPublicRoute && !user) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    // ---------------------------------------------
+    // Consolidated Customer Dashboard Short Routes
+    // ---------------------------------------------
+
+    // 1. GET /api/dashboard  – Customer dashboard summary (alias for /dashboard/stats?type=customer)
+    if (segments.length === 1 && segments[0] === 'dashboard' && req.method === 'GET') {
+      // Re-use existing customer statistics logic using authenticated user ID
+      req.query.type = 'customer';
+      req.query.customerId = String(user!.id);
+      // Delegate to existing /dashboard/stats handler by fall-through
+    }
+
+    // 2. GET /api/cards          – Customer active loyalty cards list
+    if (segments.length === 1 && segments[0] === 'cards' && req.method === 'GET') {
+      // Translate to existing /loyalty/cards?customerId=<id>
+      req.query.customerId = String(user!.id);
+      segments.splice(0, 1, 'loyalty'); // segments becomes [ 'loyalty', 'cards' ]
+      segments[1] = 'cards';
+    }
+
+    // 3. POST /api/qr-card       – Generate customer QR card (wrapper for /qr/generate)
+    if (segments.length === 1 && segments[0] === 'qr-card' && req.method === 'POST') {
+      segments.splice(0, 1, 'qr', 'generate'); // segments becomes [ 'qr', 'generate' ]
+      req.body = {
+        ...(req.body || {}),
+        type: 'customer',
+        customerId: user!.id,
+      };
+    }
+
+    // 4. GET /api/settings       – Get customer settings (wrapper for /users/:id/settings)
+    //    PUT /api/settings       – Update customer settings
+    if (segments.length === 1 && segments[0] === 'settings' && (req.method === 'GET' || req.method === 'PUT')) {
+      segments.splice(0, 1, 'users', String(user!.id), 'settings');
+    }
+
     // Route: GET /api/loyalty/cards/customer/:customerId
     if (segments.length === 4 && 
         segments[0] === 'loyalty' && 
