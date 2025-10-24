@@ -89,7 +89,7 @@ export async function guaranteedAwardPoints({
       
       try {
         // Try to get actual names but don't fail if we can't
-        const { default: sql } = await import('./db');
+        const { default: sql } = await import('../dev-only/db');
         const programInfo = await sql`
           SELECT lp.name as program_name, u.name as business_name
           FROM loyalty_programs lp

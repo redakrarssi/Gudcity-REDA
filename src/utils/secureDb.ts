@@ -7,7 +7,7 @@
  * SECURITY: All database operations use parameterized queries to prevent SQL injection.
  */
 
-import sql from './db';
+import sql from '../dev-only/db';
 
 // Input validation types
 export type DbInputType = 'string' | 'number' | 'boolean' | 'date' | 'uuid' | 'email' | 'phone';

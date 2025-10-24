@@ -1,4 +1,4 @@
-import sql from './db';
+import sql from '../dev-only/db';
 import env from './env';
 
 export class AppError extends Error {

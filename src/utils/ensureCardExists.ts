@@ -5,7 +5,7 @@
  * before awarding points. This fixes the root cause of points not showing in customer dashboard.
  */
 
-import sql from './db';
+import sql from '../dev-only/db';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 
 export interface CardEnsureResult {

@@ -2,7 +2,7 @@ import { CustomerNotificationService } from '../services/customerNotificationSer
 import { logger } from './logger';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { createCardSyncEvent } from './realTimeSync';
-import sql from './db';
+import sql from '../dev-only/db';
 import { secureSelect, validateDbInput } from './secureDb';
 import crypto from 'crypto';
 

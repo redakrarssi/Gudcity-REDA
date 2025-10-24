@@ -4,16 +4,16 @@
  * logging, and performance optimization throughout the application.
  */
 
-import sql from './db';
+import sql from '../dev-only/db';
 import { withRetry } from './withRetry';
 import { withCache } from './cache';
-import { batchDatabaseQueries } from './batchQueries';
-import { SqlRow } from './db';
+import { batchDatabaseQueries } from '../dev-only/batchQueries';
+import { SqlRow } from '../dev-only/db';
 import { invalidateCache, invalidateCacheByTag } from './cache';
 import { telemetry } from './telemetry';
 import { logger } from './logger';
 import env, { FEATURES } from './env';
-import { getConnectionState, ConnectionState } from './db';
+import { getConnectionState, ConnectionState } from '../dev-only/db';
 import mockData from './mockData';
 
 // Standard options for database operations

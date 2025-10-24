@@ -5,7 +5,7 @@
  * with real-time alerting and audit trail maintenance.
  */
 
-import { sql } from './db';
+import { sql } from '../dev-only/db';
 import { SSRFProtection } from './ssrfProtection';
 
 export interface SSRFAttempt {

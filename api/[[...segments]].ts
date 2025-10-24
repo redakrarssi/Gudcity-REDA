@@ -22,6 +22,108 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isPublicRoute && !user) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    // Route: GET /api/loyalty/cards/customer/:customerId
+    if (segments.length === 4 && 
+        segments[0] === 'loyalty' && 
+        segments[1] === 'cards' && 
+        segments[2] === 'customer' && 
+        segments[3]) {
+      
+      if (req.method === 'GET') {
+        const customerId = Number(segments[3]);
+        
+        try {
+          // TODO: Import appropriate service
+          // const loyaltyCardService = await import('../services/loyaltyCardService');
+          // const cards = await loyaltyCardService.getCustomerCards(customerId);
+          
+          // Temporary placeholder response:
+          return res.status(200).json({ 
+            success: true,
+            cards: [],
+            customerId 
+          });
+        } catch (error) {
+          console.error('Error fetching customer cards:', error);
+          return res.status(500).json({ error: 'Failed to fetch loyalty cards' });
+        }
+      }
+    }
+
+    // Route: GET /api/security/audit
+    if (segments.length === 2 && 
+        segments[0] === 'security' && 
+        segments[1] === 'audit') {
+      
+      if (req.method === 'GET') {
+        try {
+          // TODO: Import appropriate service
+          // const auditService = await import('../services/securityAuditService');
+          // const logs = await auditService.getAuditLogs();
+          
+          // Temporary placeholder response:
+          return res.status(200).json({ 
+            success: true,
+            logs: [],
+            message: 'Audit endpoint ready'
+          });
+        } catch (error) {
+          console.error('Error fetching audit logs:', error);
+          return res.status(500).json({ error: 'Failed to fetch audit logs' });
+        }
+      }
+    }
+
+    // Route: GET /api/notifications
+    if (segments.length === 1 && 
+        segments[0] === 'notifications') {
+      
+      if (req.method === 'GET') {
+        try {
+          // TODO: Import appropriate service
+          // const notificationService = await import('../services/notificationService');
+          // const notifications = await notificationService.getUserNotifications(userId);
+          
+          // Temporary placeholder response:
+          return res.status(200).json({ 
+            success: true,
+            notifications: [],
+            message: 'Notifications endpoint ready'
+          });
+        } catch (error) {
+          console.error('Error fetching notifications:', error);
+          return res.status(500).json({ error: 'Failed to fetch notifications' });
+        }
+      }
+    }
+
+    // Route: GET /api/customers/:customerId/programs
+    if (segments.length === 3 && 
+        segments[0] === 'customers' && 
+        segments[1] && 
+        segments[2] === 'programs') {
+      
+      if (req.method === 'GET') {
+        const customerId = Number(segments[1]);
+        
+        try {
+          // TODO: Import appropriate service
+          // const programService = await import('../services/programService');
+          // const programs = await programService.getCustomerPrograms(customerId);
+          
+          // Temporary placeholder response:
+          return res.status(200).json({ 
+            success: true,
+            programs: [],
+            customerId 
+          });
+        } catch (error) {
+          console.error('Error fetching customer programs:', error);
+          return res.status(500).json({ error: 'Failed to fetch programs' });
+        }
+      }
+    }
+    
     // Route: /api/debug/health - Debug endpoint for diagnosing login issues
     if (segments.length === 2 && segments[0] === 'debug' && segments[1] === 'health' && req.method === 'GET') {
       console.log('[Debug Health] Health check requested');

@@ -4,7 +4,7 @@
  * bypassing the problematic API endpoint.
  */
 
-import sql from './db';
+import sql from '../dev-only/db';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger';
 

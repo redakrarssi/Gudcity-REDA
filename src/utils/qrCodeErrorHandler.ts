@@ -3,7 +3,7 @@
  * 
  * Provides specialized error handling and categorization for QR code operations.
  */
-import sql from './db';
+import sql from '../dev-only/db';
 
 /**
  * Error types specific to QR code operations

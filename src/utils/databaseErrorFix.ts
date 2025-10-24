@@ -3,7 +3,7 @@
  * Handles missing columns and type mismatches gracefully
  */
 
-import sql from './db';
+import sql from '../dev-only/db';
 
 export interface SafeQueryResult {
   success: boolean;

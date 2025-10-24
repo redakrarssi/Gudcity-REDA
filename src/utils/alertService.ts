@@ -1,4 +1,4 @@
-import sql from './db';
+import sql from '../dev-only/db';
 
 /**
  * Alert interface for monitoring system

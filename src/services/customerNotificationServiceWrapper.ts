@@ -5,7 +5,7 @@
  * that uses our new SQL function for better transaction handling.
  */
 
-import sql from '../utils/db';
+import sql from '../dev-only/db';
 import { logger } from '../utils/logger';
 import { CustomerNotificationService } from './customerNotificationService';
 import { LoyaltyCardService } from './loyaltyCardService';
@@ -22,7 +22,7 @@ import {
   CustomerNotification,
   CustomerNotificationType
 } from '../types/customer';
-import { ensureEnrollmentProcedureExists } from '../utils/db';
+import { ensureEnrollmentProcedureExists } from '../dev-only/db';
 import { queryClient } from '../utils/queryClient';
 import { normalizeCustomerId, normalizeProgramId, normalizeBusinessId } from '../utils/normalize';
 
@@ -124,7 +124,7 @@ export async function safeRespondToApproval(requestId: string, approved: boolean
              logger.warn('Customer not found, attempting to create', { customerIdInt });
              
              // Try to create customer using ensureCustomerExists
-             const { ensureCustomerExists } = await import('../utils/initDb');
+             const { ensureCustomerExists } = await import('../dev-only/initDb');
              const createdCustomerId = await ensureCustomerExists(customerIdInt);
              
              if (!createdCustomerId) {

@@ -1,4 +1,4 @@
-import sql from './db';
+import sql from '../dev-only/db';
 import { LoyaltyCardService } from '../services/loyaltyCardService';
 import { CustomerService } from '../services/customerService';
 import { toast } from 'react-hot-toast';

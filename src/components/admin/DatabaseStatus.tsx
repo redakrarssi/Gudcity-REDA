@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, AlertCircle, Clock, Activity } from 'lucide-react';
 import telemetry, { ConnectionStatus } from '../../utils/telemetry';
-import db, { getConnectionState, forceReconnect, getConnectionMetrics } from '../../utils/db';
+import db, { getConnectionState, forceReconnect, getConnectionMetrics } from '../../dev-only/db';
 import databaseConnector from '../../utils/databaseConnector';
 
 interface DatabaseStatusProps {

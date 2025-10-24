@@ -1,5 +1,5 @@
-import sql from '../utils/db';
-import { ensureCustomerExists } from '../utils/initDb';
+import sql from '../dev-only/db';
+import { ensureCustomerExists } from '../dev-only/initDb';
 
 // Types for customer settings
 export interface RegionalSettings {

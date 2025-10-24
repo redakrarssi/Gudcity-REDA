@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import sql from './db';
+import sql from '../dev-only/db';
 import { withRetryableQuery } from './dbRetry';
 
 /**

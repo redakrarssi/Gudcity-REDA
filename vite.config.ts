@@ -123,6 +123,15 @@ export default defineConfig({
       '../server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
       'src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
       '/src/server.ts': resolve(__dirname, 'src/utils/serverMock.ts'),
+      '../../utils/db': process.env.NODE_ENV === 'production'
+        ? resolve(__dirname, 'src/utils/blockedDbClient.ts')
+        : resolve(__dirname, 'src/utils/devDbClient.ts'),
+      '../utils/db': process.env.NODE_ENV === 'production'
+        ? resolve(__dirname, 'src/utils/blockedDbClient.ts')
+        : resolve(__dirname, 'src/utils/devDbClient.ts'),
+      '@/utils/db': process.env.NODE_ENV === 'production'
+        ? resolve(__dirname, 'src/utils/blockedDbClient.ts')
+        : resolve(__dirname, 'src/utils/devDbClient.ts'),
     }
   },
   
