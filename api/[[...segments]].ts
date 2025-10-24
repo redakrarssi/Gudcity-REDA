@@ -27,100 +27,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         segments[0] === 'loyalty' && 
         segments[1] === 'cards' && 
         segments[2] === 'customer' && 
-        segments[3]) {
+        segments[3] && 
+        req.method === 'GET') {
       
-      if (req.method === 'GET') {
-        const customerId = Number(segments[3]);
+      const customerId = Number(segments[3]);
+      
+      // Authorization check
+      if (user!.role !== 'admin' && user!.id !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      try {
+        const { getCustomerCards } = await import('./_services/loyaltyCardServerService.js');
+        const cards = await getCustomerCards(customerId);
         
-        try {
-          // TODO: Import appropriate service
-          // const loyaltyCardService = await import('../services/loyaltyCardService');
-          // const cards = await loyaltyCardService.getCustomerCards(customerId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            cards: [],
-            customerId 
-          });
-        } catch (error) {
-          console.error('Error fetching customer cards:', error);
-          return res.status(500).json({ error: 'Failed to fetch loyalty cards' });
-        }
+        return res.status(200).json({ 
+          success: true,
+          data: { cards, count: cards.length, customerId }
+        });
+      } catch (error) {
+        console.error('[Customer Cards API] Error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch loyalty cards',
+          details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        });
       }
     }
 
-    // Route: GET /api/security/audit
+    // Route: GET /api/security/audit - Retrieve audit logs (admin only)
     if (segments.length === 2 && 
         segments[0] === 'security' && 
-        segments[1] === 'audit') {
+        segments[1] === 'audit' && 
+        req.method === 'GET') {
       
-      if (req.method === 'GET') {
-        try {
-          // TODO: Import appropriate service
-          // const auditService = await import('../services/securityAuditService');
-          // const logs = await auditService.getAuditLogs();
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            logs: [],
-            message: 'Audit endpoint ready'
-          });
-        } catch (error) {
-          console.error('Error fetching audit logs:', error);
-          return res.status(500).json({ error: 'Failed to fetch audit logs' });
-        }
+      // Admin only
+      if (user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
       }
-    }
-
-    // Route: GET /api/notifications
-    if (segments.length === 1 && 
-        segments[0] === 'notifications') {
       
-      if (req.method === 'GET') {
-        try {
-          // TODO: Import appropriate service
-          // const notificationService = await import('../services/notificationService');
-          // const notifications = await notificationService.getUserNotifications(userId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            notifications: [],
-            message: 'Notifications endpoint ready'
-          });
-        } catch (error) {
-          console.error('Error fetching notifications:', error);
-          return res.status(500).json({ error: 'Failed to fetch notifications' });
-        }
-      }
-    }
-
-    // Route: GET /api/customers/:customerId/programs
-    if (segments.length === 3 && 
-        segments[0] === 'customers' && 
-        segments[1] && 
-        segments[2] === 'programs') {
-      
-      if (req.method === 'GET') {
-        const customerId = Number(segments[1]);
+      try {
+        const { limit = 100, offset = 0 } = req.query;
         
-        try {
-          // TODO: Import appropriate service
-          // const programService = await import('../services/programService');
-          // const programs = await programService.getCustomerPrograms(customerId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            programs: [],
-            customerId 
-          });
-        } catch (error) {
-          console.error('Error fetching customer programs:', error);
-          return res.status(500).json({ error: 'Failed to fetch programs' });
-        }
+        const logs = await sql`
+          SELECT 
+            id, user_id, event, ip_address, user_agent, 
+            metadata, created_at
+          FROM security_audit_logs
+          ORDER BY created_at DESC
+          LIMIT ${parseInt(String(limit))}
+          OFFSET ${parseInt(String(offset))}
+        `;
+        
+        return res.status(200).json({ 
+          success: true,
+          data: {
+            logs,
+            total: logs.length,
+            limit: parseInt(String(limit)),
+            offset: parseInt(String(offset))
+          }
+        });
+      } catch (error) {
+        console.error('[Security Audit API] Error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch audit logs',
+          details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        });
       }
     }
     
