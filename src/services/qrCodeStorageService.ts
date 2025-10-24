@@ -303,10 +303,19 @@ export class QrCodeStorageService {
 
   /**
    * Get a customer's primary QR code
+   * ✅ SECURITY FIX: This method should only be called server-side
+   * Client code should use API endpoints instead
    */
   static async getCustomerPrimaryQrCode(customerId: number | string, qrType: CustomerQrCode['qr_type']): Promise<CustomerQrCode | null> {
+    // ✅ SECURITY: Detect if running in browser and block direct access
+    if (typeof window !== 'undefined') {
+      console.warn('⚠️ getCustomerPrimaryQrCode called from browser - this should use API instead');
+      // Return null to prevent errors, caller should handle this
+      return null;
+    }
+
     try {
-      // First check if the table exists
+      // Server-side only code below
       const tableExists = await sql.tableExists('customer_qrcodes');
       if (!tableExists) {
         console.error('customer_qrcodes table does not exist');

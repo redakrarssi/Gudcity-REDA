@@ -91,14 +91,33 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     return res.status(405).json(ErrorResponses.methodNotAllowed(['GET', 'PUT', 'DELETE']));
 
   } catch (error) {
+    console.error('═══════════════════════════════════════════════════');
+    console.error('[User API] CRITICAL ERROR DETAILS:');
+    console.error('═══════════════════════════════════════════════════');
     console.error('[User API] Error:', error);
+    console.error('[User API] Error name:', (error as Error).name);
+    console.error('[User API] Error message:', (error as Error).message);
     console.error('[User API] Error stack:', (error as Error).stack);
     console.error('[User API] Request details:', { 
       method: req.method, 
       userId, 
-      user: req.user?.id,
-      query: req.query
+      userIdType: typeof userId,
+      userIdValue: userId,
+      authenticatedUserId: req.user?.id,
+      authenticatedUserRole: req.user?.role,
+      query: req.query,
+      headers: {
+        origin: req.headers.origin,
+        authorization: req.headers.authorization ? 'present' : 'missing'
+      }
     });
+    console.error('[User API] Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      hasDATABASE_URL: !!process.env.DATABASE_URL,
+      hasPOSTGRES_URL: !!process.env.POSTGRES_URL,
+      hasVITE_DATABASE_URL: !!process.env.VITE_DATABASE_URL
+    });
+    console.error('═══════════════════════════════════════════════════');
     
     return res.status(500).json(
       ErrorResponses.serverError(

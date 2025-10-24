@@ -410,7 +410,38 @@ export class CustomerNotificationService {
    */
   static async getPendingApprovals(customerId: string): Promise<ApprovalRequest[]> {
     try {
-      // Check if the table exists first
+      // ✅ SECURITY FIX: Detect if running in browser
+      if (typeof window !== 'undefined') {
+        // Browser: Use API endpoint
+        const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+        if (!token) {
+          console.warn('No auth token available for getPendingApprovals');
+          return [];
+        }
+
+        try {
+          const response = await fetch(`/api/notifications?customerId=${customerId}&type=APPROVAL_REQUEST`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            console.error('Failed to fetch pending approvals via API:', response.status);
+            return [];
+          }
+
+          const data = await response.json();
+          return (data.notifications || []).map(this.mapApprovalRequest);
+        } catch (apiError) {
+          console.error('API call failed for pending approvals:', apiError);
+          return [];
+        }
+      }
+
+      // Server-side: Use direct SQL
       const tableExists = await sql`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 

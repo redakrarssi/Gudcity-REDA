@@ -384,26 +384,27 @@ export class UserQrCodeService {
 
   /**
    * Get all programs a customer is enrolled in
+   * ✅ SECURITY FIX: Now uses API instead of direct database access
    */
   static async getCustomerEnrolledPrograms(userId: string): Promise<any[]> {
     try {
-      // Use tagged template literals instead of sql.query
-      const result = await sql`
-        SELECT 
-          cp.id, 
-          cp.program_id, 
-          lp.name as program_name, 
-          lp.description, 
-          cp.current_points,
-          cp.enrolled_at
-        FROM customer_programs cp
-        JOIN loyalty_programs lp ON cp.program_id = lp.id
-        WHERE cp.customer_id = ${userId}
-      `;
+      // ✅ API-ONLY ACCESS: Use secure API endpoint instead of direct SQL
+      const response = await fetch(`/api/customers/${userId}/programs`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      return result;
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.programs || [];
     } catch (error) {
-      logger.error('Error getting customer enrolled programs:', error);
+      logger.error('[ERROR] Error getting customer enrolled programs:', error);
       // Return empty array instead of null to avoid UI errors
       return [];
     }

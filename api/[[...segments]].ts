@@ -27,100 +27,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         segments[0] === 'loyalty' && 
         segments[1] === 'cards' && 
         segments[2] === 'customer' && 
-        segments[3]) {
+        segments[3] && 
+        req.method === 'GET') {
       
-      if (req.method === 'GET') {
-        const customerId = Number(segments[3]);
+      const customerId = Number(segments[3]);
+      
+      // Authorization check
+      if (user!.role !== 'admin' && user!.id !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      try {
+        const { getCustomerCards } = await import('./_services/loyaltyCardServerService.js');
+        const cards = await getCustomerCards(customerId);
         
-        try {
-          // TODO: Import appropriate service
-          // const loyaltyCardService = await import('../services/loyaltyCardService');
-          // const cards = await loyaltyCardService.getCustomerCards(customerId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            cards: [],
-            customerId 
-          });
-        } catch (error) {
-          console.error('Error fetching customer cards:', error);
-          return res.status(500).json({ error: 'Failed to fetch loyalty cards' });
-        }
+        return res.status(200).json({ 
+          success: true,
+          data: { cards, count: cards.length, customerId }
+        });
+      } catch (error) {
+        console.error('[Customer Cards API] Error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch loyalty cards',
+          details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        });
       }
     }
 
-    // Route: GET /api/security/audit
+    // Route: GET /api/security/audit - Retrieve audit logs (admin only)
     if (segments.length === 2 && 
         segments[0] === 'security' && 
-        segments[1] === 'audit') {
+        segments[1] === 'audit' && 
+        req.method === 'GET') {
       
-      if (req.method === 'GET') {
-        try {
-          // TODO: Import appropriate service
-          // const auditService = await import('../services/securityAuditService');
-          // const logs = await auditService.getAuditLogs();
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            logs: [],
-            message: 'Audit endpoint ready'
-          });
-        } catch (error) {
-          console.error('Error fetching audit logs:', error);
-          return res.status(500).json({ error: 'Failed to fetch audit logs' });
-        }
+      // Admin only
+      if (user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
       }
-    }
-
-    // Route: GET /api/notifications
-    if (segments.length === 1 && 
-        segments[0] === 'notifications') {
       
-      if (req.method === 'GET') {
-        try {
-          // TODO: Import appropriate service
-          // const notificationService = await import('../services/notificationService');
-          // const notifications = await notificationService.getUserNotifications(userId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            notifications: [],
-            message: 'Notifications endpoint ready'
-          });
-        } catch (error) {
-          console.error('Error fetching notifications:', error);
-          return res.status(500).json({ error: 'Failed to fetch notifications' });
-        }
-      }
-    }
-
-    // Route: GET /api/customers/:customerId/programs
-    if (segments.length === 3 && 
-        segments[0] === 'customers' && 
-        segments[1] && 
-        segments[2] === 'programs') {
-      
-      if (req.method === 'GET') {
-        const customerId = Number(segments[1]);
+      try {
+        const { limit = 100, offset = 0 } = req.query;
         
-        try {
-          // TODO: Import appropriate service
-          // const programService = await import('../services/programService');
-          // const programs = await programService.getCustomerPrograms(customerId);
-          
-          // Temporary placeholder response:
-          return res.status(200).json({ 
-            success: true,
-            programs: [],
-            customerId 
-          });
-        } catch (error) {
-          console.error('Error fetching customer programs:', error);
-          return res.status(500).json({ error: 'Failed to fetch programs' });
-        }
+        const logs = await sql`
+          SELECT 
+            id, user_id, event, ip_address, user_agent, 
+            metadata, created_at
+          FROM security_audit_logs
+          ORDER BY created_at DESC
+          LIMIT ${parseInt(String(limit))}
+          OFFSET ${parseInt(String(offset))}
+        `;
+        
+        return res.status(200).json({ 
+          success: true,
+          data: {
+            logs,
+            total: logs.length,
+            limit: parseInt(String(limit)),
+            offset: parseInt(String(offset))
+          }
+        });
+      } catch (error) {
+        console.error('[Security Audit API] Error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch audit logs',
+          details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        });
       }
     }
     
@@ -436,7 +408,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid dashboard type. Must be admin, business, or customer' });
     }
 
-    // Route: /api/users
+    // Route: /api/users (list/create only - GET/POST)
+    // NOTE: /api/users/:id is handled by dedicated api/users/[id].ts for GET/PUT/DELETE
     if (segments.length === 1 && segments[0] === 'users') {
       if (req.method === 'GET') {
         if (user!.role !== 'admin') {
@@ -1460,6 +1433,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Route: /api/users/:id/settings - User settings
+    // NOTE: /api/users/:id base operations are handled by dedicated api/users/[id].ts
+    // This only handles the /settings sub-route
     if (segments.length === 3 && segments[0] === 'users' && segments[2] === 'settings') {
       const userId = segments[1];
 
@@ -1509,6 +1484,300 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Route: GET /api/transactions - Transaction history
+    if (segments.length === 1 && segments[0] === 'transactions' && req.method === 'GET') {
+      const { customerId, cardId, limit = '50' } = req.query as any;
+
+      // Authorization check
+      if (customerId && user!.id !== parseInt(customerId) && user!.role !== 'admin' && user!.role !== 'business') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      let transactions;
+      if (customerId) {
+        transactions = await sql`
+          SELECT 
+            t.id, t.type, t.points, t.created_at,
+            t.description, t.metadata,
+            lc.id as card_id, lc.card_number,
+            lp.id as program_id, lp.name as program_name,
+            u.id as business_id, u.name as business_name
+          FROM point_transactions t
+          JOIN loyalty_cards lc ON t.card_id = lc.id
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lp.business_id = u.id
+          WHERE lc.customer_id = ${parseInt(customerId)}
+          ORDER BY t.created_at DESC
+          LIMIT ${parseInt(limit as string)}
+        `;
+      } else if (cardId) {
+        transactions = await sql`
+          SELECT 
+            t.id, t.type, t.points, t.created_at,
+            t.description, t.metadata,
+            lc.id as card_id, lc.card_number,
+            lp.id as program_id, lp.name as program_name,
+            u.id as business_id, u.name as business_name
+          FROM point_transactions t
+          JOIN loyalty_cards lc ON t.card_id = lc.id
+          JOIN loyalty_programs lp ON lc.program_id = lp.id
+          JOIN users u ON lp.business_id = u.id
+          WHERE t.card_id = ${parseInt(cardId as string)}
+          ORDER BY t.created_at DESC
+          LIMIT ${parseInt(limit as string)}
+        `;
+      } else {
+        return res.status(400).json({ error: 'customerId or cardId required' });
+      }
+
+      return res.status(200).json({ transactions });
+    }
+
+    // Route: POST /api/customers/reward-tiers - Batch fetch reward tiers
+    if (segments.length === 2 && segments[0] === 'customers' && segments[1] === 'reward-tiers' && req.method === 'POST') {
+      const { programIds } = (req.body || {}) as any;
+
+      if (!programIds || !Array.isArray(programIds) || programIds.length === 0) {
+        return res.status(400).json({ error: 'programIds array required' });
+      }
+
+      // Batch fetch all reward tiers for the given program IDs
+      const rewardTiers = await sql`
+        SELECT 
+          id, program_id, points_required, reward, description, created_at
+        FROM reward_tiers
+        WHERE program_id IN ${sql(programIds.map(id => parseInt(String(id))))}
+        ORDER BY program_id, points_required ASC
+      `;
+
+      return res.status(200).json({ rewardTiers });
+    }
+
+    // Route: GET /api/customers/:id/qr-code - Get customer QR code
+    if (segments.length === 3 && segments[0] === 'customers' && segments[2] === 'qr-code' && req.method === 'GET') {
+      const customerId = segments[1];
+
+      // Authorization check
+      if (user!.id !== parseInt(customerId) && user!.role !== 'admin' && user!.role !== 'business') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get customer data for QR code
+      const customer = await sql`
+        SELECT id, name, email FROM users WHERE id = ${parseInt(customerId)}
+      `;
+
+      if (customer.length === 0) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
+      // Check if QR code already exists
+      const existingQr = await sql`
+        SELECT qr_unique_id, qr_data, qr_image_url FROM customer_qrcodes
+        WHERE customer_id = ${parseInt(customerId)}
+        AND qr_type = 'CUSTOMER_CARD'
+        AND status = 'ACTIVE'
+        AND is_primary = TRUE
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+
+      if (existingQr.length > 0) {
+        return res.status(200).json({
+          qrCode: existingQr[0].qr_unique_id,
+          qrData: existingQr[0].qr_data,
+          qrImageUrl: existingQr[0].qr_image_url,
+          customer: customer[0]
+        });
+      }
+
+      // Generate new QR code data
+      const qrData = {
+        type: 'customer',
+        customerId: customer[0].id,
+        name: customer[0].name,
+        email: customer[0].email,
+        cardNumber: `GC-${Date.now()}-C`,
+        timestamp: Date.now()
+      };
+
+      return res.status(200).json({
+        qrCode: null,
+        qrData: JSON.stringify(qrData),
+        qrImageUrl: null,
+        customer: customer[0],
+        message: 'QR code generated (not persisted yet)'
+      });
+    }
+
+    // Route: POST /api/promotions/redeem - Redeem promo code
+    if (segments.length === 2 && segments[0] === 'promotions' && segments[1] === 'redeem' && req.method === 'POST') {
+      const { promoCode, customerId } = (req.body || {}) as any;
+
+      if (!promoCode || !customerId) {
+        return res.status(400).json({ error: 'promoCode and customerId required' });
+      }
+
+      // Authorization check
+      if (user!.id !== parseInt(customerId) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Find promo code
+      const promo = await sql`
+        SELECT 
+          pc.*,
+          u.name as business_name
+        FROM promo_codes pc
+        JOIN users u ON pc.business_id = u.id
+        WHERE pc.code = ${promoCode}
+        AND pc.status = 'ACTIVE'
+        AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+      `;
+
+      if (promo.length === 0) {
+        return res.status(404).json({ error: 'Invalid or expired promo code' });
+      }
+
+      // Check usage limit
+      if (promo[0].max_uses && promo[0].used_count >= promo[0].max_uses) {
+        return res.status(400).json({ error: 'Promo code usage limit reached' });
+      }
+
+      // Increment usage count
+      await sql`
+        UPDATE promo_codes
+        SET used_count = used_count + 1, updated_at = NOW()
+        WHERE id = ${promo[0].id}
+      `;
+
+      // Record redemption
+      await sql`
+        INSERT INTO promo_redemptions (
+          promo_code_id, customer_id, redeemed_at
+        ) VALUES (
+          ${promo[0].id}, ${parseInt(customerId)}, NOW()
+        )
+      `;
+
+      return res.status(200).json({
+        success: true,
+        promo: {
+          code: promo[0].code,
+          type: promo[0].type,
+          value: promo[0].value,
+          businessName: promo[0].business_name
+        }
+      });
+    }
+
+    // Route: DELETE /api/notifications/:id - Delete notification
+    if (segments.length === 2 && segments[0] === 'notifications' && req.method === 'DELETE') {
+      const notificationId = segments[1];
+
+      // Get notification to check ownership
+      const notification = await sql`
+        SELECT customer_id FROM customer_notifications WHERE id = ${parseInt(notificationId)}
+      `;
+
+      if (notification.length === 0) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      // Authorization check
+      if (user!.id !== notification[0].customer_id && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Soft delete
+      await sql`
+        UPDATE customer_notifications
+        SET is_deleted = TRUE, updated_at = NOW()
+        WHERE id = ${parseInt(notificationId)}
+      `;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // Route: POST /api/notifications/approval/respond - Respond to approval request
+    if (segments.length === 3 && segments[0] === 'notifications' && segments[1] === 'approval' && segments[2] === 'respond' && req.method === 'POST') {
+      const { requestId, approved, customerId } = (req.body || {}) as any;
+
+      if (!requestId || approved === undefined || !customerId) {
+        return res.status(400).json({ error: 'requestId, approved, and customerId required' });
+      }
+
+      // Authorization check
+      if (user!.id !== parseInt(customerId) && user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get approval request
+      const request = await sql`
+        SELECT * FROM customer_approval_requests
+        WHERE id = ${requestId} AND customer_id = ${parseInt(customerId)}
+      `;
+
+      if (request.length === 0) {
+        return res.status(404).json({ error: 'Approval request not found' });
+      }
+
+      if (request[0].status !== 'PENDING') {
+        return res.status(400).json({ error: 'Request already processed' });
+      }
+
+      // Update request status
+      await sql`
+        UPDATE customer_approval_requests
+        SET status = ${approved ? 'APPROVED' : 'REJECTED'}, 
+            responded_at = NOW(),
+            updated_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (approved && request[0].request_type === 'PROGRAM_ENROLLMENT') {
+        // Create loyalty card
+        const cardNumber = `GC-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        
+        await sql`
+          INSERT INTO loyalty_cards (
+            customer_id, business_id, program_id, card_number,
+            status, card_type, points, tier, points_multiplier, is_active, created_at, updated_at
+          ) VALUES (
+            ${parseInt(customerId)}, ${request[0].business_id}, ${request[0].program_id},
+            ${cardNumber}, 'ACTIVE', 'STANDARD', 0, 'STANDARD', 1.0, TRUE, NOW(), NOW()
+          )
+        `;
+
+        // Add to program enrollments
+        await sql`
+          INSERT INTO program_enrollments (customer_id, program_id, status, current_points, enrolled_at)
+          VALUES (${parseInt(customerId)}, ${request[0].program_id}, 'ACTIVE', 0, NOW())
+          ON CONFLICT (customer_id, program_id) 
+          DO UPDATE SET status = 'ACTIVE', enrolled_at = NOW()
+        `;
+      }
+
+      // Notify business
+      await sql`
+        INSERT INTO customer_notifications (
+          customer_id, business_id, type, title, message, created_at
+        ) VALUES (
+          ${request[0].business_id}, ${request[0].business_id},
+          ${approved ? 'ENROLLMENT_ACCEPTED' : 'ENROLLMENT_REJECTED'},
+          ${approved ? 'Customer Accepted Enrollment' : 'Customer Declined Enrollment'},
+          ${approved ? `Customer has accepted enrollment in the program` : `Customer has declined enrollment`},
+          NOW()
+        )
+      `;
+
+      return res.status(200).json({ 
+        success: true,
+        approved,
+        message: approved ? 'Enrollment accepted' : 'Enrollment rejected'
+      });
     }
 
     return res.status(404).json({ error: 'Not found' });
