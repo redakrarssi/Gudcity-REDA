@@ -40,33 +40,9 @@
     "api/[[...segments]].ts": {
       "memory": 1024,
       "maxDuration": 30
-    },
-    "api/v1/[[...path]].ts": {
-      "memory": 1024,
-      "maxDuration": 30
     }
   },
   "rewrites": [
-    {
-      "source": "/api/security/audit",
-      "destination": "/api/v1/security/audit"
-    },
-    {
-      "source": "/api/loyalty/cards/customer/:id",
-      "destination": "/api/v1/loyalty/cards/customer/:id"
-    },
-    {
-      "source": "/api/customers/:id/programs",
-      "destination": "/api/v1/customers/:id/programs"
-    },
-    {
-      "source": "/api/notifications",
-      "destination": "/api/v1/notifications"
-    },
-    {
-      "source": "/api/promotions",
-      "destination": "/api/v1/promotions"
-    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
