@@ -4,7 +4,7 @@
  * SECURITY: This file runs on the server only - never exposed to browser
  */
 
-import { requireSql } from '../_lib/db.js';
+import { requireSql } from '../_lib/db.ts';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
