@@ -2,7 +2,9 @@
 
 ## Overview
 
-This directory contains consolidated API handlers that help bypass the Vercel Hobby plan's 12 serverless function limit. Instead of creating separate files for each API endpoint (which would count against the function limit), we use a single catch-all handler that processes multiple endpoint types.
+This directory contains consolidated API handlers that successfully bypass the Vercel Hobby plan's 12 serverless function limit. Instead of creating separate files for each API endpoint (which would count against the function limit), we use a single catch-all handler that processes multiple endpoint types.
+
+**Current Function Count: 11/12** (Successfully under the limit!)
 
 ## How It Works
 
