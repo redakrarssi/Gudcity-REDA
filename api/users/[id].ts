@@ -92,6 +92,13 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
 
   } catch (error) {
     console.error('[User API] Error:', error);
+    console.error('[User API] Error stack:', (error as Error).stack);
+    console.error('[User API] Request details:', { 
+      method: req.method, 
+      userId, 
+      user: req.user?.id,
+      query: req.query
+    });
     
     return res.status(500).json(
       ErrorResponses.serverError(
