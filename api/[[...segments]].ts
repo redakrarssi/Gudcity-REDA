@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireSql } from './_lib/db.js';
 import { verifyAuth, cors, rateLimitFactory } from './_lib/auth.js';
+import jwt from 'jsonwebtoken';
 
 const allow = rateLimitFactory(240, 60_000);
 
@@ -1457,6 +1458,251 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
 
       return res.status(200).json({ success: true });
+    }
+
+    // Route: /api/debug/auth-diagnosis - Authentication diagnostics (consolidated)
+    if (segments.length === 2 && segments[0] === 'debug' && segments[1] === 'auth-diagnosis' && req.method === 'POST') {
+      const { userId, token } = (req.body || {}) as any;
+
+      const diagnosis = {
+        timestamp: new Date().toISOString(),
+        userId: userId || 'Not provided',
+        token: token ? 'Provided' : 'Not provided',
+        environment: {} as any,
+        database: {} as any,
+        auth: {} as any,
+        user: {} as any,
+        session: {} as any
+      };
+
+      console.log('🔍 [AUTH DIAGNOSIS] Starting comprehensive auth diagnosis for userId:', userId);
+
+      // 1. Environment Check
+      try {
+        diagnosis.environment = {
+          NODE_ENV: process.env.NODE_ENV || 'not set',
+          hasJWT_SECRET: !!(process.env.JWT_SECRET || process.env.VITE_JWT_SECRET),
+          hasDATABASE_URL: !!(
+            process.env.DATABASE_URL || 
+            process.env.POSTGRES_URL || 
+            process.env.VITE_DATABASE_URL ||
+            process.env.VITE_POSTGRES_URL
+          ),
+          hasVERCEL_URL: !!process.env.VERCEL_URL,
+          platform: process.env.VERCEL ? 'Vercel' : 'Local'
+        };
+        console.log('✅ Environment check completed');
+      } catch (error) {
+        diagnosis.environment = { error: (error as Error).message };
+        console.error('❌ Environment check failed:', error);
+      }
+
+      // 2. Database Connection Check
+      try {
+        // Test basic connection
+        const testResult = await sql`SELECT 1 as test, NOW() as current_time`;
+        diagnosis.database.connection = { 
+          status: 'connected', 
+          testQuery: testResult.length > 0 ? 'success' : 'failed',
+          serverTime: testResult[0]?.current_time
+        };
+
+        // Check table existence
+        const tables = ['users', 'auth_tokens', 'refresh_tokens', 'revoked_tokens'];
+        diagnosis.database.tables = {};
+        
+        for (const table of tables) {
+          try {
+            const result = await sql`
+              SELECT COUNT(*) as count 
+              FROM information_schema.tables 
+              WHERE table_name = ${table}
+            `;
+            diagnosis.database.tables[table] = {
+              exists: result[0]?.count > 0,
+              count: result[0]?.count || 0
+            };
+          } catch (tableError) {
+            diagnosis.database.tables[table] = { 
+              exists: false, 
+              error: (tableError as Error).message 
+            };
+          }
+        }
+
+        console.log('✅ Database check completed');
+      } catch (error) {
+        diagnosis.database = { 
+          connection: { status: 'failed', error: (error as Error).message }
+        };
+        console.error('❌ Database check failed:', error);
+      }
+
+      // 3. JWT Token Analysis
+      if (token) {
+        try {
+          const secret = process.env.JWT_SECRET || process.env.VITE_JWT_SECRET;
+          
+          // Decode without verification first
+          const decoded = jwt.decode(token, { complete: true });
+          diagnosis.auth.tokenStructure = {
+            header: decoded?.header || null,
+            payloadKeys: decoded?.payload ? Object.keys(decoded.payload) : [],
+            hasUserId: decoded?.payload && 'userId' in decoded.payload,
+            hasEmail: decoded?.payload && 'email' in decoded.payload,
+            hasRole: decoded?.payload && 'role' in decoded.payload,
+            hasJti: decoded?.payload && 'jti' in decoded.payload,
+            exp: decoded?.payload && 'exp' in decoded.payload ? decoded.payload.exp : null,
+            iat: decoded?.payload && 'iat' in decoded.payload ? decoded.payload.iat : null
+          };
+
+          // Try to verify
+          if (secret) {
+            try {
+              const verified = jwt.verify(token, secret) as any;
+              diagnosis.auth.verification = {
+                status: 'valid',
+                userId: verified.userId,
+                email: verified.email,
+                role: verified.role,
+                businessId: verified.businessId || null,
+                jti: verified.jti || null,
+                isExpired: false
+              };
+            } catch (verifyError: any) {
+              diagnosis.auth.verification = {
+                status: 'invalid',
+                error: verifyError.message,
+                isExpired: verifyError.name === 'TokenExpiredError'
+              };
+            }
+          } else {
+            diagnosis.auth.verification = {
+              status: 'no_secret',
+              error: 'JWT_SECRET not configured'
+            };
+          }
+
+          console.log('✅ JWT analysis completed');
+        } catch (error) {
+          diagnosis.auth = { error: (error as Error).message };
+          console.error('❌ JWT analysis failed:', error);
+        }
+      } else {
+        diagnosis.auth = { status: 'no_token_provided' };
+      }
+
+      // 4. User Database Check
+      if (userId && diagnosis.database.connection?.status === 'connected') {
+        try {
+          // Check if user exists
+          const userResult = await sql`
+            SELECT id, email, name, user_type, role, status, 
+                   business_id, created_at, last_login, updated_at
+            FROM users 
+            WHERE id = ${Number(userId)}
+            LIMIT 1
+          `;
+
+          if (userResult.length > 0) {
+            const user = userResult[0];
+            diagnosis.user = {
+              exists: true,
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              userType: user.user_type,
+              role: user.role,
+              status: user.status,
+              businessId: user.business_id,
+              createdAt: user.created_at,
+              lastLogin: user.last_login,
+              updatedAt: user.updated_at
+            };
+
+            // Check for active sessions
+            try {
+              const activeTokens = await sql`
+                SELECT COUNT(*) as count 
+                FROM auth_tokens 
+                WHERE user_id = ${Number(userId)} 
+                AND expires_at > NOW()
+              `;
+              
+              const refreshTokens = await sql`
+                SELECT COUNT(*) as count 
+                FROM refresh_tokens 
+                WHERE user_id = ${Number(userId)} 
+                AND revoked = FALSE
+              `;
+
+              diagnosis.session = {
+                activeTokens: activeTokens[0]?.count || 0,
+                refreshTokens: refreshTokens[0]?.count || 0
+              };
+            } catch (sessionError) {
+              diagnosis.session = { error: (sessionError as Error).message };
+            }
+          } else {
+            diagnosis.user = {
+              exists: false,
+              message: `User with ID ${userId} not found in database`
+            };
+          }
+
+          console.log('✅ User check completed');
+        } catch (error) {
+          diagnosis.user = { error: (error as Error).message };
+          console.error('❌ User check failed:', error);
+        }
+      } else if (userId) {
+        diagnosis.user = { 
+          status: 'database_unavailable',
+          userId: userId 
+        };
+      }
+
+      // 5. Token Blacklist Check
+      if (diagnosis.auth.verification?.jti && diagnosis.database.connection?.status === 'connected') {
+        try {
+          const blacklistResult = await sql`
+            SELECT jti, created_at, reason 
+            FROM revoked_tokens 
+            WHERE jti = ${diagnosis.auth.verification.jti}
+            LIMIT 1
+          `;
+
+          diagnosis.auth.blacklistStatus = {
+            isBlacklisted: blacklistResult.length > 0,
+            details: blacklistResult[0] || null
+          };
+        } catch (error) {
+          diagnosis.auth.blacklistStatus = { error: (error as Error).message };
+        }
+      }
+
+      console.log('🔍 [AUTH DIAGNOSIS] Diagnosis completed:', {
+        userId,
+        userExists: diagnosis.user.exists,
+        tokenValid: diagnosis.auth.verification?.status,
+        dbConnected: diagnosis.database.connection?.status
+      });
+
+      return res.status(200).json({
+        success: true,
+        diagnosis,
+        summary: {
+          overall: diagnosis.database.connection?.status === 'connected' && 
+                   diagnosis.user.exists && 
+                   (!token || diagnosis.auth.verification?.status === 'valid') ? 'healthy' : 'issues_found',
+          mainIssues: [
+            ...(diagnosis.database.connection?.status !== 'connected' ? ['Database connection failed'] : []),
+            ...(diagnosis.user.exists === false ? ['User not found in database'] : []),
+            ...(token && diagnosis.auth.verification?.status !== 'valid' ? ['Invalid or expired token'] : []),
+            ...(diagnosis.auth.blacklistStatus?.isBlacklisted ? ['Token is blacklisted'] : [])
+          ]
+        }
+      });
     }
 
     // Route: /api/users/:id/settings - User settings

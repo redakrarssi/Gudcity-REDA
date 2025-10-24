@@ -43,23 +43,43 @@ const UserStatusMonitor: React.FC = () => {
             break;
           } catch (err: any) {
             const message = err?.message || '';
-            // If 404, user does not exist -> logout
-            if (message.includes('404') || message.includes('Not Found')) {
+            const status = err?.status || err?.response?.status;
+            
+            console.warn(`[UserStatusMonitor] API error (attempt ${attempt + 1}/${maxAttempts}):`, { 
+              message, 
+              status, 
+              userId: user.id 
+            });
+            
+            // Only logout on actual 404 (user not found) - NOT on 500 or other server errors
+            if (status === 404 || message.includes('USER_NOT_FOUND') || message.includes('Not Found')) {
+              console.error('🚫 USER STATUS MONITOR: User account genuinely not found (404), logging out');
               currentUser = null;
               break;
             }
-            // Network/other errors: backoff and retry
-            await new Promise(r => setTimeout(r, 300 * Math.pow(2, attempt)));
+            
+            // For 500 errors, authentication errors, or network issues: retry with backoff
+            if (attempt < maxAttempts - 1) {
+              const delay = 300 * Math.pow(2, attempt);
+              console.log(`[UserStatusMonitor] Retrying in ${delay}ms due to server error (${status || 'unknown'})`);
+              await new Promise(r => setTimeout(r, delay));
+            } else {
+              // After all retries failed, don't logout - just log the issue
+              console.warn('🔄 USER STATUS MONITOR: All retries failed, but keeping user logged in (server issues)');
+              return; // Skip logout, keep current session
+            }
             attempt++;
           }
         }
         lastResult.value = currentUser;
         lastResult.ts = now;
         
+        // Only logout if we explicitly got a 404 (user not found)
+        // Don't logout on network errors or server issues
         if (!currentUser) {
           console.error('🚫 USER STATUS MONITOR: User account no longer exists, logging out');
           logout();
-          navigate('/login');
+          navigate('/login?reason=account_not_found');
           return;
         }
 

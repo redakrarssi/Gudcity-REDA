@@ -68,6 +68,10 @@
       "destination": "/api/v1/promotions"
     },
     {
+      "source": "/api/debug/auth-diagnosis",
+      "destination": "/api/debug/auth-diagnosis"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

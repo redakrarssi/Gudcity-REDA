@@ -46,6 +46,7 @@ import AdminLogin from './pages/auth/AdminLogin';
 import SetupController from './components/onboarding/SetupController';
 import DatabaseConnectionAlert from './components/DatabaseConnectionAlert';
 import { FallbackProvider } from './components/FallbackIndicator';
+import LoginDiagnostics from './pages/LoginDiagnostics';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { BusinessCurrencyProvider } from './contexts/BusinessCurrencyContext';
 import { registerNotificationListeners } from './utils/notificationHandler';
@@ -210,6 +211,11 @@ function App() {
                 <Route path="/login" element={
                   <ErrorBoundary>
                     <Login />
+                  </ErrorBoundary>
+                } />
+                <Route path="/login-diagnostics" element={
+                  <ErrorBoundary>
+                    <LoginDiagnostics />
                   </ErrorBoundary>
                 } />
                 <Route path="/register" element={
