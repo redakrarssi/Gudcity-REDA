@@ -4,7 +4,7 @@
  * SECURITY: This file runs on the server only - never exposed to browser
  */
 
-import { requireSql } from '../_lib/db.ts';
+import { requireSql } from '../_lib/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -42,7 +42,7 @@ export async function validateUserCredentials(
   try {
     users = await sql`
       SELECT 
-        id, email, name, user_type, role, password, status, business_id,
+        id, email, name, user_type, role, password, status,
         business_name, business_phone, avatar_url, created_at, last_login
       FROM users 
       WHERE LOWER(email) = LOWER(${email})
@@ -96,7 +96,7 @@ export async function validateUserCredentials(
         userId: user.id,
         email: user.email,
         role: user.role || user.user_type,
-        businessId: user.business_id,
+        businessId: null,
         jti,
       } as TokenPayload,
       JWT_SECRET!,
