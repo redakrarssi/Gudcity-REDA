@@ -86,12 +86,25 @@ async function handleSecurityAudit(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Return placeholder response
-    return res.status(200).json({ 
-      success: true,
-      logs: [],
-      message: 'Security audit endpoint ready'
-    });
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      const logs = await sql`
+        SELECT * FROM security_audit_logs
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+        LIMIT 100
+      `;
+
+      return res.status(200).json({ 
+        success: true,
+        logs
+      });
+    } catch (error) {
+      console.error('Error getting security audit logs:', error);
+      return res.status(500).json({ error: 'Failed to get audit logs' });
+    }
   }
 
   if (req.method === 'POST') {
@@ -107,16 +120,25 @@ async function handleSecurityAudit(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'event is required' });
     }
 
-    // Log the event (placeholder)
-    console.log('📝 [Security Audit] Event logged:', {
-      userId: user.id,
-      event,
-      ipAddress: ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-      userAgent: userAgent || req.headers['user-agent'],
-      metadata
-    });
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      // Log security event
+      await sql`
+        INSERT INTO security_audit_logs (
+          user_id, event, ip_address, user_agent, metadata, created_at
+        ) VALUES (
+          ${user.id}, ${event}, ${ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress},
+          ${userAgent || req.headers['user-agent']}, ${JSON.stringify(metadata || {})}, NOW()
+        )
+      `;
 
-    return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error logging security event:', error);
+      return res.status(500).json({ error: 'Failed to log security event' });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
@@ -140,12 +162,20 @@ async function handleCustomerCards(req: VercelRequest, res: VercelResponse, cust
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Return placeholder response
-    return res.status(200).json({ 
-      success: true,
-      cards: [],
-      customerId
-    });
+    try {
+      // Import and use the loyalty card service
+      const { getCustomerCards } = await import('../_services/loyaltyCardServerService.js');
+      const cards = await getCustomerCards(Number(customerId));
+      
+      return res.status(200).json({ 
+        success: true,
+        cards,
+        customerId: Number(customerId)
+      });
+    } catch (error) {
+      console.error('Error getting customer cards:', error);
+      return res.status(500).json({ error: 'Failed to get customer cards' });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
@@ -169,12 +199,48 @@ async function handleCustomerPrograms(req: VercelRequest, res: VercelResponse, c
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Return placeholder response
-    return res.status(200).json({ 
-      success: true,
-      programs: [],
-      customerId
-    });
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      // Get customer's enrolled programs
+      const programs = await sql`
+        SELECT DISTINCT
+          lp.id,
+          lp.name,
+          lp.description,
+          lp.business_id,
+          lp.points_per_dollar,
+          lp.is_active,
+          lp.created_at,
+          u.name AS business_name,
+          u.email AS business_email,
+          lc.id AS card_id,
+          lc.points,
+          lc.points_balance,
+          lc.total_points_earned,
+          lc.card_number,
+          lc.card_type,
+          lc.tier,
+          lc.status AS card_status,
+          lc.created_at AS enrollment_date
+        FROM loyalty_programs lp
+        JOIN loyalty_cards lc ON lc.program_id = lp.id
+        JOIN users u ON u.id = lp.business_id
+        WHERE lc.customer_id = ${Number(customerId)}
+          AND lc.status = 'ACTIVE'
+        ORDER BY lc.created_at DESC
+      `;
+
+      return res.status(200).json({ 
+        success: true,
+        programs,
+        customerId: Number(customerId)
+      });
+    } catch (error) {
+      console.error('Error getting customer programs:', error);
+      return res.status(500).json({ error: 'Failed to get customer programs' });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
@@ -204,12 +270,41 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Return placeholder response
-    return res.status(200).json({ 
-      success: true,
-      notifications: [],
-      message: 'Notifications endpoint ready'
-    });
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      if (customerId) {
+        let whereClause = `WHERE customer_id = ${Number(customerId)}`;
+        if (unread === 'true') whereClause += ` AND is_read = FALSE`;
+        if (type) whereClause += ` AND type = '${type}'`;
+
+        const notifications = await sql.unsafe(`
+          SELECT 
+            id, customer_id, business_id, type, title, message, data,
+            requires_action, action_taken, is_read, priority,
+            expires_at, created_at, read_at, action_taken_at
+          FROM customer_notifications
+          ${whereClause}
+          ORDER BY created_at DESC
+          LIMIT 50
+        `);
+
+        return res.status(200).json({ 
+          success: true,
+          notifications
+        });
+      }
+
+      // Return empty response for other cases
+      return res.status(200).json({ 
+        success: true,
+        notifications: []
+      });
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      return res.status(500).json({ error: 'Failed to get notifications' });
+    }
   }
 
   if (req.method === 'POST') {
@@ -290,12 +385,61 @@ async function handlePromotions(req: VercelRequest, res: VercelResponse) {
     // This is a public route, no auth required
     const { businessId } = req.query;
 
-    // Return placeholder response
-    return res.status(200).json({ 
-      success: true,
-      promotions: [],
-      businessId: businessId ? Number(businessId) : null
-    });
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      let promoCodesResult;
+      
+      if (businessId) {
+        promoCodesResult = await sql`
+          SELECT pc.*, u.business_name, u.name as business_name
+          FROM promo_codes pc
+          JOIN users u ON pc.business_id = u.id
+          WHERE pc.business_id = ${parseInt(String(businessId))}
+            AND pc.status = 'ACTIVE'
+            AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+          ORDER BY pc.created_at DESC
+        `;
+      } else {
+        promoCodesResult = await sql`
+          SELECT pc.*, u.business_name, u.name as business_name
+          FROM promo_codes pc
+          JOIN users u ON pc.business_id = u.id
+          WHERE pc.status = 'ACTIVE'
+          AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+          AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
+          ORDER BY pc.created_at DESC
+        `;
+      }
+
+      const promotions = promoCodesResult.map((row: any) => ({
+        id: String(row.id),
+        businessId: String(row.business_id),
+        businessName: row.business_name || row.name || 'Unknown Business',
+        code: String(row.code),
+        type: row.type,
+        value: Number(row.value),
+        currency: row.currency,
+        maxUses: row.max_uses ? Number(row.max_uses) : null,
+        usedCount: Number(row.used_count || 0),
+        expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+        status: row.status,
+        name: String(row.name || ''),
+        description: String(row.description || ''),
+        createdAt: new Date(row.created_at).toISOString(),
+        updatedAt: new Date(row.updated_at).toISOString(),
+      }));
+
+      return res.status(200).json({ 
+        success: true,
+        promotions,
+        businessId: businessId ? Number(businessId) : null
+      });
+    } catch (error) {
+      console.error('Error getting promotions:', error);
+      return res.status(500).json({ error: 'Failed to get promotions' });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

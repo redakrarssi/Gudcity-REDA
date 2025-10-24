@@ -1,4 +1,4 @@
-import { sql } from '../_lib/db';
+import { requireSql } from '../_lib/db.js';
 
 export interface LoyaltyCard {
   id: string;
@@ -20,6 +20,7 @@ export interface LoyaltyCard {
  */
 export async function getCustomerCards(customerId: number): Promise<LoyaltyCard[]> {
   try {
+    const sql = requireSql();
     const customerIdInt = parseInt(customerId.toString(), 10);
     const customerIdStr = customerId.toString();
     
@@ -64,6 +65,7 @@ export async function getCustomerCards(customerId: number): Promise<LoyaltyCard[
  */
 export async function getCardById(cardId: number): Promise<LoyaltyCard | null> {
   try {
+    const sql = requireSql();
     const result = await sql`
       SELECT 
         lc.*,
@@ -109,6 +111,7 @@ export async function updateCardPoints(
   operation: 'add' | 'subtract' | 'set' = 'set'
 ): Promise<LoyaltyCard | null> {
   try {
+    const sql = requireSql();
     let result;
     
     if (operation === 'add') {
@@ -150,6 +153,7 @@ export async function updateCardPoints(
  */
 export async function getCardActivities(cardId: number, limit: number = 10): Promise<any[]> {
   try {
+    const sql = requireSql();
     const activities = await sql`
       SELECT * FROM card_activities
       WHERE card_id = ${cardId}
@@ -182,6 +186,7 @@ export async function awardPoints(
   description: string
 ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
   try {
+    const sql = requireSql();
     if (points <= 0) {
       return { success: false, error: 'Points must be greater than zero' };
     }
@@ -237,6 +242,7 @@ export async function createCard(cardData: {
   cardNumber: string;
 }): Promise<LoyaltyCard | null> {
   try {
+    const sql = requireSql();
     const result = await sql`
       INSERT INTO loyalty_cards (
         customer_id,

@@ -79,33 +79,28 @@ export async function updateUser(
     'avatar_url', 'tier', 'status'
   ];
   
-  const updateFields: string[] = [];
-  const updateValues: any[] = [];
+  const updateParts: any[] = [];
   
   Object.entries(updates).forEach(([key, value]) => {
     if (allowedFields.includes(key) && value !== undefined) {
-      updateFields.push(`${key} = $${updateValues.length + 2}`);
-      updateValues.push(value);
+      updateParts.push({ key, value });
     }
   });
   
-  if (updateFields.length === 0) {
+  if (updateParts.length === 0) {
     throw new Error('No valid fields to update');
   }
   
-  // Add userId as first parameter
-  updateValues.unshift(Number(userId));
-  
-  const query = `
-    UPDATE users
-    SET ${updateFields.join(', ')}, updated_at = NOW()
-    WHERE id = $1
-    RETURNING id, email, name, user_type, role, status, business_id,
+  // Use template literal approach
+  let query = 'UPDATE users SET ';
+  const setParts = updateParts.map(part => `${part.key} = '${part.value}'`).join(', ');
+  query += setParts + ', updated_at = NOW()';
+  query += ` WHERE id = ${Number(userId)}`;
+  query += ` RETURNING id, email, name, user_type, role, status, business_id,
               business_name, business_phone, avatar_url, phone, address,
-              tier, loyalty_points, total_spent, created_at, last_login
-  `;
+              tier, loyalty_points, total_spent, created_at, last_login`;
   
-  const users = await sql(query, updateValues);
+  const users = await sql.unsafe(query);
   
   if (users.length === 0) {
     throw new Error('User not found or update failed');
@@ -152,20 +147,14 @@ export async function searchUsers(
   const limit = filters?.limit || 50;
   const offset = filters?.offset || 0;
   
-  let whereConditions = [`(LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1))`];
-  let params: any[] = [`%${query}%`];
-  let paramIndex = 2;
+  let whereConditions = [`(LOWER(name) LIKE LOWER('%${query}%') OR LOWER(email) LIKE LOWER('%${query}%'))`];
   
   if (filters?.userType) {
-    whereConditions.push(`user_type = $${paramIndex}`);
-    params.push(filters.userType);
-    paramIndex++;
+    whereConditions.push(`user_type = '${filters.userType}'`);
   }
   
   if (filters?.status) {
-    whereConditions.push(`status = $${paramIndex}`);
-    params.push(filters.status);
-    paramIndex++;
+    whereConditions.push(`status = '${filters.status}'`);
   }
   
   const sqlQuery = `
@@ -176,12 +165,10 @@ export async function searchUsers(
     FROM users
     WHERE ${whereConditions.join(' AND ')}
     ORDER BY created_at DESC
-    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    LIMIT ${limit} OFFSET ${offset}
   `;
   
-  params.push(limit, offset);
-  
-  const users = await sql(sqlQuery, params);
+  const users = await sql.unsafe(sqlQuery);
   
   console.log('[UserServerService] Found users:', users.length);
   
@@ -212,22 +199,16 @@ export async function getUsersByType(
       business_name, business_phone, avatar_url, phone, address,
       tier, loyalty_points, total_spent, created_at, last_login
     FROM users
-    WHERE user_type = $1
+    WHERE user_type = '${userType}'
   `;
   
-  const params: any[] = [userType];
-  let paramIndex = 2;
-  
   if (options?.status) {
-    query += ` AND status = $${paramIndex}`;
-    params.push(options.status);
-    paramIndex++;
+    query += ` AND status = '${options.status}'`;
   }
   
-  query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-  params.push(limit, offset);
+  query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
   
-  const users = await sql(query, params);
+  const users = await sql.unsafe(query);
   
   console.log('[UserServerService] Found users:', users.length);
   
@@ -261,14 +242,12 @@ export async function getUserCountByType(userType?: string): Promise<number> {
   const sql = requireSql();
   
   let query = 'SELECT COUNT(*) as count FROM users';
-  const params: any[] = [];
   
   if (userType) {
-    query += ' WHERE user_type = $1';
-    params.push(userType);
+    query += ` WHERE user_type = '${userType}'`;
   }
   
-  const result = await sql(query, params);
+  const result = await sql.unsafe(query);
   
   return Number(result[0]?.count || 0);
 }
