@@ -14,26 +14,49 @@ const BCRYPT_ROUNDS = 12;
  * Get user by ID
  */
 export async function getUserById(userId: number | string): Promise<User | null> {
-  const sql = requireSql();
-  
-  console.log('[UserServerService] Getting user by ID:', userId);
-  
-  const users = await sql`
-    SELECT 
-      id, email, name, user_type, role, status, business_id,
-      business_name, business_phone, avatar_url, phone, address,
-      tier, loyalty_points, total_spent, created_at, last_login
-    FROM users
-    WHERE id = ${Number(userId)}
-    LIMIT 1
-  `;
-  
-  if (users.length === 0) {
-    console.log('[UserServerService] User not found:', userId);
-    return null;
+  try {
+    console.log('[UserServerService] Starting getUserById:', { userId, type: typeof userId });
+    
+    const sql = requireSql();
+    console.log('[UserServerService] Database connection established');
+    
+    const numericId = Number(userId);
+    if (isNaN(numericId)) {
+      console.error('[UserServerService] Invalid user ID - not a number:', userId);
+      throw new Error(`Invalid user ID: ${userId}`);
+    }
+    
+    console.log('[UserServerService] Executing query for user ID:', numericId);
+    
+    const users = await sql`
+      SELECT 
+        id, email, name, user_type, role, status, business_id,
+        business_name, business_phone, avatar_url, phone, address,
+        tier, loyalty_points, total_spent, created_at, last_login
+      FROM users
+      WHERE id = ${numericId}
+      LIMIT 1
+    `;
+    
+    console.log('[UserServerService] Query executed, results:', users.length);
+    
+    if (users.length === 0) {
+      console.log('[UserServerService] User not found:', numericId);
+      return null;
+    }
+    
+    console.log('[UserServerService] User found successfully:', { id: users[0].id, email: users[0].email });
+    return users[0] as User;
+  } catch (error) {
+    console.error('═══════════════════════════════════════════════════');
+    console.error('[UserServerService] ERROR in getUserById:');
+    console.error('[UserServerService] User ID:', userId);
+    console.error('[UserServerService] Error:', error);
+    console.error('[UserServerService] Error message:', (error as Error).message);
+    console.error('[UserServerService] Error stack:', (error as Error).stack);
+    console.error('═══════════════════════════════════════════════════');
+    throw error;
   }
-  
-  return users[0] as User;
 }
 
 /**

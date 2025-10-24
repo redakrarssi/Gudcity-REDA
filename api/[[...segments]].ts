@@ -408,7 +408,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid dashboard type. Must be admin, business, or customer' });
     }
 
-    // Route: /api/users
+    // Route: /api/users (list/create only - GET/POST)
+    // NOTE: /api/users/:id is handled by dedicated api/users/[id].ts for GET/PUT/DELETE
     if (segments.length === 1 && segments[0] === 'users') {
       if (req.method === 'GET') {
         if (user!.role !== 'admin') {
@@ -1432,6 +1433,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Route: /api/users/:id/settings - User settings
+    // NOTE: /api/users/:id base operations are handled by dedicated api/users/[id].ts
+    // This only handles the /settings sub-route
     if (segments.length === 3 && segments[0] === 'users' && segments[2] === 'settings') {
       const userId = segments[1];
 
