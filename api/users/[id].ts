@@ -55,22 +55,50 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       }
 
       console.log('[User API] Fetching user from database...');
-      const user = await getUserById(userId);
       
-      if (!user) {
-        console.log('[User API] User not found in database:', userId);
-        return res.status(404).json({
-          error: 'Not Found',
-          message: `User with ID ${userId} not found`,
-          code: 'USER_NOT_FOUND'
-        });
-      }
+      // Add database connection check
+      try {
+        const user = await getUserById(userId);
+        
+        if (!user) {
+          console.log('[User API] User not found in database:', userId);
+          return res.status(404).json({
+            error: 'Not Found',
+            message: `User with ID ${userId} not found`,
+            code: 'USER_NOT_FOUND'
+          });
+        }
 
-      console.log('[User API] User found successfully:', { id: user.id, email: user.email });
-      return res.status(200).json({
-        success: true,
-        data: user
-      });
+        console.log('[User API] User found successfully:', { id: user.id, email: user.email });
+        return res.status(200).json({
+          success: true,
+          data: user
+        });
+        
+      } catch (dbError) {
+        console.error('[User API] Database error in getUserById:', dbError);
+        
+        // Check for specific database errors
+        const errorMsg = (dbError as Error).message;
+        if (errorMsg.includes('Database not configured') || errorMsg.includes('DATABASE_URL')) {
+          return res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'Database service is currently unavailable',
+            code: 'DATABASE_UNAVAILABLE'
+          });
+        }
+        
+        // Check for connection timeout/network errors
+        if (errorMsg.includes('timeout') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND')) {
+          return res.status(503).json({
+            error: 'Service Unavailable', 
+            message: 'Database connection timeout',
+            code: 'DATABASE_TIMEOUT'
+          });
+        }
+        
+        throw dbError; // Re-throw for general error handler
+      }
     }
 
     if (req.method === 'PUT') {

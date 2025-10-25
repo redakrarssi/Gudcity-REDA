@@ -113,10 +113,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // /api/business/:businessId/settings (GET/PUT)
     if (segments.length === 1 && segments[0] === 'settings') {
+      console.log('🔧 [BusinessSettings] Handling settings request:', { method: req.method, businessId });
+      
+      try {
+        // Create tables if they don't exist
+        await sql`
+          CREATE TABLE IF NOT EXISTS business_profile (
+            id SERIAL PRIMARY KEY,
+            business_id INTEGER UNIQUE NOT NULL,
+            business_name VARCHAR(200),
+            email VARCHAR(255),
+            phone VARCHAR(20),
+            address_line1 TEXT,
+            language VARCHAR(10) DEFAULT 'en',
+            country VARCHAR(100),
+            currency VARCHAR(10) DEFAULT 'EUR',
+            timezone VARCHAR(50) DEFAULT 'UTC',
+            tax_id VARCHAR(50),
+            business_hours JSONB,
+            payment_settings JSONB,
+            notification_settings JSONB,
+            integrations JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `;
+        
+        await sql`
+          CREATE TABLE IF NOT EXISTS business_settings (
+            id SERIAL PRIMARY KEY,
+            business_id INTEGER UNIQUE NOT NULL,
+            points_per_dollar DECIMAL(5,2) DEFAULT 1.00,
+            points_expiry_days INTEGER DEFAULT 365,
+            minimum_points_redemption INTEGER DEFAULT 100,
+            welcome_bonus INTEGER DEFAULT 0,
+            notification_enabled BOOLEAN DEFAULT TRUE,
+            auto_approve_redemptions BOOLEAN DEFAULT FALSE,
+            email_notifications BOOLEAN DEFAULT TRUE,
+            sms_notifications BOOLEAN DEFAULT FALSE,
+            theme VARCHAR(20) DEFAULT 'light',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `;
+        
+        console.log('✅ [BusinessSettings] Tables verified/created');
+        
+      } catch (tableError) {
+        console.error('❌ [BusinessSettings] Table creation error:', tableError);
+        return res.status(500).json({ error: 'Database setup failed' });
+      }
+      
       if (req.method === 'GET') {
-        const profile = await sql`SELECT * FROM business_profile WHERE business_id = ${Number(businessId)} LIMIT 1`;
-        const settings = await sql`SELECT * FROM business_settings WHERE business_id = ${Number(businessId)} LIMIT 1`;
-        return res.status(200).json({ profile: profile?.[0] || null, settings: settings?.[0] || null });
+        try {
+          const profile = await sql`SELECT * FROM business_profile WHERE business_id = ${Number(businessId)} LIMIT 1`;
+          const settings = await sql`SELECT * FROM business_settings WHERE business_id = ${Number(businessId)} LIMIT 1`;
+          
+          // If no settings exist, create default settings
+          let settingsData = settings?.[0];
+          if (!settingsData) {
+            console.log('📝 [BusinessSettings] Creating default settings for business:', businessId);
+            const defaultSettings = await sql`
+              INSERT INTO business_settings (
+                business_id, points_per_dollar, points_expiry_days, 
+                minimum_points_redemption, welcome_bonus, notification_enabled,
+                auto_approve_redemptions, email_notifications, sms_notifications, theme
+              )
+              VALUES (
+                ${Number(businessId)}, 1.00, 365, 100, 0, true, false, true, false, 'light'
+              )
+              RETURNING *
+            `;
+            settingsData = defaultSettings[0];
+          }
+          
+          console.log('✅ [BusinessSettings] Retrieved settings:', { businessId, hasProfile: !!profile?.[0], hasSettings: !!settingsData });
+          
+          return res.status(200).json({ 
+            profile: profile?.[0] || null, 
+            settings: settingsData || null,
+            businessId: Number(businessId)
+          });
+          
+        } catch (getError) {
+          console.error('❌ [BusinessSettings] Error getting settings:', getError);
+          return res.status(500).json({ 
+            error: 'Failed to get business settings',
+            details: process.env.NODE_ENV === 'development' ? (getError as Error).message : undefined
+          });
+        }
       } else if (req.method === 'PUT') {
         const body = (req.body || {}) as any;
         if (body.profile && typeof body.profile === 'object') {
@@ -247,6 +332,173 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ORDER BY points DESC
         LIMIT 5`;
       return res.status(200).json({ topPerformingPrograms: rows });
+    }
+
+    // /api/business/:businessId/redemption-notifications (GET)
+    if (segments.length === 1 && segments[0] === 'redemption-notifications' && req.method === 'GET') {
+      console.log('🔔 [RedemptionNotifications] Handling redemption notifications for business:', businessId);
+      
+      try {
+        // Create redemption_requests table if it doesn't exist
+        await sql`
+          CREATE TABLE IF NOT EXISTS redemption_requests (
+            id SERIAL PRIMARY KEY,
+            business_id INTEGER NOT NULL,
+            customer_id INTEGER NOT NULL,
+            card_id INTEGER,
+            program_id INTEGER,
+            points_redeemed INTEGER NOT NULL,
+            reward_type VARCHAR(100),
+            reward_description TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            approved_by INTEGER,
+            notes TEXT
+          )
+        `;
+        
+        // Create transactions table if it doesn't exist (for legacy support)
+        await sql`
+          CREATE TABLE IF NOT EXISTS transactions (
+            id SERIAL PRIMARY KEY,
+            business_id INTEGER,
+            customer_id INTEGER NOT NULL,
+            card_id INTEGER,
+            transaction_type VARCHAR(50) NOT NULL,
+            points INTEGER DEFAULT 0,
+            amount DECIMAL(10,2),
+            status VARCHAR(20) DEFAULT 'pending',
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            metadata JSONB
+          )
+        `;
+        
+        console.log('✅ [RedemptionNotifications] Tables verified/created');
+        
+        // Query pending redemption requests from multiple possible sources
+        const [redemptionRequests, transactionRedemptions] = await Promise.all([
+          // Check dedicated redemption_requests table
+          sql`
+            SELECT 
+              rr.id as request_id,
+              rr.business_id,
+              rr.customer_id,
+              rr.card_id,
+              rr.points_redeemed as points,
+              rr.reward_type,
+              rr.reward_description as description,
+              rr.status,
+              rr.requested_at as created_at,
+              u.name as customer_name,
+              u.email as customer_email,
+              u.phone as customer_phone,
+              'redemption_request' as source_type
+            FROM redemption_requests rr
+            LEFT JOIN users u ON u.id = rr.customer_id
+            WHERE rr.business_id = ${Number(businessId)}
+              AND rr.status = 'pending'
+            ORDER BY rr.requested_at DESC
+            LIMIT 50
+          `,
+          
+          // Check transactions table for pending redemptions
+          sql`
+            SELECT 
+              t.id as transaction_id,
+              t.business_id,
+              t.customer_id,
+              t.card_id,
+              t.points,
+              t.transaction_type,
+              t.description,
+              t.status,
+              t.created_at,
+              u.name as customer_name,
+              u.email as customer_email,
+              u.phone as customer_phone,
+              'transaction' as source_type
+            FROM transactions t
+            LEFT JOIN users u ON u.id = t.customer_id
+            WHERE t.business_id = ${Number(businessId)}
+              AND t.transaction_type = 'redemption'
+              AND t.status = 'pending'
+            ORDER BY t.created_at DESC
+            LIMIT 50
+          `
+        ]);
+        
+        // Combine and format the results
+        const allNotifications = [
+          ...redemptionRequests.map(req => ({
+            id: req.request_id,
+            type: 'redemption_request',
+            customerId: req.customer_id,
+            customerName: req.customer_name || 'Unknown Customer',
+            customerEmail: req.customer_email,
+            customerPhone: req.customer_phone,
+            cardId: req.card_id,
+            points: Number(req.points) || 0,
+            rewardType: req.reward_type,
+            description: req.description || 'Points redemption request',
+            status: req.status,
+            createdAt: req.created_at,
+            source: req.source_type
+          })),
+          ...transactionRedemptions.map(trans => ({
+            id: trans.transaction_id,
+            type: 'transaction_redemption',
+            customerId: trans.customer_id,
+            customerName: trans.customer_name || 'Unknown Customer',
+            customerEmail: trans.customer_email,
+            customerPhone: trans.customer_phone,
+            cardId: trans.card_id,
+            points: Number(trans.points) || 0,
+            transactionType: trans.transaction_type,
+            description: trans.description || 'Points redemption',
+            status: trans.status,
+            createdAt: trans.created_at,
+            source: trans.source_type
+          }))
+        ];
+        
+        // Sort by creation date (most recent first)
+        allNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        console.log('✅ [RedemptionNotifications] Retrieved notifications:', { 
+          businessId, 
+          count: allNotifications.length,
+          redemptionRequests: redemptionRequests.length,
+          transactionRedemptions: transactionRedemptions.length
+        });
+        
+        return res.status(200).json({
+          success: true,
+          notifications: allNotifications,
+          count: allNotifications.length,
+          businessId: Number(businessId),
+          summary: {
+            totalPending: allNotifications.length,
+            redemptionRequests: redemptionRequests.length,
+            transactionRedemptions: transactionRedemptions.length
+          }
+        });
+        
+      } catch (redemptionError) {
+        console.error('❌ [RedemptionNotifications] Error getting redemption notifications:', redemptionError);
+        
+        // Return empty array instead of error for better UX
+        return res.status(200).json({
+          success: true,
+          notifications: [],
+          count: 0,
+          businessId: Number(businessId),
+          error: 'Could not fetch redemption notifications',
+          details: process.env.NODE_ENV === 'development' ? (redemptionError as Error).message : undefined
+        });
+      }
     }
 
     return res.status(404).json({ error: 'Not found' });

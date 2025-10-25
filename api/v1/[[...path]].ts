@@ -77,12 +77,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
  * Handle Security Audit endpoints
  */
 async function handleSecurityAudit(req: VercelRequest, res: VercelResponse) {
-  console.log('✅ Matched security/audit route');
+  console.log('✅ [SecurityAudit] Matched security/audit route:', { method: req.method, url: req.url });
+  
+  try {
+    const { requireSql } = await import('../_lib/db.js');
+    const sql = requireSql();
+    
+    // Create security_audit_log table if it doesn't exist (consistent with other route naming)
+    await sql`
+      CREATE TABLE IF NOT EXISTS security_audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        event_type VARCHAR(100) NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    console.log('✅ [SecurityAudit] Table verified/created');
+    
+  } catch (tableError) {
+    console.error('❌ [SecurityAudit] Table creation error:', tableError);
+    return res.status(500).json({ error: 'Database setup failed' });
+  }
   
   if (req.method === 'GET') {
     // Authentication check
     const user = await verifyAuth(req);
     if (!user) {
+      console.warn('⚠️ [SecurityAudit] Unauthorized GET request');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -90,20 +115,50 @@ async function handleSecurityAudit(req: VercelRequest, res: VercelResponse) {
       const { requireSql } = await import('../_lib/db.js');
       const sql = requireSql();
       
-      const logs = await sql`
-        SELECT * FROM security_audit_logs
+      // Get query parameters
+      const { searchParams } = new URL(req.url!, `http://localhost`);
+      const userId = searchParams.get('userId');
+      const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+      
+      let logs;
+      if (userId && (user.role === 'admin' || user.role === 'owner')) {
+        // Admins can view logs for specific users
+        logs = await sql`
+          SELECT 
+            id, user_id, event_type, ip_address, user_agent, 
+            metadata, created_at
+          FROM security_audit_log
+          WHERE user_id = ${parseInt(userId)}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        // Regular users can only view their own logs
+        logs = await sql`
+          SELECT 
+            id, user_id, event_type, ip_address, user_agent, 
+            metadata, created_at
+          FROM security_audit_log
         WHERE user_id = ${user.id}
         ORDER BY created_at DESC
-        LIMIT 100
+          LIMIT ${limit}
       `;
+      }
+
+      console.log('✅ [SecurityAudit] Retrieved logs:', { userId: user.id, count: logs.length });
 
       return res.status(200).json({ 
         success: true,
-        logs
+        logs,
+        count: logs.length
       });
+      
     } catch (error) {
-      console.error('Error getting security audit logs:', error);
-      return res.status(500).json({ error: 'Failed to get audit logs' });
+      console.error('❌ [SecurityAudit] Error getting security audit logs:', error);
+      return res.status(500).json({ 
+        error: 'Failed to get audit logs',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   }
 
@@ -111,91 +166,99 @@ async function handleSecurityAudit(req: VercelRequest, res: VercelResponse) {
     // Authentication check
     const user = await verifyAuth(req);
     if (!user) {
+      console.warn('⚠️ [SecurityAudit] Unauthorized POST request');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { event, metadata, ipAddress, userAgent } = (req.body || {}) as any;
+    const { eventType, event, metadata, ipAddress, userAgent } = (req.body || {}) as any;
+    const actualEventType = eventType || event; // Support both field names
 
-    if (!event) {
-      return res.status(400).json({ error: 'event is required' });
+    if (!actualEventType) {
+      console.warn('⚠️ [SecurityAudit] Missing eventType in request body');
+      return res.status(400).json({ error: 'eventType is required' });
     }
 
     try {
       const { requireSql } = await import('../_lib/db.js');
       const sql = requireSql();
       
+      // Extract IP address with fallback chain
+      const clientIp = ipAddress || 
+                      req.headers['x-forwarded-for'] || 
+                      req.headers['x-real-ip'] ||
+                      req.connection?.remoteAddress ||
+                      req.socket?.remoteAddress ||
+                      'unknown';
+      
+      const clientUserAgent = userAgent || req.headers['user-agent'] || 'unknown';
+      
       // Log security event
-      await sql`
-        INSERT INTO security_audit_logs (
-          user_id, event, ip_address, user_agent, metadata, created_at
+      const result = await sql`
+        INSERT INTO security_audit_log (
+          user_id, event_type, ip_address, user_agent, metadata, created_at
         ) VALUES (
-          ${user.id}, ${event}, ${ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress},
-          ${userAgent || req.headers['user-agent']}, ${JSON.stringify(metadata || {})}, NOW()
+          ${user.id}, 
+          ${actualEventType}, 
+          ${Array.isArray(clientIp) ? clientIp[0] : clientIp},
+          ${clientUserAgent}, 
+          ${metadata ? JSON.stringify(metadata) : null}, 
+          NOW()
         )
+        RETURNING id, created_at
       `;
 
-      return res.status(200).json({ success: true });
+      console.log('✅ [SecurityAudit] Logged security event:', { 
+        userId: user.id, 
+        eventType: actualEventType, 
+        auditId: result[0]?.id 
+      });
+
+      return res.status(201).json({ 
+        success: true,
+        auditId: result[0]?.id,
+        timestamp: result[0]?.created_at
+      });
+      
     } catch (error) {
-      console.error('Error logging security event:', error);
-      return res.status(500).json({ error: 'Failed to log security event' });
+      console.error('❌ [SecurityAudit] Error logging security event:', error);
+      return res.status(500).json({ 
+        error: 'Failed to log security event',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  console.warn('⚠️ [SecurityAudit] Method not allowed:', req.method);
+  return res.status(405).json({ 
+    error: 'Method not allowed',
+    allowed: ['GET', 'POST']
+  });
 }
 
 /**
  * Handle Customer Loyalty Cards endpoints
  */
 async function handleCustomerCards(req: VercelRequest, res: VercelResponse, customerId: string) {
-  console.log('✅ Matched loyalty/cards/customer route:', customerId);
+  console.log('✅ [CustomerCards] Matched loyalty/cards/customer route:', customerId);
   
   if (req.method === 'GET') {
     // Authentication check
     const user = await verifyAuth(req);
     if (!user) {
+      console.warn('⚠️ [CustomerCards] Unauthorized request');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
-    // Authorization check
-    if (user.id !== Number(customerId) && user.role !== 'admin' && user.role !== 'business') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    try {
-      // Import and use the loyalty card service
-      const { getCustomerCards } = await import('../_services/loyaltyCardServerService.js');
-      const cards = await getCustomerCards(Number(customerId));
-      
-      return res.status(200).json({ 
-        success: true,
-        cards,
-        customerId: Number(customerId)
-      });
-    } catch (error) {
-      console.error('Error getting customer cards:', error);
-      return res.status(500).json({ error: 'Failed to get customer cards' });
-    }
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
-}
-
-/**
- * Handle Customer Programs endpoints
- */
-async function handleCustomerPrograms(req: VercelRequest, res: VercelResponse, customerId: string) {
-  console.log('✅ Matched customers/programs route:', customerId);
-  
-  if (req.method === 'GET') {
-    // Authentication check
-    const user = await verifyAuth(req);
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    // Validate customer ID
+    const customerIdNum = parseInt(customerId);
+    if (isNaN(customerIdNum)) {
+      console.warn('⚠️ [CustomerCards] Invalid customer ID:', customerId);
+      return res.status(400).json({ error: 'Invalid customer ID format' });
     }
     
     // Authorization check
-    if (user.id !== Number(customerId) && user.role !== 'admin' && user.role !== 'business') {
+    if (user.id !== customerIdNum && user.role !== 'admin' && user.role !== 'business') {
+      console.warn('⚠️ [CustomerCards] Access denied for user:', user.id, 'requesting customer:', customerIdNum);
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -203,54 +266,272 @@ async function handleCustomerPrograms(req: VercelRequest, res: VercelResponse, c
       const { requireSql } = await import('../_lib/db.js');
       const sql = requireSql();
       
-      // Get customer's enrolled programs
-      const programs = await sql`
-        SELECT DISTINCT
-          lp.id,
-          lp.name,
-          lp.description,
-          lp.business_id,
-          lp.points_per_dollar,
-          lp.is_active,
-          lp.created_at,
-          u.name AS business_name,
-          u.email AS business_email,
-          lc.id AS card_id,
-          lc.points,
+      // Create loyalty_cards table if it doesn't exist
+      await sql`
+        CREATE TABLE IF NOT EXISTS loyalty_cards (
+          id SERIAL PRIMARY KEY,
+          customer_id INTEGER NOT NULL,
+          card_id INTEGER NOT NULL,
+          program_id INTEGER,
+          current_stamps INTEGER DEFAULT 0,
+          points_balance INTEGER DEFAULT 0,
+          total_points_earned INTEGER DEFAULT 0,
+          card_number VARCHAR(50),
+          card_type VARCHAR(100),
+          tier VARCHAR(50) DEFAULT 'STANDARD',
+          status VARCHAR(50) DEFAULT 'ACTIVE',
+          is_complete BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      // Create cards table if it doesn't exist (loyalty program templates)
+      await sql`
+        CREATE TABLE IF NOT EXISTS cards (
+          id SERIAL PRIMARY KEY,
+          business_id INTEGER NOT NULL,
+          card_type VARCHAR(255) NOT NULL,
+          stamps_required INTEGER DEFAULT 10,
+          reward_description TEXT,
+          points_per_dollar DECIMAL(5,2) DEFAULT 1.00,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      console.log('✅ [CustomerCards] Tables verified/created');
+      
+      // Fetch customer's loyalty cards with business details
+      const cards = await sql`
+        SELECT 
+          lc.id,
+          lc.customer_id,
+          lc.card_id,
+          lc.program_id,
+          lc.current_stamps,
           lc.points_balance,
           lc.total_points_earned,
           lc.card_number,
           lc.card_type,
           lc.tier,
-          lc.status AS card_status,
-          lc.created_at AS enrollment_date
-        FROM loyalty_programs lp
-        JOIN loyalty_cards lc ON lc.program_id = lp.id
-        JOIN users u ON u.id = lp.business_id
-        WHERE lc.customer_id = ${Number(customerId)}
-          AND lc.status = 'ACTIVE'
-        ORDER BY lc.created_at DESC
+          lc.status,
+          lc.is_complete,
+          lc.created_at,
+          lc.updated_at,
+          c.stamps_required,
+          c.reward_description,
+          c.business_id,
+          u.business_name,
+          u.name as business_owner_name,
+          CASE 
+            WHEN c.stamps_required > 0 AND lc.current_stamps IS NOT NULL 
+            THEN ROUND((lc.current_stamps::decimal / c.stamps_required) * 100, 2)
+            ELSE 0 
+          END as progress_percentage
+        FROM loyalty_cards lc
+        LEFT JOIN cards c ON lc.card_id = c.id
+        LEFT JOIN users u ON c.business_id = u.id OR c.business_id = u.business_id
+        WHERE lc.customer_id = ${customerIdNum}
+          AND lc.status IN ('ACTIVE', 'COMPLETED')
+        ORDER BY lc.updated_at DESC
       `;
-
+      
+      console.log('✅ [CustomerCards] Retrieved cards:', { 
+        customerId: customerIdNum, 
+        count: cards.length,
+        userId: user.id 
+      });
+      
+      // If no cards found, return empty array instead of error
       return res.status(200).json({ 
         success: true,
-        programs,
-        customerId: Number(customerId)
+        cards: cards || [],
+        count: cards?.length || 0,
+        customerId: customerIdNum
       });
+      
     } catch (error) {
-      console.error('Error getting customer programs:', error);
-      return res.status(500).json({ error: 'Failed to get customer programs' });
+      console.error('❌ [CustomerCards] Error getting customer cards:', error);
+      
+      // Return empty array instead of error for better UX
+      return res.status(200).json({ 
+        success: true,
+        cards: [],
+        count: 0,
+        customerId: customerIdNum,
+        error: 'Could not fetch loyalty cards',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  console.warn('⚠️ [CustomerCards] Method not allowed:', req.method);
+  return res.status(405).json({ 
+    error: 'Method not allowed',
+    allowed: ['GET']
+  });
+}
+
+/**
+ * Handle Customer Programs endpoints
+ */
+async function handleCustomerPrograms(req: VercelRequest, res: VercelResponse, customerId: string) {
+  console.log('✅ [CustomerPrograms] Matched customers/programs route:', customerId);
+  
+  if (req.method === 'GET') {
+    // Authentication check
+    const user = await verifyAuth(req);
+    if (!user) {
+      console.warn('⚠️ [CustomerPrograms] Unauthorized request');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Validate customer ID
+    const customerIdNum = parseInt(customerId);
+    if (isNaN(customerIdNum)) {
+      console.warn('⚠️ [CustomerPrograms] Invalid customer ID:', customerId);
+      return res.status(400).json({ error: 'Invalid customer ID format' });
+    }
+    
+    // Authorization check
+    if (user.id !== customerIdNum && user.role !== 'admin' && user.role !== 'business') {
+      console.warn('⚠️ [CustomerPrograms] Access denied for user:', user.id, 'requesting customer:', customerIdNum);
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+      const { requireSql } = await import('../_lib/db.js');
+      const sql = requireSql();
+      
+      // Create necessary tables if they don't exist
+      await sql`
+        CREATE TABLE IF NOT EXISTS loyalty_programs (
+          id SERIAL PRIMARY KEY,
+          business_id INTEGER NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          points_per_dollar DECIMAL(5,2) DEFAULT 1.00,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      console.log('✅ [CustomerPrograms] Tables verified/created');
+      
+      // Get customer's enrolled programs using loyalty_cards as the primary source
+      const programs = await sql`
+        SELECT DISTINCT
+          COALESCE(lp.id, c.id) as program_id,
+          COALESCE(lp.name, c.card_type) as program_name,
+          COALESCE(lp.description, c.reward_description) as description,
+          COALESCE(lp.business_id, c.business_id) as business_id,
+          COALESCE(lp.points_per_dollar, c.points_per_dollar, 1.00) as points_per_dollar,
+          COALESCE(lp.is_active, true) as is_active,
+          COALESCE(lp.created_at, c.created_at) as program_created_at,
+          u.business_name,
+          u.name AS business_owner_name,
+          u.email AS business_email,
+          lc.id AS enrollment_id,
+          lc.card_id,
+          lc.current_stamps,
+          lc.points_balance,
+          lc.total_points_earned,
+          lc.card_number,
+          lc.card_type,
+          lc.tier,
+          lc.status AS enrollment_status,
+          lc.created_at AS enrollment_date,
+          lc.updated_at AS last_activity,
+          c.stamps_required,
+          c.reward_description,
+          CASE 
+            WHEN c.stamps_required > 0 AND lc.current_stamps IS NOT NULL 
+            THEN ROUND((lc.current_stamps::decimal / c.stamps_required) * 100, 2)
+            ELSE 0 
+          END as progress_percentage
+        FROM loyalty_cards lc
+        LEFT JOIN loyalty_programs lp ON lc.program_id = lp.id
+        LEFT JOIN cards c ON lc.card_id = c.id
+        LEFT JOIN users u ON COALESCE(lp.business_id, c.business_id) = u.id OR COALESCE(lp.business_id, c.business_id) = u.business_id
+        WHERE lc.customer_id = ${customerIdNum}
+          AND lc.status IN ('ACTIVE', 'COMPLETED')
+        ORDER BY lc.updated_at DESC
+      `;
+
+      console.log('✅ [CustomerPrograms] Retrieved programs:', { 
+        customerId: customerIdNum, 
+        count: programs.length,
+        userId: user.id 
+      });
+
+      return res.status(200).json({ 
+        success: true,
+        programs: programs || [],
+        count: programs?.length || 0,
+        customerId: customerIdNum
+      });
+      
+    } catch (error) {
+      console.error('❌ [CustomerPrograms] Error getting customer programs:', error);
+      
+      // Return empty array instead of error for better UX
+      return res.status(200).json({ 
+        success: true,
+        programs: [],
+        count: 0,
+        customerId: customerIdNum,
+        error: 'Could not fetch enrolled programs',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
+    }
+  }
+
+  console.warn('⚠️ [CustomerPrograms] Method not allowed:', req.method);
+  return res.status(405).json({ 
+    error: 'Method not allowed',
+    allowed: ['GET']
+  });
 }
 
 /**
  * Handle Notifications endpoints
  */
 async function handleNotifications(req: VercelRequest, res: VercelResponse) {
-  console.log('✅ Matched notifications route');
+  console.log('✅ [Notifications] Matched notifications route:', { method: req.method, url: req.url, query: req.query });
+  
+  try {
+    const { requireSql } = await import('../_lib/db.js');
+    const sql = requireSql();
+    
+    // Create notifications table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        customer_id INTEGER,
+        business_id INTEGER,
+        user_id INTEGER,
+        type VARCHAR(50) DEFAULT 'info',
+        title VARCHAR(200),
+        message TEXT NOT NULL,
+        data JSONB,
+        requires_action BOOLEAN DEFAULT FALSE,
+        action_taken BOOLEAN DEFAULT FALSE,
+        is_read BOOLEAN DEFAULT FALSE,
+        read_status BOOLEAN DEFAULT FALSE,
+        priority VARCHAR(20) DEFAULT 'normal',
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        read_at TIMESTAMP,
+        action_taken_at TIMESTAMP
+      )
+    `;
+    
+    console.log('✅ [Notifications] Table verified/created');
+    
+  } catch (tableError) {
+    console.error('❌ [Notifications] Table creation error:', tableError);
+    return res.status(500).json({ error: 'Database setup failed' });
+  }
   
   if (req.method === 'GET') {
     // Authentication check
@@ -259,7 +540,15 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { customerId, businessId, unread, type } = req.query as any;
+    const { searchParams } = new URL(req.url!, 'http://localhost');
+    const customerId = searchParams.get('customerId');
+    const businessId = searchParams.get('businessId');
+    const userId = searchParams.get('userId');
+    const unread = searchParams.get('unread');
+    const type = searchParams.get('type');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+
+    console.log('🔍 [Notifications] Query params:', { customerId, businessId, userId, unread, type, limit });
 
     // Authorization check
     if (customerId && user.id !== Number(customerId) && user.role !== 'admin') {
@@ -279,31 +568,54 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse) {
         if (unread === 'true') whereClause += ` AND is_read = FALSE`;
         if (type) whereClause += ` AND type = '${type}'`;
 
-        const notifications = await sql.unsafe(`
+        console.log('📋 [Notifications] Fetching customer notifications for:', customerId);
+        
+        const notifications = await sql`
           SELECT 
-            id, customer_id, business_id, type, title, message, data,
-            requires_action, action_taken, is_read, priority,
+            id, customer_id, business_id, user_id, type, title, message, data,
+            requires_action, action_taken, is_read, read_status, priority,
             expires_at, created_at, read_at, action_taken_at
-          FROM customer_notifications
-          ${whereClause}
+          FROM notifications
+          WHERE customer_id = ${Number(customerId)}
+          ${unread === 'true' ? sql`AND (is_read = FALSE OR read_status = FALSE)` : sql``}
+          ${type ? sql`AND type = ${type}` : sql``}
           ORDER BY created_at DESC
-          LIMIT 50
-        `);
+          LIMIT ${limit}
+        `;
+
+        console.log('✅ [Notifications] Retrieved notifications:', { 
+          count: notifications.length, 
+          customerId, 
+          businessId,
+          userId: user.id 
+        });
 
         return res.status(200).json({ 
           success: true,
-          notifications
+          notifications: notifications || [],
+          count: notifications?.length || 0,
+          params: { customerId, businessId, unread, type, limit }
         });
       }
 
       // Return empty response for other cases
+      console.log('📋 [Notifications] No specific customer/business ID, returning empty array');
       return res.status(200).json({ 
         success: true,
-        notifications: []
+        notifications: [],
+        count: 0
       });
     } catch (error) {
-      console.error('Error getting notifications:', error);
-      return res.status(500).json({ error: 'Failed to get notifications' });
+      console.error('❌ [Notifications] Error getting notifications:', error);
+      
+      // Return empty array on database errors instead of 500
+      return res.status(200).json({ 
+        success: true,
+        notifications: [],
+        count: 0,
+        error: 'Could not fetch notifications',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   }
 
@@ -379,68 +691,220 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse) {
  * Handle Promotions endpoints
  */
 async function handlePromotions(req: VercelRequest, res: VercelResponse) {
-  console.log('✅ Matched promotions route');
+  console.log('✅ [Promotions] Matched promotions route:', { method: req.method, query: req.query });
+  
+  try {
+    const { requireSql } = await import('../_lib/db.js');
+    const sql = requireSql();
+    
+    // Create promotions table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        discount_type VARCHAR(50) DEFAULT 'percentage',
+        discount_value DECIMAL(10,2),
+        code VARCHAR(50),
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
+        max_uses INTEGER,
+        used_count INTEGER DEFAULT 0,
+        terms_conditions TEXT,
+        image_url VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    // Create promo_codes table (legacy support)
+    await sql`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        code VARCHAR(50) NOT NULL,
+        name VARCHAR(255),
+        description TEXT,
+        type VARCHAR(50) DEFAULT 'percentage',
+        value DECIMAL(10,2),
+        currency VARCHAR(3) DEFAULT 'USD',
+        max_uses INTEGER,
+        used_count INTEGER DEFAULT 0,
+        expires_at TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    console.log('✅ [Promotions] Tables verified/created');
+    
+  } catch (tableError) {
+    console.error('❌ [Promotions] Table creation error:', tableError);
+    return res.status(500).json({ error: 'Database setup failed' });
+  }
   
   if (req.method === 'GET') {
     // This is a public route, no auth required
-    const { businessId } = req.query;
+    const { searchParams } = new URL(req.url!, 'http://localhost');
+    const businessId = searchParams.get('businessId');
+    const activeOnly = searchParams.get('active') !== 'false'; // default true
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+
+    console.log('🔍 [Promotions] Query params:', { businessId, activeOnly, limit });
 
     try {
       const { requireSql } = await import('../_lib/db.js');
       const sql = requireSql();
       
-      let promoCodesResult;
+      let promotions = [];
       
-      if (businessId) {
+      // Try promotions table first (modern)
+      try {
+        if (businessId && !isNaN(parseInt(businessId))) {
+          const bid = parseInt(businessId);
+          
+          if (activeOnly) {
+            promotions = await sql`
+              SELECT 
+                p.*,
+                u.business_name,
+                u.name as business_owner_name
+              FROM promotions p
+              LEFT JOIN users u ON p.business_id = u.id OR p.business_id = u.business_id
+              WHERE p.business_id = ${bid}
+                AND p.is_active = TRUE
+                AND (p.end_date IS NULL OR p.end_date > CURRENT_TIMESTAMP)
+              ORDER BY p.created_at DESC
+              LIMIT ${limit}
+            `;
+          } else {
+            promotions = await sql`
+              SELECT 
+                p.*,
+                u.business_name,
+                u.name as business_owner_name
+              FROM promotions p
+              LEFT JOIN users u ON p.business_id = u.id OR p.business_id = u.business_id
+              WHERE p.business_id = ${bid}
+              ORDER BY p.created_at DESC
+              LIMIT ${limit}
+            `;
+          }
+        } else {
+          if (activeOnly) {
+            promotions = await sql`
+              SELECT 
+                p.*,
+                u.business_name,
+                u.name as business_owner_name
+              FROM promotions p
+              LEFT JOIN users u ON p.business_id = u.id OR p.business_id = u.business_id
+              WHERE p.is_active = TRUE
+                AND (p.end_date IS NULL OR p.end_date > CURRENT_TIMESTAMP)
+              ORDER BY p.created_at DESC
+              LIMIT ${limit}
+            `;
+          } else {
+            promotions = await sql`
+              SELECT 
+                p.*,
+                u.business_name,
+                u.name as business_owner_name
+              FROM promotions p
+              LEFT JOIN users u ON p.business_id = u.id OR p.business_id = u.business_id
+              ORDER BY p.created_at DESC
+              LIMIT ${limit}
+            `;
+          }
+        }
+        
+      } catch (modernPromotionsError) {
+        // Fall back to promo_codes table (legacy support)
+        console.log('📦 [Promotions] Falling back to promo_codes table');
+        
+        let promoCodesResult = [];
+        
+        if (businessId && !isNaN(parseInt(businessId))) {
         promoCodesResult = await sql`
-          SELECT pc.*, u.business_name, u.name as business_name
+            SELECT pc.*, u.business_name, u.name as business_owner_name
           FROM promo_codes pc
-          JOIN users u ON pc.business_id = u.id
-          WHERE pc.business_id = ${parseInt(String(businessId))}
+            LEFT JOIN users u ON pc.business_id = u.id OR pc.business_id = u.business_id
+            WHERE pc.business_id = ${parseInt(businessId)}
             AND pc.status = 'ACTIVE'
             AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
           ORDER BY pc.created_at DESC
+            LIMIT ${limit}
         `;
       } else {
         promoCodesResult = await sql`
-          SELECT pc.*, u.business_name, u.name as business_name
+            SELECT pc.*, u.business_name, u.name as business_owner_name
           FROM promo_codes pc
-          JOIN users u ON pc.business_id = u.id
+            LEFT JOIN users u ON pc.business_id = u.id OR pc.business_id = u.business_id
           WHERE pc.status = 'ACTIVE'
           AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
           AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
           ORDER BY pc.created_at DESC
-        `;
+            LIMIT ${limit}
+          `;
+        }
+        
+        // Transform promo_codes to promotions format
+        promotions = promoCodesResult.map((row: any) => ({
+          id: row.id,
+          business_id: row.business_id,
+          title: row.name || row.code,
+          description: row.description,
+          discount_type: row.type || 'percentage',
+          discount_value: row.value,
+          code: row.code,
+          start_date: null,
+          end_date: row.expires_at,
+          is_active: row.status === 'ACTIVE',
+          max_uses: row.max_uses,
+          used_count: row.used_count,
+          terms_conditions: null,
+          image_url: null,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          business_name: row.business_name,
+          business_owner_name: row.business_owner_name
+        }));
       }
 
-      const promotions = promoCodesResult.map((row: any) => ({
-        id: String(row.id),
-        businessId: String(row.business_id),
-        businessName: row.business_name || row.name || 'Unknown Business',
-        code: String(row.code),
-        type: row.type,
-        value: Number(row.value),
-        currency: row.currency,
-        maxUses: row.max_uses ? Number(row.max_uses) : null,
-        usedCount: Number(row.used_count || 0),
-        expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
-        status: row.status,
-        name: String(row.name || ''),
-        description: String(row.description || ''),
-        createdAt: new Date(row.created_at).toISOString(),
-        updatedAt: new Date(row.updated_at).toISOString(),
-      }));
+      console.log('✅ [Promotions] Retrieved promotions:', { 
+        count: promotions.length,
+        businessId,
+        activeOnly
+      });
 
       return res.status(200).json({ 
         success: true,
-        promotions,
+        promotions: promotions || [],
+        count: promotions?.length || 0,
         businessId: businessId ? Number(businessId) : null
       });
+      
     } catch (error) {
-      console.error('Error getting promotions:', error);
-      return res.status(500).json({ error: 'Failed to get promotions' });
+      console.error('❌ [Promotions] Error getting promotions:', error);
+      
+      // Return empty array instead of error for better UX
+      return res.status(200).json({ 
+        success: true,
+        promotions: [],
+        count: 0,
+        businessId: businessId ? Number(businessId) : null,
+        error: 'Could not fetch promotions',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  console.warn('⚠️ [Promotions] Method not allowed:', req.method);
+  return res.status(405).json({ 
+    error: 'Method not allowed',
+    allowed: ['GET']
+  });
 }

@@ -59,9 +59,20 @@ interface ApiClientConfig {
 
 const API_CONFIG: ApiClientConfig = {
   maxRetries: 3,
-  retryDelay: 1000,
+  retryDelay: 1000, // Base delay - will be used for exponential backoff
   timeout: 30000, // 30 seconds
 };
+
+// Circuit breaker for repeated failures
+interface CircuitBreakerState {
+  failures: number;
+  lastFailureTime: number;
+  isOpen: boolean;
+}
+
+const circuitBreaker: Map<string, CircuitBreakerState> = new Map();
+const CIRCUIT_BREAKER_THRESHOLD = 5; // Open after 5 consecutive failures
+const CIRCUIT_BREAKER_TIMEOUT = 60000; // 60 seconds
 
 // Request/Response interceptors
 type RequestInterceptor = (config: RequestInit) => RequestInit | Promise<RequestInit>;
@@ -94,14 +105,80 @@ function sleep(ms: number): Promise<void> {
 /**
  * Check if error is retryable
  */
-function isRetryableError(error: Error): boolean {
-  const retryableErrors = [
+function isRetryableError(error: Error, response?: Response): boolean {
+  // Never retry on 4xx client errors (user's fault)
+  if (response && response.status >= 400 && response.status < 500) {
+    console.log(`🚫 Not retrying 4xx client error: ${response.status}`);
+    return false;
+  }
+  
+  // Retry on 5xx server errors
+  if (response && response.status >= 500) {
+    console.log(`🔄 Will retry 5xx server error: ${response.status}`);
+    return true;
+  }
+  
+  // Retry on network/connection errors only
+  const networkErrors = [
     'Failed to fetch',
     'Network request failed',
     'NetworkError',
-    'TimeoutError',
+    'TimeoutError', 
+    'TypeError', // Often indicates network issues
+    'AbortError'
   ];
-  return retryableErrors.some(msg => error.message.includes(msg));
+  
+  const isNetworkError = networkErrors.some(errorType => 
+    error.message.includes(errorType) || error.name === errorType
+  );
+  
+  if (isNetworkError) {
+    console.log(`🔄 Will retry network error: ${error.message}`);
+    return true;
+  }
+  
+  console.log(`🚫 Not retrying error: ${error.message}`);
+  return false;
+}
+
+// Check circuit breaker status for an endpoint
+function isCircuitBreakerOpen(endpoint: string): boolean {
+  const state = circuitBreaker.get(endpoint);
+  if (!state) return false;
+  
+  // Check if enough time has passed to reset the circuit breaker
+  if (state.isOpen && Date.now() - state.lastFailureTime > CIRCUIT_BREAKER_TIMEOUT) {
+    console.log(`🔧 Circuit breaker reset for ${endpoint}`);
+    circuitBreaker.delete(endpoint);
+    return false;
+  }
+  
+  return state.isOpen;
+}
+
+// Record failure for circuit breaker
+function recordFailure(endpoint: string): void {
+  const state = circuitBreaker.get(endpoint) || { failures: 0, lastFailureTime: 0, isOpen: false };
+  
+  state.failures++;
+  state.lastFailureTime = Date.now();
+  
+  if (state.failures >= CIRCUIT_BREAKER_THRESHOLD) {
+    state.isOpen = true;
+    console.warn(`⚠️ Circuit breaker opened for ${endpoint} after ${state.failures} failures`);
+  }
+  
+  circuitBreaker.set(endpoint, state);
+}
+
+// Record success for circuit breaker
+function recordSuccess(endpoint: string): void {
+  const state = circuitBreaker.get(endpoint);
+  if (state) {
+    // Reset the circuit breaker on success
+    circuitBreaker.delete(endpoint);
+    console.log(`✅ Circuit breaker reset for ${endpoint} after success`);
+  }
 }
 
 // Helper: Make API request with retry logic
@@ -111,6 +188,13 @@ async function apiRequest<T = any>(
   retryCount = 0
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Check circuit breaker before making request
+  if (isCircuitBreakerOpen(endpoint)) {
+    const error = new Error(`Circuit breaker is open for ${endpoint}. Too many recent failures.`);
+    console.error(`⚡ Circuit breaker blocked request to ${endpoint}`);
+    throw error;
+  }
   
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
@@ -164,9 +248,17 @@ async function apiRequest<T = any>(
       url 
     });
     
-    // Handle 404 errors specifically
-    if (response.status === 404) {
-      throw new Error(`API endpoint not found: ${url} (404)`);
+    // Handle client errors (4xx) - don't retry these
+    if (response.status >= 400 && response.status < 500) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      const clientError = new Error(
+        errorData.error?.message || errorData.error || errorData.message || 
+        `Client error: ${response.status} ${response.statusText}`
+      );
+      // Store response for retry decision
+      (clientError as any).response = response;
+      console.warn(`🚫 Client error (${response.status}):`, clientError.message);
+      throw clientError;
     }
     
     // Handle non-JSON responses (like HTML error pages)
@@ -180,10 +272,17 @@ async function apiRequest<T = any>(
     const data = await response.json();
 
     if (!response.ok) {
-      const errorMessage = data.error?.message || data.error || data.message || 
-        `API request failed: ${response.status} ${response.statusText}`;
-      throw new Error(errorMessage);
+      const serverError = new Error(
+        data.error?.message || data.error || data.message || 
+        `Server error: ${response.status} ${response.statusText}`
+      );
+      // Store response for retry decision
+      (serverError as any).response = response;
+      throw serverError;
     }
+    
+    // Record success for circuit breaker
+    recordSuccess(endpoint);
 
     // Handle both old and new response formats
     if (data.success !== undefined) {
@@ -199,11 +298,24 @@ async function apiRequest<T = any>(
       isDev: IS_DEV,
     });
     
-    // Retry logic for retryable errors
-    if (retryCount < API_CONFIG.maxRetries! && isRetryableError(error as Error)) {
-      console.log(`🔄 Retrying request in ${API_CONFIG.retryDelay}ms...`);
-      await sleep(API_CONFIG.retryDelay! * (retryCount + 1)); // Exponential backoff
+    const typedError = error as Error & { response?: Response };
+    
+    // Record failure for circuit breaker
+    recordFailure(endpoint);
+    
+    // Retry logic for retryable errors only
+    if (retryCount < API_CONFIG.maxRetries! && isRetryableError(typedError, typedError.response)) {
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = API_CONFIG.retryDelay! * Math.pow(2, retryCount);
+      console.log(`🔄 Retrying request ${retryCount + 1}/${API_CONFIG.maxRetries} in ${delay}ms... (${typedError.message})`);
+      
+      await sleep(delay);
       return apiRequest<T>(endpoint, options, retryCount + 1);
+    }
+    
+    // Log final failure after all retries exhausted
+    if (retryCount >= API_CONFIG.maxRetries!) {
+      console.error(`❌ Request failed after ${API_CONFIG.maxRetries} attempts: ${endpoint}`);
     }
     
     // Enhanced error messages for debugging

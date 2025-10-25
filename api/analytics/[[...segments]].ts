@@ -108,6 +108,163 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ customerEngagement: rows.reverse() });
     }
 
+    // Handle comprehensive business analytics overview
+    if (feature === 'business') {
+      try {
+        console.log('[Analytics API] Fetching business analytics for businessId:', businessId);
+        
+        // Verify business exists first
+        const businessCheck = await sql`
+          SELECT id, business_name FROM users WHERE id = ${Number(businessId)} AND user_type IN ('business', 'owner')
+          LIMIT 1
+        `;
+        
+        if (businessCheck.length === 0) {
+          console.warn('[Analytics API] Business not found:', businessId);
+          return res.status(404).json({ error: 'Business not found' });
+        }
+
+        console.log('[Analytics API] Business found:', businessCheck[0].business_name);
+
+        // Fetch comprehensive analytics in parallel for better performance
+        const [
+          totalCustomers,
+          totalCards, 
+          totalTransactions,
+          totalPoints,
+          totalRedemptions,
+          activeCustomers,
+          recentActivity
+        ] = await Promise.all([
+          // Total unique customers
+          sql`
+            SELECT COUNT(DISTINCT customer_id)::int as count 
+            FROM loyalty_cards lc 
+            WHERE lc.business_id = ${Number(businessId)}
+          `,
+          
+          // Total loyalty cards issued  
+          sql`
+            SELECT COUNT(*)::int as count 
+            FROM loyalty_cards 
+            WHERE business_id = ${Number(businessId)}
+          `,
+          
+          // Total transactions/activities
+          sql`
+            SELECT COUNT(ca.id)::int as count
+            FROM card_activities ca
+            JOIN loyalty_cards lc ON lc.id = ca.card_id
+            WHERE lc.business_id = ${Number(businessId)}
+          `,
+          
+          // Total points earned by all customers
+          sql`
+            SELECT COALESCE(SUM(ca.points), 0)::int as total
+            FROM card_activities ca
+            JOIN loyalty_cards lc ON lc.id = ca.card_id  
+            WHERE lc.business_id = ${Number(businessId)} 
+              AND ca.activity_type = 'EARN_POINTS'
+          `,
+          
+          // Total redemptions completed
+          sql`
+            SELECT COUNT(*)::int as count
+            FROM redemptions 
+            WHERE business_id = ${Number(businessId)} 
+              AND status IN ('COMPLETED', 'FULFILLED')
+          `,
+          
+          // Active customers (activity in last 30 days)  
+          sql`
+            SELECT COUNT(DISTINCT lc.customer_id)::int as count
+            FROM loyalty_cards lc
+            JOIN card_activities ca ON ca.card_id = lc.id
+            WHERE lc.business_id = ${Number(businessId)}
+              AND ca.created_at >= NOW() - INTERVAL '30 days'
+          `,
+          
+          // Recent activity (last 7 days)
+          sql`
+            SELECT 
+              DATE(ca.created_at) as date,
+              COUNT(*)::int as activities
+            FROM card_activities ca
+            JOIN loyalty_cards lc ON lc.id = ca.card_id
+            WHERE lc.business_id = ${Number(businessId)}
+              AND ca.created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY DATE(ca.created_at)
+            ORDER BY date DESC
+            LIMIT 7
+          `
+        ]);
+
+        const analytics = {
+          businessId: Number(businessId),
+          businessName: businessCheck[0].business_name,
+          totals: {
+            customers: Number(totalCustomers[0]?.count || 0),
+            cards: Number(totalCards[0]?.count || 0), 
+            transactions: Number(totalTransactions[0]?.count || 0),
+            points: Number(totalPoints[0]?.total || 0),
+            redemptions: Number(totalRedemptions[0]?.count || 0)
+          },
+          engagement: {
+            activeCustomers: Number(activeCustomers[0]?.count || 0),
+            recentActivity: recentActivity.map(row => ({
+              date: row.date,
+              activities: Number(row.activities)
+            }))
+          },
+          // Calculate some derived metrics
+          metrics: {
+            avgPointsPerCustomer: totalCustomers[0]?.count > 0 ? 
+              Math.round(Number(totalPoints[0]?.total || 0) / Number(totalCustomers[0].count)) : 0,
+            redemptionRate: totalCustomers[0]?.count > 0 ?
+              Math.round((Number(totalRedemptions[0]?.count || 0) / Number(totalCustomers[0].count)) * 100) : 0,
+            customerRetention: totalCustomers[0]?.count > 0 ?
+              Math.round((Number(activeCustomers[0]?.count || 0) / Number(totalCustomers[0].count)) * 100) : 0
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        console.log('[Analytics API] Successfully fetched business analytics:', {
+          businessId,
+          totalCustomers: analytics.totals.customers,
+          totalCards: analytics.totals.cards,
+          totalTransactions: analytics.totals.transactions
+        });
+
+        return res.status(200).json(analytics);
+        
+      } catch (analyticsError) {
+        console.error('[Analytics API] Error fetching business analytics:', analyticsError);
+        
+        // Return partial data on error instead of complete failure
+        return res.status(200).json({
+          businessId: Number(businessId),
+          totals: {
+            customers: 0,
+            cards: 0,
+            transactions: 0, 
+            points: 0,
+            redemptions: 0
+          },
+          engagement: {
+            activeCustomers: 0,
+            recentActivity: []
+          },
+          metrics: {
+            avgPointsPerCustomer: 0,
+            redemptionRate: 0,
+            customerRetention: 0
+          },
+          error: 'Partial data - some analytics unavailable',
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
     return res.status(400).json({ error: 'Unknown analytics feature' });
   } catch (e) {
     console.error('Analytics (catch-all) error:', e);
