@@ -21,7 +21,6 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react';
-import { DashboardDiagnosis } from '../../components/diagnostics/DashboardDiagnosis';
 
 interface DashboardInfoBox {
   id: string;
@@ -183,8 +182,7 @@ const BusinessDashboard = () => {
   return (
     <BusinessLayout>
       <div className="space-y-8">
-        {/* Diagnosis banner when API connectivity fails (business) */}
-        <DashboardDiagnosis dashboard="business" resourceId={Number(user?.business_owner_id || user?.id || 0)} className="mb-2" />
+        {/* Diagnosis is now injected in BusinessLayout for all pages */}
         {/* Header with Currency Selector */}
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">

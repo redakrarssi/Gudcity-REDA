@@ -19,6 +19,7 @@ import GlobalNotificationCenter from '../notifications/GlobalNotificationCenter'
 import NotificationPopup from '../notifications/NotificationPopup';
 import { AppLogo } from '../ui/AppLogo';
 import logoWebp from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
+import { DashboardDiagnosis } from '../diagnostics/DashboardDiagnosis';
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -27,7 +28,7 @@ interface CustomerLayoutProps {
 export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isArabic = (i18n?.language || '').startsWith('ar');
 
@@ -171,6 +172,12 @@ export const CustomerLayout: React.FC<CustomerLayoutProps> = ({ children }) => {
 
           <main className="flex-1 overflow-auto bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
+              {/* Diagnosis banner for all customer pages */}
+              <DashboardDiagnosis 
+                dashboard="customer" 
+                resourceId={Number(user?.id || 0)} 
+                className="mb-3"
+              />
               {children}
             </div>
           </main>

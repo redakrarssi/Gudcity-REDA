@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { AdminAnalyticsDashboard } from '../../components/admin/AdminAnalyticsDashboard';
-import { DashboardDiagnosis } from '../../components/diagnostics/DashboardDiagnosis';
 import { 
   Users, 
   Building, 
@@ -375,8 +374,7 @@ const AdminDashboard = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Diagnosis banner when API connectivity fails (admin) */}
-        <DashboardDiagnosis dashboard="admin" className="mb-2" />
+        {/* Diagnosis is now injected in AdminLayout for all pages */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">
