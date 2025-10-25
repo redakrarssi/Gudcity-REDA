@@ -23,6 +23,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { canAccessNavigation, isBusinessOwner, isStaffMember } from '../../utils/permissions';
 import { AppLogo } from '../ui/AppLogo';
 import logoImage from '../../../0975ff86-7f95-4f61-84aa-2d19e687d9c5.webp';
+import { DashboardDiagnosis } from '../diagnostics/DashboardDiagnosis';
 
 interface BusinessLayoutProps {
   children: ReactNode;
@@ -329,6 +330,12 @@ export const BusinessLayout: React.FC<BusinessLayoutProps> = ({ children }) => {
 
           <main className="flex-1 overflow-auto bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
+              {/* Diagnosis banner for all business pages */}
+              <DashboardDiagnosis 
+                dashboard="business" 
+                resourceId={Number(user?.business_owner_id || user?.id || 0)} 
+                className="mb-3"
+              />
               {children}
             </div>
           </main>

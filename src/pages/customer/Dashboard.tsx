@@ -71,6 +71,7 @@ const CustomerDashboard = () => {
   return (
     <CustomerLayout>
       <div className="space-y-6 customer-dashboard dashboard-container">
+        {/* Diagnosis is now injected in CustomerLayout for all pages */}
         {/* Page Title */}
         <div className={`${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}>
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900 tracking-tight flex items-center">

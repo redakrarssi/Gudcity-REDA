@@ -30,6 +30,7 @@ import {
 import { LanguageSelector } from '../LanguageSelector';
 import { useAuth } from '../../contexts/AuthContext';
 import { DatabaseStatus } from './DatabaseStatus';
+import { DashboardDiagnosis } from '../diagnostics/DashboardDiagnosis';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -446,7 +447,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         
         {/* Main Content */}
         <main className={`flex-1 overflow-y-auto p-6 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-          {children}
+          <div className="max-w-7xl mx-auto">
+            {/* Diagnosis banner for all admin pages */}
+            <DashboardDiagnosis dashboard="admin" className="mb-3" />
+            {children}
+          </div>
         </main>
       </div>
     </div>
