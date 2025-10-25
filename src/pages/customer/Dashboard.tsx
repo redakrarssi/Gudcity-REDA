@@ -8,6 +8,7 @@ import { PromoService } from '../../services/promoService';
 import { CustomerNotificationService } from '../../services/customerNotificationService';
 import type { PromoCode } from '../../types/promo';
 import { BadgeCheck, Flame, Ticket, Sparkles } from 'lucide-react';
+import { DashboardDiagnosis } from '../../components/diagnostics/DashboardDiagnosis';
 
 const CustomerDashboard = () => {
   const { t } = useTranslation();
@@ -71,6 +72,8 @@ const CustomerDashboard = () => {
   return (
     <CustomerLayout>
       <div className="space-y-6 customer-dashboard dashboard-container">
+        {/* Diagnosis banner when API connectivity fails (customer) */}
+        <DashboardDiagnosis dashboard="customer" resourceId={Number(userData.id || 0)} className="mb-2" />
         {/* Page Title */}
         <div className={`${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} transition-all`}>
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900 tracking-tight flex items-center">
