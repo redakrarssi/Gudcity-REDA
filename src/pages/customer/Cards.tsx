@@ -1144,7 +1144,7 @@ const CustomerCards = () => {
                   <ul className="list-disc list-inside text-blue-900 space-y-1">
                     <li><strong>Phase 1:</strong> Remove ALL localStorage polling. Remove 80% of window event listeners.</li>
                     <li><strong>Phase 2:</strong> Implement proper WebSocket: <code className="bg-blue-100 px-1 rounded">ws://api/loyalty/subscribe?customerId={'{'}id{'}'}</code></li>
-                    <li><strong>Phase 3:</strong> Server pushes: <code className="bg-blue-100 px-1 rounded">{'{'}type: "POINTS_ADDED", cardId: "123", newPoints: 50{'}'}</code></li>
+                    <li><strong>Phase 3:</strong> Server pushes: <code className="bg-blue-100 px-1 rounded">{`{type: "POINTS_ADDED", cardId: "123", newPoints: 50}`}</code></li>
                     <li><strong>Phase 4:</strong> Split component: CardsList, CardDetails, RewardRedemption as separate components</li>
                     <li><strong>Phase 5:</strong> React Query with sane settings: <code className="bg-blue-100 px-1 rounded">staleTime: 30000, refetchOnWindowFocus: true</code></li>
                   </ul>

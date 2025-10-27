@@ -95,7 +95,7 @@ const CustomerDashboard = () => {
                 <div className="bg-white/70 p-4 rounded-md">
                   <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Points Calculation Happens Client-Side</h4>
                   <p className="text-orange-900 mb-2"><strong>Current State:</strong> Lines 98-99 calculate total points by filtering and reducing enrolled programs array in browser JavaScript.</p>
-                  <p className="text-orange-900 mb-2"><strong>Code:</strong> <code className="bg-orange-100 px-1 rounded text-xs">.filter(program => program.status === 'ACTIVE').reduce((total, program) => total + (Number(program.currentPoints) || 0), 0)</code></p>
+                    <p className="text-orange-900 mb-2"><strong>Code:</strong> <code className="bg-orange-100 px-1 rounded text-xs">.filter(program =&gt; program.status === 'ACTIVE').reduce((total, program) =&gt; total + (Number(program.currentPoints) || 0), 0)</code></p>
                   <p className="text-orange-900 mb-2"><strong>Why It's Broken:</strong> Business logic in UI layer. Should be calculated by database/API with proper authorization checks.</p>
                   <p className="text-orange-900"><strong>Impact:</strong> Points may be calculated incorrectly if program status changed server-side but client cache is stale.</p>
                 </div>

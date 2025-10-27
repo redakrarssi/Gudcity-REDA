@@ -229,7 +229,7 @@ const BusinessDashboard = () => {
                     <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/business/dashboard</code> combining settings, analytics, and guidance in one response</li>
                     <li>Server-side business ID resolution with JWT verification - never trust client</li>
                     <li>Adaptive guidance: <code className="bg-blue-100 px-1 rounded">if (programs === 0) show "Create First Program" else show "Create More Programs"</code></li>
-                    <li>Return loading states separately: <code className="bg-blue-100 px-1 rounded">{"settingsLoading": true, "analyticsLoading": false}</code></li>
+                    <li>Return loading states separately: <code className="bg-blue-100 px-1 rounded">{`{"settingsLoading": true, "analyticsLoading": false}`}</code></li>
                     <li>Follow fun.md: Consolidate under <code className="bg-blue-100 px-1 rounded">api/business/[[...path]].ts</code> catch-all</li>
                   </ul>
                 </div>

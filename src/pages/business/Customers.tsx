@@ -486,7 +486,7 @@ const CustomersPage = () => {
                     <li>Add <code className="bg-blue-100 px-1 rounded">POST /api/business/customers/[id]/interaction</code> for recording interactions</li>
                     <li>Remove debug database state calls entirely</li>
                     <li>Delete mock customer data array</li>
-                    <li>Replace full refetch with incremental update: <code className="bg-blue-100 px-1 rounded">queryClient.setQueryData(['customers'], old => [...old, newCustomer])</code></li>
+                    <li>Replace full refetch with incremental update: <code className="bg-blue-100 px-1 rounded">queryClient.setQueryData(['customers'], old =&gt; [...old, newCustomer])</code></li>
                     <li>Follow fun.md: Consolidate under <code className="bg-blue-100 px-1 rounded">api/business/[[...path]].ts</code> catch-all</li>
                   </ul>
                 </div>
