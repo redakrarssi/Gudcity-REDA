@@ -48,6 +48,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/dashboard/stats",
+      "destination": "/api/[[...segments]]"
+    },
+    {
       "source": "/api/security/audit",
       "destination": "/api/v1/security/audit"
     },
