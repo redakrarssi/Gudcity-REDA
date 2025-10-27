@@ -292,6 +292,59 @@ const Programs = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6 programs-page business-programs-page">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-l-4 border-blue-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <Award className="w-6 h-6 text-blue-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-blue-800 mb-3">
+                🔵 DIAGNOSIS: Business Programs Page Data Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: Browser Extension Workaround (Lines 31-68)</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> Massive useEffect polyfills <code className="bg-red-100 px-1 rounded">window.browser</code> object for extension compatibility.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It Exists:</strong> Page crashes with "browser is not defined" errors. Quick fix: mock entire browser API.</p>
+                  <p className="text-red-900"><strong>Root Cause:</strong> Some imported service/library expects browser extension APIs to exist globally.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> 40 lines of polyfill code just to prevent crashes. Performance overhead checking scripts.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: LoyaltyProgramService Direct DB Access</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> Uses <code className="bg-orange-100 px-1 rounded">LoyaltyProgramService.getBusinessPrograms()</code> (line 78), <code className="bg-orange-100 px-1 rounded">createProgram()</code> (line 248), <code className="bg-orange-100 px-1 rounded">updateProgram()</code> (line 185).</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It's Broken:</strong> No API endpoints for program CRUD. Service likely calls database directly with <code className="bg-orange-100 px-1 rounded">sql</code> template.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Program creation fails silently if DB connection lost. No error recovery, no retry logic.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: ProductionSafeService Check (Lines 236-244)</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> Before creating program, checks if should use API, tries to fetch programs list to validate availability.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Hacky:</strong> Doesn't actually call program creation API - just pings another endpoint to see if API is up!</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Creates confusion. Still falls through to direct DB access if check passes.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #4: Permission Checks Happen Client-Side (Lines 136-148, 206-216)</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> Uses <code className="bg-purple-100 px-1 rounded">hasPermission(user, PERMISSIONS.PROGRAMS_EDIT)</code> to show/hide edit buttons.</p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Broken:</strong> UI-only protection. Malicious user can bypass by calling service methods directly from console.</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> Staff without edit permissions could still modify programs if they know service API.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Create Programs API with Server-Side Auth</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET/POST/PUT/DELETE /api/business/programs</code> with JWT auth</li>
+                    <li>Move permission checks to API: verify <code className="bg-blue-100 px-1 rounded">user.role === 'business' || user.permissions.includes('programs.edit')</code></li>
+                    <li>Remove browser polyfill by fixing root cause: identify which import needs extension APIs</li>
+                    <li>Replace ProductionSafeService with proper environment detection</li>
+                    <li>Follow fun.md: Merge into <code className="bg-blue-100 px-1 rounded">api/business/[[...businessId]]/[[...segments]].ts</code> catch-all</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {error && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 error-alert">
             <div className="flex">

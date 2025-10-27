@@ -109,6 +109,58 @@ const AdminBusinesses = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <AlertCircle className="w-6 h-6 text-amber-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-amber-800 mb-3">
+                🟡 DIAGNOSIS: Admin Businesses Page Data Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: Delegated Data Fetching Without Clarity</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> This page delegates all data fetching to the <code className="bg-red-100 px-1 rounded">BusinessTables</code> component (line 238), making it impossible to diagnose connectivity from here.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> Parent component has no visibility into how child fetches data - could be direct DB, could be API, could be mixed.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Analytics cards (lines 165-217) show "Loading..." indefinitely until BusinessTables updates them via callback.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Missing API Endpoint</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> No <code className="bg-orange-100 px-1 rounded">api/admin/businesses.ts</code> or catch-all route exists for business management operations.</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It's Broken:</strong> BusinessTables likely calls business service directly, which in turn calls database directly from browser.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Business data fetching bypasses authentication/authorization layers, potential security risk.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: Callback-Based State Management</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> Uses callbacks <code className="bg-yellow-100 px-1 rounded">onAnalyticsUpdate</code> (line 98) and <code className="bg-yellow-100 px-1 rounded">onConnectionError</code> (line 103) for state lifting.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Broken:</strong> Creates tight coupling between parent and child, makes data flow unpredictable, hard to debug timing issues.</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Analytics might update before, during, or after BusinessTables loads, causing UI flicker.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Centralize Data Fetching</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/admin/businesses</code> endpoint for listing businesses</li>
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/admin/businesses/analytics</code> for summary stats</li>
+                    <li>Use React Query in parent component, pass data down as props to BusinessTables</li>
+                    <li>Eliminate callback props, use shared query cache instead</li>
+                    <li>Follow fun.md: Consolidate under <code className="bg-blue-100 px-1 rounded">api/admin/[[...path]].ts</code></li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-indigo-300">
+                  <h4 className="font-semibold text-indigo-700 mb-2">🔍 Investigation Needed</h4>
+                  <p className="text-indigo-900 mb-2"><strong>Check BusinessTables Component:</strong> Located at <code className="bg-indigo-100 px-1 rounded">src/components/admin/BusinessTables.tsx</code></p>
+                  <p className="text-indigo-900 mb-2"><strong>Likely Issues:</strong> Directly imports businessService, calls <code className="bg-indigo-100 px-1 rounded">sql</code> from db.ts, no API layer.</p>
+                  <p className="text-indigo-900"><strong>Quick Test:</strong> Open browser dev tools Network tab - if you don't see API calls to <code className="bg-indigo-100 px-1 rounded">/api/admin/*</code>, it's hitting DB directly.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">

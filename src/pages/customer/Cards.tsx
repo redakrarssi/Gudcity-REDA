@@ -1095,6 +1095,72 @@ const CustomerCards = () => {
   return (
     <CustomerLayout>
       <div className="p-4 md:p-6 lg:p-8 space-y-8 cards-page customer-cards-page">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-rose-50 to-pink-50 border-l-4 border-rose-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <CreditCard className="w-6 h-6 text-rose-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-rose-800 mb-3">
+                🌹 DIAGNOSIS: Customer Cards Page - Extreme Complexity!
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md border-2 border-rose-500">
+                  <h4 className="font-semibold text-red-700 mb-2">🚨 CRITICAL: 1,565 Lines - Most Complex Page!</h4>
+                  <p className="text-red-900 mb-2"><strong>File Size:</strong> This is the largest dashboard page in your entire codebase.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Problematic:</strong> Massive component doing too many things: points display, card management, rewards, animations, modals, real-time sync, notifications.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Hard to debug, slow to load, impossible to test properly, maintenance nightmare.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: Over 15 Event Listeners (Lines 232-505)</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> Listens to: <code className="bg-red-100 px-1 rounded">customer-notification, points-awarded, card-update-required, loyalty-cards-refresh, program-points-updated, qrPointsAwarded, force-reload-customer-cards...</code></p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> Event soup! Different parts of app fire different events for same action. No single source of truth.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Points update sometimes triggers 3-5 refetches simultaneously. Race conditions everywhere.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: LocalStorage Polling (Lines 507-690)</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> Polls localStorage every 5 seconds checking for: <code className="bg-orange-100 px-1 rounded">force_card_refresh, refresh_cards_{'{'}userId{'}'}, sync_points_, IMMEDIATE_CARDS_REFRESH, program_*_points_updated, card_*_points_updated...</code></p>
+                  <p className="text-orange-900 mb-2"><strong>Why It Exists:</strong> Developer lost trust in event system, added polling as backup. Then added backups for the backup!</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Browser constantly reads localStorage. Battery drain on mobile. Still misses updates sometimes!</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: BroadcastChannel + WebSocket-Like Features (Lines 660-690)</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> Creates BroadcastChannel for cross-tab communication. Tries to handle real-time updates without actual WebSocket.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Hacky:</strong> Using localStorage + BroadcastChannel + window events to simulate real-time. Should use proper WebSocket or SSE.</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Points awarded in another tab might update here, or might not. Unreliable cross-tab sync.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #4: React Query with Ultra-Aggressive Refetch (Lines 191-230)</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> <code className="bg-purple-100 px-1 rounded">staleTime: 0, refetchInterval: 10000, refetchIntervalInBackground: true</code></p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Broken:</strong> Refetches every 10 seconds PLUS on all events PLUS localStorage polling PLUS BroadcastChannel. Overkill!</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> API gets hammered with requests. Cards page makes 100+ API calls per minute if user keeps it open.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Radical Simplification + WebSocket</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li><strong>Phase 1:</strong> Remove ALL localStorage polling. Remove 80% of window event listeners.</li>
+                    <li><strong>Phase 2:</strong> Implement proper WebSocket: <code className="bg-blue-100 px-1 rounded">ws://api/loyalty/subscribe?customerId={'{'}id{'}'}</code></li>
+                    <li><strong>Phase 3:</strong> Server pushes: <code className="bg-blue-100 px-1 rounded">{'{'}type: "POINTS_ADDED", cardId: "123", newPoints: 50{'}'}</code></li>
+                    <li><strong>Phase 4:</strong> Split component: CardsList, CardDetails, RewardRedemption as separate components</li>
+                    <li><strong>Phase 5:</strong> React Query with sane settings: <code className="bg-blue-100 px-1 rounded">staleTime: 30000, refetchOnWindowFocus: true</code></li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-green-300">
+                  <h4 className="font-semibold text-green-700 mb-2">💡 Performance Opportunity</h4>
+                  <p className="text-green-900 mb-2"><strong>Current:</strong> Page does 50+ checks per second across events, localStorage, polling, intervals.</p>
+                  <p className="text-green-900 mb-2"><strong>Optimized:</strong> WebSocket receives 1 message when points actually change, updates once.</p>
+                  <p className="text-green-900"><strong>Benefit:</strong> 50x less CPU usage, 100x less network traffic, instant updates, simpler code.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Total Enrollment Count */}
         <AnimatePresence>
           {!hideEnrollmentInfo && (

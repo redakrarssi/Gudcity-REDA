@@ -374,6 +374,58 @@ const AdminDashboard = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <AlertTriangle className="w-6 h-6 text-red-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-red-800 mb-3">
+                🔴 DIAGNOSIS: Admin Dashboard Data Connectivity Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: Mixed Data Sources</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> This dashboard uses <code className="bg-red-100 px-1 rounded">getDashboardStats()</code> from <code className="bg-red-100 px-1 rounded">dashboardService.ts</code> which directly queries the database using <code className="bg-red-100 px-1 rounded">sql</code> tagged template.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> Direct database access from browser/React components violates the API-first architecture. Database credentials should NEVER be exposed to client-side code.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Stats may show stale data, inconsistent numbers, or fail entirely in production due to database connection pooling issues.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Hardcoded Mock Data</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> Lines 31-45 contain hardcoded <code className="bg-orange-100 px-1 rounded">pendingBusinesses</code> and <code className="bg-orange-100 px-1 rounded">recentActivities</code> arrays with fake data.</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It's Broken:</strong> These static arrays never update with real business applications or actual platform activities.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Admins see fake data ("Green Coffee", "Byte Electronics") instead of real pending approvals.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: API Endpoint Exists But Not Used</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> File <code className="bg-yellow-100 px-1 rounded">api/admin/dashboard-stats.ts</code> (lines 1-149) implements proper API endpoint with admin auth, but dashboard doesn't call it.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Broken:</strong> The service uses <code className="bg-yellow-100 px-1 rounded">ProductionSafeService.shouldUseApi()</code> check, but in development it still hits DB directly.</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Development and production behave differently, making bugs hard to reproduce.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Use API-First Architecture</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Replace <code className="bg-blue-100 px-1 rounded">getDashboardStats()</code> with API call to <code className="bg-blue-100 px-1 rounded">/api/admin/dashboard-stats</code></li>
+                    <li>Remove all hardcoded mock data arrays</li>
+                    <li>Use <code className="bg-blue-100 px-1 rounded">useQuery</code> from React Query for automatic caching and refetching</li>
+                    <li>Follow fun.md rules: All data through API catch-all endpoints</li>
+                    <li>Consolidate admin endpoints under <code className="bg-blue-100 px-1 rounded">api/admin/[[...path]].ts</code> catch-all</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-purple-300">
+                  <h4 className="font-semibold text-purple-700 mb-2">📊 Current API Function Budget (fun.md)</h4>
+                  <p className="text-purple-900 mb-2"><strong>Used:</strong> 11/12 Vercel serverless functions (92% capacity)</p>
+                  <p className="text-purple-900 mb-2"><strong>Admin Stats Endpoint:</strong> Currently standalone at <code className="bg-purple-100 px-1 rounded">api/admin/dashboard-stats.ts</code></p>
+                  <p className="text-purple-900"><strong>Recommendation:</strong> Merge into <code className="bg-purple-100 px-1 rounded">api/admin/[[...path]].ts</code> catch-all to save function slots for future features.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">

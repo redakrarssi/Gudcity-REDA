@@ -182,6 +182,69 @@ const BusinessDashboard = () => {
   return (
     <BusinessLayout>
       <div className="space-y-8">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-l-4 border-indigo-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <Info className="w-6 h-6 text-indigo-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-indigo-800 mb-3">
+                🟣 DIAGNOSIS: Business Dashboard Data Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: Direct Database Service Calls</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> Two separate service calls:</p>
+                  <ul className="list-disc list-inside text-red-900 ml-4 space-y-1">
+                    <li><code className="bg-red-100 px-1 rounded">BusinessSettingsService.getBusinessSettings()</code> (line 62) - checks if business profile complete</li>
+                    <li><code className="bg-red-100 px-1 rounded">BusinessAnalyticsService.getBusinessAnalytics()</code> (line 101) - fetches analytics data</li>
+                  </ul>
+                  <p className="text-red-900 mt-2"><strong>Why It's Broken:</strong> Both services likely query database directly from browser. No API endpoints for business settings or analytics.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Slow page load, potential auth bypass if services don't verify business ownership properly.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Business ID Resolution Logic (Lines 58-60, 96-98)</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> Checks if user is staff with <code className="bg-orange-100 px-1 rounded">user.business_owner_id</code>, falls back to <code className="bg-orange-100 px-1 rounded">user.id</code>.</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It's Concerning:</strong> This authorization logic happens client-side. Malicious staff could modify JavaScript to use different business ID.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Potential IDOR vulnerability - staff could view other businesses' dashboards by changing <code className="bg-orange-100 px-1 rounded">businessId</code> variable.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: Hardcoded Dashboard Guidance (Lines 129-169)</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> <code className="bg-yellow-100 px-1 rounded">infoBoxes</code> array contains static step-by-step guide: "Create Program", "QR Scanner", etc.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Suboptimal:</strong> Doesn't adapt to business's actual progress. Shows "Create Your First Program" even if they have 10 programs.</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Poor UX for established businesses. Should show contextual guidance based on account maturity.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #4: Analytics Cards Show Zero During Load</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> Lines 42-46 initialize state with zeros: <code className="bg-purple-100 px-1 rounded">totalPrograms: 0, activeCustomers: 0</code>, etc.</p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Broken:</strong> Cards display "0" for 1-2 seconds before data loads. Should show loading skeleton instead.</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> Users momentarily see "0 programs, 0 customers" and panic before real data appears.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Create Business Dashboard API</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/business/dashboard</code> combining settings, analytics, and guidance in one response</li>
+                    <li>Server-side business ID resolution with JWT verification - never trust client</li>
+                    <li>Adaptive guidance: <code className="bg-blue-100 px-1 rounded">if (programs === 0) show "Create First Program" else show "Create More Programs"</code></li>
+                    <li>Return loading states separately: <code className="bg-blue-100 px-1 rounded">{"settingsLoading": true, "analyticsLoading": false}</code></li>
+                    <li>Follow fun.md: Consolidate under <code className="bg-blue-100 px-1 rounded">api/business/[[...path]].ts</code> catch-all</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-red-300">
+                  <h4 className="font-semibold text-red-700 mb-2">🚨 Security: Staff Permission Bypass Risk</h4>
+                  <p className="text-red-900 mb-2"><strong>Attack Scenario:</strong> Staff member opens dev tools, changes <code className="bg-red-100 px-1 rounded">businessId</code> variable from their owner's ID to another business's ID.</p>
+                  <p className="text-red-900 mb-2"><strong>Result:</strong> Could view competitor's analytics, steal customer data, see revenue numbers.</p>
+                  <p className="text-red-900"><strong>Fix:</strong> API must extract business ID from JWT session token, never from request parameters.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Header with Currency Selector */}
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">

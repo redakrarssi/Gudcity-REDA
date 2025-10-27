@@ -110,6 +110,75 @@ const AdminAnalytics = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border-l-4 border-cyan-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <PieChart className="w-6 h-6 text-cyan-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-cyan-800 mb-3">
+                🔵 DIAGNOSIS: Admin Analytics Page - 100% Mock Data!
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md border-2 border-red-500">
+                  <h4 className="font-semibold text-red-700 mb-2">🚨 CRITICAL: This Entire Page is Fake!</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> ALL data on this page comes from hardcoded JavaScript objects (lines 28-85): <code className="bg-red-100 px-1 rounded">platformGrowthData</code>, <code className="bg-red-100 px-1 rounded">userEngagementData</code>, <code className="bg-red-100 px-1 rounded">businessPerformanceData</code>, <code className="bg-red-100 px-1 rounded">transactionData</code>.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> Not a single database query or API call exists. Numbers are random values that never change.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Admins make business decisions based on completely fabricated metrics!</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">❌ Problem #1: No Backend Connection</h4>
+                  <p className="text-orange-900 mb-2"><strong>Evidence:</strong> No <code className="bg-orange-100 px-1 rounded">useEffect</code> for data fetching, no service imports, no API calls in Network tab.</p>
+                  <p className="text-orange-900 mb-2"><strong>Mock Data Examples:</strong></p>
+                  <ul className="list-disc list-inside text-orange-900 ml-4 space-y-1">
+                    <li><code>users: [1200, 1350, ..., 3100]</code> - Fictional user growth array</li>
+                    <li><code>activeUsers: 2450, activeUsersChange: 12.5</code> - Made up engagement metrics</li>
+                    <li><code>topBusinessTypes: ['Food & Beverage', 'Retail', ...]</code> - Generic business categories, not from DB</li>
+                  </ul>
+                  <p className="text-orange-900 mt-2"><strong>Impact:</strong> Cannot track actual platform performance, growth trends, or user behavior.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #2: Missing Analytics API Infrastructure</h4>
+                  <p className="text-yellow-900 mb-2"><strong>What's Needed:</strong> Comprehensive analytics API endpoints for:</p>
+                  <ul className="list-disc list-inside text-yellow-900 ml-4 space-y-1">
+                    <li><code className="bg-yellow-100 px-1 rounded">GET /api/admin/analytics/users</code> - User signup trends, activity rates</li>
+                    <li><code className="bg-yellow-100 px-1 rounded">GET /api/admin/analytics/businesses</code> - Business registration, categories, performance</li>
+                    <li><code className="bg-yellow-100 px-1 rounded">GET /api/admin/analytics/transactions</code> - Transaction volume, revenue breakdown</li>
+                    <li><code className="bg-yellow-100 px-1 rounded">GET /api/admin/analytics/engagement</code> - Daily active users, retention metrics</li>
+                  </ul>
+                  <p className="text-yellow-900 mt-2"><strong>Current State:</strong> None of these endpoints exist. Zero analytics infrastructure built.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #3: Date Range Filter Does Nothing</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> Lines 125-165 render date range buttons (Week/Month/Quarter/Year) that set <code className="bg-purple-100 px-1 rounded">dateRange</code> state.</p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Broken:</strong> <code className="bg-purple-100 px-1 rounded">dateRange</code> state is never used! No effect triggers refetch, no query parameters change.</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> Users think they're filtering data by time period, but same mock data shows regardless of selection.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Build Real Analytics System</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li><strong>Phase 1:</strong> Create analytics database views/materialized views for fast aggregations</li>
+                    <li><strong>Phase 2:</strong> Build <code className="bg-blue-100 px-1 rounded">api/admin/analytics/[[...metric]].ts</code> catch-all endpoint</li>
+                    <li><strong>Phase 3:</strong> Use React Query with <code className="bg-blue-100 px-1 rounded">dateRange</code> as query key dependency</li>
+                    <li><strong>Phase 4:</strong> Add charting library (recharts/chart.js) to replace placeholder divs</li>
+                    <li><strong>Phase 5:</strong> Implement caching strategy - analytics can be stale by 5-15 minutes</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-green-300">
+                  <h4 className="font-semibold text-green-700 mb-2">💡 Quick Win: Start with Dashboard Stats API</h4>
+                  <p className="text-green-900 mb-2"><strong>Reuse Existing:</strong> <code className="bg-green-100 px-1 rounded">api/admin/dashboard-stats.ts</code> already provides user, business, transaction counts.</p>
+                  <p className="text-green-900 mb-2"><strong>Next Step:</strong> Extend that endpoint to accept <code className="bg-green-100 px-1 rounded">?period=week|month|quarter|year</code> query param.</p>
+                  <p className="text-green-900"><strong>Benefit:</strong> Get real metrics displaying in 1-2 hours instead of building entire analytics platform first.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800 flex items-center">

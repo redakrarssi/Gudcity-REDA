@@ -78,6 +78,72 @@ const AnalyticsPage = () => {
   return (
     <BusinessLayout>
       <div className="space-y-6 analytics-page">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-violet-50 to-purple-50 border-l-4 border-violet-500 p-6 rounded-lg shadow-md">
+          <div className="flex items-start">
+            <BarChart2 className="w-6 h-6 text-violet-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-violet-800 mb-3">
+                🟣 DIAGNOSIS: Business Analytics Page Data Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-green-700 mb-2">✅ Good: Actually Fetches Real Data!</h4>
+                  <p className="text-green-900 mb-2"><strong>Current State:</strong> Uses <code className="bg-green-100 px-1 rounded">BusinessAnalyticsService.getBusinessAnalytics()</code> (line 49) to fetch real metrics.</p>
+                  <p className="text-green-900 mb-2"><strong>Why It's Better:</strong> Unlike Admin Analytics page (which is 100% fake), this one tries to show actual business data.</p>
+                  <p className="text-green-900"><strong>Positive:</strong> Shows real <code className="bg-green-100 px-1 rounded">totalPrograms, activeCustomers, totalPoints, totalRedemptions</code>.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: BusinessAnalyticsService Direct DB Access</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> Service likely queries database directly instead of calling API endpoint.</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> No <code className="bg-red-100 px-1 rounded">/api/business/analytics</code> endpoint exists. Database connection exposed to browser.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Analytics fail in production if database not accessible from browser context.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Chart Rendering Uses Placeholder Divs (Lines 200-214)</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> "Customer Engagement" chart renders colored divs with inline style heights instead of proper charting library.</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It's Suboptimal:</strong> No tooltips, no interactivity, no axis labels, no zoom, no export. Just colored bars.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Hard to read exact values. Poor UX compared to professional charts (recharts/chart.js/d3).</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: Date Range State Not Used in Query (Lines 36, 76)</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> <code className="bg-yellow-100 px-1 rounded">dateRange</code> state passed to <code className="bg-yellow-100 px-1 rounded">getBusinessAnalytics(businessId, dateRange)</code>, but useEffect dependency array includes it.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Good:</strong> At least this one DOES refetch when dateRange changes (unlike Admin Analytics)!</p>
+                  <p className="text-yellow-900"><strong>Minor Issue:</strong> No loading indicator shows during refetch. User doesn't know data is updating.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #4: Error State Lost (Lines 66-72)</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> Catch block logs error to console but doesn't set error state. Just keeps existing stats.</p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Problematic:</strong> User has no idea data fetch failed. Sees old stale numbers thinking they're current.</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> Business makes decisions on outdated metrics without knowing fetch failed.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Create Business Analytics API</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/business/analytics?period=day|week|month|year</code></li>
+                    <li>Add <code className="bg-blue-100 px-1 rounded">loading</code> state: show skeleton while refetching on period change</li>
+                    <li>Add <code className="bg-blue-100 px-1 rounded">error</code> state: show error banner if fetch fails, with retry button</li>
+                    <li>Replace DIV charts with recharts library for professional visualizations</li>
+                    <li>Follow fun.md: Merge into <code className="bg-blue-100 px-1 rounded">api/business/[[...path]].ts</code> catch-all</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-green-300">
+                  <h4 className="font-semibold text-green-700 mb-2">👍 Relative to Other Pages: This One is Good!</h4>
+                  <p className="text-green-900 mb-2"><strong>Positives:</strong> Fetches real data, respects date range filter, reasonable structure.</p>
+                  <p className="text-green-900 mb-2"><strong>Main Gap:</strong> Just needs proper API endpoint instead of direct DB access.</p>
+                  <p className="text-green-900"><strong>Priority:</strong> Medium. Fix API layer, add error handling, upgrade charts. Rest is solid.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-between items-center analytics-header">
           <h1 className="text-2xl font-semibold text-gray-800 analytics-title">
             {t('business.Business Analytics')}

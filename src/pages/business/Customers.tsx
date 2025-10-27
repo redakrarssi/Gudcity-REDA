@@ -442,6 +442,66 @@ const CustomersPage = () => {
   return (
     <BusinessLayout>
       <div className="px-3 sm:px-4 py-4 sm:py-6 customers-page">
+        {/* ⚠️ DIAGNOSIS SECTION - Data Connectivity Issues */}
+        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-l-4 border-teal-500 p-6 rounded-lg shadow-md mb-6">
+          <div className="flex items-start">
+            <Users className="w-6 h-6 text-teal-600 mt-1 mr-4 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-teal-800 mb-3">
+                🌊 DIAGNOSIS: Business Customers Page Data Issues
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-red-700 mb-2">❌ Problem #1: CustomerService Direct Database Calls</h4>
+                  <p className="text-red-900 mb-2"><strong>Current State:</strong> Uses <code className="bg-red-100 px-1 rounded">CustomerService.getBusinessCustomers()</code> (line 178), <code className="bg-red-100 px-1 rounded">debugDatabaseState()</code> (line 176), <code className="bg-red-100 px-1 rounded">recordCustomerInteraction()</code> (lines 263, 292, 314).</p>
+                  <p className="text-red-900 mb-2"><strong>Why It's Broken:</strong> CustomerService likely queries database directly. No API endpoints for customer listing or interactions.</p>
+                  <p className="text-red-900"><strong>Impact:</strong> Customer list may show stale data, interactions not recorded properly, debug logs in production.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-orange-700 mb-2">⚠️ Problem #2: Mock Customer Data (Lines 15-86)</h4>
+                  <p className="text-orange-900 mb-2"><strong>Current State:</strong> 71 lines of <code className="bg-orange-100 px-1 rounded">mockCustomers</code> array with Sarah Johnson, Mike Peterson, Elena Rodriguez, etc.</p>
+                  <p className="text-orange-900 mb-2"><strong>Why It Exists:</strong> Fallback data while real customer fetching was being developed. Never removed.</p>
+                  <p className="text-orange-900"><strong>Impact:</strong> Dead code taking up space. If CustomerService fails, shows empty list instead of useful mock data.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-yellow-700 mb-2">⚠️ Problem #3: Debug Database State Call (Line 176)</h4>
+                  <p className="text-yellow-900 mb-2"><strong>Current State:</strong> Calls <code className="bg-yellow-100 px-1 rounded">CustomerService.debugDatabaseState(businessId)</code> before fetching customers.</p>
+                  <p className="text-yellow-900 mb-2"><strong>Why It's Problematic:</strong> Debug function in production code. Likely logs sensitive customer data to console.</p>
+                  <p className="text-yellow-900"><strong>Impact:</strong> Privacy violation. Browser console may expose PII (names, emails, program enrollments).</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-purple-700 mb-2">⚠️ Problem #4: Real-Time Sync Subscription (Lines 199-223)</h4>
+                  <p className="text-purple-900 mb-2"><strong>Current State:</strong> Subscribes to <code className="bg-purple-100 px-1 rounded">program_enrollments</code> and <code className="bg-purple-100 px-1 rounded">loyalty_cards</code> sync events, refetches entire customer list on any change.</p>
+                  <p className="text-purple-900 mb-2"><strong>Why It's Inefficient:</strong> Customer enrolls in 1 program → refetch all 1000 customers. Wasteful.</p>
+                  <p className="text-purple-900"><strong>Impact:</strong> High API load when businesses have many customers. Should use incremental updates.</p>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md">
+                  <h4 className="font-semibold text-blue-700 mb-2">✅ Solution: Create Business Customers API</h4>
+                  <ul className="list-disc list-inside text-blue-900 space-y-1">
+                    <li>Create <code className="bg-blue-100 px-1 rounded">GET /api/business/customers</code> with pagination: <code className="bg-blue-100 px-1 rounded">?page=1&limit=50</code></li>
+                    <li>Add <code className="bg-blue-100 px-1 rounded">POST /api/business/customers/[id]/interaction</code> for recording interactions</li>
+                    <li>Remove debug database state calls entirely</li>
+                    <li>Delete mock customer data array</li>
+                    <li>Replace full refetch with incremental update: <code className="bg-blue-100 px-1 rounded">queryClient.setQueryData(['customers'], old => [...old, newCustomer])</code></li>
+                    <li>Follow fun.md: Consolidate under <code className="bg-blue-100 px-1 rounded">api/business/[[...path]].ts</code> catch-all</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-white/70 p-4 rounded-md border-2 border-amber-300">
+                  <h4 className="font-semibold text-amber-700 mb-2">📊 Scalability Issue</h4>
+                  <p className="text-amber-900 mb-2"><strong>Current:</strong> Fetches ALL customers at once. Works for 10 customers, breaks at 10,000.</p>
+                  <p className="text-amber-900 mb-2"><strong>Future Problem:</strong> Successful business with 5,000 customers = 5MB JSON response = 10-30 second page load.</p>
+                  <p className="text-amber-900"><strong>Fix:</strong> Implement pagination, virtual scrolling, search filtering server-side.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6 customers-header">
           <h1 className="text-2xl font-bold text-gray-900 customers-title">Customers</h1>
           <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 customers-actions w-full sm:w-auto">
