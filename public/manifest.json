@@ -1,0 +1,43 @@
+{
+  "name": "Vcarda Loyalty Platform",
+  "short_name": "Vcarda",
+  "description": "Loyalty program management for businesses and customers",
+  "start_url": "https://gudcity-reda.vercel.app/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://gudcity-reda.vercel.app/assets/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://gudcity-reda.vercel.app/assets/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan QR Code",
+      "url": "https://gudcity-reda.vercel.app/qr-scanner",
+      "description": "Scan a QR code"
+    },
+    {
+      "name": "My Loyalty Cards",
+      "url": "https://gudcity-reda.vercel.app/my-cards",
+      "description": "View your loyalty cards"
+    }
+  ],
+  "categories": [
+    "business",
+    "loyalty",
+    "qr",
+    "productivity"
+  ],
+  "orientation": "portrait",
+  "prefer_related_applications": false
+}

@@ -1,0 +1,107 @@
+name: Android Main Release
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'android-app/**'
+
+jobs:
+  build-and-testlab:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Decrypt keystore (optional)
+        if: env.RELEASE_STORE_FILE_BASE64 != ''
+        run: |
+          echo "$RELEASE_STORE_FILE_BASE64" | base64 -d > app/release.jks
+        env:
+          RELEASE_STORE_FILE_BASE64: ${{ secrets.RELEASE_STORE_FILE_BASE64 }}
+
+      - name: Gradle build AAB
+        env:
+          RELEASE_STORE_FILE: ${{ github.workspace }}/android-app/app/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew test lint bundleRelease || (echo "Ensure Gradle wrapper is checked in under android-app/" && exit 1)
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android-app/app/build/outputs/bundle/release/*.aab
+
+      - name: Run Instrumentation tests on Firebase Test Lab (optional)
+        if: ${{ secrets.GCP_SA_KEY_JSON != '' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp.json
+        run: |
+          echo '${{ secrets.GCP_SA_KEY_JSON }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud --quiet config set project ${{ secrets.GCP_PROJECT_ID }}
+          # Build debug APK and test APK
+          ./gradlew assembleDebug assembleAndroidTest
+          # Run on Test Lab
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/debug/app-debug.apk \
+            --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --device model=Pixel7,version=34,locale=en,orientation=portrait \
+            --timeout 15m
+
+  # Optional: gradle-play-publisher upload (requires Play Console service account)
+  play-upload:
+    needs: build-and-testlab
+    if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-aab
+          path: android-app/app/build/outputs/bundle/release/
+
+      - name: Configure service account
+        run: |
+          echo '${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      - name: Upload to internal testing (gradle-play-publisher)
+        run: |
+          ./gradlew publishRelease --no-daemon -Pandroid.injected.signing.store.file="$RELEASE_STORE_FILE" \
+            -Pandroid.injected.signing.store.password="$RELEASE_STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$RELEASE_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$RELEASE_KEY_PASSWORD"
+        env:
+          RELEASE_STORE_FILE: ${{ secrets.RELEASE_STORE_FILE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+
+

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vcarda</string>
+    <string name="web_base_url">https://www.vcarda.com</string>
+    <string name="csrf_cookie_name">csrf_token</string>
+</resources>
+
+

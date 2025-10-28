@@ -1,0 +1,39 @@
+/* Inline styles extracted for CSP compliance */
+
+#app-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  opacity: 0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #EBF4FF 0%, #E6FFFA 100%);
+  z-index: 9999;
+  transition: opacity 0.5s ease-out;
+}
+
+.noscript-fallback {
+  padding: 2rem;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+
+.noscript-fallback h1 {
+  margin-bottom: 1rem;
+}
+
+/* Minimal RTL support early in page load */
+[dir="rtl"] body {
+  direction: rtl;
+  text-align: right;
+}
+
+.arabic-text {
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+  text-align: right;
+  direction: rtl;
+}

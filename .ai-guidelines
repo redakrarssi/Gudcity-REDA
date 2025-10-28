@@ -1,0 +1,31 @@
+# AI Guidelines for GudCity REDA
+# This file helps AI tools understand which files are critical and should not be modified
+
+# Critical files - DO NOT MODIFY
+src/components/QRScanner.tsx no-modify critical
+src/middleware/auth.ts no-modify critical
+src/services/authService.ts no-modify critical
+src/services/businessSettingsService.ts no-modify critical
+src/services/loyaltyCardService.ts no-modify critical
+src/services/loyaltyProgramService.ts no-modify critical
+
+# Database schema files - DO NOT MODIFY
+db/*.sql no-modify critical
+
+# Configuration files - SEEK CLARIFICATION
+vite.config.ts seek-clarification
+tailwind.config.js seek-clarification
+tsconfig*.json seek-clarification
+jest.config.* seek-clarification
+package.json seek-clarification
+
+# Service implementations - SEEK CLARIFICATION
+src/services/*Service.ts seek-clarification
+src/utils/* seek-clarification
+
+# Safe to modify - Documentation and UI improvements
+*.md safe-to-modify documentation
+src/components/ui/* safe-to-modify ui
+src/styles/*.css safe-to-modify ui
+
+# The AI should follow the detailed guidelines in reda.md 

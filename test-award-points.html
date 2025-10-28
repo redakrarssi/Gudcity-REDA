@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Award Points Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      color: #2563eb;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
+    button:disabled {
+      background-color: #93c5fd;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d1fae5;
+      border-left: 4px solid #10b981;
+      color: #047857;
+    }
+    .error {
+      background-color: #fee2e2;
+      border-left: 4px solid #ef4444;
+      color: #b91c1c;
+    }
+    .loading {
+      background-color: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+      display: flex;
+      align-items: center;
+    }
+    .spinner {
+      border: 3px solid rgba(59, 130, 246, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #3b82f6;
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .debug {
+      background-color: #f3f4f6;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+    .token-info {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      border-bottom: 2px solid #2563eb;
+      color: #2563eb;
+      font-weight: 500;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Award Points Test Tool</h1>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="test">Test Award Points</div>
+    <div class="tab" data-tab="auth">Auth Diagnostics</div>
+    <div class="tab" data-tab="help">Help</div>
+  </div>
+  
+  <div class="tab-content active" id="test-tab">
+    <div class="card">
+      <h2>Award Points Form</h2>
+      
+      <div class="token-info">
+        <strong>Auth Status:</strong> <span id="auth-status">Checking...</span>
+        <button id="refresh-token" style="float: right; padding: 5px 10px; font-size: 14px;">Refresh Token</button>
+      </div>
+      
+      <div class="form-group">
+        <label for="customer-id">Customer ID:</label>
+        <input type="text" id="customer-id" placeholder="Enter customer ID">
+      </div>
+      
+      <div class="form-group">
+        <label for="program-id">Program ID:</label>
+        <input type="text" id="program-id" placeholder="Enter program ID">
+      </div>
+      
+      <div class="form-group">
+        <label for="points">Points to Award:</label>
+        <input type="number" id="points" value="10" min="1">
+      </div>
+      
+      <div class="form-group">
+        <label for="description">Description:</label>
+        <input type="text" id="description" placeholder="Points awarded via test tool">
+      </div>
+      
+      <button id="award-points">Award Points</button>
+      <button id="clear-results" style="background-color: #6b7280; margin-left: 10px;">Clear Results</button>
+    </div>
+    
+    <div id="results-container"></div>
+  </div>
+  
+  <div class="tab-content" id="auth-tab">
+    <div class="card">
+      <h2>Authentication Diagnostics</h2>
+      
+      <div class="form-group">
+        <label for="auth-token">Current Auth Token:</label>
+        <input type="text" id="auth-token" readonly>
+      </div>
+      
+      <div class="form-group">
+        <label for="token-source">Token Source:</label>
+        <input type="text" id="token-source" readonly>
+      </div>
+      
+      <div class="form-group">
+        <label for="token-expiry">Token Expiry:</label>
+        <input type="text" id="token-expiry" readonly>
+      </div>
+      
+      <button id="check-auth">Check Authentication</button>
+      <button id="clear-token" style="background-color: #ef4444; margin-left: 10px;">Clear Token</button>
+    </div>
+    
+    <div id="auth-results"></div>
+  </div>
+  
+  <div class="tab-content" id="help-tab">
+    <div class="card">
+      <h2>Help & Troubleshooting</h2>
+      
+      <h3>Common Issues</h3>
+      <ul>
+        <li><strong>Authentication token missing:</strong> Click "Refresh Token" or log in again in the main app</li>
+        <li><strong>Request timeout:</strong> The server is taking too long to respond, check server logs</li>
+        <li><strong>Customer not found:</strong> Verify the customer ID exists in the database</li>
+        <li><strong>Program not found:</strong> Verify the program ID exists and belongs to your business</li>
+      </ul>
+      
+      <h3>Testing Steps</h3>
+      <ol>
+        <li>Verify your authentication status shows "Authenticated"</li>
+        <li>Enter a valid customer ID and program ID</li>
+        <li>Set the number of points to award</li>
+        <li>Click "Award Points" and check the result</li>
+      </ol>
+      
+      <h3>Debugging Tips</h3>
+      <ul>
+        <li>Check browser console for JavaScript errors</li>
+        <li>Examine network requests in browser dev tools</li>
+        <li>Look at the detailed response in the debug section</li>
+        <li>Check server logs for backend errors</li>
+      </ul>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM Elements
+      const customerIdInput = document.getElementById('customer-id');
+      const programIdInput = document.getElementById('program-id');
+      const pointsInput = document.getElementById('points');
+      const descriptionInput = document.getElementById('description');
+      const awardPointsButton = document.getElementById('award-points');
+      const clearResultsButton = document.getElementById('clear-results');
+      const resultsContainer = document.getElementById('results-container');
+      const authStatusElement = document.getElementById('auth-status');
+      const refreshTokenButton = document.getElementById('refresh-token');
+      const authTokenInput = document.getElementById('auth-token');
+      const tokenSourceInput = document.getElementById('token-source');
+      const tokenExpiryInput = document.getElementById('token-expiry');
+      const checkAuthButton = document.getElementById('check-auth');
+      const clearTokenButton = document.getElementById('clear-token');
+      const authResultsContainer = document.getElementById('auth-results');
+      
+      // Tab functionality
+      const tabs = document.querySelectorAll('.tab');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabId = tab.getAttribute('data-tab');
+          
+          // Update active tab
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Show corresponding content
+          tabContents.forEach(content => {
+            content.classList.remove('active');
+            if (content.id === `${tabId}-tab`) {
+              content.classList.add('active');
+            }
+          });
+        });
+      });
+      
+      // Check authentication status on load
+      checkAuthStatus();
+      
+      // Event Listeners
+      awardPointsButton.addEventListener('click', awardPoints);
+      clearResultsButton.addEventListener('click', clearResults);
+      refreshTokenButton.addEventListener('click', refreshToken);
+      checkAuthButton.addEventListener('click', checkAuthStatus);
+      clearTokenButton.addEventListener('click', clearToken);
+      
+      // Award Points Function
+      async function awardPoints() {
+        // Validate inputs
+        const customerId = customerIdInput.value.trim();
+        const programId = programIdInput.value.trim();
+        const points = parseInt(pointsInput.value);
+        const description = descriptionInput.value.trim() || 'Points awarded via test tool';
+        
+        if (!customerId) {
+          showError('Customer ID is required');
+          return;
+        }
+        
+        if (!programId) {
+          showError('Program ID is required');
+          return;
+        }
+        
+        if (isNaN(points) || points <= 0) {
+          showError('Points must be a positive number');
+          return;
+        }
+        
+        // Show loading state
+        awardPointsButton.disabled = true;
+        showLoading('Processing request...');
+        
+        // Create a unique transaction reference
+        const transactionRef = `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        
+        // Get auth token
+        const authToken = getAuthToken();
+        if (!authToken) {
+          showError('Authentication token missing. Please log in again.');
+          awardPointsButton.disabled = false;
+          return;
+        }
+        
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        try {
+          // Make API request
+          const response = await fetch('/api/businesses/award-points', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              customerId,
+              programId,
+              points,
+              description,
+              source: 'TEST_TOOL',
+              transactionRef
+            })
+          });
+          
+          // Clear timeout
+          clearTimeout(timeoutId);
+          
+          // Get response as text first
+          const responseText = await response.text();
+          
+          // Try to parse as JSON
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            // Not JSON, use text as is
+            data = { rawResponse: responseText };
+          }
+          
+          // Handle response
+          if (response.ok && data.success) {
+            showSuccess(`Successfully awarded ${points} points to customer!`, data);
+          } else {
+            const errorMessage = data.error || `Error: ${response.status} ${response.statusText}`;
+            showError(errorMessage, data);
+          }
+        } catch (error) {
+          // Handle fetch errors
+          if (error.name === 'AbortError') {
+            showError('Request timed out. The server took too long to respond.', { timeout: true });
+          } else {
+            showError(`Error: ${error.message}`, { error: error.toString() });
+          }
+        } finally {
+          awardPointsButton.disabled = false;
+        }
+      }
+      
+      // Helper Functions
+      function showSuccess(message, data) {
+        const resultElement = document.createElement('div');
+        resultElement.className = 'result success';
+        resultElement.innerHTML = `
+          <h3>Success</h3>
+          <p>${message}</p>
+          <div class="debug">${JSON.stringify(data, null, 2)}</div>
+        `;
+        resultsContainer.prepend(resultElement);
+      }
+      
+      function showError(message, data = {}) {
+        const resultElement = document.createElement('div');
+        resultElement.className = 'result error';
+        resultElement.innerHTML = `
+          <h3>Error</h3>
+          <p>${message}</p>
+          <div class="debug">${JSON.stringify(data, null, 2)}</div>
+        `;
+        resultsContainer.prepend(resultElement);
+      }
+      
+      function showLoading(message) {
+        const resultElement = document.createElement('div');
+        resultElement.className = 'result loading';
+        resultElement.innerHTML = `
+          <div class="spinner"></div>
+          <p>${message}</p>
+        `;
+        resultElement.id = 'loading-indicator';
+        resultsContainer.prepend(resultElement);
+      }
+      
+      function clearResults() {
+        resultsContainer.innerHTML = '';
+      }
+      
+      function getAuthToken() {
+        // Try different storage locations
+        return localStorage.getItem('token') || 
+               localStorage.getItem('auth_token') || 
+               localStorage.getItem('jwt') || 
+               sessionStorage.getItem('token') || 
+               sessionStorage.getItem('auth_token');
+      }
+      
+      function getTokenSource() {
+        if (localStorage.getItem('token')) return 'localStorage.token';
+        if (localStorage.getItem('auth_token')) return 'localStorage.auth_token';
+        if (localStorage.getItem('jwt')) return 'localStorage.jwt';
+        if (sessionStorage.getItem('token')) return 'sessionStorage.token';
+        if (sessionStorage.getItem('auth_token')) return 'sessionStorage.auth_token';
+        return 'No token found';
+      }
+      
+      function parseJwt(token) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          
+          return JSON.parse(jsonPayload);
+        } catch (e) {
+          return null;
+        }
+      }
+      
+      function checkAuthStatus() {
+        const token = getAuthToken();
+        const tokenSource = getTokenSource();
+        
+        if (token) {
+          const decoded = parseJwt(token);
+          
+          if (decoded) {
+            const expiryDate = new Date(decoded.exp * 1000);
+            const now = new Date();
+            
+            if (expiryDate > now) {
+              authStatusElement.textContent = `Authenticated (${decoded.name || decoded.email || 'User'})`;
+              authStatusElement.style.color = '#047857';
+            } else {
+              authStatusElement.textContent = 'Token expired';
+              authStatusElement.style.color = '#b91c1c';
+            }
+            
+            // Fill auth diagnostics
+            authTokenInput.value = `${token.substring(0, 15)}...`;
+            tokenSourceInput.value = tokenSource;
+            tokenExpiryInput.value = expiryDate.toLocaleString();
+            
+            // Check token validity with server
+            validateTokenWithServer(token);
+          } else {
+            authStatusElement.textContent = 'Invalid token format';
+            authStatusElement.style.color = '#b91c1c';
+            
+            authTokenInput.value = 'Invalid token format';
+            tokenSourceInput.value = tokenSource;
+            tokenExpiryInput.value = 'N/A';
+          }
+        } else {
+          authStatusElement.textContent = 'Not authenticated';
+          authStatusElement.style.color = '#b91c1c';
+          
+          authTokenInput.value = 'No token found';
+          tokenSourceInput.value = 'N/A';
+          tokenExpiryInput.value = 'N/A';
+        }
+      }
+      
+      async function validateTokenWithServer(token) {
+        try {
+          const response = await fetch('/api/auth/validate', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          const data = await response.json();
+          
+          const resultElement = document.createElement('div');
+          resultElement.className = response.ok ? 'result success' : 'result error';
+          resultElement.innerHTML = `
+            <h3>Token Validation Result</h3>
+            <p>${response.ok ? 'Token is valid' : 'Token is invalid'}</p>
+            <div class="debug">${JSON.stringify(data, null, 2)}</div>
+          `;
+          
+          authResultsContainer.innerHTML = '';
+          authResultsContainer.appendChild(resultElement);
+        } catch (error) {
+          const resultElement = document.createElement('div');
+          resultElement.className = 'result error';
+          resultElement.innerHTML = `
+            <h3>Token Validation Error</h3>
+            <p>Could not validate token with server: ${error.message}</p>
+          `;
+          
+          authResultsContainer.innerHTML = '';
+          authResultsContainer.appendChild(resultElement);
+        }
+      }
+      
+      function refreshToken() {
+        // This is a simplified version - in a real app, you'd refresh the token via an API
+        // For this test tool, we'll just check if we can find a token in another storage location
+        
+        const token = getAuthToken();
+        if (!token) {
+          showError('No authentication token found in any storage location');
+          return;
+        }
+        
+        // Try to refresh by checking the main app's auth endpoints
+        fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+            showSuccess('Token refreshed successfully', { newToken: `${data.token.substring(0, 15)}...` });
+            checkAuthStatus();
+          } else {
+            showError('Failed to refresh token', data);
+          }
+        })
+        .catch(error => {
+          showError(`Error refreshing token: ${error.message}`);
+        });
+      }
+      
+      function clearToken() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('jwt');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('auth_token');
+        
+        showSuccess('All tokens cleared from storage');
+        checkAuthStatus();
+      }
+    });
+  </script>
+</body>
+</html> 

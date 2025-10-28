@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="VC1">
+    <device id="retina6_5" orientation="portrait" appearance="light" />
+    <scenes>
+        <scene sceneID="S1">
+            <objects>
+                <viewController id="VC1" sceneMemberID="viewController">
+                    <view key="view" userInteractionEnabled="NO" contentMode="scaleToFill" id="V1">
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896" />
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES" />
+                        <subviews>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="AppLogo" translatesAutoresizingMaskIntoConstraints="NO" id="IMG1">
+                                <rect key="frame" x="107" y="360" width="200" height="176" />
+                            </imageView>
+                        </subviews>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor" />
+                        <constraints>
+                            <constraint firstItem="IMG1" firstAttribute="centerX" secondItem="V1" secondAttribute="centerX" id="C1" />
+                            <constraint firstItem="IMG1" firstAttribute="centerY" secondItem="V1" secondAttribute="centerY" id="C2" />
+                            <constraint firstItem="IMG1" firstAttribute="width" constant="200" id="C3" />
+                            <constraint firstItem="IMG1" firstAttribute="height" constant="176" id="C4" />
+                        </constraints>
+                        <viewLayoutGuide key="safeArea" id="SAFE" />
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="FR1" userLabel="First Responder" sceneMemberID="firstResponder" />
+            </objects>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="AppLogo" width="512" height="512" />
+        <systemColor name="systemBackgroundColor">
+            <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace" />
+        </systemColor>
+    </resources>
+</document>
+
+

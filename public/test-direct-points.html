@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Points API Tester</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2563eb;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .form-section, .response-section {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-top: 10px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        button.secondary {
+            background-color: #9ca3af;
+        }
+        button.secondary:hover {
+            background-color: #6b7280;
+        }
+        button.danger {
+            background-color: #ef4444;
+        }
+        button.danger:hover {
+            background-color: #dc2626;
+        }
+        #status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d1fae5;
+            color: #047857;
+            border-left: 4px solid #10b981;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border-left: 4px solid #ef4444;
+        }
+        .pending {
+            background-color: #e5e7eb;
+            color: #4b5563;
+            border-left: 4px solid #6b7280;
+        }
+        .info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+        pre {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 400px;
+            margin-top: 20px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Direct Points API Tester</h1>
+    <p>Test the direct award points API - bypassing the problematic endpoint.</p>
+
+    <div class="container">
+        <div class="form-section">
+            <h2>Award Points Form</h2>
+            
+            <div class="form-group">
+                <label for="customer-id">Customer ID</label>
+                <input type="text" id="customer-id" value="4" placeholder="Enter customer ID">
+            </div>
+            
+            <div class="form-group">
+                <label for="program-id">Program ID</label>
+                <input type="text" id="program-id" value="8" placeholder="Enter program ID">
+            </div>
+            
+            <div class="form-group">
+                <label for="points">Points</label>
+                <input type="number" id="points" value="50" placeholder="Enter points to award">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description</label>
+                <input type="text" id="description" value="Test points award" placeholder="Enter description">
+            </div>
+            
+            <div class="form-group">
+                <label for="source">Source</label>
+                <input type="text" id="source" value="TEST_TOOL" placeholder="Enter source">
+            </div>
+            
+            <div class="form-group">
+                <label for="token">Auth Token</label>
+                <input type="text" id="token" placeholder="Enter or leave empty to use localStorage token">
+            </div>
+            
+            <button id="award-points" type="button">Award Points</button>
+            <button id="check-direct-api" type="button" class="secondary">Check Direct API</button>
+            <button id="clear-response" type="button" class="secondary">Clear Response</button>
+        </div>
+        
+        <div class="response-section">
+            <h2>Response</h2>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="response">Response</div>
+                <div class="tab" data-tab="diagnostics">Diagnostics</div>
+            </div>
+            
+            <div class="tab-content active" id="response-tab">
+                <div id="status-message" class="pending">Waiting for request...</div>
+                <pre id="response">No response yet.</pre>
+            </div>
+            
+            <div class="tab-content" id="diagnostics-tab">
+                <button id="run-diagnostics" type="button" class="secondary">Run Diagnostics</button>
+                <pre id="diagnostics">Run diagnostics to see results...</pre>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/fix-405-error.js"></script>
+    <script>
+        // Tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                
+                // Show the corresponding content
+                const tabId = tab.getAttribute('data-tab');
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+            });
+        });
+        
+        // Helper function to pretty print JSON
+        function prettyPrint(obj) {
+            return JSON.stringify(obj, null, 2);
+        }
+        
+        // Show success or error message
+        function showStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = message;
+            statusElement.className = type;
+        }
+        
+        // Award points using direct API
+        async function awardPointsDirectly() {
+            const customerId = document.getElementById('customer-id').value;
+            const programId = document.getElementById('program-id').value;
+            const points = parseFloat(document.getElementById('points').value);
+            const description = document.getElementById('description').value;
+            const source = document.getElementById('source').value;
+            const tokenInput = document.getElementById('token').value;
+            
+            // Validate inputs
+            if (!customerId || !programId || isNaN(points) || points <= 0) {
+                showStatus('Please provide valid customer ID, program ID, and points', 'error');
+                return;
+            }
+            
+            // Set token if provided
+            if (tokenInput) {
+                localStorage.setItem('token', tokenInput);
+                showStatus('Using provided token', 'info');
+            }
+            
+            showStatus('Sending request...', 'pending');
+            
+            try {
+                // Get token from localStorage
+                const authToken = localStorage.getItem('token') || 
+                                localStorage.getItem('auth_token') || 
+                                localStorage.getItem('jwt');
+                
+                if (!authToken) {
+                    showStatus('No authentication token found. Please provide a token.', 'error');
+                    return;
+                }
+                
+                // Make API request to direct endpoint
+                const response = await fetch('/api/direct/direct-award-points', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        customerId: String(customerId),
+                        programId: String(programId),
+                        points,
+                        description,
+                        source
+                    })
+                });
+                
+                const responseData = await response.json().catch(() => ({ 
+                    error: 'Invalid JSON response', 
+                    status: response.status, 
+                    statusText: response.statusText 
+                }));
+                
+                document.getElementById('response').textContent = prettyPrint(responseData);
+                
+                if (response.ok && responseData.success) {
+                    showStatus(`Successfully awarded ${points} points to customer ${customerId}!`, 'success');
+                } else {
+                    showStatus(responseData.error || `Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                document.getElementById('response').textContent = prettyPrint({ error: error.message });
+            }
+        }
+        
+        // Check if direct API is available
+        async function checkDirectApi() {
+            showStatus('Checking direct API availability...', 'pending');
+            
+            try {
+                const response = await fetch('/api/direct/status', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const data = await response.json().catch(() => ({ 
+                    error: 'Invalid JSON response', 
+                    status: response.status, 
+                    statusText: response.statusText 
+                }));
+                
+                document.getElementById('response').textContent = prettyPrint(data);
+                
+                if (response.ok) {
+                    showStatus('Direct API is available! ✅', 'success');
+                } else {
+                    showStatus('Direct API is not responding correctly. ❌', 'error');
+                }
+            } catch (error) {
+                showStatus(`Error checking direct API: ${error.message}`, 'error');
+                document.getElementById('response').textContent = prettyPrint({ error: error.message });
+            }
+        }
+        
+        // Run diagnostics
+        async function runDiagnostics() {
+            document.getElementById('diagnostics').textContent = 'Running diagnostics...';
+            
+            try {
+                if (typeof window.diagnosePossibleFixes === 'function') {
+                    const diagnostics = await window.diagnosePossibleFixes();
+                    document.getElementById('diagnostics').textContent = prettyPrint(diagnostics);
+                    
+                    // Switch to diagnostics tab
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.querySelector('.tab[data-tab="diagnostics"]').classList.add('active');
+                    document.getElementById('diagnostics-tab').classList.add('active');
+                } else {
+                    document.getElementById('diagnostics').textContent = 'Diagnostics function not available. Make sure fix-405-error.js is loaded.';
+                }
+            } catch (error) {
+                document.getElementById('diagnostics').textContent = `Error running diagnostics: ${error.message}`;
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('award-points').addEventListener('click', awardPointsDirectly);
+        document.getElementById('check-direct-api').addEventListener('click', checkDirectApi);
+        document.getElementById('run-diagnostics').addEventListener('click', runDiagnostics);
+        document.getElementById('clear-response').addEventListener('click', () => {
+            document.getElementById('response').textContent = 'Response cleared.';
+            document.getElementById('status-message').className = 'pending';
+            document.getElementById('status-message').textContent = 'Waiting for request...';
+        });
+        
+        // Auto-run diagnostics on page load
+        window.addEventListener('load', () => {
+            // Check if the token is already set
+            const token = localStorage.getItem('token');
+            if (token) {
+                showStatus(`Auth token found: ${token.substring(0, 10)}...`, 'info');
+            } else {
+                showStatus('No auth token found in localStorage. Please provide one.', 'error');
+            }
+        });
+    </script>
+</body>
+</html> 

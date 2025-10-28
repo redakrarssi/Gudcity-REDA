@@ -1,0 +1,16 @@
+"offline_title" = "أنت غير متصل";
+"offline_subtitle" = "سنستمر في المحاولة في الخلفية";
+"retry" = "إعادة المحاولة";
+"retry_loading" = "إعادة محاولة التحميل";
+"load_failed" = "فشل التحميل. تحقق من الاتصال";
+"load_unable" = "يتعذر التحميل. قد تكون غير متصل";
+"content_refreshed" = "تم تحديث المحتوى";
+"accessibility_webview_label" = "محتوى Vcarda";
+"accessibility_webview_hint" = "انقر نقرًا مزدوجًا للتفاعل مع المحتوى";
+"biometric_unlock_reason" = "فتح Vcarda";
+"privacy_policy_text" = "سياسة الخصوصية: نجمع أقل قدر من البيانات اللازمة لتقديم الخدمة. لا نسجل معلومات شخصية.";
+"terms_text" = "شروط الخدمة: يخضع استخدام التطبيق لشروط موقع الويب.";
+"allow_analytics" = "السماح بالتحليلات (بدون معلومات شخصية)";
+"allow_crash" = "السماح بتقارير الأعطال (بدون معلومات شخصية)";
+"allow_tracking" = "السماح بالتتبع (ATT)";
+
