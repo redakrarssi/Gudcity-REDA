@@ -13,16 +13,9 @@ import {
   getSortParams,
   sql,
   sanitizeInput,
-  errors
-} from '../_middleware';
-
-interface AuthenticatedRequest extends VercelRequest {
-  user?: {
-    userId: number;
-    email: string;
-    role: string;
-  };
-}
+  errors,
+  AuthenticatedRequest
+} from '../_middleware/index.js';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { slug } = req.query;

@@ -58,7 +58,7 @@ export const errors = {
  * Error handling middleware
  */
 export function withErrorHandler(
-  handler: (req: VercelRequest, res: VercelResponse) => Promise<void>
+  handler: (req: VercelRequest, res: VercelResponse) => Promise<any>
 ) {
   return async (req: VercelRequest, res: VercelResponse) => {
     try {
@@ -115,7 +115,7 @@ export function withErrorHandler(
  * Async wrapper for handlers that automatically catches errors
  */
 export function asyncHandler(
-  handler: (req: VercelRequest, res: VercelResponse) => Promise<void>
+  handler: (req: VercelRequest, res: VercelResponse) => Promise<any>
 ) {
   return withErrorHandler(handler);
 }
