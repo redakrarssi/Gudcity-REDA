@@ -6,7 +6,7 @@ import {
   sendError,
   sql,
   testConnection
-} from './_middleware';
+} from './_middleware/index.js';
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {

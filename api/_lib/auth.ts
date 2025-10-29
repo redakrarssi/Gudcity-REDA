@@ -23,7 +23,7 @@ export interface AuthenticatedRequest extends VercelRequest {
 /**
  * JWT verification middleware for serverless functions
  */
-export function withAuth(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<void>) {
+export function withAuth(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<any>) {
   return async (req: AuthenticatedRequest, res: VercelResponse) => {
     try {
       // Check for Authorization header
@@ -37,8 +37,11 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: VercelRespons
       // Extract token
       const token = authHeader.substring(7);
       
-      // Verify token
-      const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+      // Verify token with proper type assertion
+      if (!JWT_SECRET) {
+        throw new Error('JWT_SECRET is not configured');
+      }
+      const decoded = jwt.verify(token, JWT_SECRET) as unknown as TokenPayload;
       req.user = decoded;
       
       // Continue to the actual handler
@@ -70,7 +73,7 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: VercelRespons
  * Role-based access control middleware
  */
 export function withRole(requiredRole: string | string[]) {
-  return function(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<void>) {
+  return function(handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<any>) {
     return withAuth(async (req: AuthenticatedRequest, res: VercelResponse) => {
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -94,6 +97,9 @@ export function withRole(requiredRole: string | string[]) {
  * Generate JWT token
  */
 export function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
   return jwt.sign(payload, JWT_SECRET, { 
     expiresIn: '1h',
     issuer: 'gudcity-api'
@@ -104,6 +110,9 @@ export function generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): strin
  * Generate refresh token
  */
 export function generateRefreshToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
+  if (!JWT_REFRESH_SECRET) {
+    throw new Error('JWT_REFRESH_SECRET is not configured');
+  }
   return jwt.sign(payload, JWT_REFRESH_SECRET, { 
     expiresIn: '7d',
     issuer: 'gudcity-api'
@@ -114,5 +123,8 @@ export function generateRefreshToken(payload: Omit<TokenPayload, 'iat' | 'exp'>)
  * Verify refresh token
  */
 export function verifyRefreshToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+  if (!JWT_REFRESH_SECRET) {
+    throw new Error('JWT_REFRESH_SECRET is not configured');
+  }
+  return jwt.verify(token, JWT_REFRESH_SECRET) as unknown as TokenPayload;
 }
