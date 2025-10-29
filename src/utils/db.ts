@@ -3,11 +3,9 @@ import { neon, neonConfig } from '@neondatabase/serverless';
 // Configure Neon
 neonConfig.fetchConnectionCache = true;
 
-// Database URL from environment variables
-const DATABASE_URL = import.meta.env.VITE_DATABASE_URL || '';
-
-// Check if database URL is available
-const hasDbUrl = !!DATABASE_URL;
+// Note: Database access is now handled by serverless API functions
+// Client-side should not have direct database access for security
+console.warn('Direct database access from client is deprecated. Use apiClient instead.');
 
 // Connection states
 export enum ConnectionState {

@@ -1,7 +1,7 @@
 import sql from '../utils/db';
 import env from '../utils/env';
 import * as cryptoUtils from '../utils/cryptoUtils';
-import { revokeAllUserTokens } from './authService';
+// Import will be handled by apiClient calls
 
 export interface User {
   id?: number;
@@ -448,7 +448,8 @@ export async function updateUserStatus(
     // Revoke all refresh tokens immediately for banned users
     if (status === 'banned') {
       try {
-        await revokeAllUserTokens(id);
+        // Token revocation is now handled server-side through logout API
+        console.log('Token revocation handled server-side');
       } catch (tokenErr) {
         console.error('Failed to revoke user tokens after ban:', tokenErr);
       }

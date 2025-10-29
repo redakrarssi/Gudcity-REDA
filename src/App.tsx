@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import DiagnosticRenderer from './components/DiagnosticRenderer';
 import Pricing from './pages/Pricing';
 import CommentsPage from './pages/Comments';
+import ApiReda from './pages/ApiReda';
 import Unauthorized from './pages/auth/Unauthorized';
 import Suspended from './pages/auth/Suspended';
 import Banned from './pages/auth/Banned';
@@ -205,6 +206,11 @@ function App() {
                 <Route path="/comments" element={
                   <ErrorBoundary>
                     <CommentsPage />
+                  </ErrorBoundary>
+                } />
+                <Route path="/apireda" element={
+                  <ErrorBoundary>
+                    <ApiReda />
                   </ErrorBoundary>
                 } />
                 <Route path="/login" element={

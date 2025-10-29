@@ -1,6 +1,5 @@
 import { apiClient } from '../utils/apiClient';
 
-// User interface for auth service
 export interface User {
   id: number;
   email: string;
@@ -156,14 +155,14 @@ export async function register(userData: {
         }
       };
     } else {
-    return {
+      return {
         success: false,
         error: response.error || 'Registration failed'
       };
     }
   } catch (error) {
     console.error('Registration error:', error);
-  return {
+    return {
       success: false,
       error: 'Registration failed. Please try again.'
     };
@@ -244,10 +243,10 @@ export async function getCurrentUser(): Promise<{
         user: response.data
       };
     } else {
-    return {
+      return {
         success: false,
         error: response.error || 'Failed to get user profile'
-    };
+      };
     }
   } catch (error) {
     console.error('Get current user error:', error);
@@ -280,7 +279,7 @@ export function getUserRole(): string | null {
       const userData = JSON.parse(user);
       return userData.role || null;
     }
-      return null;
+    return null;
   } catch {
     return null;
   }
@@ -297,92 +296,4 @@ export function clearAuth(): void {
   } catch (error) {
     console.warn('Failed to clear auth data:', error);
   }
-}
-
-/**
- * Revoke all user tokens (legacy compatibility)
- * This is now handled server-side through the API
- */
-export async function revokeAllUserTokens(userId: number): Promise<boolean> {
-  try {
-    // In the serverless architecture, token revocation is handled server-side
-    // We just need to clear local tokens and logout
-    await logout();
-    clearAuth();
-    return true;
-  } catch (error) {
-    console.error('Error revoking user tokens:', error);
-    return false;
-  }
-}
-
-/**
- * Generate secure token (legacy compatibility)
- * This is now handled server-side through the API
- */
-export function generateSecureToken(payload: any): string {
-  console.warn('generateSecureToken is deprecated - tokens are now generated server-side');
-  // Return empty string as tokens are now generated server-side
-  return '';
-}
-
-/**
- * Generate refresh token (legacy compatibility)
- * This is now handled server-side through the API
- */
-export function generateSecureRefreshToken(payload: any): string {
-  console.warn('generateSecureRefreshToken is deprecated - tokens are now generated server-side');
-  // Return empty string as tokens are now generated server-side
-  return '';
-}
-
-/**
- * Verify token (legacy compatibility)
- * Token verification is now handled server-side through the API middleware
- */
-export async function verifyToken(token: string): Promise<any> {
-  try {
-    // Use the API client to verify with the server
-    const response = await apiClient.get('/auth/verify', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.success ? response.data : null;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
-}
-
-/**
- * Check rate limit (legacy compatibility)
- * Rate limiting is now handled server-side
- */
-export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempts: number; resetAt: number; lockedUntil?: number } {
-  console.warn('checkRateLimit is deprecated - rate limiting is now handled server-side');
-  return {
-    allowed: true,
-    remainingAttempts: 5,
-    resetAt: Date.now() + 15 * 60 * 1000
-  };
-}
-
-/**
- * Reset rate limit (legacy compatibility)
- * Rate limiting is now handled server-side
- */
-export function resetRateLimit(ip: string): void {
-  console.warn('resetRateLimit is deprecated - rate limiting is now handled server-side');
-}
-
-/**
- * Generate tokens (legacy compatibility)
- * Token generation is now handled server-side
- */
-export async function generateTokens(user: any): Promise<any> {
-  console.warn('generateTokens is deprecated - use login() or register() instead');
-  return {
-    accessToken: '',
-    refreshToken: '',
-    expiresIn: 3600
-  };
 }

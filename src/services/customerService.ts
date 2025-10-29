@@ -1,4 +1,4 @@
-import sql from '../utils/db';
+import { apiClient } from '../utils/apiClient';
 import { NotificationService } from './notificationService';
 import { SqlSecurity } from '../utils/sqlSecurity';
 
