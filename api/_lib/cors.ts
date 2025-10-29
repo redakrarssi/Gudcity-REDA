@@ -19,8 +19,11 @@ export function withCors(handler: (req: VercelRequest, res: VercelResponse) => P
     // Check if origin is allowed
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (process.env.NODE_ENV === 'development') {
+    } else if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
       // Allow all origins in development
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } else {
+      // For production, allow all origins for now (can restrict later)
       res.setHeader('Access-Control-Allow-Origin', '*');
     }
     

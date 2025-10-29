@@ -14,7 +14,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
   sanitizeInput
-} from '../_middleware/index.js';
+} from '../_middleware/index';
 
 // Rate limiting store for auth endpoints
 const loginAttempts: Record<string, { count: number; resetAt: number; lockedUntil?: number }> = {};
@@ -44,7 +44,15 @@ function validatePassword(password: string): { isValid: boolean; errors: string[
 
 // Main handler
 async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   const { action } = req.query;
+  
+  // Log for debugging
+  console.log(`Auth request: ${req.method} /api/auth/${action}`);
   
   switch (action) {
     case 'login':
@@ -64,14 +72,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     case 'me':
       return handleGetMe(req, res);
     default:
-      return sendError(res, 'Invalid action', 404);
+      return sendError(res, `Invalid action: ${action}`, 404);
   }
 }
 
 // Login handler
 async function handleLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return sendError(res, 'Method not allowed', 405);
+    return sendError(res, `Method ${req.method} not allowed. Use POST.`, 405);
   }
   
   const { email, password } = sanitizeInput(req.body);
@@ -380,7 +388,5 @@ async function handleResetPassword(req: VercelRequest, res: VercelResponse) {
 
 // Apply middleware and export
 export default withCors(
-  withErrorHandler(
-    withStrictRateLimit()(handler)
-  )
+  withErrorHandler(handler)
 );

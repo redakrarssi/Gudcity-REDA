@@ -50,7 +50,11 @@
     "test:api:health": "curl http://localhost:3000/api/health || echo 'Health check failed'",
     "check-db-imports": "grep -r 'import sql from' src/ --exclude-dir=api || echo 'No direct DB imports found ✅'",
     "check-old-services": "grep -r \"from '../services/.*Service'\" src/ --exclude=\".api.ts\" || echo 'All services migrated ✅'",
-    "verify-migration": "npm run check-db-imports && npm run check-old-services"
+    "verify-migration": "npm run check-db-imports && npm run check-old-services",
+    "test:auth": "node test-auth-complete.mjs",
+    "test:login": "node test-login-endpoint.js",
+    "setup:demo": "node create-demo-user.js",
+    "dev:test": "node test-server.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
