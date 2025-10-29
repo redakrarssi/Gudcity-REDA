@@ -54,7 +54,8 @@
     "test:auth": "node test-auth-complete.mjs",
     "test:login": "node test-login-endpoint.js",
     "setup:demo": "node create-demo-user.js",
-    "dev:test": "node test-server.js"
+    "dev:test": "node test-server.js",
+    "test:production": "node test-production-deployment.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
