@@ -1,0 +1,12 @@
+# Vercel ignore file
+node_modules/
+.git/
+*.log
+.env.local
+coverage/
+dist/
+test-*
+debug-*
+check-*
+create-*
+API_LOGIN_FIX_GUIDE.md
