@@ -12,7 +12,7 @@ const ALLOWED_ORIGINS = [
 /**
  * CORS middleware for serverless functions
  */
-export function withCors(handler: (req: VercelRequest, res: VercelResponse) => Promise<void>) {
+export function withCors(handler: (req: VercelRequest, res: VercelResponse) => Promise<any>) {
   return async (req: VercelRequest, res: VercelResponse) => {
     const origin = req.headers.origin;
     

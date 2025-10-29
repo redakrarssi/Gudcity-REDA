@@ -26,7 +26,7 @@ export async function testConnection(): Promise<boolean> {
 
 // Transaction support for serverless functions
 export async function withTransaction<T>(
-  callback: (sql: typeof import('@neondatabase/serverless').neon) => Promise<T>
+  callback: (sqlClient: any) => Promise<T>
 ): Promise<T> {
   await sql`BEGIN`;
   try {

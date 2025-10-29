@@ -10,16 +10,9 @@ import {
   getPaginationParams,
   sql,
   sanitizeInput,
-  withTransaction
-} from '../_middleware';
-
-interface AuthenticatedRequest extends VercelRequest {
-  user?: {
-    userId: number;
-    email: string;
-    role: string;
-  };
-}
+  withTransaction,
+  AuthenticatedRequest
+} from '../_middleware/index.js';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { action } = req.query;
@@ -91,7 +84,7 @@ async function handleAwardPoints(req: AuthenticatedRequest, res: VercelResponse)
       let enrollment = await trxSql`
         SELECT * FROM program_enrollments 
         WHERE customer_id = ${customerId} AND program_id = ${programId}
-      `;
+      ` as any[];
       
       if (enrollment.length === 0) {
         // Auto-enroll customer
@@ -103,7 +96,7 @@ async function handleAwardPoints(req: AuthenticatedRequest, res: VercelResponse)
         enrollment = await trxSql`
           SELECT * FROM program_enrollments 
           WHERE customer_id = ${customerId} AND program_id = ${programId}
-        `;
+        ` as any[];
       }
       
       // Award points
@@ -114,7 +107,7 @@ async function handleAwardPoints(req: AuthenticatedRequest, res: VercelResponse)
             last_activity = NOW()
         WHERE customer_id = ${customerId} AND program_id = ${programId}
         RETURNING *
-      `;
+      ` as any[];
       
       // Record transaction
       const transaction = await trxSql`
@@ -127,7 +120,7 @@ async function handleAwardPoints(req: AuthenticatedRequest, res: VercelResponse)
           ${description}, ${source}, ${req.user?.userId}, NOW()
         )
         RETURNING *
-      `;
+      ` as any[];
       
       return { enrollment: updatedEnrollment[0], transaction: transaction[0] };
     });
@@ -163,7 +156,7 @@ async function handleRedeemPoints(req: AuthenticatedRequest, res: VercelResponse
       const enrollments = await trxSql`
         SELECT * FROM program_enrollments 
         WHERE customer_id = ${customerId} AND program_id = ${programId} AND status = 'ACTIVE'
-      `;
+      ` as any[];
       
       if (enrollments.length === 0) {
         throw new Error('Customer not enrolled in program');
@@ -182,7 +175,7 @@ async function handleRedeemPoints(req: AuthenticatedRequest, res: VercelResponse
             last_activity = NOW()
         WHERE customer_id = ${customerId} AND program_id = ${programId}
         RETURNING *
-      `;
+      ` as any[];
       
       // Record transaction
       const transaction = await trxSql`
@@ -195,7 +188,7 @@ async function handleRedeemPoints(req: AuthenticatedRequest, res: VercelResponse
           ${rewardDescription}, ${req.user?.userId}, NOW()
         )
         RETURNING *
-      `;
+      ` as any[];
       
       return { enrollment: updatedEnrollment[0], transaction: transaction[0] };
     });
@@ -212,7 +205,7 @@ async function handleRedeemPoints(req: AuthenticatedRequest, res: VercelResponse
 }
 
 // Get points history
-async function handlePointsHistory(req: VercelResponse, res: VercelResponse) {
+async function handlePointsHistory(req: AuthenticatedRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return sendError(res, 'Method not allowed', 405);
   }
@@ -248,7 +241,7 @@ async function handlePointsHistory(req: VercelResponse, res: VercelResponse) {
       ORDER BY pt.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
-    params.push(limit, offset);
+    params.push(String(limit), String(offset));
     
     const history = await sql.query(historyQuery, params);
     

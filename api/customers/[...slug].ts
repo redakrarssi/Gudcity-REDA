@@ -10,12 +10,9 @@ import {
   sendPaginated,
   getPaginationParams,
   sql,
-  sanitizeInput
-} from '../_middleware';
-
-interface AuthenticatedRequest extends VercelRequest {
-  user?: { userId: number; email: string; role: string; };
-}
+  sanitizeInput,
+  AuthenticatedRequest
+} from '../_middleware/index.js';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { slug } = req.query;

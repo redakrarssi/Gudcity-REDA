@@ -10,12 +10,9 @@ import {
   sendError,
   sendCreated,
   sql,
-  sanitizeInput
-} from '../_middleware';
-
-interface AuthenticatedRequest extends VercelRequest {
-  user?: { userId: number; email: string; role: string; };
-}
+  sanitizeInput,
+  AuthenticatedRequest
+} from '../_middleware/index.js';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { action } = req.query;
@@ -79,14 +76,12 @@ async function handleGenerateQR(req: AuthenticatedRequest, res: VercelResponse) 
     const qrString = JSON.stringify(qrData);
     const qrImageUrl = await QRCode.toDataURL(qrString, {
       errorCorrectionLevel: 'M',
-      type: 'image/png',
-      quality: 0.92,
       margin: 1,
       color: {
         dark: '#000000',
         light: '#FFFFFF'
       }
-    });
+    } as any);
     
     // Store QR code in database
     const qrCodes = await sql`

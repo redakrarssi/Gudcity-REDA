@@ -14,7 +14,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
   sanitizeInput
-} from '../_middleware';
+} from '../_middleware/index.js';
 
 // Rate limiting store for auth endpoints
 const loginAttempts: Record<string, { count: number; resetAt: number; lockedUntil?: number }> = {};
