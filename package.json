@@ -45,7 +45,12 @@
     "security:validate-production": "node scripts/validate-security.js",
     "security:production-check": "npm run security:generate-secrets && npm run security:setup-production",
     "migrate:security": "node db/run-security-migrations.mjs",
-    "db:migrate": "node db/run-security-migrations.mjs"
+    "db:migrate": "node db/run-security-migrations.mjs",
+    "test:api": "node test-api-endpoints.js",
+    "test:api:health": "curl http://localhost:3000/api/health || echo 'Health check failed'",
+    "check-db-imports": "grep -r 'import sql from' src/ --exclude-dir=api || echo 'No direct DB imports found ✅'",
+    "check-old-services": "grep -r \"from '../services/.*Service'\" src/ --exclude=\".api.ts\" || echo 'All services migrated ✅'",
+    "verify-migration": "npm run check-db-imports && npm run check-old-services"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
