@@ -1,0 +1,6 @@
+# Vercel redirects for SPA routing
+# API routes should be handled by serverless functions
+/api/*  /api/:splat  200
+
+# All other routes should redirect to index.html for client-side routing
+/*  /index.html  200
