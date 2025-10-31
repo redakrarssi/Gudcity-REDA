@@ -34,7 +34,7 @@
       ]
     },
     {
-      "source": "/:file(.*\\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|json|woff|woff2|ttf|eot))",
+      "source": "/:file*",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
