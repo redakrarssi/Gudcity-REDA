@@ -4,9 +4,12 @@ import { neon, neonConfig } from '@neondatabase/serverless';
 neonConfig.fetchConnectionCache = true;
 
 // Server-only database URL (no VITE_ prefix)
-const DATABASE_URL = process.env.DATABASE_URL;
+// In local development, fall back to VITE_DATABASE_URL if DATABASE_URL is not set
+const DATABASE_URL = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
 
 if (!DATABASE_URL) {
+  console.error('? DATABASE_URL environment variable is required for serverless functions');
+  console.error('Please set DATABASE_URL in your Vercel project environment variables');
   throw new Error('DATABASE_URL environment variable is required for serverless functions');
 }
 
