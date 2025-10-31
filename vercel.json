@@ -9,6 +9,14 @@
   },
   "rewrites": [
     {
+      "source": "/apireda/",
+      "destination": "/api"
+    },
+    {
+      "source": "/apireda",
+      "destination": "/api"
+    },
+    {
       "source": "/apireda/:path*",
       "destination": "/api/:path*"
     },
