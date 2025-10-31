@@ -15,7 +15,7 @@ import {
   sanitizeInput,
   errors,
   AuthenticatedRequest
-} from '../_middleware/index.js';
+} from '../_middleware/index';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { slug } = req.query;

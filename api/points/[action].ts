@@ -12,7 +12,7 @@ import {
   sanitizeInput,
   withTransaction,
   AuthenticatedRequest
-} from '../_middleware/index.js';
+} from '../_middleware/index';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   const { action } = req.query;
