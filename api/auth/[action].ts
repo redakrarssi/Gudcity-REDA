@@ -19,6 +19,26 @@ import {
 // Rate limiting store for auth endpoints
 const loginAttempts: Record<string, { count: number; resetAt: number; lockedUntil?: number }> = {};
 
+type AuthHandler = (req: VercelRequest, res: VercelResponse) => Promise<void> | void;
+
+type MethodHandlers = Partial<Record<string, AuthHandler>> & { ANY?: AuthHandler };
+
+const AUTH_ACTIONS: Record<string, MethodHandlers> = {
+  login: { POST: handleLogin },
+  register: { POST: handleRegister },
+  logout: { POST: handleLogout },
+  refresh: { POST: handleRefreshToken },
+  verify: { POST: handleVerifyToken },
+  'forgot-password': { POST: handleForgotPassword },
+  'reset-password': { POST: handleResetPassword },
+  me: { GET: handleGetMe }
+};
+
+const ACTION_ALIASES: Record<string, keyof typeof AUTH_ACTIONS> = {
+  'refresh-token': 'refresh',
+  'verify-token': 'verify'
+};
+
 // Password validation
 function validatePassword(password: string): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -49,31 +69,40 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
   
-  const { action } = req.query;
-  
-  // Log for debugging
-  console.log(`Auth request: ${req.method} /api/auth/${action}`);
-  
-  switch (action) {
-    case 'login':
-      return handleLogin(req, res);
-    case 'register':
-      return handleRegister(req, res);
-    case 'logout':
-      return handleLogout(req, res);
-    case 'refresh':
-      return handleRefreshToken(req, res);
-    case 'verify':
-      return handleVerifyToken(req, res);
-    case 'forgot-password':
-      return handleForgotPassword(req, res);
-    case 'reset-password':
-      return handleResetPassword(req, res);
-    case 'me':
-      return handleGetMe(req, res);
-    default:
-      return sendError(res, `Invalid action: ${action}`, 404);
+  const actionParam = req.query.action;
+  const rawAction = Array.isArray(actionParam) ? actionParam[0] : actionParam;
+
+  if (!rawAction) {
+    return sendError(res, 'Auth action is required', 400, 'INVALID_ACTION');
   }
+
+  const normalizedAction = String(rawAction).trim().toLowerCase();
+  const canonicalAction = ACTION_ALIASES[normalizedAction] ?? normalizedAction;
+
+  // Log for debugging
+  console.log(`Auth request: ${req.method} /api/auth/${canonicalAction}`);
+
+  const handlerConfig = AUTH_ACTIONS[canonicalAction];
+
+  if (!handlerConfig) {
+    return sendError(res, `Invalid action: ${canonicalAction}`, 404, 'INVALID_ACTION');
+  }
+
+  const method = (req.method ?? 'GET').toUpperCase();
+  const actionHandler = handlerConfig[method] ?? handlerConfig.ANY;
+
+  if (!actionHandler) {
+    const allowedMethods = Object.keys(handlerConfig).filter(key => key !== 'ANY');
+    return sendError(
+      res,
+      `Method ${method} not allowed for action ${canonicalAction}`,
+      405,
+      'METHOD_NOT_ALLOWED',
+      { allowedMethods }
+    );
+  }
+
+  return actionHandler(req, res);
 }
 
 // Login handler
